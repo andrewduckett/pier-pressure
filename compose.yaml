@@ -1,0 +1,34 @@
+# Local development stack.
+#
+#   docker compose up -d mosquitto     # just the broker (for integration tests)
+#   docker compose --profile full up   # broker + PierPressure against it
+#   docker compose down                # stop everything
+#
+# The broker allows anonymous access on 1883 — dev only (see mosquitto/mosquitto.conf).
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    healthcheck:
+      # A publish succeeds only once the listener is accepting connections.
+      test: ["CMD", "mosquitto_pub", "-h", "localhost", "-t", "healthcheck", "-m", "ok"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Optional: run PierPressure against the local broker. Enable with:
+  #   docker compose --profile full up
+  # Needs a ./config.yaml pointing mqtt.host at "mosquitto".
+  pierpressure:
+    profiles: ["full"]
+    build: .
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+    environment:
+      PIERPRESSURE_MQTT_PASSWORD: "${PIERPRESSURE_MQTT_PASSWORD:-}"
