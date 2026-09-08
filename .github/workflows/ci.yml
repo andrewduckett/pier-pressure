@@ -1,6 +1,7 @@
 name: CI
 
-# Runs the full gate (`just check` = lint + typecheck + test) on push and PR.
+# On push and PR, runs the full gate (`just check` = lint + typecheck + test) and
+# the opt-in integration tests against a throwaway Mosquitto broker.
 # Activates once the repo is pushed to GitHub.
 on:
   push:
@@ -27,3 +28,25 @@ jobs:
 
       - name: Run checks
         run: just check
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install just
+        uses: extractions/setup-just@v2
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Sync dependencies
+        run: uv sync --frozen
+
+      # Brings up the Compose broker (--wait for healthy), runs
+      # `pytest -m integration`, and tears the stack down even on failure.
+      - name: Run integration tests
+        run: just test-integration
