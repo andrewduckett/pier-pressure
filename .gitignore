@@ -1,0 +1,48 @@
+# Build outputs
+dist/
+build/
+*.egg-info/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+# uv.lock IS committed (reproducible builds) — do not ignore it.
+
+# Environment files (keep .env.example)
+.env
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Archive files
+*.tar.gz
+*.zip
+*.7z
+*.rar
+
+# AI tooling
+.claude/settings.local.json
+.claude/worktrees/
