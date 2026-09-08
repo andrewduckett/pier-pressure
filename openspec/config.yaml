@@ -1,0 +1,67 @@
+schema: spec-driven-review
+
+# Project context (optional)
+# This is shown to AI when creating artifacts.
+context: |
+  PierPressure decides "is tonight worth setting up for, and what should I point
+  at from this pier?" and delivers a verdict into Home Assistant. Roadmap and
+  milestone status live in docs/roadmap.md.
+
+  Durable constraints (honor in every artifact):
+  - Core is pure Python 3.12+ with zero Home Assistant imports; it is
+    deterministic and testable off Home Assistant (same inputs, including a
+    pinned evaluation instant, yield the same verdict document).
+  - The core emits ONE JSON verdict document; that document plus the MQTT entity
+    mapping are the stable contract all milestones build against. Reserve new
+    fields early (stubbed) rather than reshaping the document later.
+  - Delivery to Home Assistant is via MQTT discovery (auto-created entities);
+    REST is an acceptable fallback adapter. Home Assistant must never be
+    load-bearing for freshness or correctness.
+  - The core runs as a persistent container that owns its own freshness:
+    recompute on startup, on a configurable interval, and on demand via a
+    "show me now" MQTT command surfaced as a refresh button. Notification timing
+    lives in a Home Assistant automation, not the core.
+  - Verdict model: hard GATES (any fail -> NO-GO with a reason and null score)
+    then a banded 0-100 SCORE only when gates pass; reasons[] are the itemized
+    gate/score terms.
+  - Target observability windows are hard-clamped to astronomical night (sun
+    below -18 degrees), regardless of any user-requested view window.
+  - confidence {band: LOW|MEDIUM|HIGH, value: 0-100} reflects forecast
+    lead-time/freshness and rises as dusk nears.
+  - No single external data source is load-bearing: providers sit behind an
+    interface with caching and graceful fallback.
+  - The LLM layer is optional and never feeds the astronomy/ephemeris math; it
+    only explains an already-computed verdict. The system degrades gracefully
+    without it.
+  - Astronomy stack: Skyfield / Astroplan / Astropy.
+  - Toolchain: uv (env/deps/lockfile), just (task runner), ruff (lint AND
+    format - no black), mypy (types), pytest (tests), pre-commit, GitHub
+    Actions CI running `just check`. Python pinned to 3.12.
+#
+# Example:
+#   context: |
+#     Tech stack: TypeScript, React, Node.js
+#     We use conventional commits
+#     Domain: e-commerce platform
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing
