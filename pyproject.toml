@@ -1,0 +1,50 @@
+[project]
+name = "pierpressure"
+version = "0.1.0"
+description = "Decides whether tonight is worth setting up for from a pier, and delivers the verdict into Home Assistant over MQTT."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2",
+    "paho-mqtt>=2",
+    "PyYAML",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pierpressure"]
+
+[dependency-groups]
+# Synced by default by `uv sync`, so `just check` has its tools locally and in CI.
+dev = [
+    "pytest",
+    "ruff",
+    "mypy",
+    "pre-commit",
+    "jsonschema",
+    "types-PyYAML",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+packages = ["pierpressure"]
+strict = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "integration: opt-in tests that require a real local MQTT broker (deselected by default)",
+]
+addopts = "-m 'not integration'"
