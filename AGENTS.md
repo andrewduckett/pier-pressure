@@ -51,6 +51,5 @@ Write every document artifact — READMEs, ADRs, OpenSpec proposals/designs/spec
 Language** standard: reader-first, purposeful structure, findable, understandable,
 and actionable. Apply the core standard (`iso-24495-1`) to all prose, and the
 science/technical sector standard (`iso-24495-3`) to architecture specs, design
-docs, and software documentation. Prefer the loaded `iso-24495-plain-language`
-skills over ad-hoc style choices. This governs prose only — code, config, and test
+docs, and software documentation. This governs prose only — code, config, and test
 fixtures follow the toolchain's own conventions.
