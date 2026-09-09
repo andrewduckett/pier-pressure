@@ -17,7 +17,11 @@ These are the durable constraints. The genuinely hard-to-reverse ones become ADR
   (including a pinned evaluation instant) yield the same verdict document.
 - **One contract.** The core emits a single JSON verdict document. That document
   plus the MQTT entity mapping are the stable contract every milestone builds
-  against. New fields are reserved early (stubbed) to avoid reshaping it later.
+  against. Frozen: the delivery surface (topics, entities, entity mapping) and the
+  meaning of existing fields — never reshaped. Additive growth (new fields/objects)
+  as a milestone's science arrives is allowed and expected; reserve a field early
+  (stubbed) when its shape is already known, rather than inventing one before the
+  milestone that defines it.
 - **MQTT-discovery delivery.** Entities reach Home Assistant via MQTT discovery
   (auto-created, no hand YAML). REST is an acceptable fallback adapter.
 - **HA is never load-bearing.** The core runs as a persistent container that owns
@@ -56,11 +60,16 @@ retire the integration risk before any science is written.
 - Persistent container: publish on startup + interval + on-demand "show me now".
 - Minimal config: one pier + broker + recompute interval. Deterministic tests.
 
-### M2 — Sky & light core  ·  status: planned
+### M2 — Sky & light core  ·  status: in progress
+Change: `add-sky-light-core`
+
 Real ephemeris math behind the frozen contract.
-- Astronomical twilight windows → fills `dark_window`; enforces the astro-night
-  clamp. Moon phase / altitude / illumination. Target alt/az over the night grid
-  (time-sampled dusk→dawn). Still no weather.
+- Astronomical twilight windows → fills `dark_window` (instant-relative night
+  selection; polar continuous-night/no-night handled distinctly); enforces the
+  astro-night clamp. Moon phase / illumination + above-horizon behaviour across
+  the dark window (new `moon` object). Deterministic and fully offline (Skyfield,
+  pinned ephemeris). Still no weather. (Target alt/az sampling moved to M5, where
+  it has a consumer.)
 
 ### M3 — Conditions → real go/no-go  ·  status: planned
 Turn stubs into a real verdict.
@@ -78,9 +87,11 @@ Multiple sites, each with a horizon mask.
 
 ### M5 — Target catalog + ranking  ·  status: planned
 Fill the `targets` list.
-- Catalog source (Messier / OpenNGC). Rank on visibility window, altitude above
-  the horizon mask, moon separation, transit time, and equipment FOV-fit. Clamped
-  to astronomical night per the cross-cutting rule.
+- Catalog source (Messier / OpenNGC). Target alt/az sampled over the night grid
+  (time-sampled dusk→dawn; deferred here from M2 so it is built with its ranking
+  consumer). Rank on visibility window, altitude above the horizon mask, moon
+  separation, transit time, and equipment FOV-fit. Clamped to astronomical night
+  per the cross-cutting rule.
 
 ### M6 — LLM explainer + suggestions  ·  status: planned
 Optional prose layer.

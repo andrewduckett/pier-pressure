@@ -12,8 +12,12 @@ context: |
     deterministic and testable off Home Assistant (same inputs, including a
     pinned evaluation instant, yield the same verdict document).
   - The core emits ONE JSON verdict document; that document plus the MQTT entity
-    mapping are the stable contract all milestones build against. Reserve new
-    fields early (stubbed) rather than reshaping the document later.
+    mapping are the stable contract all milestones build against. What is frozen
+    is the delivery surface (topics, entities, entity mapping) and the meaning of
+    existing fields — never reshape those. Growing the document ADDITIVELY (new
+    fields/objects) as a milestone's science arrives is allowed and expected;
+    reserve a field early (stubbed) when its shape is already known, but do not
+    invent a shape before the milestone that defines it.
   - Delivery to Home Assistant is via MQTT discovery (auto-created entities);
     REST is an acceptable fallback adapter. Home Assistant must never be
     load-bearing for freshness or correctness.

@@ -12,6 +12,8 @@ from pierpressure.core.model import (
     Band,
     Confidence,
     DarkWindow,
+    Moon,
+    MoonPhase,
     Verdict,
     VerdictDocument,
 )
@@ -25,7 +27,10 @@ EXPECTED_KEY_ORDER = [
     "reasons",
     "targets",
     "dark_window",
+    "moon",
 ]
+
+_STUB_MOON = Moon(illumination=0.0, phase=MoonPhase.NEW)
 
 
 def _gated_no_go() -> VerdictDocument:
@@ -38,6 +43,7 @@ def _gated_no_go() -> VerdictDocument:
         reasons=["No dark window tonight"],
         targets=[],
         dark_window=DarkWindow(start=None, end=None),
+        moon=_STUB_MOON,
     )
 
 
@@ -75,6 +81,7 @@ def test_naive_generated_at_is_rejected() -> None:
             reasons=["x"],
             targets=[],
             dark_window=DarkWindow(),
+            moon=_STUB_MOON,
         )
 
 
@@ -91,6 +98,7 @@ def test_non_utc_timezone_is_normalized_to_utc() -> None:
         reasons=["x"],
         targets=[],
         dark_window=DarkWindow(),
+        moon=_STUB_MOON,
     )
     assert json.loads(doc.to_json())["generated_at"] == "2026-09-07T21:30:00Z"
 
@@ -107,6 +115,7 @@ def test_out_of_range_score_is_rejected(bad_score: int) -> None:
             reasons=["x"],
             targets=[],
             dark_window=DarkWindow(),
+            moon=_STUB_MOON,
         )
 
 
@@ -127,9 +136,56 @@ def test_unknown_verdict_is_rejected() -> None:
             reasons=["x"],
             targets=[],
             dark_window=DarkWindow(),
+            moon=_STUB_MOON,
         )
 
 
 def test_unknown_confidence_band_is_rejected() -> None:
     with pytest.raises(ValidationError):
         Confidence(band="SORTOF", value=50)  # type: ignore[arg-type]
+
+
+# --------------------------------------------------------------------------- #
+# Task 2.2: whole-second precision normalized at validation (design D3)
+# --------------------------------------------------------------------------- #
+
+
+def _doc_with_generated_at(instant: datetime) -> VerdictDocument:
+    return VerdictDocument(
+        pier="backyard",
+        generated_at=instant,
+        verdict=Verdict.MAYBE,
+        score=50,
+        confidence=Confidence(band=Band.LOW, value=0),
+        reasons=["x"],
+        targets=[],
+        dark_window=DarkWindow(),
+        moon=_STUB_MOON,
+    )
+
+
+def test_generated_at_microseconds_are_stripped_in_memory() -> None:
+    doc = _doc_with_generated_at(datetime(2026, 9, 7, 21, 30, 15, 123456, tzinfo=UTC))
+    # Normalized at validation, not only at serialization.
+    assert doc.generated_at.microsecond == 0
+    assert doc.generated_at == datetime(2026, 9, 7, 21, 30, 15, tzinfo=UTC)
+
+
+def test_generated_at_serializes_at_whole_second_precision() -> None:
+    doc = _doc_with_generated_at(datetime(2026, 9, 7, 21, 30, 15, 999999, tzinfo=UTC))
+    assert json.loads(doc.to_json())["generated_at"] == "2026-09-07T21:30:15Z"
+
+
+def test_microsecond_bearing_generated_at_round_trips() -> None:
+    doc = _doc_with_generated_at(datetime(2026, 9, 7, 21, 30, 15, 123456, tzinfo=UTC))
+    reloaded = VerdictDocument.model_validate_json(doc.to_json())
+    assert reloaded == doc
+
+
+def test_dark_window_microseconds_are_stripped_in_memory() -> None:
+    window = DarkWindow(
+        start=datetime(2026, 9, 7, 20, 15, 30, 654321, tzinfo=UTC),
+        end=datetime(2026, 9, 8, 4, 45, 10, 111111, tzinfo=UTC),
+    )
+    assert window.start is not None and window.start.microsecond == 0
+    assert window.end is not None and window.end.microsecond == 0
