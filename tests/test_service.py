@@ -105,7 +105,9 @@ def test_command_on_refresh_topic_republishes_with_current_timestamp() -> None:
     service = Service(config, delivery, SystemClock())
     delivery.subscribe_refresh(["backyard"], service.enqueue_refresh)
 
-    command_time = datetime.now(UTC)
+    # Document timestamps are floored to whole seconds (design D3), so compare
+    # against a likewise-floored capture of the command instant.
+    command_time = datetime.now(UTC).replace(microsecond=0)
     # Simulate the broker delivering a refresh command to the callback.
     client.on_message(client, None, FakeMessage(refresh_command_topic("pierpressure", "backyard")))
 

@@ -8,11 +8,14 @@ Python core computes a single deterministic **verdict document** per pier; an
 MQTT-discovery adapter turns it into Home Assistant entities you can put on a
 dashboard and trigger notifications from.
 
-This is the **M1 walking skeleton**: the full pipe (config → verdict document →
-MQTT entities → refresh on demand) works end to end, but the decision values are
-**stubbed** (`verdict: MAYBE`, `score: 50`). The document contract and the MQTT
-entity mapping are real and frozen; later milestones fill in the astronomy,
-conditions, and target ranking behind the same contract.
+The full pipe (config → verdict document → MQTT entities → refresh on demand)
+works end to end. As of **M2** the sky math is real: `dark_window` is the true
+astronomical-night window and the document carries a real `moon` object, both
+computed deterministically and fully offline. The remaining decision values
+(`verdict`, `score`, `confidence`, `targets`) are still **stubbed**
+(`verdict: MAYBE`, `score: 50`) pending later milestones. The document contract
+and the MQTT entity mapping are real and frozen; each milestone replaces a stub
+with real math behind the same contract.
 
 ## 🧩 The Problem
 
@@ -102,12 +105,64 @@ Publishing a pier `<pier>` creates one Home Assistant **device**
 | Refresh command | `pierpressure/<pier>/refresh/command` | no |
 | Availability (LWT) | `pierpressure/status` | yes |
 
-- **Verdict** (sensor): state is `GO`, `MAYBE`, or `NO-GO`; the reasons, score,
-  confidence, night window, pier id, and generation timestamp are JSON attributes.
+- **Verdict** (sensor): state is `GO`, `MAYBE`, or `NO-GO`; the full verdict
+  document (below) — reasons, score, confidence, night window, moon, pier id, and
+  generation timestamp — is published as JSON attributes.
 - **Score** (sensor): the numeric 0–100 score. On a gated `NO-GO` the score is
   `null` and the entity renders **unavailable** rather than `0`.
 - **Refresh** (button): a "show me now" control that triggers an immediate
   recompute and republish for that pier.
+
+### The verdict document (JSON attributes)
+
+The verdict sensor's attributes are the one JSON document the whole system is
+built around. Every key is always present; a value with no data is `null`, never
+omitted. All timestamps are UTC ISO-8601 with a `Z` suffix at whole-second
+precision.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `pier` | string | The pier id from config. |
+| `generated_at` | timestamp | When this document was computed (from the injected clock). |
+| `verdict` | `GO` \| `MAYBE` \| `NO-GO` | The go/no-go decision. *(M1 stub: always `MAYBE`.)* |
+| `score` | int 0–100 or `null` | Banded score when gates pass; `null` on a gated `NO-GO`. *(M1 stub: `50`.)* |
+| `confidence` | object | `{ band: LOW\|MEDIUM\|HIGH, value: 0–100 }`. *(M1 stub: `LOW`/`0`.)* |
+| `reasons` | list of strings | The itemized gate/score terms. *(M1 stub: one skeleton note.)* |
+| `targets` | list | Ranked targets. *(Empty until M5.)* |
+| `dark_window` | object | Astronomical night: `{ start, end }` (see below). |
+| `moon` | object | The moon's illumination, phase, and behaviour across the dark window (see below). |
+
+**`dark_window`** — the astronomical-night boundary (sun's centre below −18°) for
+the night selected relative to `generated_at`: the night whose dawn is the first
+dawn at or after that instant (so "tonight" is correct whether asked in the
+afternoon or after midnight).
+
+- `start`, `end`: UTC instants of astronomical dusk and dawn, with `start`
+  strictly before `end`.
+- Both are `null` when there is **no astronomical darkness** — e.g. high-latitude
+  summer (the sun never drops below −18°), or a grazing sub-second night that
+  collapses to nothing at whole-second precision. Continuous polar-winter night
+  (the sun never rises above −18°) yields a **non-null** window anchored to the
+  local solar day, not a null one.
+
+**`moon`** — always carries `illumination` and `phase`; the across-window fields
+are `null` when `dark_window` is null.
+
+- `illumination`: illuminated fraction, `0`–`1` (2 decimal places).
+- `phase`: one of the eight standard phases — `new`, `waxing crescent`,
+  `first quarter`, `waxing gibbous`, `full`, `waning gibbous`, `last quarter`,
+  `waning crescent`.
+- `up_during_dark`: `true`/`false` — is the moon above the horizon at any point
+  during the dark window; `null` when there is no dark window.
+- `rise`, `set`: UTC instants of moonrise/moonset **within** the dark window, or
+  `null` when the moon does not rise/set within it (or there is no dark window).
+  "Above the horizon", moonrise, and moonset use the moon's geometric centre
+  crossing 0° altitude (no refraction or lunar-radius correction).
+
+The astronomical fields are computed with a version-pinned ephemeris and
+Skyfield's built-in timescale — **fully offline and deterministic** (same pier
+and instant → byte-identical document). See
+[`docs/adr/0004-deterministic-offline-astronomy.md`](docs/adr/0004-deterministic-offline-astronomy.md).
 
 ### Notifying at a chosen time (Home Assistant automation)
 

@@ -51,4 +51,4 @@
 ## 9. Final verification
 
 - [x] 9.1 Run `just check` (lint + typecheck + full pytest) and confirm it passes green.
-- [ ] 9.2 Deploy the container against the real HAOS broker and complete the manual HA acceptance checklist (8.4), recording the result — this is the end-to-end proof the walking skeleton exists.
+- [x] 9.2 Deploy the container against the real HAOS broker and complete the manual HA acceptance checklist (8.4), recording the result — this is the end-to-end proof the walking skeleton exists.

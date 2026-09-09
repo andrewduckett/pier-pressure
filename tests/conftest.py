@@ -16,6 +16,8 @@ from pierpressure.core.model import (
     Band,
     Confidence,
     DarkWindow,
+    Moon,
+    MoonPhase,
     Verdict,
     VerdictDocument,
 )
@@ -187,4 +189,5 @@ def make_document(
         reasons=["test reason"],
         targets=[],
         dark_window=DarkWindow(start=None, end=None),
+        moon=Moon(illumination=0.0, phase=MoonPhase.NEW),
     )

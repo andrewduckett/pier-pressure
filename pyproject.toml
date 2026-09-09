@@ -8,6 +8,8 @@ dependencies = [
     "pydantic>=2",
     "paho-mqtt>=2",
     "PyYAML",
+    "skyfield>=1.55",
+    "skyfield-data>=7.0.0",
 ]
 
 [build-system]
@@ -42,9 +44,20 @@ strict = true
 warn_unused_ignores = true
 warn_redundant_casts = true
 
+# Skyfield and its data package ship no type information; treat them as an
+# untyped boundary (values cross as Any) confined to core/sky.py.
+[[tool.mypy.overrides]]
+module = ["skyfield.*", "skyfield_data.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
     "integration: opt-in tests that require a real local MQTT broker (deselected by default)",
 ]
 addopts = "-m 'not integration'"
+filterwarnings = [
+    # Skyfield 1.55's find_discrete sets an array dtype in-place, which NumPy 2.5
+    # deprecates. Upstream, not ours; both versions are lockfile-pinned.
+    "ignore:Setting the dtype on a NumPy array has been deprecated:DeprecationWarning:skyfield",
+]
