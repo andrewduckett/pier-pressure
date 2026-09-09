@@ -41,31 +41,15 @@ context: |
   - Toolchain: uv (env/deps/lockfile), just (task runner), ruff (lint AND
     format - no black), mypy (types), pytest (tests), pre-commit, GitHub
     Actions CI running `just check`. Python pinned to 3.12.
-#
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+rules:
+  proposal:
+    - "Write in plain language per ISO 24495-1: reader-first, purposefully structured, findable, understandable, and actionable."
+  specs:
+    - "Write in plain language per ISO 24495 (core -1; technical content also -3): reader-first, structured, findable, and actionable."
+  design:
+    - "Write in plain language per ISO 24495 (core -1; technical content also -3): reader-first, structured, findable, and actionable."
+  adr:
+    - "Write in plain language per ISO 24495 (core -1; technical content also -3): reader-first, structured, findable, and actionable."
+  review:
+    - "Write in plain language per ISO 24495-1: reader-first, purposefully structured, findable, understandable, and actionable."
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
-
-# Per-operation guidance (optional)
-# Add advisory guidance for how apply and archive work should be conducted.
-# This is separate from artifact rules above.
-# Example:
-#   operations:
-#     apply:
-#       guidance:
-#         - Keep test summaries concise
-#     archive:
-#       guidance:
-#         - Summarize the archive outcome before finishing
