@@ -10,6 +10,7 @@ dependencies = [
     "PyYAML",
     "skyfield>=1.55",
     "skyfield-data>=7.0.0",
+    "httpx>=0.28.1",
 ]
 
 [build-system]

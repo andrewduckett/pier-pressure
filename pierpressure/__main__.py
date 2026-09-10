@@ -11,6 +11,7 @@ import logging
 import os
 import sys
 
+from pierpressure.conditions import build_provider
 from pierpressure.core.clock import SystemClock
 from pierpressure.core.config import ConfigError, load_config
 from pierpressure.delivery.mqtt import DeliveryError, MqttDelivery
@@ -42,7 +43,7 @@ def main(argv: list[str] | None = None) -> int:
         logger.error("Startup delivery failure: %s", exc)
         return 1
 
-    service = Service(config, delivery, SystemClock())
+    service = Service(config, delivery, SystemClock(), conditions_provider=build_provider().get)
     delivery.subscribe_refresh([pier.id for pier in config.piers], service.enqueue_refresh)
 
     logger.info("PierPressure started for %d pier(s)", len(config.piers))

@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from pierpressure.core.conditions import ConditionsSnapshot, HourlyConditions
 from pierpressure.core.config import MqttConfig, PierConfig
 from pierpressure.core.model import (
     Band,
@@ -160,6 +161,35 @@ class ScriptedMonotonic:
 
 def make_pier(pier_id: str = "backyard") -> PierConfig:
     return PierConfig(id=pier_id, latitude=51.5, longitude=-0.12, elevation_m=30.0)
+
+
+def make_conditions(
+    *,
+    cloud: float | None = 20.0,
+    wind: float | None = 15.0,
+    seeing: float | None = 0.7,
+    transparency: float | None = 0.7,
+    issued_at: datetime | None = None,
+) -> ConditionsSnapshot:
+    """A fixed hourly snapshot spanning an evening-to-morning horizon.
+
+    The horizon (18:00 -> next 06:00 UTC) comfortably brackets a London night, so
+    the core finds real overlap with the dark window. Being fixed, it pins the
+    conditions input for byte-identity determinism tests.
+    """
+    issued = issued_at or datetime(2026, 9, 8, 12, 0, tzinfo=UTC)
+    base = datetime(2026, 9, 8, 18, 0, tzinfo=UTC)
+    hours = tuple(
+        HourlyConditions(
+            time=base + timedelta(hours=h),
+            cloud_cover=cloud,
+            wind_gust=wind,
+            seeing=seeing,
+            transparency=transparency,
+        )
+        for h in range(13)
+    )
+    return ConditionsSnapshot(hours=hours, base_issued_at=issued, secondary_issued_at=issued)
 
 
 def make_mqtt_config(**overrides: Any) -> MqttConfig:

@@ -24,13 +24,24 @@ import time
 from collections.abc import Callable
 
 from pierpressure.core.clock import Clock
-from pierpressure.core.config import AppConfig
+from pierpressure.core.conditions import ConditionsSnapshot
+from pierpressure.core.config import AppConfig, PierConfig
 from pierpressure.core.producer import produce_verdict
 from pierpressure.delivery.mqtt import MqttDelivery
 
 logger = logging.getLogger(__name__)
 
 MonotonicFn = Callable[[], float]
+
+# A conditions provider: given a pier, return an already-obtained snapshot. It
+# never raises — a failed fetch yields a partial (possibly empty) snapshot, so
+# the service always publishes an honest verdict (design D6).
+ConditionsProvider = Callable[[PierConfig], ConditionsSnapshot]
+
+
+def _no_conditions(_pier: PierConfig) -> ConditionsSnapshot:
+    """Fallback provider: an empty snapshot (astronomy-only verdicts)."""
+    return ConditionsSnapshot()
 
 
 class Service:
@@ -42,6 +53,7 @@ class Service:
         delivery: MqttDelivery,
         clock: Clock,
         refresh_queue: queue.Queue[str] | None = None,
+        conditions_provider: ConditionsProvider | None = None,
     ) -> None:
         self._config = config
         self._delivery = delivery
@@ -50,6 +62,7 @@ class Service:
             refresh_queue if refresh_queue is not None else queue.Queue()
         )
         self._piers = {pier.id: pier for pier in config.piers}
+        self._conditions_provider = conditions_provider or _no_conditions
 
     def enqueue_refresh(self, pier_id: str) -> None:
         """Callback for the network thread: record an on-demand refresh request."""
@@ -61,12 +74,23 @@ class Service:
         if pier is None:
             logger.warning("Ignoring refresh for unknown pier %r", pier_id)
             return
-        self._delivery.publish_verdict(produce_verdict(pier, self._clock))
+        self._publish(pier)
 
     def publish_all(self) -> None:
         """Recompute and publish every configured pier."""
         for pier in self._config.piers:
-            self._delivery.publish_verdict(produce_verdict(pier, self._clock))
+            self._publish(pier)
+
+    def _publish(self, pier: PierConfig) -> None:
+        """Fetch this pier's conditions and publish its recomputed verdict.
+
+        Fetching happens here — before the pure core runs — on startup, on the
+        interval, and on an on-demand refresh alike, so the container owns its own
+        freshness (design D7). The provider never raises; a failed fetch degrades
+        to a partial snapshot rather than skipping a publish.
+        """
+        conditions = self._conditions_provider(pier)
+        self._delivery.publish_verdict(produce_verdict(pier, self._clock, conditions))
 
     def _drain_refreshes(self, first: str) -> set[str]:
         """Collapse duplicate queued refreshes into one recompute per pier (D7).

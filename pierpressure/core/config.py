@@ -26,6 +26,12 @@ logger = logging.getLogger(__name__)
 
 _ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
+# The system-wide go-threshold applied when a pier omits its own (design D8, and
+# the tuning value locked in task 5.1). A gate-passing night scores GO at or
+# above this and MAYBE below it. Chosen so a clearly good night (mostly clear,
+# little moon) reads GO while a middling one reads MAYBE.
+DEFAULT_GO_THRESHOLD = 65
+
 
 class ConfigError(Exception):
     """A configuration is missing required fields, malformed, or has no valid pier."""
@@ -55,6 +61,12 @@ class PierConfig(BaseModel):
     latitude: float = Field(ge=-90.0, le=90.0)
     longitude: float = Field(ge=-180.0, le=180.0)
     elevation_m: float
+    # The only two tuning knobs (design D8). ``go_threshold`` defaults to the
+    # global value when omitted. ``max_gust`` is opt-in: when omitted the wind
+    # gate is disabled and no forecast gust can cause a NO-GO. Its unit is the
+    # forecast gust unit the provider layer supplies (km/h).
+    go_threshold: int = Field(default=DEFAULT_GO_THRESHOLD, ge=0, le=100)
+    max_gust: float | None = Field(default=None, gt=0.0)
 
 
 class AppConfig(BaseModel):
