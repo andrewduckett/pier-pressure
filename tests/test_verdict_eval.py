@@ -202,6 +202,25 @@ def test_missing_wind_caps_at_maybe_when_a_limit_is_configured() -> None:
     assert any("wind" in r.lower() for r in decision.reasons)
 
 
+def test_partial_wind_coverage_caps_at_maybe_when_a_limit_is_configured() -> None:
+    # Clear night; wind present and safe for most hours, but one hour has no wind
+    # data. The limit cannot be confirmed for that hour, so never GO.
+    slots = hour_slots(*_WINDOW)
+    hours = tuple(
+        HourlyConditions(
+            time=s,
+            cloud_cover=0.0,
+            wind_gust=None if i == len(slots) - 1 else 10.0,  # last hour missing
+        )
+        for i, s in enumerate(slots)
+    )
+    snap = ConditionsSnapshot(hours=hours, base_issued_at=_INSTANT)
+    decision = evaluate(_pier(max_gust=40.0, go_threshold=50), _INSTANT, _WINDOW, snap, _new_moon())
+    assert decision.verdict is Verdict.MAYBE
+    assert decision.verdict is not Verdict.GO
+    assert any("wind" in r.lower() for r in decision.reasons)
+
+
 def test_missing_wind_without_a_limit_is_irrelevant() -> None:
     # No max_gust configured: absent wind must not cap a clear night.
     decision = evaluate(

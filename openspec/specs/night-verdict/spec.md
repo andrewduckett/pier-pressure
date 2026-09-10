@@ -282,7 +282,7 @@ The verdict SHALL judge the night by how much usable dark time it offers, not by
 
 ### Requirement: The verdict degrades honestly when conditions are unavailable
 
-When conditions data is missing, the verdict SHALL degrade rather than fail or mislead. Missing optional data (seeing or transparency) SHALL drop only its own contribution and lower confidence. When a wind-gust limit is configured for the pier but wind data is unavailable, the safety limit cannot be checked: the verdict SHALL NOT be `GO` and SHALL be capped at `MAYBE`, so a configured safety limit is never silently ignored, with a reason that wind data is unavailable and lowered confidence. The hard gates SHALL be evaluated before the missing-cloud rule applies: a failed hard gate that does not depend on cloud data — no dark window, or a configured wind gust over its limit — SHALL still yield `NO-GO` even when cloud data is missing, so a safety-critical gate is never overridden by a missing observation. Only when every hard gate passes does the missing-cloud rule apply: when cloud data for the dark window is entirely unavailable, the verdict SHALL NOT be `GO` (there is no evidence the sky is clear) and SHALL NOT be `NO-GO` on account of the missing data itself (absence of data is not a dealbreaker); it SHALL be `MAYBE` with a `score` of 0 (no evidence the night is usable), a `confidence.value` of 0 in the `LOW` band, and a reason stating that conditions are unavailable. A verdict SHALL always be produced.
+When conditions data is missing, the verdict SHALL degrade rather than fail or mislead. Missing optional data (seeing or transparency) SHALL drop only its own contribution and lower confidence. When a wind-gust limit is configured for the pier but wind data does not cover the whole dark window, the safety limit cannot be confirmed for every hour, so it SHALL be treated as unavailable: this holds whether wind data is absent for the entire window or only for some of its hours, because an unchecked hour could exceed the limit. When the limit is treated as unavailable this way — and no hour with wind data has already failed the gate — the verdict SHALL NOT be `GO` and SHALL be capped at `MAYBE`, so a configured safety limit is never silently ignored, with a reason that wind data is unavailable and lowered confidence. The hard gates SHALL be evaluated before the missing-cloud rule applies: a failed hard gate that does not depend on cloud data — no dark window, or a configured wind gust over its limit — SHALL still yield `NO-GO` even when cloud data is missing, so a safety-critical gate is never overridden by a missing observation. Only when every hard gate passes does the missing-cloud rule apply: when cloud data for the dark window is entirely unavailable, the verdict SHALL NOT be `GO` (there is no evidence the sky is clear) and SHALL NOT be `NO-GO` on account of the missing data itself (absence of data is not a dealbreaker); it SHALL be `MAYBE` with a `score` of 0 (no evidence the night is usable), a `confidence.value` of 0 in the `LOW` band, and a reason stating that conditions are unavailable. A verdict SHALL always be produced.
 
 #### Scenario: Missing cloud data caps the verdict at MAYBE when gates pass
 
@@ -303,6 +303,13 @@ When conditions data is missing, the verdict SHALL degrade rather than fail or m
 #### Scenario: Missing wind data caps the verdict at MAYBE when a limit is configured
 
 - **WHEN** a pier has a configured wind-gust limit, every gate that can be evaluated passes, and wind-gust data is unavailable for the dark window
+- **THEN** the `verdict` is not `GO`
+- **AND** the `verdict` is `MAYBE`
+- **AND** a reason states that wind data is unavailable
+
+#### Scenario: Partial wind coverage caps the verdict at MAYBE when a limit is configured
+
+- **WHEN** a pier has a configured wind-gust limit, no hour with wind data exceeds it, but at least one hour of the dark window has no wind data
 - **THEN** the `verdict` is not `GO`
 - **AND** the `verdict` is `MAYBE`
 - **AND** a reason states that wind data is unavailable
