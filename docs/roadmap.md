@@ -49,7 +49,7 @@ These are the durable constraints. The genuinely hard-to-reverse ones become ADR
 
 ## Milestones
 
-### M1 — Walking skeleton  ·  status: in progress
+### M1 — Walking skeleton  ·  status: done
 Change: `add-walking-skeleton`
 
 Thinnest end-to-end pipe with a **stubbed** verdict, to freeze the contract and
@@ -60,7 +60,7 @@ retire the integration risk before any science is written.
 - Persistent container: publish on startup + interval + on-demand "show me now".
 - Minimal config: one pier + broker + recompute interval. Deterministic tests.
 
-### M2 — Sky & light core  ·  status: in progress
+### M2 — Sky & light core  ·  status: done
 Change: `add-sky-light-core`
 
 Real ephemeris math behind the frozen contract.
