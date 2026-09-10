@@ -8,8 +8,9 @@ import pytest
 from pydantic import ValidationError
 
 from pierpressure.core.clock import FixedClock
+from pierpressure.core.conditions import ConditionsSnapshot
 from pierpressure.core.config import PierConfig
-from pierpressure.core.model import Band, MoonPhase, Verdict
+from pierpressure.core.model import MoonPhase, Verdict
 from pierpressure.core.producer import produce_verdict
 from pierpressure.delivery.mqtt import DeliveryError
 
@@ -17,15 +18,16 @@ from .conftest import make_pier
 from .offline_guard import no_network
 
 
-def test_decision_fields_are_still_m1_stubs() -> None:
-    clock = FixedClock(datetime(2026, 9, 7, 21, 30, tzinfo=UTC))
+def test_decision_fields_are_real_and_degrade_honestly_without_conditions() -> None:
+    # With no conditions snapshot, cloud is entirely absent: the verdict degrades
+    # honestly to MAYBE (never a false GO/NO-GO) rather than the old M1 stub.
+    clock = FixedClock(datetime(2026, 9, 8, 14, 0, tzinfo=UTC))
     with no_network():
-        doc = produce_verdict(make_pier(), clock)
+        doc = produce_verdict(make_pier(), clock, ConditionsSnapshot())
     assert doc.verdict is Verdict.MAYBE
-    assert doc.score == 50
-    assert doc.confidence.band is Band.LOW
+    assert doc.score == 0
     assert doc.confidence.value == 0
-    assert len(doc.reasons) == 1 and doc.reasons[0]
+    assert len(doc.reasons) >= 1 and all(r.strip() for r in doc.reasons)
     assert doc.targets == []
 
 
@@ -33,7 +35,7 @@ def test_dark_window_and_moon_are_real_for_a_pinned_site_and_instant() -> None:
     # make_pier() is London; a daytime instant selects that evening's night.
     clock = FixedClock(datetime(2026, 9, 8, 14, 0, tzinfo=UTC))
     with no_network():
-        doc = produce_verdict(make_pier(), clock)
+        doc = produce_verdict(make_pier(), clock, ConditionsSnapshot())
 
     # Real astronomical-night window, not the M1 null stub.
     assert doc.dark_window.start is not None and doc.dark_window.end is not None
@@ -52,8 +54,8 @@ def test_determinism_is_byte_identical_and_pins_the_instant() -> None:
     clock = FixedClock(instant)
     pier = make_pier()
 
-    first = produce_verdict(pier, clock)
-    second = produce_verdict(pier, clock)
+    first = produce_verdict(pier, clock, ConditionsSnapshot())
+    second = produce_verdict(pier, clock, ConditionsSnapshot())
 
     assert first.to_json() == second.to_json()
     assert first.generated_at == instant

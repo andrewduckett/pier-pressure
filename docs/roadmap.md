@@ -71,7 +71,9 @@ Real ephemeris math behind the frozen contract.
   pinned ephemeris). Still no weather. (Target alt/az sampling moved to M5, where
   it has a consumer.)
 
-### M3 — Conditions → real go/no-go  ·  status: planned
+### M3 — Conditions → real go/no-go  ·  status: done
+Change: `add-conditions-verdict` (archived)
+
 Turn stubs into a real verdict.
 - Provider interface (lean: Open-Meteo base + 7Timer! for seeing/transparency)
   with caching + fallback. Real hard gates (no dark window; overcast across the

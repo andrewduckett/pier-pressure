@@ -1,0 +1,22 @@
+{
+  "latitude": 51.5,
+  "longitude": -0.12,
+  "generationtime_ms": 0.12,
+  "utc_offset_seconds": 0,
+  "timezone": "GMT",
+  "hourly_units": {
+    "time": "iso8601",
+    "cloud_cover": "%",
+    "wind_gusts_10m": "km/h"
+  },
+  "hourly": {
+    "time": [
+      "2026-09-08T20:00",
+      "2026-09-08T21:00",
+      "2026-09-08T22:00",
+      "2026-09-08T23:00"
+    ],
+    "cloud_cover": [10, 20, null, 40],
+    "wind_gusts_10m": [15.0, 18.5, 22.0, 12.0]
+  }
+}

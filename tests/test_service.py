@@ -17,6 +17,7 @@ from .conftest import (
     ScriptedMonotonic,
     ScriptedQueue,
     StepClock,
+    make_conditions,
     make_mqtt_config,
     make_pier,
 )
@@ -28,6 +29,22 @@ def _app_config(interval: int = 10, pier_ids: tuple[str, ...] = ("backyard",)) -
         recompute=RecomputeConfig(interval_seconds=interval),
         piers=[make_pier(pid) for pid in pier_ids],
     )
+
+
+def test_full_recompute_with_a_provider_publishes_a_real_verdict() -> None:
+    # A stub provider supplies a clear-sky snapshot; a full recompute must publish
+    # a real, gate-passing verdict (non-null integer score, itemised reasons) —
+    # not the empty-snapshot "conditions unavailable" degradation.
+    delivery = RecordingDelivery()
+    clock = FixedClock(datetime(2026, 9, 8, 14, 0, tzinfo=UTC))  # London daytime -> that night
+    provider = lambda _pier: make_conditions(cloud=5.0)  # noqa: E731
+    service = Service(_app_config(), delivery, clock, conditions_provider=provider)  # type: ignore[arg-type]
+    service.run(monotonic=ScriptedMonotonic([0.0]), max_iterations=0)
+
+    doc = delivery.documents[0]
+    assert doc.verdict.value in {"GO", "MAYBE"}
+    assert isinstance(doc.score, int)
+    assert any("Cloud:" in reason for reason in doc.reasons)
 
 
 def test_startup_publishes_all_piers() -> None:

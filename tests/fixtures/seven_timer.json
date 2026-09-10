@@ -1,0 +1,8 @@
+{
+  "product": "astro",
+  "init": "2026090818",
+  "dataseries": [
+    {"timepoint": 3, "cloudcover": 2, "seeing": 2, "transparency": 3, "rh2m": 10},
+    {"timepoint": 6, "cloudcover": 3, "seeing": 4, "transparency": 5, "rh2m": 11}
+  ]
+}

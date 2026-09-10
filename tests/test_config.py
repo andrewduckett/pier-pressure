@@ -5,8 +5,15 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
-from pierpressure.core.config import ConfigError, load_config, validate_piers
+from pierpressure.core.config import (
+    DEFAULT_GO_THRESHOLD,
+    ConfigError,
+    PierConfig,
+    load_config,
+    validate_piers,
+)
 
 VALID_CONFIG = """
 mqtt:
@@ -98,6 +105,57 @@ piers:
 """
     with pytest.raises(ConfigError):
         load_config(_write(tmp_path, text))
+
+
+def test_omitted_go_threshold_uses_the_global_default() -> None:
+    pier = PierConfig(id="p", latitude=51.5, longitude=-0.12, elevation_m=30.0)
+    assert pier.go_threshold == DEFAULT_GO_THRESHOLD
+
+
+def test_explicit_go_threshold_overrides_the_default() -> None:
+    pier = PierConfig(id="p", latitude=51.5, longitude=-0.12, elevation_m=30.0, go_threshold=80)
+    assert pier.go_threshold == 80
+
+
+@pytest.mark.parametrize("bad", [-1, 101, 150])
+def test_go_threshold_out_of_range_is_rejected(bad: int) -> None:
+    with pytest.raises(ValidationError):
+        PierConfig(id="p", latitude=51.5, longitude=-0.12, elevation_m=30.0, go_threshold=bad)
+
+
+def test_omitted_max_gust_disables_the_wind_gate() -> None:
+    pier = PierConfig(id="p", latitude=51.5, longitude=-0.12, elevation_m=30.0)
+    assert pier.max_gust is None
+
+
+def test_max_gust_is_stored_when_set() -> None:
+    pier = PierConfig(id="p", latitude=51.5, longitude=-0.12, elevation_m=30.0, max_gust=40.0)
+    assert pier.max_gust == 40.0
+
+
+@pytest.mark.parametrize("bad", [0.0, -5.0])
+def test_non_positive_max_gust_is_rejected(bad: float) -> None:
+    with pytest.raises(ValidationError):
+        PierConfig(id="p", latitude=51.5, longitude=-0.12, elevation_m=30.0, max_gust=bad)
+
+
+def test_go_threshold_and_max_gust_load_from_yaml(tmp_path: Path) -> None:
+    text = """
+mqtt:
+  host: 192.168.1.10
+recompute:
+  interval_seconds: 900
+piers:
+  - id: backyard
+    latitude: 51.50
+    longitude: -0.12
+    elevation_m: 30
+    go_threshold: 70
+    max_gust: 45
+"""
+    config = load_config(_write(tmp_path, text))
+    assert config.piers[0].go_threshold == 70
+    assert config.piers[0].max_gust == 45.0
 
 
 def test_validate_piers_isolates_each_entry() -> None:
