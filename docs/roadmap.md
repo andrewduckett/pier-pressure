@@ -100,7 +100,7 @@ Richer cloud detail in the score (additive; builds on the M3.5 group model).
   Additive `reasons[]`, no contract break. This is the science the discarded M3
   attempt carried and the shipped M3 lacks.
 
-### M4 — Pier sites + horizon mask  ·  status: planned
+### M4 — Pier sites + horizon mask  ·  status: done
 Multiple sites, each with a horizon mask.
 - Manage multiple piers. Canonical internal horizon representation (sampled
   `(az, alt)`), with importers for Stellarium / NINA `.hrz` / Telescopius. A
