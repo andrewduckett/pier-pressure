@@ -28,7 +28,10 @@ def test_decision_fields_are_real_and_degrade_honestly_without_conditions() -> N
     assert doc.score == 0
     assert doc.confidence.value == 0
     assert len(doc.reasons) >= 1 and all(r.strip() for r in doc.reasons)
-    assert doc.targets == []
+    # Targets come from astronomy, not conditions: the London night still yields a
+    # ranked list even with no conditions snapshot (M5 fills the once-empty stub).
+    assert doc.targets
+    assert all(0 <= t.score <= 100 for t in doc.targets)
 
 
 def test_dark_window_and_moon_are_real_for_a_pinned_site_and_instant() -> None:

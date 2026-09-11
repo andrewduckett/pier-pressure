@@ -9,13 +9,15 @@ MQTT-discovery adapter turns it into Home Assistant entities you can put on a
 dashboard and trigger notifications from.
 
 The full pipe (config → verdict document → MQTT entities → refresh on demand)
-works end to end. As of **M2** the sky math is real: `dark_window` is the true
-astronomical-night window and the document carries a real `moon` object, both
-computed deterministically and fully offline. The remaining decision values
-(`verdict`, `score`, `confidence`, `targets`) are still **stubbed**
-(`verdict: MAYBE`, `score: 50`) pending later milestones. The document contract
-and the MQTT entity mapping are real and frozen; each milestone replaces a stub
-with real math behind the same contract.
+works end to end, computed deterministically and fully offline. The sky math is
+real (`dark_window` and the `moon` object), the decision is real (`verdict`,
+`score`, `confidence`, and `reasons` from the conditions gates and banded score),
+each pier has a horizon mask, and as of **M5** the `targets` list is a ranked set
+of deep-sky objects worth pointing at tonight — see
+[docs/target-ranking.md](docs/target-ranking.md). The document contract and the
+MQTT entity mapping are real and frozen; each milestone fills a field with real
+math behind the same contract. The remaining stub is the optional M6 LLM prose
+layer.
 
 ## 🧩 The Problem
 

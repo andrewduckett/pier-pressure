@@ -215,9 +215,7 @@ def test_relative_horizon_file_is_not_found_via_process_cwd(
     config_dir.mkdir()
     cwd = tmp_path / "cwd"
     cwd.mkdir()
-    (cwd / "horizon.hrz").write_text(
-        _NINA_FIXTURE.read_text(encoding="utf-8"), encoding="utf-8"
-    )
+    (cwd / "horizon.hrz").write_text(_NINA_FIXTURE.read_text(encoding="utf-8"), encoding="utf-8")
     text = _config_with_pier(
         """  - id: backyard
     latitude: 51.5

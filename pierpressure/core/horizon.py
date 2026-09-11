@@ -139,9 +139,7 @@ def flat(altitude: float) -> Horizon:
     lie in 0 to 90 degrees.
     """
     if not _ALTITUDE_MIN <= altitude <= _ALTITUDE_MAX:
-        raise ValueError(
-            f"flat horizon altitude {altitude} is outside 0 to 90 degrees"
-        )
+        raise ValueError(f"flat horizon altitude {altitude} is outside 0 to 90 degrees")
     return Horizon.from_samples([(0.0, altitude)])
 
 

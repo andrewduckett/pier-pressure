@@ -1,0 +1,40 @@
+# Third-party data notices
+
+PierPressure bundles third-party data. This file records what is bundled, where
+it came from, and the license it carries. It is the attribution required by that
+license and the record of the version pin.
+
+## OpenNGC deep-sky object catalog
+
+- **What:** the OpenNGC NGC/IC object database and its addendum, used as the
+  deep-sky object catalog for target ranking (milestone M5).
+- **Files:** `pierpressure/data/openngc/NGC.csv` and
+  `pierpressure/data/openngc/addendum.csv`, committed byte-for-byte as released.
+- **Source:** OpenNGC — https://github.com/mattiaverga/OpenNGC
+- **Author:** Mattia Verga, with contributors listed in the upstream `AUTHORS`
+  file (Patrick Chevalley, Christian Dersch, Jean-Sebastien Dieu,
+  Sebastian Godelet, Mattia Verga).
+- **Version pinned:** release tag `v20260501`
+  (commit `36cb178a0f69dba8bfc03a99c10512831edf1c6b`). The committed bytes are the
+  version pin: updating the catalog is a deliberate, reviewed re-vendor of new
+  files, not a dependency bump (ADR-0008).
+- **SHA-256 of the committed files (as released upstream):**
+  - `NGC.csv`: `840fe0c9ee1332e551b2e722a0e92726cd7b157914a3d2177602832aadd3aa9e`
+  - `addendum.csv`: `1d8f0914e643ada325a5a94d88d8fefad6a4937a2f77cc34f21483af22b11983`
+- **License:** Creative Commons Attribution-ShareAlike 4.0 International
+  (CC-BY-SA-4.0). The full license text is bundled alongside the data at
+  `pierpressure/data/openngc/LICENSE-CC-BY-SA-4.0.txt`.
+
+### Share-alike compatibility
+
+The OpenNGC data is licensed CC-BY-SA-4.0, which requires attribution and that
+adaptations of the data be shared under the same or a compatible license. This
+repository does not yet declare its own license. The CC-BY-SA-4.0 obligation
+therefore applies only to the bundled data and to adaptations of it, not to the
+project's source code, which is a separate work that merely reads the data.
+
+If a license is later chosen for this repository's own code, it must remain
+compatible with redistributing the bundled CC-BY-SA-4.0 data — the data files and
+their attribution and license stay under CC-BY-SA-4.0 regardless of the code's
+license. This share-alike compatibility is a merge-time check for any change that
+alters how the catalog is bundled.

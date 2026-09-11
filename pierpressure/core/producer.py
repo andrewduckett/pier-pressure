@@ -19,6 +19,7 @@ from .clock import Clock
 from .conditions import Conditions
 from .config import PierConfig
 from .model import Confidence, DarkWindow, VerdictDocument
+from .ranking import rank_targets
 from .scoring import evaluate
 from .sky import dark_window, moon_info
 
@@ -40,6 +41,7 @@ def produce_verdict(pier: PierConfig, clock: Clock, conditions: Conditions) -> V
     window = dark_window(pier, instant)
     moon = moon_info(pier, window, instant)
     decision = evaluate(pier, instant, window, conditions, moon)
+    targets = rank_targets(pier, instant, window, moon)
 
     start, end = window
     return VerdictDocument(
@@ -49,7 +51,7 @@ def produce_verdict(pier: PierConfig, clock: Clock, conditions: Conditions) -> V
         score=decision.score,
         confidence=Confidence(band=decision.band, value=decision.confidence),
         reasons=decision.reasons,
-        targets=[],
+        targets=targets,
         dark_window=DarkWindow(start=start, end=end),
         moon=moon,
     )
