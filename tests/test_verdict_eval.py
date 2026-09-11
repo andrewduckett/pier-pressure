@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from pierpressure.core.conditions import ConditionsSnapshot, HourlyConditions
+from pierpressure.core.conditions import (
+    BaseGroup,
+    BaseHour,
+    Conditions,
+    GroupMeta,
+    SecondaryGroup,
+    SecondaryHour,
+)
 from pierpressure.core.config import PierConfig
 from pierpressure.core.model import Band, Moon, MoonPhase, Verdict
 from pierpressure.core.scoring import evaluate, hour_slots
@@ -36,14 +43,17 @@ def _snapshot(
     transparency: float | None = None,
     issued_at: datetime | None = _INSTANT,
     window: tuple[datetime, datetime] = _WINDOW,
-) -> ConditionsSnapshot:
-    hours = tuple(
-        HourlyConditions(
-            time=s, cloud_cover=cloud, wind_gust=wind, seeing=seeing, transparency=transparency
-        )
-        for s in hour_slots(*window)
+) -> Conditions:
+    slots = hour_slots(*window)
+    base = BaseGroup.of(
+        GroupMeta(source="base", issued_at=issued_at),
+        tuple(BaseHour(time=s, cloud_cover=cloud, wind_gust=wind) for s in slots),
     )
-    return ConditionsSnapshot(hours=hours, base_issued_at=issued_at, secondary_issued_at=issued_at)
+    secondary = SecondaryGroup.of(
+        GroupMeta(source="secondary", issued_at=issued_at),
+        tuple(SecondaryHour(time=s, seeing=seeing, transparency=transparency) for s in slots),
+    )
+    return Conditions(base=base, secondary=secondary)
 
 
 # --------------------------------------------------------------------------- #
@@ -52,7 +62,7 @@ def _snapshot(
 
 
 def test_no_dark_window_gates_to_no_go_with_null_score() -> None:
-    decision = evaluate(_pier(), _INSTANT, _NO_WINDOW, ConditionsSnapshot(), _new_moon())
+    decision = evaluate(_pier(), _INSTANT, _NO_WINDOW, Conditions(), _new_moon())
     assert decision.verdict is Verdict.NO_GO
     assert decision.score is None
     assert any(
@@ -145,7 +155,7 @@ def test_a_window_off_whole_hours_still_yields_a_bounded_score() -> None:
 
 
 def test_astronomy_only_no_go_is_high_confidence_100() -> None:
-    decision = evaluate(_pier(), _INSTANT, _NO_WINDOW, ConditionsSnapshot(), _new_moon())
+    decision = evaluate(_pier(), _INSTANT, _NO_WINDOW, Conditions(), _new_moon())
     assert decision.band is Band.HIGH
     assert decision.confidence == 100
 
@@ -206,15 +216,18 @@ def test_partial_wind_coverage_caps_at_maybe_when_a_limit_is_configured() -> Non
     # Clear night; wind present and safe for most hours, but one hour has no wind
     # data. The limit cannot be confirmed for that hour, so never GO.
     slots = hour_slots(*_WINDOW)
-    hours = tuple(
-        HourlyConditions(
-            time=s,
-            cloud_cover=0.0,
-            wind_gust=None if i == len(slots) - 1 else 10.0,  # last hour missing
-        )
-        for i, s in enumerate(slots)
+    base = BaseGroup.of(
+        GroupMeta(source="base", issued_at=_INSTANT),
+        tuple(
+            BaseHour(
+                time=s,
+                cloud_cover=0.0,
+                wind_gust=None if i == len(slots) - 1 else 10.0,  # last hour missing
+            )
+            for i, s in enumerate(slots)
+        ),
     )
-    snap = ConditionsSnapshot(hours=hours, base_issued_at=_INSTANT)
+    snap = Conditions(base=base)
     decision = evaluate(_pier(max_gust=40.0, go_threshold=50), _INSTANT, _WINDOW, snap, _new_moon())
     assert decision.verdict is Verdict.MAYBE
     assert decision.verdict is not Verdict.GO

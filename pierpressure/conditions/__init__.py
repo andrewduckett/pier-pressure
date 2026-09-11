@@ -2,10 +2,11 @@
 
 All network access, caching, and graceful fallback live here, outside the pure
 core. The layer fetches cloud and wind (base source) and seeing and transparency
-(secondary source) from independent external forecasts and merges them into an
-immutable :class:`~pierpressure.core.conditions.ConditionsSnapshot`. No single
-source is load-bearing: one source failing degrades the snapshot to a partial
-result rather than failing it, and a transient outage is bridged by cache.
+(secondary source) from independent external forecasts and promotes them into an
+immutable per-source :class:`~pierpressure.core.conditions.Conditions` value. No
+single source is load-bearing: one source failing degrades the result to a present
+group beside an absent one rather than failing it, and a transient outage is
+bridged by cache.
 
 The core imports nothing from this package — the dependency runs one way, so the
 core stays offline and deterministic while conditions are fetched live.
