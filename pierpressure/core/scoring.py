@@ -111,6 +111,11 @@ def _wind_at(conditions: Conditions, slot: datetime) -> float | None:
     return hour.wind_gust if hour is not None else None
 
 
+def _cloud_high_at(conditions: Conditions, slot: datetime) -> float | None:
+    hour = _base_hour(conditions, slot)
+    return hour.cloud_high if hour is not None else None
+
+
 def _seeing_at(conditions: Conditions, slot: datetime) -> float | None:
     hour = _secondary_hour(conditions, slot)
     return hour.seeing if hour is not None else None
@@ -200,6 +205,39 @@ def optional_term_mean(
     return numerator / denominator
 
 
+def high_cloud_penalty(window: tuple[datetime, datetime], conditions: Conditions) -> float | None:
+    """The high/thin-cloud penalty in ``[0, 1]`` or ``None`` (design D2).
+
+    The clarity-weighted mean of ``cloud_high / 100`` over exactly the hours that
+    carry **both** total ``cloud_cover`` and the ``cloud_high`` component, with the
+    denominator restricted to those same hours — computed like
+    :func:`optional_term_mean`, **not** like :func:`moon_penalty`. Restricting the
+    denominator keeps an hour missing ``cloud_high`` from diluting the penalty
+    (which would read missing cirrus as clear sky); ``moon_penalty`` can divide by
+    every clear hour only because moon-up is defined for every hour, whereas
+    ``cloud_high`` is optional. Clarity-weighting means a fully-overcast hour
+    (``q = 0``) adds nothing — it is already penalised by the total-cloud term — so
+    the penalty bites on hours that read otherwise clear but carry cirrus aloft.
+    Returns ``None`` when no hour qualifies, so the caller drops the term entirely.
+    """
+    start, end = window
+    numerator = 0.0
+    denominator = 0.0
+    for slot in hour_slots(start, end):
+        cloud = _cloud_at(conditions, slot)
+        if cloud is None:
+            continue
+        high = _cloud_high_at(conditions, slot)
+        if high is None:
+            continue
+        weight = coverage_weight(slot, start, end) * clarity_weight(cloud)
+        numerator += weight * (high / 100.0)
+        denominator += weight
+    if denominator <= 0.0:
+        return None
+    return numerator / denominator
+
+
 def moon_up_at(instant: datetime, moon: Moon, window: tuple[datetime, datetime]) -> bool:
     """Whether the moon is above the horizon at ``instant`` within ``window``.
 
@@ -260,6 +298,11 @@ _W_TRANSPARENCY = 0.15
 # penalty rather than a gate, because a bright moon spoils faint targets but
 # never makes a night impossible (design D4).
 _MOON_MAX_PENALTY = 0.50
+# The most high, thin cirrus over the whole usable darkness can cut the score. Kept
+# below the moon's penalty (design D2): high cloud is a meaningful transparency hit
+# but not as ruinous as a full moon, and it compounds *multiplicatively* with the
+# moon penalty rather than adding to it, so it is tuned in that awareness.
+_HIGH_CLOUD_MAX_PENALTY = 0.30
 
 
 def _clamp01(value: float) -> float:
@@ -310,8 +353,11 @@ def assemble_score(window: tuple[datetime, datetime], conditions: Conditions, mo
     """The banded 0-100 score from the cloud, seeing, transparency, and moon terms.
 
     A weighted mean of the available quality terms (cloud dominant), cut by the
-    moon penalty, rounded to the nearest integer and clamped to ``[0, 100]`` — so
-    identical inputs yield an identical integer (design D4).
+    moon penalty and the high/thin-cloud penalty as independent multiplicative
+    factors, rounded to the nearest integer and clamped to ``[0, 100]`` — so
+    identical inputs yield an identical integer (design D4). A ``None`` high-cloud
+    penalty (no ``cloud_high`` data for the window) leaves its factor at 1, so the
+    term drops out entirely.
     """
     weighted = [(_W_CLOUD, cloud_score_term(window, conditions))]
     seeing = optional_term_mean(window, conditions, lambda h: h.seeing)
@@ -322,7 +368,13 @@ def assemble_score(window: tuple[datetime, datetime], conditions: Conditions, mo
         weighted.append((_W_TRANSPARENCY, transparency))
 
     quality = sum(w * term for w, term in weighted) / sum(w for w, _ in weighted)
-    score01 = quality * (1.0 - _MOON_MAX_PENALTY * moon_penalty(window, conditions, moon))
+    high_cloud = high_cloud_penalty(window, conditions)
+    high_cloud_factor = 1.0 if high_cloud is None else 1.0 - _HIGH_CLOUD_MAX_PENALTY * high_cloud
+    score01 = (
+        quality
+        * (1.0 - _MOON_MAX_PENALTY * moon_penalty(window, conditions, moon))
+        * high_cloud_factor
+    )
     return max(0, min(100, round(100.0 * _clamp01(score01))))
 
 
@@ -494,6 +546,12 @@ def _score_reasons(
     transparency = optional_term_mean(window, conditions, lambda h: h.transparency)
     if transparency is not None:
         reasons.append(f"Transparency quality {round(transparency * 100)}%.")
+    high_cloud = high_cloud_penalty(window, conditions)
+    # Guard on the *rounded* percentage (not the raw > 0.0 the moon line uses), so a
+    # sub-half-percent penalty never emits a confusing "High cloud penalty 0%" line
+    # (design D3). Kept distinct from the total-cloud "Cloud:" line above.
+    if high_cloud is not None and round(high_cloud * 100) > 0:
+        reasons.append(f"High cloud penalty {round(high_cloud * 100)}% (thin cirrus aloft).")
     penalty = moon_penalty(window, conditions, moon)
     if penalty > 0.0:
         reasons.append(

@@ -14,6 +14,8 @@ from pierpressure.conditions.provider import MAX_STALENESS
 from pierpressure.core.config import DEFAULT_GO_THRESHOLD
 from pierpressure.core.model import Band
 from pierpressure.core.scoring import (
+    _HIGH_CLOUD_MAX_PENALTY,
+    _MOON_MAX_PENALTY,
     CLOUD_CLEAR,
     CLOUD_OVERCAST,
     _band_for,
@@ -70,3 +72,10 @@ def test_missing_issue_time_is_treated_as_maximally_stale() -> None:
 
 def test_cache_max_staleness_is_twelve_hours() -> None:
     assert timedelta(hours=12) == MAX_STALENESS
+
+
+def test_high_cloud_max_penalty_is_a_fixed_constant_below_the_moon_penalty() -> None:
+    # A fixed penalty factor in (0, 1), and kept below the moon's (design D2): high
+    # cirrus is a meaningful but non-catastrophic hit.
+    assert 0.0 < _HIGH_CLOUD_MAX_PENALTY < 1.0
+    assert _HIGH_CLOUD_MAX_PENALTY < _MOON_MAX_PENALTY

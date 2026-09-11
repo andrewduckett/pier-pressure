@@ -53,6 +53,23 @@ def test_open_meteo_leaves_null_hour_values_absent() -> None:
     assert forecast.readings[_hour(22)].wind_gust == 22.0
 
 
+def test_open_meteo_parses_the_cloud_component_split() -> None:
+    forecast = parse_open_meteo(_load("open_meteo.json"), issued_at=_ISSUED)
+    reading = forecast.readings[_hour(20)]
+    assert reading.cloud_low == 5.0
+    assert reading.cloud_mid == 3.0
+    assert reading.cloud_high == 2.0
+
+
+def test_open_meteo_leaves_a_null_component_absent() -> None:
+    forecast = parse_open_meteo(_load("open_meteo.json"), issued_at=_ISSUED)
+    # cloud_cover_high is null at 22:00; low and mid are present there.
+    reading = forecast.readings[_hour(22)]
+    assert reading.cloud_high is None
+    assert reading.cloud_low == 5.0
+    assert reading.cloud_mid == 8.0
+
+
 # --------------------------------------------------------------------------- #
 # 3.3 secondary provider parsing + resample to hourly (7Timer!)
 # --------------------------------------------------------------------------- #
@@ -121,6 +138,39 @@ def test_assemble_absent_secondary_yields_a_none_group_but_keeps_base() -> None:
     assert conditions.base is not None
     base_hour = conditions.base.at(_hour(21))
     assert base_hour is not None and base_hour.cloud_cover == 20.0
+
+
+def test_assemble_copies_the_cloud_component_split_onto_the_base_hour() -> None:
+    base = SourceForecast(
+        issued_at=_hour(18),
+        readings={
+            _hour(21): SourceReading(
+                cloud_cover=40.0, cloud_low=10.0, cloud_mid=20.0, cloud_high=30.0
+            )
+        },
+    )
+    conditions = assemble_snapshot(base, SourceForecast())
+    assert conditions.base is not None
+    base_hour = conditions.base.at(_hour(21))
+    assert base_hour is not None
+    assert (base_hour.cloud_low, base_hour.cloud_mid, base_hour.cloud_high) == (10.0, 20.0, 30.0)
+
+
+def test_assemble_total_only_source_leaves_the_components_none() -> None:
+    # A source that reports a total but no split yields a present group whose
+    # component fields are all None (design D1).
+    base = SourceForecast(
+        issued_at=_hour(18),
+        readings={_hour(21): SourceReading(cloud_cover=40.0)},
+    )
+    conditions = assemble_snapshot(base, SourceForecast())
+    assert conditions.base is not None
+    base_hour = conditions.base.at(_hour(21))
+    assert base_hour is not None
+    assert base_hour.cloud_cover == 40.0
+    assert base_hour.cloud_low is None
+    assert base_hour.cloud_mid is None
+    assert base_hour.cloud_high is None
 
 
 def test_assemble_base_wind_without_cloud_keeps_the_base_group_and_its_issue_time() -> None:

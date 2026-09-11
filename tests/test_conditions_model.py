@@ -83,6 +83,27 @@ def test_base_hour_stamps_each_field_independently() -> None:
     assert hour.wind_gust is None  # availability is per field
 
 
+def test_base_hour_carries_the_cloud_component_split() -> None:
+    hour = BaseHour(time=_t(21), cloud_cover=40.0, cloud_low=10.0, cloud_mid=20.0, cloud_high=30.0)
+    assert (hour.cloud_low, hour.cloud_mid, hour.cloud_high) == (10.0, 20.0, 30.0)
+
+
+def test_base_hour_cloud_components_default_to_none() -> None:
+    hour = BaseHour(time=_t(21), cloud_cover=40.0)
+    assert hour.cloud_low is None
+    assert hour.cloud_mid is None
+    assert hour.cloud_high is None
+
+
+def test_base_hour_cloud_components_are_independently_optional() -> None:
+    # Only the high component reported: low and mid stay absent, total stays usable.
+    hour = BaseHour(time=_t(21), cloud_cover=40.0, cloud_high=30.0)
+    assert hour.cloud_high == 30.0
+    assert hour.cloud_low is None
+    assert hour.cloud_mid is None
+    assert hour.cloud_cover == 40.0
+
+
 def test_conditions_none_none_is_the_canonical_empty_value() -> None:
     empty = Conditions(None, None)
     assert empty.base is None
