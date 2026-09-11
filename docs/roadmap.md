@@ -81,6 +81,25 @@ Turn stubs into a real verdict.
   from forecast lead-time. Periodic recompute cadence becomes meaningful
   (aligned to forecast refresh, denser near dusk).
 
+### M3.5 — Per-source conditions seam  ·  status: done
+Change: `add-per-source-conditions-seam`
+
+Internal refactor of the conditions input model; no verdict-document change.
+- Replace the flat hourly `ConditionsSnapshot` grid (plus two side-channel
+  issue-times) with per-source groups — `Conditions{cloud, wind, seeing}`, each a
+  group carrying its own `GroupMeta` (source + issue time) and hourly readings.
+  Verdict stays byte-identical (proven by a golden-output test); the discarded
+  rival M3 attempt is removed. See ADR-0006.
+
+### M3.6 — Cloud-layer science  ·  status: planned
+Change: `add-cloud-layer-scoring`
+
+Richer cloud detail in the score (additive; builds on the M3.5 group model).
+- Split cloud into low/mid/high components and score high, thin cloud on its own
+  term — cirrus wrecks transparency while low cloud merely blocks the view.
+  Additive `reasons[]`, no contract break. This is the science the discarded M3
+  attempt carried and the shipped M3 lacks.
+
 ### M4 — Pier sites + horizon mask  ·  status: planned
 Multiple sites, each with a horizon mask.
 - Manage multiple piers. Canonical internal horizon representation (sampled

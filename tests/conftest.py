@@ -11,7 +11,14 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from pierpressure.core.conditions import ConditionsSnapshot, HourlyConditions
+from pierpressure.core.conditions import (
+    BaseGroup,
+    BaseHour,
+    Conditions,
+    GroupMeta,
+    SecondaryGroup,
+    SecondaryHour,
+)
 from pierpressure.core.config import MqttConfig, PierConfig
 from pierpressure.core.model import (
     Band,
@@ -170,26 +177,26 @@ def make_conditions(
     seeing: float | None = 0.7,
     transparency: float | None = 0.7,
     issued_at: datetime | None = None,
-) -> ConditionsSnapshot:
-    """A fixed hourly snapshot spanning an evening-to-morning horizon.
+) -> Conditions:
+    """Fixed per-source conditions spanning an evening-to-morning horizon.
 
     The horizon (18:00 -> next 06:00 UTC) comfortably brackets a London night, so
-    the core finds real overlap with the dark window. Being fixed, it pins the
-    conditions input for byte-identity determinism tests.
+    the core finds real overlap with the dark window. Both the base (cloud/wind)
+    and secondary (seeing/transparency) groups share the same issue time. Being
+    fixed, it pins the conditions input for byte-identity determinism tests.
     """
     issued = issued_at or datetime(2026, 9, 8, 12, 0, tzinfo=UTC)
-    base = datetime(2026, 9, 8, 18, 0, tzinfo=UTC)
-    hours = tuple(
-        HourlyConditions(
-            time=base + timedelta(hours=h),
-            cloud_cover=cloud,
-            wind_gust=wind,
-            seeing=seeing,
-            transparency=transparency,
-        )
-        for h in range(13)
+    start = datetime(2026, 9, 8, 18, 0, tzinfo=UTC)
+    slots = [start + timedelta(hours=h) for h in range(13)]
+    base = BaseGroup.of(
+        GroupMeta(source="base", issued_at=issued),
+        tuple(BaseHour(time=t, cloud_cover=cloud, wind_gust=wind) for t in slots),
     )
-    return ConditionsSnapshot(hours=hours, base_issued_at=issued, secondary_issued_at=issued)
+    secondary = SecondaryGroup.of(
+        GroupMeta(source="secondary", issued_at=issued),
+        tuple(SecondaryHour(time=t, seeing=seeing, transparency=transparency) for t in slots),
+    )
+    return Conditions(base=base, secondary=secondary)
 
 
 def make_mqtt_config(**overrides: Any) -> MqttConfig:

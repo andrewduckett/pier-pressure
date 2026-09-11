@@ -85,11 +85,11 @@ def test_seven_timer_maps_best_and_worst_indices_to_quality() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# 3.1 assembly merges sources with per-field availability and per-source times
+# 3.1 assembly builds one self-stamped group per source (design D1, D2)
 # --------------------------------------------------------------------------- #
 
 
-def test_assemble_merges_base_and_secondary_by_hour() -> None:
+def test_assemble_builds_both_groups_with_their_own_issue_times() -> None:
     base = SourceForecast(
         issued_at=_hour(18),
         readings={_hour(21): SourceReading(cloud_cover=20.0, wind_gust=15.0)},
@@ -98,26 +98,45 @@ def test_assemble_merges_base_and_secondary_by_hour() -> None:
         issued_at=_hour(17),
         readings={_hour(21): SourceReading(seeing=0.8, transparency=0.7)},
     )
-    snap = assemble_snapshot(base, secondary)
-    hour = snap.at(_hour(21))
-    assert hour is not None
-    assert (hour.cloud_cover, hour.wind_gust) == (20.0, 15.0)
-    assert (hour.seeing, hour.transparency) == (0.8, 0.7)
-    assert snap.base_issued_at == _hour(18)
-    assert snap.secondary_issued_at == _hour(17)
+    conditions = assemble_snapshot(base, secondary)
+    assert conditions.base is not None and conditions.secondary is not None
+    base_hour = conditions.base.at(_hour(21))
+    assert base_hour is not None and (base_hour.cloud_cover, base_hour.wind_gust) == (20.0, 15.0)
+    secondary_hour = conditions.secondary.at(_hour(21))
+    assert secondary_hour is not None
+    assert (secondary_hour.seeing, secondary_hour.transparency) == (0.8, 0.7)
+    # Each source's issue time now travels on its own group's meta, mirroring
+    # today's base_issued_at / secondary_issued_at.
+    assert conditions.base.meta.issued_at == _hour(18)
+    assert conditions.secondary.meta.issued_at == _hour(17)
 
 
-def test_assemble_marks_absent_sources_unavailable() -> None:
+def test_assemble_absent_secondary_yields_a_none_group_but_keeps_base() -> None:
     base = SourceForecast(
         issued_at=_hour(18),
         readings={_hour(21): SourceReading(cloud_cover=20.0, wind_gust=15.0)},
     )
-    snap = assemble_snapshot(base, SourceForecast())  # secondary empty
-    hour = snap.at(_hour(21))
-    assert hour is not None
-    assert hour.cloud_cover == 20.0
-    assert hour.seeing is None
-    assert snap.secondary_issued_at is None  # no data -> no issue time
+    conditions = assemble_snapshot(base, SourceForecast())  # secondary empty
+    assert conditions.secondary is None  # no rows -> no group, no issue time
+    assert conditions.base is not None
+    base_hour = conditions.base.at(_hour(21))
+    assert base_hour is not None and base_hour.cloud_cover == 20.0
+
+
+def test_assemble_base_wind_without_cloud_keeps_the_base_group_and_its_issue_time() -> None:
+    # The round-2 Critical case: base returns wind rows but no cloud. The base
+    # group is still present (rows exist), so its issue time survives — exactly as
+    # today's base_issued_at was retained on any base reading (design D1, D2).
+    base = SourceForecast(
+        issued_at=_hour(18),
+        readings={_hour(21): SourceReading(cloud_cover=None, wind_gust=15.0)},
+    )
+    conditions = assemble_snapshot(base, SourceForecast())
+    assert conditions.base is not None
+    assert conditions.base.meta.issued_at == _hour(18)
+    base_hour = conditions.base.at(_hour(21))
+    assert base_hour is not None
+    assert base_hour.cloud_cover is None and base_hour.wind_gust == 15.0
 
 
 # --------------------------------------------------------------------------- #
@@ -144,14 +163,14 @@ def test_secondary_failure_leaves_base_data_intact() -> None:
         )
     )
     composite = CompositeProvider(base=base, secondary=_StubProvider(fail=True))
-    snap = composite.get(make_pier())
-    hour = snap.at(_hour(21))
-    assert hour is not None
-    assert hour.cloud_cover == 30.0
-    assert hour.seeing is None
+    conditions = composite.get(make_pier())
+    assert conditions.secondary is None  # the failed source contributes no group
+    assert conditions.base is not None
+    base_hour = conditions.base.at(_hour(21))
+    assert base_hour is not None and base_hour.cloud_cover == 30.0
 
 
-def test_base_failure_still_yields_a_snapshot() -> None:
+def test_base_failure_still_yields_the_secondary_group() -> None:
     secondary = _StubProvider(
         SourceForecast(
             issued_at=_hour(18),
@@ -159,12 +178,11 @@ def test_base_failure_still_yields_a_snapshot() -> None:
         )
     )
     composite = CompositeProvider(base=_StubProvider(fail=True), secondary=secondary)
-    snap = composite.get(make_pier())
-    hour = snap.at(_hour(21))
-    assert hour is not None
-    assert hour.cloud_cover is None
-    assert hour.wind_gust is None
-    assert hour.seeing == 0.9
+    conditions = composite.get(make_pier())
+    assert conditions.base is None  # the failed base source contributes no group
+    assert conditions.secondary is not None
+    secondary_hour = conditions.secondary.at(_hour(21))
+    assert secondary_hour is not None and secondary_hour.seeing == 0.9
 
 
 # --------------------------------------------------------------------------- #
@@ -210,9 +228,10 @@ def test_forecast_horizon_beyond_the_data_is_unavailable() -> None:
             _hour(22): SourceReading(cloud_cover=25.0),
         },
     )
-    snap = assemble_snapshot(base, SourceForecast())
-    assert snap.at(_hour(21)) is not None
-    assert snap.at(_hour(23)) is None  # beyond the forecast horizon
+    conditions = assemble_snapshot(base, SourceForecast())
+    assert conditions.base is not None
+    assert conditions.base.at(_hour(21)) is not None
+    assert conditions.base.at(_hour(23)) is None  # beyond the forecast horizon
 
 
 def test_cache_is_per_source_so_base_survives_secondary_outage() -> None:
@@ -227,7 +246,8 @@ def test_cache_is_per_source_so_base_survives_secondary_outage() -> None:
     )
     secondary_cache = CachingProvider(inner=_StubProvider(fail=True), now=lambda: _hour(19))
     composite = CompositeProvider(base=base_cache, secondary=secondary_cache)
-    snap = composite.get(make_pier())
-    hour = snap.at(_hour(21))
-    assert hour is not None and hour.cloud_cover == 15.0
-    assert hour.seeing is None
+    conditions = composite.get(make_pier())
+    assert conditions.secondary is None
+    assert conditions.base is not None
+    base_hour = conditions.base.at(_hour(21))
+    assert base_hour is not None and base_hour.cloud_cover == 15.0

@@ -1,13 +1,15 @@
-"""Provider interface, snapshot assembly, caching, and graceful fallback (design D6).
+"""Provider interface, group assembly, caching, and graceful fallback (design D6).
 
 A source provider parses one external forecast into a :class:`SourceForecast` — a
 per-hour set of readings plus the data's issue time. :func:`assemble_snapshot`
-merges the base and secondary forecasts into the core's
-:class:`~pierpressure.core.conditions.ConditionsSnapshot`, stamping each field's
-availability and each source's issue time. :class:`CachingProvider` bridges a
-transient outage by reusing the last-good forecast within a staleness bound, and
-:class:`CompositeProvider` fetches the two sources independently so one failing
-never fails the other.
+promotes the base and secondary forecasts into the core's per-source
+:class:`~pierpressure.core.conditions.Conditions`: one self-stamped
+:class:`~pierpressure.core.conditions.BaseGroup` (cloud/wind) and
+:class:`~pierpressure.core.conditions.SecondaryGroup` (seeing/transparency), each
+present only when its source returned rows (design D1). :class:`CachingProvider`
+bridges a transient outage by reusing the last-good forecast within a staleness
+bound, and :class:`CompositeProvider` fetches the two sources independently so one
+failing never fails the other.
 """
 
 from __future__ import annotations
@@ -18,7 +20,14 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
-from pierpressure.core.conditions import ConditionsSnapshot, HourlyConditions
+from pierpressure.core.conditions import (
+    BaseGroup,
+    BaseHour,
+    Conditions,
+    GroupMeta,
+    SecondaryGroup,
+    SecondaryHour,
+)
 from pierpressure.core.config import PierConfig
 
 logger = logging.getLogger(__name__)
@@ -67,29 +76,33 @@ class Provider(Protocol):
     def fetch(self, pier: PierConfig) -> SourceForecast: ...
 
 
-def assemble_snapshot(base: SourceForecast, secondary: SourceForecast) -> ConditionsSnapshot:
-    """Merge the base (cloud/wind) and secondary (seeing/transparency) forecasts.
+def assemble_snapshot(base: SourceForecast, secondary: SourceForecast) -> Conditions:
+    """Promote the base and secondary forecasts into per-source :class:`Conditions`.
 
-    Every hour either source reports becomes one slot; a field a source did not
-    provide is left absent. Each source's issue time is recorded independently,
-    and only when that source actually carried data — a source that contributed
-    nothing records no issue time.
+    Each source becomes its own self-stamped group, present only when that source
+    returned rows (design D1): the base group carries the cloud/wind hours and the
+    base source's issue time, the secondary group the seeing/transparency hours and
+    the secondary source's issue time. A source that contributed nothing yields a
+    ``None`` group — the exact condition that made today's ``base_issued_at``
+    ``None`` — so per-source freshness travels with each source's own data.
+
+    Every field stays independently present-or-absent within its group's hours, so
+    a source that returned rows but left a field empty still yields a present group
+    whose hours carry ``None`` for that field.
     """
-    times = sorted(set(base.readings) | set(secondary.readings))
-    hours = tuple(
-        HourlyConditions(
-            time=time,
-            cloud_cover=b.cloud_cover if (b := base.readings.get(time)) else None,
-            wind_gust=b.wind_gust if b else None,
-            seeing=s.seeing if (s := secondary.readings.get(time)) else None,
-            transparency=s.transparency if s else None,
-        )
-        for time in times
+    base_hours = tuple(
+        BaseHour(time=time, cloud_cover=reading.cloud_cover, wind_gust=reading.wind_gust)
+        for time, reading in sorted(base.readings.items())
     )
-    return ConditionsSnapshot(
-        hours=hours,
-        base_issued_at=base.issued_at if base.readings else None,
-        secondary_issued_at=secondary.issued_at if secondary.readings else None,
+    secondary_hours = tuple(
+        SecondaryHour(time=time, seeing=reading.seeing, transparency=reading.transparency)
+        for time, reading in sorted(secondary.readings.items())
+    )
+    return Conditions(
+        base=BaseGroup.of(GroupMeta(source="base", issued_at=base.issued_at), base_hours),
+        secondary=SecondaryGroup.of(
+            GroupMeta(source="secondary", issued_at=secondary.issued_at), secondary_hours
+        ),
     )
 
 
@@ -142,7 +155,7 @@ class CompositeProvider:
     base: Provider
     secondary: Provider
 
-    def get(self, pier: PierConfig) -> ConditionsSnapshot:
+    def get(self, pier: PierConfig) -> Conditions:
         return assemble_snapshot(
             self._safe_fetch(self.base, pier, "base"),
             self._safe_fetch(self.secondary, pier, "secondary"),

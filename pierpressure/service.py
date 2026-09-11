@@ -24,7 +24,7 @@ import time
 from collections.abc import Callable
 
 from pierpressure.core.clock import Clock
-from pierpressure.core.conditions import ConditionsSnapshot
+from pierpressure.core.conditions import Conditions
 from pierpressure.core.config import AppConfig, PierConfig
 from pierpressure.core.producer import produce_verdict
 from pierpressure.delivery.mqtt import MqttDelivery
@@ -33,15 +33,16 @@ logger = logging.getLogger(__name__)
 
 MonotonicFn = Callable[[], float]
 
-# A conditions provider: given a pier, return an already-obtained snapshot. It
-# never raises — a failed fetch yields a partial (possibly empty) snapshot, so
-# the service always publishes an honest verdict (design D6).
-ConditionsProvider = Callable[[PierConfig], ConditionsSnapshot]
+# A conditions provider: given a pier, return an already-obtained Conditions
+# value. It never raises — a failed fetch yields a partial (a present group beside
+# an absent one) or empty value, so the service always publishes an honest verdict
+# (design D6).
+ConditionsProvider = Callable[[PierConfig], Conditions]
 
 
-def _no_conditions(_pier: PierConfig) -> ConditionsSnapshot:
-    """Fallback provider: an empty snapshot (astronomy-only verdicts)."""
-    return ConditionsSnapshot()
+def _no_conditions(_pier: PierConfig) -> Conditions:
+    """Fallback provider: the canonical empty value (astronomy-only verdicts)."""
+    return Conditions(None, None)
 
 
 class Service:
