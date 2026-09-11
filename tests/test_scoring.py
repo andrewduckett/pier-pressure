@@ -12,18 +12,23 @@ from pierpressure.core.conditions import (
     SecondaryGroup,
     SecondaryHour,
 )
-from pierpressure.core.model import Moon, MoonPhase
+from pierpressure.core.model import Moon, MoonPhase, Verdict
 from pierpressure.core.scoring import (
     OVERCAST_EPSILON,
+    assemble_score,
     clarity_weight,
     clear_hours_total,
     cloud_score_term,
     coverage_weight,
+    evaluate,
+    high_cloud_penalty,
     hour_slots,
     moon_penalty,
     moon_up_at,
     optional_term_mean,
 )
+
+from .conftest import make_pier
 
 
 def _moon(
@@ -231,3 +236,166 @@ def test_moon_penalty_is_zero_without_usable_dark_hours() -> None:
     window = _window(6)
     overcast = _conditions(window, cloud=100.0)
     assert moon_penalty(window, overcast, _moon(1.0, up_during_dark=True)) == 0.0
+
+
+# --------------------------------------------------------------------------- #
+# 4.1 high/thin-cloud penalty: clarity-weighted mean over both-present hours
+# --------------------------------------------------------------------------- #
+
+
+def _conditions_high(
+    window: tuple[datetime, datetime],
+    *,
+    cloud: list[float | None],
+    high: list[float | None],
+) -> Conditions:
+    """Conditions whose base hours carry the given per-hour cloud and cloud_high."""
+    start, end = window
+    slots = hour_slots(start, end)
+    hours = tuple(
+        BaseHour(time=s, cloud_cover=cloud[i], cloud_high=high[i]) for i, s in enumerate(slots)
+    )
+    return Conditions(base=BaseGroup.of(GroupMeta(source="base"), hours))
+
+
+def test_high_cloud_penalty_is_the_clarity_weighted_mean_of_high_over_100() -> None:
+    window = _window(6)
+    snap = _conditions_high(window, cloud=[0.0] * 6, high=[50.0] * 6)
+    penalty = high_cloud_penalty(window, snap)
+    assert penalty is not None
+    assert abs(penalty - 0.5) < 1e-9  # clear sky (q=1), high=50% -> 0.5
+
+
+def test_high_cloud_penalty_restricts_the_denominator_to_both_present_hours() -> None:
+    # Three hours carry cloud_high=60; the rest carry none. A partial-coverage
+    # window is not diluted: the penalty is the mean over the present hours.
+    window = _window(6)
+    snap = _conditions_high(window, cloud=[0.0] * 6, high=[60.0, 60.0, 60.0, None, None, None])
+    penalty = high_cloud_penalty(window, snap)
+    assert penalty is not None
+    assert abs(penalty - 0.6) < 1e-9
+
+
+def test_high_cloud_penalty_is_none_when_no_hour_carries_high() -> None:
+    window = _window(6)
+    snap = _conditions_high(window, cloud=[0.0] * 6, high=[None] * 6)
+    assert high_cloud_penalty(window, snap) is None
+
+
+def test_high_cloud_penalty_excludes_hours_missing_the_total_cloud() -> None:
+    # cloud_high present but cloud_cover absent -> the hour carries only one of the
+    # pair, so it qualifies for neither numerator nor denominator: None overall.
+    window = _window(6)
+    snap = _conditions_high(
+        window,
+        cloud=[0.0, 0.0, 0.0, None, None, None],
+        high=[None, None, None, 80.0, 80.0, 80.0],
+    )
+    assert high_cloud_penalty(window, snap) is None
+
+
+def test_high_cloud_penalty_ignores_overcast_hours_via_clarity_weight() -> None:
+    # Overcast hours (q=0) are already fully penalised by the total-cloud term, so
+    # they add no high-cloud penalty even with heavy cirrus aloft: the penalty is
+    # the mean over the usably-clear hours only.
+    window = _window(6)
+    snap = _conditions_high(
+        window,
+        cloud=[0.0, 0.0, 0.0, 100.0, 100.0, 100.0],
+        high=[20.0, 20.0, 20.0, 90.0, 90.0, 90.0],
+    )
+    penalty = high_cloud_penalty(window, snap)
+    assert penalty is not None
+    assert abs(penalty - 0.2) < 1e-9
+
+
+# --------------------------------------------------------------------------- #
+# 4.3 assemble_score folds the penalty in as an independent multiplicative factor
+# --------------------------------------------------------------------------- #
+
+
+def test_assemble_score_folds_high_cloud_penalty_as_an_independent_factor() -> None:
+    # Clear all night, no moon, no optional terms: quality is 1.0, so the score is
+    # driven purely by the high-cloud factor (1 - 0.30 * 0.5) = 0.85.
+    window = _window(6)
+    dark = _moon(0.0, up_during_dark=False)
+    snap = _conditions_high(window, cloud=[0.0] * 6, high=[50.0] * 6)
+    assert assemble_score(window, snap, dark) == 85
+
+
+def test_assemble_score_treats_missing_high_cloud_as_factor_one() -> None:
+    # No cloud_high anywhere -> penalty None -> factor 1 -> the perfect-clear score.
+    window = _window(6)
+    dark = _moon(0.0, up_during_dark=False)
+    snap = _conditions_high(window, cloud=[0.0] * 6, high=[None] * 6)
+    assert assemble_score(window, snap, dark) == 100
+
+
+def test_assemble_score_is_monotonic_non_increasing_in_high_cloud() -> None:
+    # Holding total cloud cover and every other input fixed, more high cloud never
+    # raises the score (night-verdict spec).
+    window = _window(6)
+    dark = _moon(0.0, up_during_dark=False)
+    scores = [
+        assemble_score(window, _conditions_high(window, cloud=[0.0] * 6, high=[h] * 6), dark)
+        for h in (0.0, 25.0, 50.0, 75.0, 100.0)
+    ]
+    assert all(later <= earlier for earlier, later in zip(scores, scores[1:], strict=False))
+    assert scores[0] == 100  # zero high cloud -> no penalty
+    assert scores[-1] < scores[0]  # full high cloud -> a real cut
+
+
+# --------------------------------------------------------------------------- #
+# 4.4 the high-cloud term never gates; missing data drops it silently
+# --------------------------------------------------------------------------- #
+
+_EVAL_INSTANT = datetime(2026, 9, 8, 18, 0, tzinfo=UTC)
+
+
+def test_high_cirrus_never_gates_the_verdict() -> None:
+    # Usably-clear total cloud with heavy cirrus aloft, every hard gate passing:
+    # the night is scored, not gated (night-verdict spec).
+    window = _window(6)
+    snap = _conditions_high(window, cloud=[10.0] * 6, high=[90.0] * 6)
+    decision = evaluate(make_pier(), _EVAL_INSTANT, window, snap, _moon(0.0, up_during_dark=False))
+    assert decision.verdict is not Verdict.NO_GO
+    assert decision.score is not None
+    assert 0 <= decision.score <= 100
+
+
+def test_missing_high_cloud_component_applies_no_penalty_and_no_reason() -> None:
+    # Total cloud available, high component unavailable: no high-cloud penalty and
+    # no high-cloud reason line (the term drops out like the other optional terms).
+    window = _window(6)
+    dark = _moon(0.0, up_during_dark=False)
+    without_high = _conditions_high(window, cloud=[10.0] * 6, high=[None] * 6)
+    with_clear_high = _conditions_high(window, cloud=[10.0] * 6, high=[0.0] * 6)
+    missing = evaluate(make_pier(), _EVAL_INSTANT, window, without_high, dark)
+    clear = evaluate(make_pier(), _EVAL_INSTANT, window, with_clear_high, dark)
+    # An unavailable component is not penalised any more than a clear one.
+    assert missing.score == clear.score
+    assert not any("High cloud" in reason for reason in missing.reasons)
+
+
+# --------------------------------------------------------------------------- #
+# 4.5 the high-cloud reason is a distinct line, guarded on the rounded percentage
+# --------------------------------------------------------------------------- #
+
+
+def test_high_cloud_reason_is_a_distinct_line_when_the_penalty_bites() -> None:
+    window = _window(6)
+    snap = _conditions_high(window, cloud=[10.0] * 6, high=[60.0] * 6)
+    decision = evaluate(make_pier(), _EVAL_INSTANT, window, snap, _moon(0.0, up_during_dark=False))
+    high_lines = [r for r in decision.reasons if r.startswith("High cloud penalty")]
+    assert len(high_lines) == 1
+    assert high_lines[0] == "High cloud penalty 60% (thin cirrus aloft)."
+    # It is separate from the total-cloud line, not folded into it.
+    assert any(r.startswith("Cloud:") for r in decision.reasons)
+
+
+def test_high_cloud_reason_is_absent_for_a_sub_half_percent_penalty() -> None:
+    # cloud_high = 0.4% -> penalty 0.004 -> round(0.4) == 0, so no "0%" line.
+    window = _window(6)
+    snap = _conditions_high(window, cloud=[10.0] * 6, high=[0.4] * 6)
+    decision = evaluate(make_pier(), _EVAL_INSTANT, window, snap, _moon(0.0, up_during_dark=False))
+    assert not any("High cloud" in r for r in decision.reasons)

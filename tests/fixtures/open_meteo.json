@@ -7,6 +7,9 @@
   "hourly_units": {
     "time": "iso8601",
     "cloud_cover": "%",
+    "cloud_cover_low": "%",
+    "cloud_cover_mid": "%",
+    "cloud_cover_high": "%",
     "wind_gusts_10m": "km/h"
   },
   "hourly": {
@@ -17,6 +20,9 @@
       "2026-09-08T23:00"
     ],
     "cloud_cover": [10, 20, null, 40],
+    "cloud_cover_low": [5, 10, 5, 20],
+    "cloud_cover_mid": [3, 6, 8, 10],
+    "cloud_cover_high": [2, 4, null, 15],
     "wind_gusts_10m": [15.0, 18.5, 22.0, 12.0]
   }
 }

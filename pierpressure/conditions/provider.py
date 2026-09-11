@@ -45,12 +45,20 @@ def _utcnow() -> datetime:
 
 @dataclass(frozen=True)
 class SourceReading:
-    """One source's readings for a single hour. Absent fields are ``None``."""
+    """One source's readings for a single hour. Absent fields are ``None``.
+
+    ``cloud_low``/``cloud_mid``/``cloud_high`` carry the low/mid/high split of the
+    total cloud cover (percent), each independently present-or-absent: a source
+    reporting only a total leaves all three ``None``.
+    """
 
     cloud_cover: float | None = None
     wind_gust: float | None = None
     seeing: float | None = None
     transparency: float | None = None
+    cloud_low: float | None = None
+    cloud_mid: float | None = None
+    cloud_high: float | None = None
 
 
 @dataclass(frozen=True)
@@ -91,7 +99,14 @@ def assemble_snapshot(base: SourceForecast, secondary: SourceForecast) -> Condit
     whose hours carry ``None`` for that field.
     """
     base_hours = tuple(
-        BaseHour(time=time, cloud_cover=reading.cloud_cover, wind_gust=reading.wind_gust)
+        BaseHour(
+            time=time,
+            cloud_cover=reading.cloud_cover,
+            wind_gust=reading.wind_gust,
+            cloud_low=reading.cloud_low,
+            cloud_mid=reading.cloud_mid,
+            cloud_high=reading.cloud_high,
+        )
         for time, reading in sorted(base.readings.items())
     )
     secondary_hours = tuple(

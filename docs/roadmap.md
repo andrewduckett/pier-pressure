@@ -91,7 +91,7 @@ Internal refactor of the conditions input model; no verdict-document change.
   Verdict stays byte-identical (proven by a golden-output test); the discarded
   rival M3 attempt is removed. See ADR-0006.
 
-### M3.6 — Cloud-layer science  ·  status: planned
+### M3.6 — Cloud-layer science  ·  status: done
 Change: `add-cloud-layer-scoring`
 
 Richer cloud detail in the score (additive; builds on the M3.5 group model).

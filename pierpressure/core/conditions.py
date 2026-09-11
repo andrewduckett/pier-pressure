@@ -59,11 +59,21 @@ class BaseHour:
     ``time`` is the aware-UTC top of hour. ``cloud_cover`` and ``wind_gust`` are
     each independently optional: ``None`` means that field is unavailable for this
     hour, the per-field availability stamp the verdict degrades against.
+
+    ``cloud_low``, ``cloud_mid``, and ``cloud_high`` split the total cloud into its
+    low/mid/high layer components (percent), so the score can tell a low deck that
+    blocks the view apart from high, thin cirrus that reads near-clear on the total
+    yet degrades transparency. Each component is independently present-or-absent
+    like every other field: a source that reports only a total leaves all three
+    ``None`` and its ``cloud_cover`` still carries the same meaning as before.
     """
 
     time: datetime
     cloud_cover: float | None = None
     wind_gust: float | None = None
+    cloud_low: float | None = None
+    cloud_mid: float | None = None
+    cloud_high: float | None = None
 
 
 @dataclass(frozen=True)
