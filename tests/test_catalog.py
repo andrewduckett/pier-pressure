@@ -27,6 +27,7 @@ _M31_ROW = {
     "RA": "00:42:44.35",
     "Dec": "+41:16:08.6",
     "MajAx": "177.83",
+    "SurfBr": "13.91",
     "V-Mag": "3.44",
     "B-Mag": "4.29",
     "M": "031",
@@ -99,6 +100,17 @@ def test_parse_blank_size_is_none() -> None:
     assert parse_row(no_size).size_arcmin is None
 
 
+def test_parse_surface_brightness() -> None:
+    assert parse_row(_M31_ROW).surface_brightness == pytest.approx(13.91)
+
+
+def test_parse_blank_surface_brightness_is_none() -> None:
+    no_sb = {**_M31_ROW, "SurfBr": ""}
+    assert parse_row(no_sb).surface_brightness is None
+    # The Horsehead addendum row carries no surface brightness at all.
+    assert parse_row(_HORSEHEAD_ROW).surface_brightness is None
+
+
 def test_parse_no_common_name_is_none() -> None:
     anon = {**_M31_ROW, "Common names": ""}
     assert parse_row(anon).name is None
@@ -123,6 +135,7 @@ def _obj(type_: str, magnitude: float | None) -> CatalogObject:
         dec_degrees=0.0,
         magnitude=magnitude,
         size_arcmin=None,
+        surface_brightness=None,
     )
 
 

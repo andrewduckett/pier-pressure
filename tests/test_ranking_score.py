@@ -14,6 +14,8 @@ import pytest
 from pierpressure.core.ranking import (
     MIN_WINDOW,
     WEIGHT_ALTITUDE,
+    WEIGHT_BRIGHTNESS,
+    WEIGHT_FOV,
     WEIGHT_MOON,
     WEIGHT_TRANSIT,
     WEIGHT_WINDOW,
@@ -25,6 +27,8 @@ from pierpressure.core.ranking import (
     transit_subscore,
     window_subscore,
 )
+
+_GEOMETRY_WEIGHT = WEIGHT_ALTITUDE + WEIGHT_WINDOW + WEIGHT_MOON + WEIGHT_TRANSIT
 
 _START = datetime(2026, 9, 8, 21, 0, tzinfo=UTC)
 _END = datetime(2026, 9, 9, 1, 0, tzinfo=UTC)  # 4h window
@@ -117,29 +121,98 @@ def test_transit_subscore_zero_outside_window() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Weighted 0-100 score
+# Weighted 0-100 score, renormalised over the live factors (task 4.1, ADR-0010)
 # --------------------------------------------------------------------------- #
 
 
 def test_combined_score_all_perfect_is_100() -> None:
     assert combined_score(1.0, 1.0, 1.0, 1.0) == 100
+    # All six factors ideal is still 100.
+    assert combined_score(1.0, 1.0, 1.0, 1.0, brightness=1.0, fov_fit=1.0) == 100
 
 
 def test_combined_score_all_zero_is_0() -> None:
     assert combined_score(0.0, 0.0, 0.0, 0.0) == 0
+    assert combined_score(0.0, 0.0, 0.0, 0.0, brightness=0.0, fov_fit=0.0) == 0
 
 
-def test_combined_score_is_weighted_sum_rounded() -> None:
-    expected = round(
-        100
-        * (WEIGHT_ALTITUDE * 0.8 + WEIGHT_WINDOW * 0.6 + WEIGHT_MOON * 0.9 + WEIGHT_TRANSIT * 0.4)
+def test_geometry_only_renormalises_over_the_four_geometry_weights() -> None:
+    # No brightness and no fov_fit: five/six factors drop to four, and the four
+    # geometry weights are renormalised to sum to 1 before the weighted mean.
+    weighted = (
+        WEIGHT_ALTITUDE * 0.8 + WEIGHT_WINDOW * 0.6 + WEIGHT_MOON * 0.9 + WEIGHT_TRANSIT * 0.4
+    ) / _GEOMETRY_WEIGHT
+    assert combined_score(0.8, 0.6, 0.9, 0.4) == round(100 * weighted)
+
+
+def test_brightness_factor_renormalises_over_five_factors() -> None:
+    live = _GEOMETRY_WEIGHT + WEIGHT_BRIGHTNESS
+    weighted = (
+        WEIGHT_ALTITUDE * 0.8
+        + WEIGHT_WINDOW * 0.6
+        + WEIGHT_MOON * 0.9
+        + WEIGHT_TRANSIT * 0.4
+        + WEIGHT_BRIGHTNESS * 0.5
+    ) / live
+    assert combined_score(0.8, 0.6, 0.9, 0.4, brightness=0.5) == round(100 * weighted)
+
+
+def test_all_six_factors_renormalise_over_the_full_base() -> None:
+    live = _GEOMETRY_WEIGHT + WEIGHT_BRIGHTNESS + WEIGHT_FOV
+    weighted = (
+        WEIGHT_ALTITUDE * 0.8
+        + WEIGHT_WINDOW * 0.6
+        + WEIGHT_MOON * 0.9
+        + WEIGHT_TRANSIT * 0.4
+        + WEIGHT_BRIGHTNESS * 0.5
+        + WEIGHT_FOV * 0.7
+    ) / live
+    assert combined_score(0.8, 0.6, 0.9, 0.4, brightness=0.5, fov_fit=0.7) == round(100 * weighted)
+
+
+def test_geometry_only_target_can_still_reach_100() -> None:
+    # Dropping the missing factors renormalises the live weights, so a
+    # geometry-only target scored on four ideal factors still reaches the full
+    # range rather than being compressed below 100.
+    assert combined_score(1.0, 1.0, 1.0, 1.0) == 100
+
+
+@pytest.mark.parametrize(
+    ("brightness", "fov_fit"),
+    [(None, None), (0.5, None), (None, 0.5), (0.5, 0.5)],
+)
+def test_combined_score_stays_within_range(brightness: float | None, fov_fit: float | None) -> None:
+    for a, w, m, t in [(0.0, 0.0, 0.0, 0.0), (1.0, 1.0, 1.0, 1.0), (0.3, 0.7, 0.2, 0.9)]:
+        assert 0 <= combined_score(a, w, m, t, brightness=brightness, fov_fit=fov_fit) <= 100
+
+
+def test_base_weights_sum_to_one() -> None:
+    total = (
+        WEIGHT_ALTITUDE
+        + WEIGHT_WINDOW
+        + WEIGHT_MOON
+        + WEIGHT_TRANSIT
+        + WEIGHT_BRIGHTNESS
+        + WEIGHT_FOV
     )
-    assert combined_score(0.8, 0.6, 0.9, 0.4) == expected
-
-
-def test_weights_sum_to_one() -> None:
-    total = WEIGHT_ALTITUDE + WEIGHT_WINDOW + WEIGHT_MOON + WEIGHT_TRANSIT
     assert total == pytest.approx(1.0)
+
+
+def test_geometry_dominates_the_two_new_factors() -> None:
+    # Design D5/D6: geometry stays dominant so neither new term dominates placement.
+    assert _GEOMETRY_WEIGHT > (WEIGHT_BRIGHTNESS + WEIGHT_FOV)
+
+
+def test_score_is_stable_near_an_integer_half_boundary() -> None:
+    # Design D9: rounding the pre-scaled weighted mean to a fixed precision before
+    # the integer scaling shrinks the epsilon surface around integer .5 boundaries.
+    # All four geometry factors equal to v give a renormalised weighted mean of v,
+    # so v = 0.505 sits the pre-scaled value exactly on 50.5. A sub-microscopic
+    # perturbation of one sub-score must not flip the emitted integer.
+    baseline = combined_score(0.505, 0.505, 0.505, 0.505)
+    for epsilon in (1e-9, -1e-9, 1e-10, -1e-10):
+        assert combined_score(0.505 + epsilon, 0.505, 0.505, 0.505) == baseline
+        assert combined_score(0.505, 0.505 + epsilon, 0.505, 0.505) == baseline
 
 
 # --------------------------------------------------------------------------- #

@@ -106,6 +106,21 @@ def _round_degrees(value: float) -> float:
 
 Degrees = Annotated[float, AfterValidator(_round_degrees)]
 
+# Fixed decimal precision for the emitted raw catalog facts (angular size in
+# arcminutes, integrated magnitude, surface brightness in mag/arcsec²). These are
+# not angles, so they round independently of ``DEGREE_DECIMALS``; two decimals
+# matches the source's own recorded precision and keeps the document byte-stable
+# for the same inputs (design D9, night-verdict stable-precision rule).
+CATALOG_DECIMALS = 2
+
+
+def _round_catalog(value: float) -> float:
+    """Round an emitted catalog value to the fixed precision (design D9)."""
+    return round(float(value), CATALOG_DECIMALS)
+
+
+CatalogValue = Annotated[float, AfterValidator(_round_catalog)]
+
 
 class Confidence(BaseModel):
     """How much to trust the verdict given forecast lead-time and freshness."""
@@ -197,6 +212,14 @@ class Target(BaseModel):
     inside it; ``transit_time`` is the meridian crossing for that day (which may
     fall outside the window); ``moon_separation`` (degrees) is measured at the
     instant of maximum altitude within the window.
+
+    ``size_arcmin`` (angular size), ``magnitude`` (the catalog's visual-then-blue
+    integrated magnitude — the same value used as the candidate filter), and
+    ``surface_brightness`` (mag/arcsec²) are the additive raw catalog facts (design
+    D8, ADR-0009): each is present always and ``null`` when the catalog records no
+    value, never guessed. They are the numbers the ranking judged, distinct from
+    the brightness factor's internal choice; the ranking's internal input never
+    changes a carried value.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -209,6 +232,9 @@ class Target(BaseModel):
     max_altitude: Degrees
     transit_time: datetime
     moon_separation: Degrees
+    size_arcmin: CatalogValue | None = None
+    magnitude: CatalogValue | None = None
+    surface_brightness: CatalogValue | None = None
 
     @field_validator("transit_time")
     @classmethod
