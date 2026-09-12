@@ -106,13 +106,23 @@ Multiple sites, each with a horizon mask.
   `(az, alt)`), with importers for Stellarium / NINA `.hrz` / Telescopius. A
   target counts only if it clears the mask in its direction.
 
-### M5 — Target catalog + ranking  ·  status: planned
+### M5 — Target catalog + ranking  ·  status: done
+Change: `add-target-catalog-ranking`
+
 Fill the `targets` list.
-- Catalog source (Messier / OpenNGC). Target alt/az sampled over the night grid
-  (time-sampled dusk→dawn; deferred here from M2 so it is built with its ranking
-  consumer). Rank on visibility window, altitude above the horizon mask, moon
-  separation, transit time, and equipment FOV-fit. Clamped to astronomical night
-  per the cross-cutting rule.
+- Catalog source: the full OpenNGC catalog vendored as pinned in-repo data
+  (ADR-0008). Target alt/az sampled over the night grid (time-sampled dusk→dawn;
+  deferred here from M2 so it is built with its ranking consumer). Rank on
+  visibility window, altitude above the horizon mask, moon separation, and transit
+  time; the top ten fill the structured `targets` list (ADR-0009). Clamped to
+  astronomical night per the cross-cutting rule. Adds an additive top-target
+  Home Assistant sensor.
+- **Deferred to the equipment milestone:** equipment / field-of-view fit as a
+  ranking factor, and brightness as a ranking factor. This milestone uses
+  magnitude as a **candidate filter only** (objects fainter than a cutoff are
+  dropped; unknown-magnitude objects are kept) — not as a scoring term. So a
+  fainter but better-placed object can outrank a brighter one until the equipment
+  work lands.
 
 ### M6 — LLM explainer + suggestions  ·  status: planned
 Optional prose layer.

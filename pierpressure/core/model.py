@@ -92,6 +92,20 @@ def _round_fraction(value: float) -> float:
 
 IlluminatedFraction = Annotated[float, Field(ge=0.0, le=1.0), AfterValidator(_round_fraction)]
 
+# Fixed decimal precision for emitted angles (target altitude, moon separation),
+# matching the horizon's altitude rounding (``horizon.ALTITUDE_DECIMALS``) so a
+# target's ``max_altitude`` and the mask it clears are compared and emitted at the
+# same precision, and the document stays byte-identical across platforms.
+DEGREE_DECIMALS = 3
+
+
+def _round_degrees(value: float) -> float:
+    """Round an angle in degrees to the fixed emitted precision (design D3/D5)."""
+    return round(float(value), DEGREE_DECIMALS)
+
+
+Degrees = Annotated[float, AfterValidator(_round_degrees)]
+
 
 class Confidence(BaseModel):
     """How much to trust the verdict given forecast lead-time and freshness."""
@@ -149,6 +163,63 @@ class Moon(BaseModel):
         return None if value is None else _iso_z(value)
 
 
+class TargetWindow(BaseModel):
+    """A target's observable window (start -> end) within astronomical night.
+
+    Unlike :class:`DarkWindow`, both bounds are always present: a target is only
+    listed when it has an observable window, so the window is never null (design
+    D3). ``start``/``end`` carry the same aware-UTC + whole-second normalization as
+    the rest of the document.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    start: datetime
+    end: datetime
+
+    @field_validator("start", "end")
+    @classmethod
+    def _aware_utc(cls, value: datetime) -> datetime:
+        return _require_aware_utc(value)
+
+    @field_serializer("start", "end")
+    def _serialize(self, value: datetime) -> str:
+        return _iso_z(value)
+
+
+class Target(BaseModel):
+    """One ranked deep-sky object in the ``targets`` list (design D2, ADR-0009).
+
+    The fields are numbers, not prose: the structure is the explanation, and the
+    M6 LLM layer turns it into sentences. ``name`` is null when the catalog records
+    no common name. ``score`` is the unbanded 0-100 ranking value. ``window`` is
+    the observable window; ``max_altitude`` (degrees) is the peak altitude reached
+    inside it; ``transit_time`` is the meridian crossing for that day (which may
+    fall outside the window); ``moon_separation`` (degrees) is measured at the
+    instant of maximum altitude within the window.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    name: str | None = None
+    type: str
+    score: Score
+    window: TargetWindow
+    max_altitude: Degrees
+    transit_time: datetime
+    moon_separation: Degrees
+
+    @field_validator("transit_time")
+    @classmethod
+    def _aware_utc(cls, value: datetime) -> datetime:
+        return _require_aware_utc(value)
+
+    @field_serializer("transit_time")
+    def _serialize_transit(self, value: datetime) -> str:
+        return _iso_z(value)
+
+
 class VerdictDocument(BaseModel):
     """The one JSON document the whole system is built around.
 
@@ -165,7 +236,7 @@ class VerdictDocument(BaseModel):
     score: Score | None = None
     confidence: Confidence
     reasons: list[str]
-    targets: list[str] = Field(default_factory=list)
+    targets: list[Target] = Field(default_factory=list)
     dark_window: DarkWindow
     moon: Moon
 

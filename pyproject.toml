@@ -20,6 +20,15 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["pierpressure"]
 
+# The vendored OpenNGC catalog (CSV) and its license (txt) are package data the
+# core reads at runtime, so they must ship in the wheel regardless of VCS state
+# or any future gitignore rule (see NOTICE, ADR-0008).
+[tool.hatch.build]
+artifacts = [
+    "pierpressure/data/openngc/*.csv",
+    "pierpressure/data/openngc/*.txt",
+]
+
 [dependency-groups]
 # Synced by default by `uv sync`, so `just check` has its tools locally and in CI.
 dev = [

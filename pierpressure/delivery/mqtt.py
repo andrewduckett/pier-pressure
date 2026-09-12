@@ -67,6 +67,14 @@ def refresh_command_topic(base_topic: str, pier_id: str) -> str:
     return f"{base_topic}/{pier_id}/refresh/command"
 
 
+def top_target_state_topic(base_topic: str, pier_id: str) -> str:
+    return f"{base_topic}/{pier_id}/top_target/state"
+
+
+def top_target_attributes_topic(base_topic: str, pier_id: str) -> str:
+    return f"{base_topic}/{pier_id}/top_target/attributes"
+
+
 def discovery_topic(discovery_prefix: str, component: str, pier_id: str, object_id: str) -> str:
     return f"{discovery_prefix}/{component}/{node_id(pier_id)}/{object_id}/config"
 
@@ -129,6 +137,64 @@ def build_score_discovery(pier_id: str, base_topic: str) -> dict[str, Any]:
             },
         ],
         "device": _device_block(pier_id),
+    }
+
+
+def build_top_target_discovery(pier_id: str, base_topic: str) -> dict[str, Any]:
+    """The top-target sensor (spec ha-delivery; design D6).
+
+    Its state is the top-ranked target's name (its designation when the catalog
+    records no common name); the full ordered list and the top target's fields ride
+    along as JSON attributes. Availability is a two-entry list with
+    ``availability_mode: all`` — the shared LWT topic AND a template requiring a
+    non-empty list — so an empty target list renders the sensor ``unavailable``
+    rather than a placeholder, mirroring how the score sensor handles a null score.
+    """
+    attrs = top_target_attributes_topic(base_topic, pier_id)
+    return {
+        "name": "Top target",
+        "has_entity_name": True,
+        "unique_id": f"{node_id(pier_id)}_top_target",
+        "state_topic": top_target_state_topic(base_topic, pier_id),
+        "json_attributes_topic": attrs,
+        "availability_mode": "all",
+        "availability": [
+            {
+                "topic": availability_topic(base_topic),
+                "payload_available": PAYLOAD_ONLINE,
+                "payload_not_available": PAYLOAD_OFFLINE,
+            },
+            {
+                "topic": attrs,
+                "value_template": ("{{ 'online' if value_json.count | int > 0 else 'offline' }}"),
+            },
+        ],
+        "icon": "mdi:telescope",
+        "device": _device_block(pier_id),
+    }
+
+
+def top_target_state(document: VerdictDocument) -> str:
+    """The top target's display name for the sensor state (id when unnamed)."""
+    if not document.targets:
+        return ""
+    top = document.targets[0]
+    return top.name if top.name else top.id
+
+
+def top_target_attributes(document: VerdictDocument) -> dict[str, Any]:
+    """The JSON attributes payload: the ordered list, the top target, and a count.
+
+    ``count`` drives the availability template, so a dashboard card sees the full
+    ordered ranking while the entity itself goes unavailable when nothing ranks.
+    """
+    import json
+
+    targets = [json.loads(target.model_dump_json()) for target in document.targets]
+    return {
+        "count": len(targets),
+        "top": targets[0] if targets else None,
+        "targets": targets,
     }
 
 
@@ -259,8 +325,19 @@ class MqttDelivery:
             json.dumps(build_refresh_discovery(pier, base)),
             retain=True,
         )
+        self._publish(
+            discovery_topic(prefix, "sensor", pier, "top_target"),
+            json.dumps(build_top_target_discovery(pier, base)),
+            retain=True,
+        )
         self._publish(verdict_state_topic(base, pier), document.verdict.value, retain=True)
         self._publish(attributes_topic(base, pier), document.to_json(), retain=True)
+        self._publish(top_target_state_topic(base, pier), top_target_state(document), retain=True)
+        self._publish(
+            top_target_attributes_topic(base, pier),
+            json.dumps(top_target_attributes(document)),
+            retain=True,
+        )
 
     def subscribe_refresh(self, pier_ids: Iterable[str], callback: Callable[[str], None]) -> None:
         """Subscribe to each pier's refresh command topic.
