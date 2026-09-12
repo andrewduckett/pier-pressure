@@ -25,8 +25,10 @@ The pipeline (design D3):
    or the pool is exhausted. Every emitted target is therefore both refined
    (exact whole-second times) and gate-satisfying.
 
-All ranking parameters are fixed module constants this milestone (design D5), so
-the ranking depends only on ``(pier, selected night)`` and is cached on that key.
+The ranking's curve and weight parameters are fixed module constants (design
+D5/D6), so the ranking depends only on ``(pier, selected night)`` — including the
+pier's optional rig, which shapes the field-of-view term — and is cached on that
+key.
 """
 
 from __future__ import annotations
@@ -35,18 +37,19 @@ import math
 from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from functools import lru_cache
 from typing import Any
 
 from skyfield import almanac
 from skyfield.api import Star, wgs84
 
 from .catalog import CatalogObject, load_catalog
-from .config import PierConfig
+from .config import PierConfig, Rig
 from .horizon import Horizon
 from .model import Moon, Target, TargetWindow
 from .sky import _ephemeris, _timescale, _to_datetime
 
-# --- Ranking parameters (fixed constants; validated in task 8.2) ----------- #
+# --- Ranking parameters (fixed constants; validated on a real night) -------- #
 
 # The coarse time grid step across the dark window. Well below the minimum window
 # so any object observable for the minimum duration lands several grid points
@@ -59,25 +62,79 @@ MIN_WINDOW = timedelta(minutes=60)
 # The list is bounded to the top N targets (design D3, ADR-0009).
 TOP_N = 10
 
-# Sub-score weights (design D4). They sum to 1 so the weighted sum stays in [0, 1]
-# before scaling to 0-100.
+# Base sub-score weights (design D5/D6; validated in task 6.1). SIX factors now:
+# the four geometry terms plus brightness and field-of-view fit. The base weights
+# sum to 1, but the score renormalises over the LIVE factors for each
+# (pier, target) — so a rig-less pier, an unknown size, or an unknown brightness
+# drops only that factor and the remaining weights are rescaled to sum to 1
+# (ADR-0010). Geometry stays dominant (0.80 of the base) and the two new terms are
+# deliberately modest (0.20 combined) so neither dominates placement.
 #
-# Validated against a known autumn night (task 8.2): the London pier on
-# 2026-09-08. The default weights below were validated and RETAINED — the top of
-# the list is objectively well placed (high, up most of the night, transiting
-# in-window), and a well-placed autumn target such as M31 (NGC0224) scores 95/100.
-# M31 is not top-10 on that night because it transits at ~02:00 UTC, well after the
-# window midpoint, so several fainter but better-centred circumpolar objects rank
-# above it. That is expected: brightness is deliberately NOT a ranking factor this
-# milestone (it arrives with the equipment work), so the ranking answers "best
-# placed tonight", not "brightest". See docs/roadmap.md M5.
-WEIGHT_ALTITUDE = 0.35
-WEIGHT_WINDOW = 0.30
-WEIGHT_MOON = 0.25
+# Re-validated on the M5 London autumn night (2026-09-08). With brightness now a
+# factor, a bright, well-placed showpiece rises where M5 ranked fainter but
+# better-centred objects above it; a well-framed bright target (given a rig) ranks
+# as expected. The geometry proportions keep M5's ordering-within-geometry
+# (altitude > window > moon > transit); brightness enters just below transit's
+# neighbourhood and FOV a touch below brightness, so the ranking still answers
+# "best placed" first and breaks near-ties on suitability. See docs/roadmap.md M6.
+WEIGHT_ALTITUDE = 0.28
+WEIGHT_WINDOW = 0.24
+WEIGHT_MOON = 0.18
 WEIGHT_TRANSIT = 0.10
+WEIGHT_BRIGHTNESS = 0.12
+WEIGHT_FOV = 0.08
+
+# The pre-scaled renormalised weighted mean (and the derived field of view) are
+# rounded to this fixed decimal precision before the final integer scaling
+# (design D9), so the added atan/renormalisation float work inherits the same
+# stable-precision posture as the rest of the document (ADR-0004).
+_SCORE_DECIMALS = 6
 
 # The moon sub-score saturates to neutral at this separation (design D4).
 _MOON_SEP_SATURATION_DEG = 90.0
+
+# --- Field-of-view-fit framing curve (design D3; validated in task 6.1) ----- #
+#
+# The fit sub-score is a curve on ``r = size_arcmin / fov_short_arcmin`` — an
+# object's major axis as a fraction of the short edge of the derived field of
+# view. Validated against the M5 London autumn night (2026-09-08): with a modest
+# refractor rig (600 mm, APS-C), the sweet band selects the framed showpieces
+# (mid-size galaxies and nebulae) over both specks and objects too large to fit.
+#
+# A speck (``r`` near 0) scores this floor rather than 0 — a tiny object is still
+# imageable, just not ideal.
+_FOV_SPECK_FLOOR = 0.20
+# The sweet band [low, high]: a comfortable fraction of the frame scores ~1.0.
+_FOV_SWEET_LOW = 0.10
+_FOV_SWEET_HIGH = 0.60
+# At ``r = 1`` the object exactly spans the short edge — it just fits, so it is
+# marked down from the sweet band but not penalised as heavily as an oversize one.
+_FOV_FILL_SCORE = 0.60
+# Past ``r = 1`` the object no longer fits; the score decays reciprocally toward 0
+# so a slightly-too-big (mosaic-able) object beats a hugely-too-big one, with no
+# hard cliff (design D3). Larger constant -> steeper decay.
+_FOV_OVERSIZE_DECAY = 1.5
+
+# --- Brightness curve anchors, one pair per physical scale (design D4) ------ #
+#
+# Surface brightness (mag/arcsec², roughly 18-25) and integrated magnitude
+# (roughly 0-13) are different physical scales, so each maps through its OWN
+# anchors — never one shared curve, which would score a surface-brightness object
+# as far fainter than a magnitude object purely because its numbers are larger.
+# Brighter (numerically smaller) scores higher; each is a linear ramp clamped to
+# ``[0, 1]``. Anchors validated on the M5 London night (task 6.1): the surface
+# anchors bracket the catalog's populated SurfBr range and the magnitude anchors
+# bracket the candidate pool below the MAGNITUDE_LIMIT cutoff.
+_SB_BRIGHT = 18.0  # mag/arcsec² at or below which surface brightness scores 1.0
+_SB_FAINT = 25.0  # mag/arcsec² at or above which it scores 0.0
+_MAG_BRIGHT = 3.0  # integrated magnitude at or below which brightness scores 1.0
+_MAG_FAINT = 13.0  # integrated magnitude at or above which it scores 0.0
+
+# Qualitative thresholds for the additive equipment ``reasons[]`` entries (design
+# D8). A framing sub-score at or above the well-framed threshold reads as "frames
+# well"; a brightness sub-score at or above the bright threshold reads as "bright".
+_WELL_FRAMED_THRESHOLD = 0.80
+_BRIGHT_THRESHOLD = 0.60
 
 # Bisection budget for a window-edge root-find; ~40 halvings of a 5-minute bracket
 # reach whole-second precision with margin.
@@ -134,15 +191,164 @@ def transit_subscore(transit: datetime, start: datetime, end: datetime) -> float
     return max(0.0, min(1.0, 1.0 - deviation / half))
 
 
-def combined_score(altitude: float, window: float, moon: float, transit: float) -> int:
-    """Combine the four sub-scores by weight and scale to an integer 0-100."""
-    weighted = (
-        WEIGHT_ALTITUDE * altitude
-        + WEIGHT_WINDOW * window
-        + WEIGHT_MOON * moon
-        + WEIGHT_TRANSIT * transit
-    )
-    return round(100.0 * weighted)
+def fov_fit_subscore(r: float) -> float:
+    """The framing factor over ``r = size / fov_short`` — a curve, not a cliff (design D3).
+
+    A speck (``r`` near 0) scores :data:`_FOV_SPECK_FLOOR`; the sweet band
+    ``[_FOV_SWEET_LOW, _FOV_SWEET_HIGH]`` scores 1.0; between the floor and the
+    band the score ramps up linearly; from the band's top to ``r = 1`` (the object
+    exactly spanning the short edge) it declines to :data:`_FOV_FILL_SCORE`; past
+    ``r = 1`` it decays reciprocally toward 0, so an oversize object is penalised
+    progressively rather than dropped at a hard cliff. Clamped to ``[0, 1]``.
+    """
+    if r <= 0.0:
+        return _FOV_SPECK_FLOOR
+    if r < _FOV_SWEET_LOW:
+        ramp = r / _FOV_SWEET_LOW
+        return _FOV_SPECK_FLOOR + (1.0 - _FOV_SPECK_FLOOR) * ramp
+    if r <= _FOV_SWEET_HIGH:
+        return 1.0
+    if r <= 1.0:
+        decline = (r - _FOV_SWEET_HIGH) / (1.0 - _FOV_SWEET_HIGH)
+        return 1.0 - decline * (1.0 - _FOV_FILL_SCORE)
+    # r > 1: the denominator exceeds 1, so the result is always in (0, _FOV_FILL_SCORE]
+    # — already within [0, 1], and it approaches but never reaches 0 (no cliff).
+    return _FOV_FILL_SCORE / (1.0 + _FOV_OVERSIZE_DECAY * (r - 1.0))
+
+
+def _ramp(value: float, bright: float, faint: float) -> float:
+    """A brightness ramp: 1.0 at or below ``bright``, 0.0 at or above ``faint``.
+
+    ``bright`` and ``faint`` are magnitudes on one scale, where a smaller number is
+    brighter, so the ramp falls linearly from the bright anchor to the faint one
+    and is clamped to ``[0, 1]``.
+    """
+    span = faint - bright
+    return max(0.0, min(1.0, (faint - value) / span))
+
+
+def brightness_subscore(surface_brightness: float | None, magnitude: float | None) -> float | None:
+    """The brightness factor, or ``None`` when neither input is known (design D4).
+
+    Surface brightness is preferred where recorded — for extended objects it
+    predicts detectability far better than integrated magnitude — else integrated
+    magnitude, else ``None`` so the caller drops the term. Because the two are
+    different physical scales, each maps through its own anchors (:data:`_SB_BRIGHT`
+    /:data:`_SB_FAINT` and :data:`_MAG_BRIGHT`/:data:`_MAG_FAINT`), never a single
+    shared curve. Brighter scores higher; the result is clamped to ``[0, 1]``.
+    """
+    if surface_brightness is not None:
+        return _ramp(surface_brightness, _SB_BRIGHT, _SB_FAINT)
+    if magnitude is not None:
+        return _ramp(magnitude, _MAG_BRIGHT, _MAG_FAINT)
+    return None
+
+
+def combined_score(
+    altitude: float,
+    window: float,
+    moon: float,
+    transit: float,
+    brightness: float | None = None,
+    fov_fit: float | None = None,
+) -> int:
+    """Combine the live sub-scores and scale to an integer 0-100 (design D5, D9).
+
+    The four geometry factors always contribute; ``brightness`` and ``fov_fit``
+    contribute only when known (not ``None``). The base weights of the live factors
+    are renormalised to sum to 1 before the weighted mean, so a missing rig, an
+    unknown size, or an unknown brightness drops only its own factor rather than
+    substituting a guessed value (ADR-0010). The pre-scaled weighted mean is
+    rounded to a fixed decimal precision before the final integer scaling (design
+    D9), shrinking the epsilon surface around integer ``.5`` boundaries so a score
+    is far less likely to flip across architectures. The result is clamped to
+    ``[0, 100]``.
+    """
+    terms: list[tuple[float, float]] = [
+        (WEIGHT_ALTITUDE, altitude),
+        (WEIGHT_WINDOW, window),
+        (WEIGHT_MOON, moon),
+        (WEIGHT_TRANSIT, transit),
+    ]
+    if brightness is not None:
+        terms.append((WEIGHT_BRIGHTNESS, brightness))
+    if fov_fit is not None:
+        terms.append((WEIGHT_FOV, fov_fit))
+    total_weight = sum(weight for weight, _ in terms)
+    weighted = sum(weight * value for weight, value in terms) / total_weight
+    weighted = round(weighted, _SCORE_DECIMALS)
+    return max(0, min(100, round(100.0 * weighted)))
+
+
+def _fov_short_arcmin(rig: Rig | None) -> float | None:
+    """The rig's short-edge field of view in arcminutes, or ``None`` with no rig.
+
+    The derived field of view (degrees) is rounded to the fixed score precision
+    before conversion to arcminutes (design D9), so the ``r = size / fov_short``
+    that drives the framing curve inherits the same stable-precision posture as
+    the score itself.
+    """
+    if rig is None:
+        return None
+    return round(rig.fov_short_deg, _SCORE_DECIMALS) * 60.0
+
+
+def _fov_fit_for(obj: CatalogObject, fov_short_arcmin: float | None) -> float | None:
+    """The framing sub-score for ``obj``, or ``None`` when it does not contribute.
+
+    Contributes only when a rig is configured (``fov_short_arcmin`` is known) and
+    the object has a recorded size — otherwise the term drops rather than guessing
+    (design D5).
+    """
+    if fov_short_arcmin is None or obj.size_arcmin is None:
+        return None
+    return fov_fit_subscore(obj.size_arcmin / fov_short_arcmin)
+
+
+@lru_cache(maxsize=1)
+def _catalog_by_id() -> dict[str, CatalogObject]:
+    """An ``id -> object`` index of the catalog, cached like the catalog itself.
+
+    Equipment reasons classify framing and brightness from the SAME raw catalog
+    facts the score used, recovered here by the pick's designation — not the values
+    carried on the emitted ``Target``, which are rounded to the document's fixed
+    precision. Reading the raw facts keeps a reason from ever disagreeing with the
+    sub-score that actually drove the score near a rounding boundary.
+    """
+    return {obj.id: obj for obj in load_catalog()}
+
+
+def equipment_reasons(rig: Rig | None, target: Target) -> list[str]:
+    """Additive equipment-aware ``reasons[]`` entries for the top pick (design D8).
+
+    A framing entry is emitted whenever a rig is configured and the pick has a
+    known size, describing how it frames — well framed, small, nearly filling the
+    frame, or larger than the field of view. A brightness entry is emitted when the
+    pick reads as bright. The classification uses the pick's raw catalog facts (the
+    same inputs the score used), so it is deterministic and never contradicts the
+    score. Returns an empty list when no equipment input is known, or when the pick
+    is not a catalog object.
+    """
+    obj = _catalog_by_id().get(target.id)
+    if obj is None:
+        return []
+    reasons: list[str] = []
+    name = target.name or target.id
+    fov_short_arcmin = _fov_short_arcmin(rig)
+    if fov_short_arcmin is not None and obj.size_arcmin is not None:
+        ratio = obj.size_arcmin / fov_short_arcmin
+        if fov_fit_subscore(ratio) >= _WELL_FRAMED_THRESHOLD:
+            reasons.append(f"Top pick {name} frames well in your rig.")
+        elif ratio > 1.0:
+            reasons.append(f"Top pick {name} is larger than your rig's field of view.")
+        elif ratio <= _FOV_SWEET_LOW:
+            reasons.append(f"Top pick {name} is small in your rig's field of view.")
+        else:
+            reasons.append(f"Top pick {name} fills most of your rig's field of view.")
+    brightness = brightness_subscore(obj.surface_brightness, obj.magnitude)
+    if brightness is not None and brightness >= _BRIGHT_THRESHOLD:
+        reasons.append(f"Top pick {name} is a bright target.")
+    return reasons
 
 
 def meets_minimum(start: datetime, end: datetime) -> bool:
@@ -410,14 +616,23 @@ class _Scored:
     end_index: int
 
 
-# Per-night ranking cache keyed by (pier identity + horizon + dark window). The
-# ranking parameters are fixed constants, so they do not enter the key; design D5
-# requires adding any that becomes per-pier configuration. The cache is a bounded
+# Per-night ranking cache keyed by (pier identity + horizon + rig + dark window).
+# The ranking's curve/weight parameters are fixed constants, so they do not enter
+# the key; design D5/D7 requires adding any that becomes per-pier configuration —
+# the rig now does, because framing depends on it (a rig change must change the
+# ranking, not serve a stale one). The cache is a bounded
 # LRU so a persistent container recomputing night after night keeps only the most
 # recent few rankings rather than retaining one entry per night forever. It is a
 # performance optimization only, so eviction never affects correctness (design D5).
 _CACHE_MAXSIZE = 16
 _rank_cache: OrderedDict[tuple[Any, ...], tuple[Target, ...]] = OrderedDict()
+
+
+def _rig_key(rig: Rig | None) -> tuple[Any, ...] | None:
+    """The rig's identity for the cache key, or ``None`` when no rig is configured."""
+    if rig is None:
+        return None
+    return (rig.focal_length_mm, rig.sensor_width_mm, rig.sensor_height_mm, rig.reducer)
 
 
 def _cache_key(pier: PierConfig, window: tuple[datetime, datetime]) -> tuple[Any, ...]:
@@ -427,6 +642,7 @@ def _cache_key(pier: PierConfig, window: tuple[datetime, datetime]) -> tuple[Any
         pier.longitude,
         pier.elevation_m,
         pier.horizon_mask.samples,
+        _rig_key(pier.rig),
         window[0],
         window[1],
     )
@@ -475,6 +691,9 @@ def _rank(pier: PierConfig, window: tuple[datetime, datetime], moon: Moon) -> li
     moon_alt, moon_az, _ = positions.observe(eph["moon"]).apparent().altaz()
     moon_alt_deg, moon_az_deg = moon_alt.degrees, moon_az.degrees
 
+    # The rig's short-edge field of view (arcmin) once per pier; None with no rig.
+    fov_short_arcmin = _fov_short_arcmin(pier.rig)
+
     scored: list[_Scored] = []
     for obj in load_catalog():
         alt, az, _ = positions.observe(_star(obj)).apparent().altaz()
@@ -497,6 +716,8 @@ def _rank(pier: PierConfig, window: tuple[datetime, datetime], moon: Moon) -> li
             moon_subscore(coarse_separation, moon.illumination, float(moon_alt_deg[peak]) >= 0.0),
             # Coarse transit proxy: the grid peak, refined exactly for finalists.
             transit_subscore(times[peak], times[start_index], times[end_index]),
+            brightness=brightness_subscore(obj.surface_brightness, obj.magnitude),
+            fov_fit=_fov_fit_for(obj, fov_short_arcmin),
         )
         scored.append(_Scored(coarse_score, obj, start_index, end_index))
 
@@ -520,22 +741,30 @@ def _rank(pier: PierConfig, window: tuple[datetime, datetime], moon: Moon) -> li
         )
         if not meets_minimum(geo.window_start, geo.window_end):
             continue
+        obj = candidate.obj
         score = combined_score(
             altitude_subscore(geo.max_altitude),
             window_subscore(geo.window_end - geo.window_start, dark_duration),
             moon_subscore(geo.moon_separation, moon.illumination, geo.moon_up_at_peak),
             transit_subscore(geo.transit_time, geo.window_start, geo.window_end),
+            brightness=brightness_subscore(obj.surface_brightness, obj.magnitude),
+            fov_fit=_fov_fit_for(obj, fov_short_arcmin),
         )
         emitted.append(
             Target(
-                id=candidate.obj.id,
-                name=candidate.obj.name,
-                type=candidate.obj.type,
+                id=obj.id,
+                name=obj.name,
+                type=obj.type,
                 score=score,
                 window=TargetWindow(start=geo.window_start, end=geo.window_end),
                 max_altitude=geo.max_altitude,
                 transit_time=geo.transit_time,
                 moon_separation=geo.moon_separation,
+                # The raw catalog facts, carried additively (design D8, ADR-0009);
+                # None (present, not omitted) when the catalog records no value.
+                size_arcmin=obj.size_arcmin,
+                magnitude=obj.magnitude,
+                surface_brightness=obj.surface_brightness,
             )
         )
         if len(emitted) >= TOP_N:

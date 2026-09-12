@@ -14,6 +14,7 @@ non-zero rather than running with nothing to publish.
 from __future__ import annotations
 
 import logging
+import math
 import os
 import re
 from pathlib import Path
@@ -125,6 +126,49 @@ def _resolve_horizon(spec: HorizonConfig | None, base_dir: Path | None) -> Horiz
     return parse_horizon_text(spec.format, text)
 
 
+class Rig(BaseModel):
+    """One imaging rig on a pier: raw optics, not a pre-computed field of view (design D1).
+
+    A telescope focal length and a camera sensor's width and height (millimetres),
+    with an optional focal ``reducer``/barlow factor. Each is strictly positive
+    (``Field(gt=0.0)``, the ``max_gust`` precedent), so a non-positive value is a
+    configuration error rather than a runtime crash — the effective focal length
+    and the derived short-edge field of view are therefore never zero, and the
+    ranking's ``r = size / fov_short`` never divides by zero (design D2).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    focal_length_mm: float = Field(gt=0.0)
+    sensor_width_mm: float = Field(gt=0.0)
+    sensor_height_mm: float = Field(gt=0.0)
+    reducer: float = Field(default=1.0, gt=0.0)
+
+    def field_of_view_deg(self) -> tuple[float, float]:
+        """The rig's field of view as ``(width, height)`` angles in degrees (design D2).
+
+        The reducer/barlow scales the focal length first —
+        ``f_eff = focal_length_mm * reducer`` — so a reducer below 1.0 widens the
+        field and a barlow above 1.0 narrows it. Each axis is
+        ``2·atan(sensor_axis / (2·f_eff))``. Pure and offline: the same rig always
+        yields the same field of view, so ranking stays deterministic.
+        """
+        f_eff = self.focal_length_mm * self.reducer
+        width = math.degrees(2.0 * math.atan(self.sensor_width_mm / (2.0 * f_eff)))
+        height = math.degrees(2.0 * math.atan(self.sensor_height_mm / (2.0 * f_eff)))
+        return width, height
+
+    @property
+    def fov_short_deg(self) -> float:
+        """The short edge of the field of view (degrees) — the true "does it fit" axis.
+
+        An object wider than the short edge is cropped at any rotation, so the
+        short edge, not the diagonal, is the framing reference (design D3).
+        """
+        width, height = self.field_of_view_deg()
+        return min(width, height)
+
+
 class PierConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -142,6 +186,9 @@ class PierConfig(BaseModel):
     # resolved to canonical samples during validation and exposed as
     # ``horizon_mask``; the raw block is not consumed by the verdict path.
     horizon: HorizonConfig | None = None
+    # The optional imaging rig (design D1). Absent -> the field-of-view ranking
+    # term does not contribute; the pier still ranks on placement and brightness.
+    rig: Rig | None = None
 
     _horizon_mask: Horizon = PrivateAttr()
 

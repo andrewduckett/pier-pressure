@@ -59,7 +59,9 @@ class CatalogObject:
     parsed precision. ``magnitude`` is the visual magnitude when recorded, else
     the blue magnitude, else ``None`` (unknown, kept as a candidate). ``name`` is
     the first recorded common name or ``None``. ``size_arcmin`` is the major-axis
-    size when recorded — stored for future field-of-view work, not emitted now.
+    size when recorded, and ``surface_brightness`` (mag/arcsec²) is recorded for
+    many extended objects — both feed the equipment ranking terms (design D3/D4)
+    and are ``None`` when the source records none.
     """
 
     id: str
@@ -69,6 +71,7 @@ class CatalogObject:
     dec_degrees: float
     magnitude: float | None
     size_arcmin: float | None
+    surface_brightness: float | None
 
 
 def _parse_ra_hours(text: str) -> float:
@@ -125,6 +128,7 @@ def parse_row(row: Mapping[str, str]) -> CatalogObject:
         dec_degrees=_parse_dec_degrees(row["Dec"]),
         magnitude=_parse_magnitude(row),
         size_arcmin=_parse_optional_float(row.get("MajAx", "")),
+        surface_brightness=_parse_optional_float(row.get("SurfBr", "")),
     )
 
 

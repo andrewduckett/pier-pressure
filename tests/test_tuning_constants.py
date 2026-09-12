@@ -10,9 +10,21 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from pierpressure.conditions.provider import MAX_STALENESS
 from pierpressure.core.config import DEFAULT_GO_THRESHOLD
 from pierpressure.core.model import Band
+from pierpressure.core.ranking import (
+    WEIGHT_ALTITUDE,
+    WEIGHT_BRIGHTNESS,
+    WEIGHT_FOV,
+    WEIGHT_MOON,
+    WEIGHT_TRANSIT,
+    WEIGHT_WINDOW,
+    brightness_subscore,
+    fov_fit_subscore,
+)
 from pierpressure.core.scoring import (
     _HIGH_CLOUD_MAX_PENALTY,
     _MOON_MAX_PENALTY,
@@ -79,3 +91,32 @@ def test_high_cloud_max_penalty_is_a_fixed_constant_below_the_moon_penalty() -> 
     # cirrus is a meaningful but non-catastrophic hit.
     assert 0.0 < _HIGH_CLOUD_MAX_PENALTY < 1.0
     assert _HIGH_CLOUD_MAX_PENALTY < _MOON_MAX_PENALTY
+
+
+# --- Equipment ranking constants (design D3-D6; validated task 6.1) --------- #
+
+
+def test_six_base_weights_sum_to_one_and_geometry_dominates() -> None:
+    geometry = WEIGHT_ALTITUDE + WEIGHT_WINDOW + WEIGHT_MOON + WEIGHT_TRANSIT
+    total = geometry + WEIGHT_BRIGHTNESS + WEIGHT_FOV
+    assert total == pytest.approx(1.0)
+    # Geometry stays dominant so neither new term overwhelms placement (D5/D6).
+    assert geometry == pytest.approx(0.80)
+    assert (WEIGHT_BRIGHTNESS, WEIGHT_FOV) == (0.12, 0.08)
+
+
+def test_fov_fit_curve_anchors() -> None:
+    # Speck floor, sweet band ~1.0, the just-fits point marked down, oversize
+    # decayed but never zero (design D3).
+    assert fov_fit_subscore(0.0) == pytest.approx(0.20)  # speck floor
+    assert fov_fit_subscore(0.3) == pytest.approx(1.0)  # sweet band
+    assert fov_fit_subscore(1.0) == pytest.approx(0.60)  # just fills the short edge
+    assert 0.0 < fov_fit_subscore(4.0) < fov_fit_subscore(1.2)  # oversize, no cliff
+
+
+def test_brightness_curve_anchors_are_per_scale() -> None:
+    # Surface-brightness anchors 18-25 mag/arcsec²; magnitude anchors 3-13.
+    assert brightness_subscore(surface_brightness=18.0, magnitude=None) == pytest.approx(1.0)
+    assert brightness_subscore(surface_brightness=25.0, magnitude=None) == pytest.approx(0.0)
+    assert brightness_subscore(surface_brightness=None, magnitude=3.0) == pytest.approx(1.0)
+    assert brightness_subscore(surface_brightness=None, magnitude=13.0) == pytest.approx(0.0)

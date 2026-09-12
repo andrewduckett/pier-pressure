@@ -39,6 +39,9 @@ TARGET_KEY_ORDER = [
     "max_altitude",
     "transit_time",
     "moon_separation",
+    "size_arcmin",
+    "magnitude",
+    "surface_brightness",
 ]
 
 
@@ -52,6 +55,9 @@ def _target(**overrides: object) -> Target:
         "max_altitude": 61.234,
         "transit_time": _TRANSIT,
         "moon_separation": 112.5,
+        "size_arcmin": 177.83,
+        "magnitude": 3.44,
+        "surface_brightness": 13.91,
     }
     base.update(overrides)
     return Target(**base)  # type: ignore[arg-type]
@@ -70,6 +76,33 @@ def test_target_carries_all_fields() -> None:
 
 def test_target_name_is_nullable() -> None:
     assert _target(name=None).name is None
+
+
+def test_target_carries_size_and_brightness() -> None:
+    target = _target()
+    assert target.size_arcmin == 177.83
+    assert target.magnitude == 3.44
+    assert target.surface_brightness == 13.91
+
+
+def test_target_size_and_brightness_are_nullable_and_present() -> None:
+    # Missing catalog values are null (present, not omitted) rather than guessed.
+    target = _target(size_arcmin=None, magnitude=None, surface_brightness=None)
+    assert target.size_arcmin is None
+    assert target.magnitude is None
+    assert target.surface_brightness is None
+    payload = json.loads(target.model_dump_json())
+    assert payload["size_arcmin"] is None
+    assert payload["magnitude"] is None
+    assert payload["surface_brightness"] is None
+
+
+def test_target_catalog_values_round_to_fixed_precision() -> None:
+    # The emitted raw facts round to a fixed precision so the document is byte-stable.
+    target = _target(size_arcmin=177.8349, magnitude=3.4412, surface_brightness=13.9987)
+    assert target.size_arcmin == 177.83
+    assert target.magnitude == 3.44
+    assert target.surface_brightness == 14.0
 
 
 def test_target_keys_are_in_fixed_order() -> None:

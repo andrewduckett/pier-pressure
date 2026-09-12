@@ -124,7 +124,25 @@ Fill the `targets` list.
   fainter but better-placed object can outrank a brighter one until the equipment
   work lands.
 
-### M6 — LLM explainer + suggestions  ·  status: planned
+### M6 — Equipment: field-of-view fit + brightness  ·  status: done
+Change: `add-equipment-ranking`
+Rank on how well a target suits the observer's gear, not just how well it is
+placed. This is the science M5 deferred here (see M5's "Deferred to the equipment
+milestone").
+- **Field-of-view fit as a ranking factor.** A per-pier equipment description
+  (telescope + camera) yields a field of view; a target's angular size
+  (`size_arcmin`, already parsed in the catalog but not yet emitted) scores on how
+  well it frames — an object too large to fit and one too small to see are both
+  penalised. Unknown size scores neutral, mirroring the unknown-magnitude rule.
+- **Brightness as a ranking factor.** Magnitude becomes a scoring term rather than
+  the candidate filter it is in M5, so a fainter but better-placed object no longer
+  automatically outranks a brighter one. Surface brightness is the better predictor
+  for extended objects (to be settled in the change).
+- Additive only: new `Target` fields and `reasons[]`, no contract break. The score
+  stays a banded 0–100; adding terms re-normalises the weighted sum, and the FOV
+  term is present only when a rig is configured.
+
+### M7 — LLM explainer + suggestions  ·  status: planned
 Optional prose layer.
 - Consumes the finished verdict document and rewrites `reasons[]` into prose;
   never touches the numbers. System fully functional without it.

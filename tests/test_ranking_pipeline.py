@@ -37,6 +37,13 @@ def _london(**overrides: object) -> PierConfig:
     return PierConfig(id="london", latitude=51.5, longitude=-0.12, elevation_m=30.0, **overrides)  # type: ignore[arg-type]
 
 
+# A widefield rig (short focal length, so a large field frames big objects) and a
+# long rig (narrow field, so only small objects frame well) — they frame the
+# candidates differently, which is what a rig-change test needs.
+_WIDEFIELD_RIG = {"focal_length_mm": 250.0, "sensor_width_mm": 23.5, "sensor_height_mm": 15.7}
+_LONG_RIG = {"focal_length_mm": 2000.0, "sensor_width_mm": 23.5, "sensor_height_mm": 15.7}
+
+
 def _rank(pier: PierConfig) -> list:
     with no_network():
         window = dark_window(pier, _INSTANT)
@@ -71,8 +78,9 @@ def test_every_emitted_target_is_whole_second_and_scored() -> None:
 def test_top_target_is_genuinely_well_placed() -> None:
     # The pipeline surfaces objectively well-placed targets: the top one reaches a
     # high altitude, stays up for most of the night, and transits inside its
-    # window. (Which object wins is a geometry question — brightness is not a
-    # ranking factor this milestone — so the test checks placement, not identity.)
+    # window. (Which object wins now also depends on brightness and framing, but a
+    # rig-less pier still ranks on placement and brightness, so the test checks
+    # placement, not identity.)
     targets = _rank(_london())
     top = targets[0]
     assert top.max_altitude >= 60.0
@@ -80,11 +88,12 @@ def test_top_target_is_genuinely_well_placed() -> None:
     assert top.window.start <= top.transit_time <= top.window.end
 
 
-def test_m31_scores_well_even_though_it_is_not_top_ten() -> None:
-    # Task 8.2 validation: M31 is a well-placed autumn target and scores highly
-    # (>= 90) on this night, even though it does not make the top ten because it
-    # transits after the window midpoint. Brightness is not a ranking factor this
-    # milestone, so better-centred fainter objects rank above it.
+def test_m31_geometry_alone_scores_well() -> None:
+    # M31 is a well-placed autumn target: on the four geometry factors alone it
+    # scores highly (>= 90) on this night, even though it does not make the top ten
+    # because it transits after the window midpoint. (In the full pipeline M31 is
+    # also marked down by the equipment terms — its low surface brightness and, for
+    # a typical rig, its large size — so this checks geometry, not the full score.)
     pier = _london()
     m31 = next(o for o in load_catalog() if o.id == "NGC0224")
     with no_network():
@@ -107,6 +116,58 @@ def test_far_southern_object_that_never_rises_is_absent() -> None:
     # can never be a candidate — the gates discriminate unobservable objects out.
     ids = {t.id for t in _rank(_london())}
     assert "NGC0104" not in ids
+
+
+# --------------------------------------------------------------------------- #
+# Equipment: rig-configured and rig-less piers both rank; a rig changes ranking
+# --------------------------------------------------------------------------- #
+
+
+def test_rig_configured_and_rig_less_piers_both_rank_without_error() -> None:
+    # A pier with a rig and a pier without one both produce a bounded, scored list.
+    with_rig = _rank(_london(rig=_WIDEFIELD_RIG))
+    without_rig = _rank(_london())
+    for targets in (with_rig, without_rig):
+        assert 0 < len(targets) <= TOP_N
+        assert all(0 <= t.score <= 100 for t in targets)
+
+
+def test_targets_carry_the_raw_catalog_facts() -> None:
+    # Every emitted target carries size/magnitude/surface_brightness (null when the
+    # catalog records none); each present value came straight from the catalog.
+    catalog = {o.id: o for o in load_catalog()}
+    for target in _rank(_london(rig=_WIDEFIELD_RIG)):
+        source = catalog[target.id]
+        assert target.size_arcmin == (
+            None if source.size_arcmin is None else round(source.size_arcmin, 2)
+        )
+        assert target.magnitude == (
+            None if source.magnitude is None else round(source.magnitude, 2)
+        )
+
+
+def test_a_rig_change_changes_the_ranking() -> None:
+    # The target-ranking "A rig change changes the ranking" scenario: the same pier
+    # and instant with two differently-framing rigs must differ in scores or order.
+    ranking._rank_cache.clear()
+    widefield = _rank(_london(rig=_WIDEFIELD_RIG))
+    ranking._rank_cache.clear()
+    long = _rank(_london(rig=_LONG_RIG))
+    widefield_key = [(t.id, t.score) for t in widefield]
+    long_key = [(t.id, t.score) for t in long]
+    assert widefield_key != long_key
+
+
+def test_the_rig_joins_the_cache_key() -> None:
+    # Two rigs must not collide in the per-night cache: the second rig recomputes
+    # rather than serving the first rig's ranking.
+    ranking._rank_cache.clear()
+    with no_network():
+        window = dark_window(_london(), _INSTANT)
+        moon = moon_info(_london(), window, _INSTANT)
+        first = rank_targets(_london(rig=_WIDEFIELD_RIG), _INSTANT, window, moon)
+        second = rank_targets(_london(rig=_LONG_RIG), _INSTANT, window, moon)
+    assert [(t.id, t.score) for t in first] != [(t.id, t.score) for t in second]
 
 
 # --------------------------------------------------------------------------- #
