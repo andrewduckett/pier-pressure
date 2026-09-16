@@ -212,17 +212,21 @@ class ExplainerConfig(BaseModel):
     The explainer turns a finished verdict into short prose delivered as a separate
     Home Assistant entity; it never feeds the astronomy or scoring math (ADR-0011).
     ``enabled`` gates both the provider and the narrative entity: an absent block or
-    ``enabled: false`` leaves the default (no provider constructed, no entity). The
-    ``api_key`` supports the same ``${ENV}`` expansion as the broker credentials, so
-    the secret need not sit in plaintext; a missing key leaves a visible ``${VAR}``
-    placeholder (never logged) and the explainer degrades to no-narrative rather
-    than erroring.
+    ``enabled: false`` leaves the default (no provider constructed, no entity).
+
+    ``model`` is a Pydantic AI model spec (``"provider:model-name"``, e.g.
+    ``"anthropic:claude-opus-5"``, ``"openai:gpt-4o"``), so the LLM provider is chosen
+    by configuration rather than hard-coded. The optional ``api_key`` supports the same
+    ``${ENV}`` expansion as the broker credentials, so the secret need not sit in
+    plaintext; a missing key leaves a visible ``${VAR}`` placeholder (never logged) and
+    the explainer degrades to no-narrative rather than erroring. When ``api_key`` is
+    omitted, credentials are read from the provider's standard environment variable.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     enabled: bool = False
-    model: str = "claude-opus-5"
+    model: str = "anthropic:claude-opus-5"
     api_key: str | None = None
 
 

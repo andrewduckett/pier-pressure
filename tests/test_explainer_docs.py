@@ -50,6 +50,6 @@ def test_sample_config_loads_and_enables_the_explainer(monkeypatch: pytest.Monke
     config = load_config(_SAMPLE)
     assert config.explainer is not None
     assert config.explainer.enabled is True
-    assert config.explainer.model == "claude-opus-5"
+    assert config.explainer.model == "anthropic:claude-opus-5"
     # The unset ${ENV} key stays a visible placeholder rather than a blank secret.
     assert config.explainer.api_key == "${ANTHROPIC_API_KEY}"

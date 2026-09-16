@@ -50,7 +50,7 @@ def test_enabled_false_block_is_parsed_but_disabled(tmp_path: Path) -> None:
         + """
 explainer:
   enabled: false
-  model: claude-opus-5
+  model: anthropic:claude-opus-5
 """
     )
     config = load_config(_write(tmp_path, text))
@@ -67,14 +67,14 @@ def test_enabled_block_carries_model_and_api_key(
         + """
 explainer:
   enabled: true
-  model: claude-opus-5
+  model: anthropic:claude-opus-5
   api_key: ${PIERPRESSURE_LLM_KEY}
 """
     )
     config = load_config(_write(tmp_path, text))
     assert config.explainer is not None
     assert config.explainer.enabled is True
-    assert config.explainer.model == "claude-opus-5"
+    assert config.explainer.model == "anthropic:claude-opus-5"
     assert config.explainer.api_key == "sk-test-123"
 
 

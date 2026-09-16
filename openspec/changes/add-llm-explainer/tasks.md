@@ -5,7 +5,7 @@ always exercised through a fake or a mocked client.
 
 ## 1. Dependency and configuration
 
-- [x] 1.1 Add the Anthropic SDK with `uv add anthropic`, and verify `pyproject.toml` and `uv.lock` update in step and the package imports.
+- [x] 1.1 Add Pydantic AI (model-agnostic LLM client) with `uv add "pydantic-ai-slim[anthropic,openai,google]"`, and verify `pyproject.toml` and `uv.lock` update in step and the package imports.
 - [x] 1.2 Write failing tests for an optional `explainer` config block on `AppConfig`: `enabled` (default `false`), a provider/model identifier, and an API key resolved through the existing `${ENV}` expansion; an absent block or `enabled: false` yields a disabled explainer. Implement the config and verify the tests pass, including that a missing `${ENV}` key leaves a visible placeholder rather than a blank secret.
 
 ## 2. Explainer edge package (`pierpressure/explain/`)
@@ -15,7 +15,7 @@ always exercised through a fake or a mocked client.
 - [x] 2.3 Write failing tests for the provider interface and a fake provider double that returns text with no network. Implement the interface and the fake, and verify a narrative is produced through the double.
 - [x] 2.4 Write failing tests for the narrative cache keyed on a hash of the exact prompt input (spec verdict-narrative — "Narratives are cached..."): identical influencing terms reuse the cached prose with one provider call; a changed target field (e.g. a new `transit_time` or `max_altitude`) or a changed `confidence` triggers a fresh call. Implement the cache and verify.
 - [x] 2.5 Write failing tests for the graceful-fallback wrapper: a provider that raises, times out, or returns nothing usable makes the explainer return `None`, log the failure, and never raise or block; the call carries a bounded timeout. Implement and verify.
-- [x] 2.6 Implement the default Anthropic provider behind the interface, and verify with a mocked SDK client (no network) that it builds a request from the prompt input and returns text, and that a missing/invalid API key degrades to `None` rather than raising.
+- [x] 2.6 Implement the default Pydantic AI provider behind the interface (the `model` string selects the LLM provider), and verify with an injected Pydantic AI test model (no network) that it builds a request from the prompt input and returns text, and that a missing/invalid API key degrades to `None` rather than raising.
 
 ## 3. Core-purity boundary guard
 

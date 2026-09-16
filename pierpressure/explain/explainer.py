@@ -24,7 +24,7 @@ from pierpressure.core.config import ExplainerConfig
 from pierpressure.core.model import VerdictDocument
 
 from .prompt import PromptInput, build_prompt_input
-from .provider import AnthropicProvider, Provider
+from .provider import Provider, PydanticAIProvider
 
 logger = logging.getLogger(__name__)
 
@@ -87,10 +87,11 @@ def build_explainer(config: ExplainerConfig | None) -> Explainer:
     """Wire the explainer from config: the no-op when disabled, else a real provider.
 
     An absent block or ``enabled: false`` yields :func:`no_op_explainer` and
-    constructs no provider (design D7). When enabled, the default Anthropic provider
-    is wired behind the caching, bounded-timeout wrapper.
+    constructs no provider (design D7). When enabled, the default Pydantic AI provider
+    is wired behind the caching, bounded-timeout wrapper; the config ``model`` string
+    selects the LLM provider.
     """
     if config is None or not config.enabled:
         return no_op_explainer
-    provider = AnthropicProvider(model=config.model, api_key=config.api_key)
+    provider = PydanticAIProvider(model=config.model, api_key=config.api_key)
     return NarrativeExplainer(provider)

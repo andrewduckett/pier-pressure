@@ -11,7 +11,7 @@ dependencies = [
     "skyfield>=1.55",
     "skyfield-data>=7.0.0",
     "httpx>=0.28.1",
-    "anthropic>=1.6.0",
+    "pydantic-ai-slim[anthropic,google,openai]>=2.43.0",
 ]
 
 [build-system]
@@ -71,4 +71,7 @@ filterwarnings = [
     # Skyfield 1.55's find_discrete sets an array dtype in-place, which NumPy 2.5
     # deprecates. Upstream, not ours; both versions are lockfile-pinned.
     "ignore:Setting the dtype on a NumPy array has been deprecated:DeprecationWarning:skyfield",
+    # pydantic-graph calls asyncio.get_event_loop() when the explainer's Pydantic AI
+    # run_sync executes on a worker thread with no running loop. Upstream, not ours.
+    "ignore:There is no current event loop:DeprecationWarning:pydantic_graph",
 ]

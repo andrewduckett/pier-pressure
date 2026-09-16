@@ -82,7 +82,9 @@ def test_default_service_passes_no_narrative() -> None:
 
 
 def test_enabled_config_wires_a_real_explainer_and_managing_delivery() -> None:
-    config = _app_config(ExplainerConfig(enabled=True, model="claude-opus-5", api_key="k"))
+    config = _app_config(
+        ExplainerConfig(enabled=True, model="anthropic:claude-opus-5", api_key="k")
+    )
     delivery, explainer = build_delivery_and_explainer(config)
     assert isinstance(explainer, NarrativeExplainer)
     assert delivery._manage_narrative is True

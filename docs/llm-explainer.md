@@ -5,6 +5,11 @@ tonight worth setting up for, and what should I point at?" answered in sentences
 reads the already-computed verdict and never feeds the astronomy or scoring math, so
 the numbers are unchanged whether or not it runs.
 
+It is **model-agnostic**: the prose is produced through
+[Pydantic AI](https://ai.pydantic.dev), and the `model` you configure selects the LLM
+provider (Anthropic, OpenAI, Google, or any other Pydantic AI model). No provider is
+hard-coded.
+
 The narrative is delivered as a **separate Home Assistant sensor entity**, beside the
 existing verdict, score, top-target, and refresh entities. It is **never** a field of
 the verdict document (ADR-0011), so the document stays byte-identical with the
@@ -23,8 +28,8 @@ Add an `explainer` block to your `config.yaml`:
 ```yaml
 explainer:
   enabled: true
-  model: claude-opus-5                 # any current Claude model id
-  api_key: ${ANTHROPIC_API_KEY}        # env override; avoids plaintext
+  model: anthropic:claude-opus-5       # provider:model — e.g. openai:gpt-4o
+  api_key: ${ANTHROPIC_API_KEY}        # optional; env override, avoids plaintext
 ```
 
 Then provide the key in the environment and run as usual:
@@ -36,11 +41,18 @@ uv run python -m pierpressure /path/to/config.yaml
 
 - `enabled` — the single switch. It wires both the LLM provider and the narrative
   entity; leave it out or set it `false` to keep the explainer off.
-- `model` — the Claude model that writes the prose. Defaults to `claude-opus-5`.
-- `api_key` — your Anthropic API key. Use the `${VAR}` form so the secret lives in the
-  environment, not the file. The key is never logged. If the variable is unset, the
-  literal `${VAR}` placeholder is left in place (a visible "missing secret" rather
-  than a blank), and the explainer degrades to no narrative rather than erroring.
+- `model` — a Pydantic AI model spec, `provider:model-name`. Examples:
+  `anthropic:claude-opus-5`, `openai:gpt-4o`, `google-gla:gemini-1.5-flash`. Defaults
+  to `anthropic:claude-opus-5`. The provider prefix picks which LLM writes the prose.
+  Anthropic, OpenAI, and Google are bundled; other Pydantic AI providers need their
+  extra installed.
+- `api_key` — **optional.** When set, it is exported to the selected provider's
+  standard key variable (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`). Use
+  the `${VAR}` form so the secret lives in the environment, not the file. The key is
+  never logged; an unset `${VAR}` stays a visible placeholder (a "missing secret"
+  rather than a blank), and the explainer degrades to no narrative rather than
+  erroring. **Omit it** to let the provider read its key straight from that
+  environment variable — the simplest path for non-Anthropic providers.
 
 The explainer is bounded and fault-tolerant: each call carries a short timeout, the
 result is cached on the exact verdict terms so an unchanged sky reuses one call, and

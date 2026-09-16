@@ -3,16 +3,18 @@
 Covers the public type and no-op (2.1), the prompt-input builder (2.2), the
 provider interface and a network-free double (2.3), the deterministic-terms cache
 (2.4), the graceful-fallback wrapper with a bounded timeout (2.5), and the default
-Anthropic provider behind a mocked SDK client (2.6). No test makes a real network
-call — the provider is always a fake or a mocked client.
+Pydantic AI provider driven by an injected test model (2.6). No test makes a real
+network call — the provider is always a fake or an injected Pydantic AI test model.
 """
 
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
+
+import pytest
 
 from pierpressure.core.model import (
     Band,
@@ -26,11 +28,11 @@ from pierpressure.core.model import (
     VerdictDocument,
 )
 from pierpressure.explain import (
-    AnthropicProvider,
     Explainer,
     FakeProvider,
     NarrativeExplainer,
     PromptInput,
+    PydanticAIProvider,
     build_explainer,
     build_prompt_input,
     no_op_explainer,
@@ -244,59 +246,65 @@ def test_a_failure_never_raises_into_the_caller() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# 2.6 — the default Anthropic provider behind a mocked SDK client
+# 2.6 — the default Pydantic AI provider, driven by an injected test model
 # --------------------------------------------------------------------------- #
 
 
-@dataclass
-class _FakeTextBlock:
-    text: str
-    type: str = "text"
+def _function_model(reply: str, captured: list[str]) -> Any:
+    """A Pydantic AI FunctionModel that records the messages and returns fixed text."""
+    from pydantic_ai.messages import ModelResponse, TextPart
+    from pydantic_ai.models.function import FunctionModel
+
+    def respond(messages: Any, info: Any) -> Any:
+        captured.append(str(messages))
+        return ModelResponse(parts=[TextPart(content=reply)])
+
+    return FunctionModel(respond)
 
 
-@dataclass
-class _FakeMessage:
-    content: list[Any]
+def test_pydantic_provider_returns_model_text() -> None:
+    from pydantic_ai.models.test import TestModel
+
+    provider = PydanticAIProvider(
+        model="anthropic:claude-opus-5",
+        model_obj=TestModel(custom_output_text="A clear, quiet night — go."),
+    )
+    with no_network():
+        assert provider.generate(build_prompt_input(_document())) == "A clear, quiet night — go."
 
 
-@dataclass
-class _FakeMessages:
-    reply: str
-    seen: list[dict[str, Any]] = field(default_factory=list)
-
-    def create(self, **kwargs: Any) -> _FakeMessage:
-        self.seen.append(kwargs)
-        return _FakeMessage(content=[_FakeTextBlock(text=self.reply)])
-
-
-@dataclass
-class _FakeAnthropicClient:
-    reply: str = "A clear, quiet night — go."
-
-    def __post_init__(self) -> None:
-        self.messages = _FakeMessages(reply=self.reply)
-
-
-def test_anthropic_provider_builds_a_request_and_returns_text() -> None:
-    client = _FakeAnthropicClient(reply="A clear, quiet night — go.")
-    provider = AnthropicProvider(model="claude-opus-5", api_key="sk-test", client=client)
+def test_pydantic_provider_passes_the_prompt_input_to_the_model() -> None:
+    captured: list[str] = []
+    provider = PydanticAIProvider(
+        model="anthropic:claude-opus-5",
+        model_obj=_function_model("prose", captured),
+    )
     prompt = build_prompt_input(_document())
     with no_network():
-        text = provider.generate(prompt)
-    assert text == "A clear, quiet night — go."
-    sent = client.messages.seen[0]
-    assert sent["model"] == "claude-opus-5"
+        provider.generate(prompt)
     # The request carries the built prompt input, not raw astronomy.
-    assert prompt.text in str(sent["messages"])
+    assert prompt.text in captured[0]
 
 
-def test_anthropic_provider_with_missing_key_degrades_to_none() -> None:
-    # A missing/placeholder key must not raise or reach the SDK; the explainer
-    # produces no narrative instead.
-    provider = AnthropicProvider(model="claude-opus-5", api_key="${PIERPRESSURE_LLM_KEY_UNSET}")
+def test_pydantic_provider_with_missing_key_degrades_to_none() -> None:
+    # A real model spec with no usable key reaches Pydantic AI, which raises before
+    # any network under the offline guard; the wrapper turns that into no narrative.
+    provider = PydanticAIProvider(
+        model="anthropic:claude-opus-5", api_key="${PIERPRESSURE_LLM_KEY_UNSET}"
+    )
     explainer = NarrativeExplainer(provider)
     with no_network():
         assert explainer(_document()) is None
+
+
+def test_pydantic_provider_exports_a_usable_key_to_the_provider_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    PydanticAIProvider(model="openai:gpt-4o", api_key="sk-openai-test")
+    import os
+
+    assert os.environ["OPENAI_API_KEY"] == "sk-openai-test"
 
 
 # --------------------------------------------------------------------------- #
@@ -317,5 +325,7 @@ def test_build_explainer_returns_no_op_when_disabled() -> None:
 def test_build_explainer_wires_a_real_provider_when_enabled() -> None:
     from pierpressure.core.config import ExplainerConfig
 
-    explainer = build_explainer(ExplainerConfig(enabled=True, model="claude-opus-5", api_key="k"))
+    explainer = build_explainer(
+        ExplainerConfig(enabled=True, model="anthropic:claude-opus-5", api_key="k")
+    )
     assert isinstance(explainer, NarrativeExplainer)

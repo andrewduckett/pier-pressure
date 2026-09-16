@@ -114,16 +114,24 @@ reads back.
 ### D3 — A provider interface with a default LLM provider, off by default
 
 The explainer obtains prose through a small provider interface (a callable or
-protocol taking the built input and returning text). The default provider calls an
-LLM service (Anthropic/Claude) and is the *only* component permitted a network
-call. A test double replaces it with no network. The provider is selected by
-configuration and is **disabled by default**: with no `explainer` config, the
-service wires the no-op explainer.
+protocol taking the built input and returning text). The default provider is built
+on **Pydantic AI**, which is model-agnostic: the configured `model` string
+(`provider:model-name`) selects the LLM provider, so nothing is hard-coded to one
+vendor. That provider is the *only* component permitted a network call. A test
+double — or an injected Pydantic AI `TestModel`/`FunctionModel` — replaces it with
+no network. The provider is selected by configuration and is **disabled by
+default**: with no `explainer` config, the service wires the no-op explainer.
 
 - **Why an interface:** swappability and testability, and it keeps the network at
   a single named seam, consistent with the conditions provider edge.
-- **Why Anthropic as the default:** it is the project's own model family; the
-  interface keeps the choice from being load-bearing.
+- **Why Pydantic AI as the default:** it lets any configured provider (Anthropic,
+  OpenAI, Google, …) write the prose from one code path, is pydantic-native (already
+  a core dependency) and typed for the strict-mypy gate, and keeps the choice of
+  vendor from being load-bearing. The default `model` is `anthropic:claude-opus-5`.
+- **Credentials:** the optional `api_key` is exported to the selected provider's
+  standard key variable (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`);
+  omitting it lets the provider read that variable directly. A missing key raises
+  inside Pydantic AI, which the graceful wrapper (D5) turns into no narrative.
 
 ### D4 — Cache the narrative on the deterministic verdict terms
 
@@ -187,7 +195,7 @@ the entity. The key is never logged.
 
 ## Risks / Trade-offs
 
-- [New runtime dependency — the Anthropic SDK] → isolated to `pierpressure/explain/`;
+- [New runtime dependency — Pydantic AI] → isolated to `pierpressure/explain/`;
   `core/` still imports nothing network-facing, so the boundary test is unaffected.
   Added with `uv add` so `pyproject.toml`/`uv.lock` stay in step.
 - [LLM cost and rate limits] → disabled by default, and the deterministic-terms

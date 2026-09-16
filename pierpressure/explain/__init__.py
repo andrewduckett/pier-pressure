@@ -9,8 +9,9 @@ numbers document stays byte-identical whether or not the explainer runs.
 
 The explainer is disabled by default: :func:`build_explainer` returns a no-op unless
 configuration enables it. When enabled, prose is obtained through a swappable
-:class:`Provider` (default: Anthropic/Claude), cached on the exact prompt input, and
-produced under a bounded timeout that degrades to no-narrative on any failure.
+:class:`Provider` (default: a Pydantic AI provider whose ``model`` string selects any
+supported LLM provider), cached on the exact prompt input, and produced under a
+bounded timeout that degrades to no-narrative on any failure.
 """
 
 from __future__ import annotations
@@ -23,17 +24,17 @@ from .explainer import (
     no_op_explainer,
 )
 from .prompt import PROMPT_TARGET_LIMIT, PromptInput, build_prompt_input
-from .provider import AnthropicProvider, FakeProvider, Provider
+from .provider import FakeProvider, Provider, PydanticAIProvider
 
 __all__ = [
     "DEFAULT_TIMEOUT",
     "PROMPT_TARGET_LIMIT",
-    "AnthropicProvider",
     "Explainer",
     "FakeProvider",
     "NarrativeExplainer",
     "PromptInput",
     "Provider",
+    "PydanticAIProvider",
     "build_explainer",
     "build_prompt_input",
     "no_op_explainer",
