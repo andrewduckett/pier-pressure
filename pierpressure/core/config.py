@@ -297,9 +297,12 @@ def load_config(path: str | os.PathLike[str]) -> AppConfig:
     if "explainer" in raw:
         assembled["explainer"] = raw["explainer"]
     try:
+        # This re-runs each pier's after-validator (a horizon file may be re-read),
+        # so a failure here is not necessarily the explainer block — keep the label
+        # neutral rather than blaming the wrong section.
         return AppConfig.model_validate(assembled, context={"base_dir": base_dir})
     except ValidationError as exc:
-        raise ConfigError(f"Invalid explainer configuration: {exc}") from exc
+        raise ConfigError(f"Invalid configuration: {exc}") from exc
 
 
 def validate_piers(raw_piers: list[Any], base_dir: Path | None = None) -> list[PierConfig]:

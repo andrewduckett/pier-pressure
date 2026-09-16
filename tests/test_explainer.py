@@ -181,6 +181,19 @@ def test_a_changed_confidence_triggers_a_fresh_call() -> None:
     assert provider.calls == 2
 
 
+def test_the_cache_is_bounded_and_evicts_the_oldest_entry() -> None:
+    provider = FakeProvider(text="Prose.")
+    explainer = NarrativeExplainer(provider, max_cache=2)
+    explainer(_document(score=10))
+    explainer(_document(score=20))
+    explainer(_document(score=30))  # evicts score=10 (least recently used)
+    assert len(explainer._cache) == 2
+    # score=10 was evicted, so re-requesting it is a fresh provider call.
+    calls_before = provider.calls
+    explainer(_document(score=10))
+    assert provider.calls == calls_before + 1
+
+
 # --------------------------------------------------------------------------- #
 # 2.5 — the graceful-fallback wrapper
 # --------------------------------------------------------------------------- #
@@ -297,14 +310,30 @@ def test_pydantic_provider_with_missing_key_degrades_to_none() -> None:
         assert explainer(_document()) is None
 
 
-def test_pydantic_provider_exports_a_usable_key_to_the_provider_env(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    PydanticAIProvider(model="openai:gpt-4o", api_key="sk-openai-test")
+def test_pydantic_provider_scopes_the_key_to_the_call(monkeypatch: pytest.MonkeyPatch) -> None:
     import os
 
-    assert os.environ["OPENAI_API_KEY"] == "sk-openai-test"
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    seen: dict[str, str | None] = {}
+
+    def respond(messages: Any, info: Any) -> Any:
+        from pydantic_ai.messages import ModelResponse, TextPart
+
+        seen["during"] = os.environ.get("OPENAI_API_KEY")
+        return ModelResponse(parts=[TextPart(content="ok")])
+
+    from pydantic_ai.models.function import FunctionModel
+
+    provider = PydanticAIProvider(
+        model="openai:gpt-4o", api_key="sk-openai-test", model_obj=FunctionModel(respond)
+    )
+    with no_network():
+        provider.generate(build_prompt_input(_document()))
+
+    # The key is visible to the provider during the call, and gone afterwards — it is
+    # never left persisting in the process environment.
+    assert seen["during"] == "sk-openai-test"
+    assert os.environ.get("OPENAI_API_KEY") is None
 
 
 # --------------------------------------------------------------------------- #

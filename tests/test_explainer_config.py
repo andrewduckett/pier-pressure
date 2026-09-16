@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from pierpressure.core.config import ExplainerConfig, load_config
+from pierpressure.core.config import ConfigError, ExplainerConfig, load_config
 
 _CONFIG_HEAD = """
 mqtt:
@@ -37,6 +37,38 @@ def _write(tmp_path: Path, text: str) -> Path:
 def test_absent_block_yields_a_disabled_explainer(tmp_path: Path) -> None:
     config = load_config(_write(tmp_path, _CONFIG_HEAD))
     assert config.explainer is None
+
+
+def test_malformed_explainer_block_raises_a_clean_config_error(tmp_path: Path) -> None:
+    # A structurally invalid explainer block fails only at final assembly (per-pier
+    # validation does not touch it). It must surface as a wrapped ConfigError, not a
+    # raw pydantic ValidationError.
+    text = (
+        _CONFIG_HEAD
+        + """
+explainer:
+  enabled: true
+  extra_unknown_field: nope
+"""
+    )
+    with pytest.raises(ConfigError):
+        load_config(_write(tmp_path, text))
+
+
+def test_assembly_error_label_does_not_hard_code_the_explainer(tmp_path: Path) -> None:
+    # The assembly-time re-validation covers piers as well as the explainer, so the
+    # error label must stay neutral rather than always blaming the explainer.
+    text = (
+        _CONFIG_HEAD
+        + """
+explainer:
+  enabled: true
+  extra_unknown_field: nope
+"""
+    )
+    with pytest.raises(ConfigError) as exc_info:
+        load_config(_write(tmp_path, text))
+    assert "invalid explainer configuration" not in str(exc_info.value).lower()
 
 
 def test_default_explainer_config_is_disabled() -> None:

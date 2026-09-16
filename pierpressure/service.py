@@ -68,8 +68,12 @@ class Service:
         self._conditions_provider = conditions_provider or _no_conditions
         # The optional explainer edge (design D1). The default no-op returns None,
         # so delivery receives no narrative and the existing behavior is unchanged.
-        # It never raises — a failed provider is a logged miss inside the wrapper —
-        # so computing the narrative here never blocks or delays the verdict.
+        # It never raises — a failed provider is a logged miss inside the wrapper.
+        # It is computed synchronously here (design D5), so on a cache miss it delays
+        # this pier's publish by up to the explainer's bounded timeout (and those
+        # waits serialize across piers); moving it off the publish thread is the
+        # deferred async path (design Open Questions). The cache makes steady state a
+        # local hit, and a disabled explainer adds nothing.
         self._explainer = explainer or no_op_explainer
 
     def enqueue_refresh(self, pier_id: str) -> None:

@@ -128,10 +128,12 @@ default**: with no `explainer` config, the service wires the no-op explainer.
   OpenAI, Google, …) write the prose from one code path, is pydantic-native (already
   a core dependency) and typed for the strict-mypy gate, and keeps the choice of
   vendor from being load-bearing. The default `model` is `anthropic:claude-opus-5`.
-- **Credentials:** the optional `api_key` is exported to the selected provider's
-  standard key variable (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`);
-  omitting it lets the provider read that variable directly. A missing key raises
-  inside Pydantic AI, which the graceful wrapper (D5) turns into no narrative.
+- **Credentials:** the optional `api_key` is exposed to the selected provider's
+  standard key variable (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`)
+  only for the duration of the model call, then restored — so the secret does not
+  persist in the process environment. Omitting it lets the provider read that
+  variable directly. A missing key raises inside Pydantic AI, which the graceful
+  wrapper (D5) turns into no narrative.
 
 ### D4 — Cache the narrative on the deterministic verdict terms
 
@@ -171,6 +173,17 @@ cache miss.
   Questions, not a larger timeout.
 - [The explainer raising into the loop] → the wrapper never propagates; a failure
   is a logged miss, exactly like the conditions provider's failure path.
+- [A persistently failing provider re-pays the timeout every recompute] → only
+  successful narratives are cached; a misconfigured or down provider therefore
+  misses on every unchanged-verdict recompute and re-pays up to the timeout each
+  cycle. This is accepted for M7: a negative cache would need retry-after-recovery
+  (TTL) semantics that belong with the deferred asynchronous path, and the timeout
+  is kept short (`PROVIDER_TIMEOUT`) so each cycle's cost stays bounded. The verdict
+  still publishes on every cycle regardless.
+- [Bounded latency, not zero latency] → the cache and timeout bound the delay, but
+  do not remove it: a cache miss still delays the pier's publish by up to the
+  timeout. The invariant is "the verdict always publishes, bounded," not "the
+  narrative never adds latency"; zero added latency is the deferred async path.
 
 ### D6 — Prompt input is the verdict terms only; output is opaque text
 
