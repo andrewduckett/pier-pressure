@@ -16,7 +16,7 @@ as a milestone's science arrives, and a field may be reserved before its shape i
 known. `targets` has shipped since M1 as a present-but-empty `list[str]` — reserved
 with no element shape on purpose. Milestone M5 is the milestone that defines it.
 Once the element shape ships it is frozen, so choosing its fields — and whether to
-carry per-target prose — is a durable decision with M6 (the LLM explainer)
+carry per-target prose — is a durable decision with the LLM explainer milestone (M7)
 downstream.
 
 ## Decision
@@ -31,12 +31,12 @@ no per-target prose `reasons`.
 
 ## Consequences
 
-- Easier: consumers get machine-readable ranking detail (a dashboard card, the M6
-  LLM) without parsing prose; the numbers are the explanation.
+- Easier: consumers get machine-readable ranking detail (a dashboard card, the M7
+  LLM explainer) without parsing prose; the numbers are the explanation.
 - Easier: the additive-only claim is testable — in every golden fixture, only the
   `targets` array changes, and a test asserts the other fields are byte-identical.
-- Easier: M6 has structured inputs to turn into prose, keeping the "LLM explains,
-  never computes" boundary (ADR-0001) clean.
+- Easier: the M7 LLM explainer has structured inputs to turn into prose, keeping the
+  "LLM explains, never computes" boundary (ADR-0001) clean.
 - Constraint accepted: the element shape is now frozen; new per-target facts arrive
   as additive fields, and no field is reserved before the milestone that defines it
   (so no `fov_fit` field exists until equipment work lands).
@@ -61,9 +61,11 @@ no per-target prose `reasons`.
 
 - **Pros**: symmetry with the verdict's explainability; human-readable per target.
 - **Cons**: string assembly per target bloats the contract and complicates
-  determinism, and it pre-empts M6, whose whole job is turning numbers into prose.
-- **Why not**: the structured fields already carry the "why" as data; prose is M6's
-  responsibility, and keeping it out here preserves the compute/explain boundary.
+  determinism, and it pre-empts the M7 LLM explainer, whose whole job is turning
+  numbers into prose.
+- **Why not**: the structured fields already carry the "why" as data; prose is the
+  M7 explainer's responsibility, and keeping it out here preserves the
+  compute/explain boundary.
 
 ### Alternative 3: Let target ranking also adjust the verdict score or reasons
 

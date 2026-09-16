@@ -95,13 +95,16 @@ class FakeMessage:
 
 
 class RecordingDelivery:
-    """A delivery stand-in that records the documents it is asked to publish."""
+    """A delivery stand-in that records the documents (and narratives) it is asked
+    to publish."""
 
     def __init__(self) -> None:
         self.documents: list[VerdictDocument] = []
+        self.narratives: list[str | None] = []
 
-    def publish_verdict(self, document: VerdictDocument) -> None:
+    def publish_verdict(self, document: VerdictDocument, narrative: str | None = None) -> None:
         self.documents.append(document)
+        self.narratives.append(narrative)
 
 
 class StepClock:

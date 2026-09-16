@@ -11,6 +11,7 @@ dependencies = [
     "skyfield>=1.55",
     "skyfield-data>=7.0.0",
     "httpx>=0.28.1",
+    "anthropic>=1.6.0",
 ]
 
 [build-system]

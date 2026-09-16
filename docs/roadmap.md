@@ -142,10 +142,17 @@ milestone").
   stays a banded 0–100; adding terms re-normalises the weighted sum, and the FOV
   term is present only when a rig is configured.
 
-### M7 — LLM explainer + suggestions  ·  status: planned
+### M7 — LLM explainer + suggestions  ·  status: done
+Change: `add-llm-explainer`
 Optional prose layer.
-- Consumes the finished verdict document and rewrites `reasons[]` into prose;
-  never touches the numbers. System fully functional without it.
+- Consumes the finished verdict document and produces a short plain-language
+  narrative of the verdict and its top targets; never touches the numbers. The
+  prose is delivered as a **separate** Home Assistant sensor entity, not merged
+  into the document or into `reasons[]` (ADR-0011). Disabled by default, cached on
+  the verdict terms, and degrades gracefully; the system is fully functional
+  without it. See [docs/llm-explainer.md](llm-explainer.md).
+- Suggestions ("start with M31, it transits at 01:20") were deferred to keep the
+  LLM from looking load-bearing; M7 ships the explainer only.
 
 ## Deferred / out of scope (for now)
 - Controlling the mount or running the imaging session (this recommends, it does
