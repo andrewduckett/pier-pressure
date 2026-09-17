@@ -225,7 +225,7 @@ artifacts:
 
       3. For each qualifying decision, create a NEW repository-level file at
          <repo>/docs/adr/NNNN-kebab-title.md following the template in 
-         <repo>/docs/adr/ADR-000-template.md
+         <repo>/docs/adr/0000-template.md
 
       4. Write openspec/changes/<change>/adr.md using the template. The
          manifest MUST state that ADR review completed for this change, list the
