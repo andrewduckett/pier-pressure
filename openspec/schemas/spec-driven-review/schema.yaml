@@ -186,11 +186,42 @@ artifacts:
          from each ADR's Supersedes field. Note the highest sequence number in
          use.
 
-      2. Re-read design.md. Identify decisions that meet ALL of these:
+      2. Re-read design.md and list the decisions it made. Write an ADR only
+         for a decision that is a real fork or an expensive-to-reverse call —
+         a choice among viable approaches where changing your mind later is
+         costly. Typical ADR categories: a stack, framework, or library
+         choice; a data model or schema; an auth strategy; an API
+         architecture; an infra, hosting, or provider choice; a privacy
+         posture.
 
-         - **Hard to reverse** — the cost of changing your mind later is meaningful
-         - **Surprising without context** — a future reader will wonder "why did they do it this way?"
-         - **The result of a real trade-off** — there were genuine alternatives and you picked one for specific reasons
+         A useful test: could an engineer reading only the code plausibly
+         reverse this decision without knowing why, and would that reversal be
+         costly? If yes, the why belongs in an ADR. Confusion is a separate
+         axis: fix a hard-to-read ADR by rewriting it, never by deleting it.
+
+         Write an ADR (good examples):
+         - **Stack forced by a constraint** — "Use an embedded datastore, not a networked database, because the app must run offline." Reversing it touches every storage call.
+         - **A canonical data model** — "Convert every input to one internal shape at its edge." Many consumers bind to that shape, so changing it later is costly.
+         - **A system boundary** — "Keep the core a pure library that emits one document, and make the integration a swappable adapter." The core stays testable on its own.
+
+         Do not write an ADR (bad examples):
+         - **Recoverable from code** — "Set the retry limit to 3." It lives in code, costs nothing to change, and you learn it by reading it.
+         - **Roadmap sequencing** — "Build reporting after billing." That is a roadmap decision, not an architectural fork.
+         - **A requirement, not a decision** — "Reject uploads over 10 MB." The spec owns that behavior; there is no fork between approaches.
+
+         An ADR is self-contained prose about the why. It MUST NOT cite FR/NFR
+         IDs, roadmap milestones, or table and column names, and it MUST NOT
+         restate the roadmap. If you cannot explain the decision without them,
+         it is probably a spec or roadmap item, not an ADR.
+
+         Write it to stand alone. A reader who knows the general domain but not
+         this project must be able to understand the decision and why it
+         matters. Name and briefly explain any project concept the decision
+         leans on, rather than assuming it or telling the reader to go read
+         another ADR. Extra sentences that orient a cold reader are welcome; each
+         still obeys the plain-language rules. If a decision cannot be made
+         legible without re-teaching the whole system, that is a sign it is
+         design or spec content, not an ADR.
 
       3. For each qualifying decision, create a NEW repository-level file at
          <repo>/docs/adr/NNNN-kebab-title.md following the template in 
