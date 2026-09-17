@@ -33,6 +33,12 @@ artifacts:
       implementation details belong in design.md.
 
       This is the foundation - specs, design, and tasks all build on this.
+
+      PLAIN LANGUAGE (a hard bar, not a pointer): write this in plain language
+      per ISO 24495-1 (and -3 for technical content). One idea per sentence — aim
+      for 15-20 words, never exceed 30. Use active voice with the actor named,
+      front-load each section, cut filler, and keep one term per concept. The
+      iso-24495 skill carries the full checklist.
     requires: []
 
   - id: specs
@@ -131,6 +137,12 @@ artifacts:
       ```
 
       Specs should be testable - each scenario is a potential test case.
+
+      PLAIN LANGUAGE (a hard bar, not a pointer): write this in plain language
+      per ISO 24495-1 (and -3 for technical content). One idea per sentence — aim
+      for 15-20 words, never exceed 30. Use active voice with the actor named,
+      front-load each section, cut filler, and keep one term per concept. The
+      iso-24495 skill carries the full checklist.
     requires:
       - proposal
 
@@ -166,6 +178,12 @@ artifacts:
       if a section would only restate them, point to them instead.
 
       Good design docs explain the "why" behind technical decisions.
+
+      PLAIN LANGUAGE (a hard bar, not a pointer): write this in plain language
+      per ISO 24495-1 (and -3 for technical content). One idea per sentence — aim
+      for 15-20 words, never exceed 30. Use active voice with the actor named,
+      front-load each section, cut filler, and keep one term per concept. The
+      iso-24495 skill carries the full checklist.
     requires:
       - proposal
 
@@ -236,6 +254,12 @@ artifacts:
       5. If nothing meets the bar, do not invent ADRs. The manifest MUST
          explicitly state that no major durable architectural decisions were
          introduced and no new repository-level ADR files were created.
+
+      PLAIN LANGUAGE (a hard bar, not a pointer): write every ADR in plain
+      language per ISO 24495-1, and -3 for technical content. One idea per
+      sentence, aim for 15-20 words and never exceed 30, active voice with the
+      actor named, front-loaded, no filler, one term per concept. The iso-24495
+      skill carries the full checklist.
     requires:
       - design
 
@@ -300,6 +324,14 @@ artifacts:
       - Security: trust boundaries crossed without validation requirements;
         endpoints with no authz requirement; injection-shaped data flows
         with no sanitization requirement
+      - PLAIN LANGUAGE (ISO 24495) in EVERY reviewed artifact — proposal,
+        design, specs, adr. Flag sentences over 30 words, passive voice that
+        hides the actor, filler, elegant variation (two words for one concept),
+        and brainstorming narrative that restates the proposal. This is a
+        first-class review criterion, not a stylistic aside: an artifact that is
+        hard to read fails the review. Cite the artifact and the offending text
+        as a finding, and hold every artifact to reader-first, findable,
+        understandable, and actionable prose.
 
       VERDICT (mutually exclusive):
       - APPROVE — downstream artifacts may proceed.
@@ -391,6 +423,11 @@ artifacts:
       ```
 
       Reference specs for what needs to be built, design for how to build it.
+
+      PLAIN LANGUAGE (a hard bar, not a pointer): write task descriptions in
+      plain language per ISO 24495-1. One idea per line, active voice with the
+      actor named, front-loaded, and no filler. The iso-24495 skill carries the
+      full checklist.
     requires:
       - review
 
