@@ -206,7 +206,7 @@ class Target(BaseModel):
     """One ranked deep-sky object in the ``targets`` list (design D2, ADR-0009).
 
     The fields are numbers, not prose: the structure is the explanation, and the
-    M6 LLM layer turns it into sentences. ``name`` is null when the catalog records
+    M7 LLM explainer turns it into sentences. ``name`` is null when the catalog records
     no common name. ``score`` is the unbanded 0-100 ranking value. ``window`` is
     the observable window; ``max_altitude`` (degrees) is the peak altitude reached
     inside it; ``transit_time`` is the meridian crossing for that day (which may

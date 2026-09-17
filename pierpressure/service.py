@@ -28,6 +28,7 @@ from pierpressure.core.conditions import Conditions
 from pierpressure.core.config import AppConfig, PierConfig
 from pierpressure.core.producer import produce_verdict
 from pierpressure.delivery.mqtt import MqttDelivery
+from pierpressure.explain import Explainer, no_op_explainer
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,7 @@ class Service:
         clock: Clock,
         refresh_queue: queue.Queue[str] | None = None,
         conditions_provider: ConditionsProvider | None = None,
+        explainer: Explainer | None = None,
     ) -> None:
         self._config = config
         self._delivery = delivery
@@ -64,6 +66,15 @@ class Service:
         )
         self._piers = {pier.id: pier for pier in config.piers}
         self._conditions_provider = conditions_provider or _no_conditions
+        # The optional explainer edge (design D1). The default no-op returns None,
+        # so delivery receives no narrative and the existing behavior is unchanged.
+        # It never raises — a failed provider is a logged miss inside the wrapper.
+        # It is computed synchronously here (design D5), so on a cache miss it delays
+        # this pier's publish by up to the explainer's bounded timeout (and those
+        # waits serialize across piers); moving it off the publish thread is the
+        # deferred async path (design Open Questions). The cache makes steady state a
+        # local hit, and a disabled explainer adds nothing.
+        self._explainer = explainer or no_op_explainer
 
     def enqueue_refresh(self, pier_id: str) -> None:
         """Callback for the network thread: record an on-demand refresh request."""
@@ -91,7 +102,9 @@ class Service:
         to a partial snapshot rather than skipping a publish.
         """
         conditions = self._conditions_provider(pier)
-        self._delivery.publish_verdict(produce_verdict(pier, self._clock, conditions))
+        document = produce_verdict(pier, self._clock, conditions)
+        narrative = self._explainer(document)  # never raises; may be None
+        self._delivery.publish_verdict(document, narrative=narrative)
 
     def _drain_refreshes(self, first: str) -> set[str]:
         """Collapse duplicate queued refreshes into one recompute per pier (D7).

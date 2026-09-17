@@ -75,6 +75,14 @@ def top_target_attributes_topic(base_topic: str, pier_id: str) -> str:
     return f"{base_topic}/{pier_id}/top_target/attributes"
 
 
+def narrative_state_topic(base_topic: str, pier_id: str) -> str:
+    return f"{base_topic}/{pier_id}/narrative/state"
+
+
+def narrative_attributes_topic(base_topic: str, pier_id: str) -> str:
+    return f"{base_topic}/{pier_id}/narrative/attributes"
+
+
 def discovery_topic(discovery_prefix: str, component: str, pier_id: str, object_id: str) -> str:
     return f"{discovery_prefix}/{component}/{node_id(pier_id)}/{object_id}/config"
 
@@ -198,6 +206,57 @@ def top_target_attributes(document: VerdictDocument) -> dict[str, Any]:
     }
 
 
+def build_narrative_discovery(pier_id: str, base_topic: str) -> dict[str, Any]:
+    """The optional narrative sensor (spec ha-delivery; ADR-0011; design D2).
+
+    It carries the LLM-generated prose that explains an already-computed verdict.
+    Home Assistant limits entity state values in length, so the state topic carries
+    only a short marker while the full prose rides along in the JSON attributes for
+    a dashboard card. Availability is a two-entry list with ``availability_mode:
+    all`` — the shared LWT topic AND a template requiring the attributes'
+    ``available`` flag — so a recompute with no narrative (provider failed or
+    disabled mid-run) renders the sensor ``unavailable`` rather than showing an
+    empty, placeholder, or stale value, mirroring the score and top-target sensors.
+    """
+    attrs = narrative_attributes_topic(base_topic, pier_id)
+    return {
+        "name": "Narrative",
+        "has_entity_name": True,
+        "unique_id": f"{node_id(pier_id)}_narrative",
+        "state_topic": narrative_state_topic(base_topic, pier_id),
+        "json_attributes_topic": attrs,
+        "availability_mode": "all",
+        "availability": [
+            {
+                "topic": availability_topic(base_topic),
+                "payload_available": PAYLOAD_ONLINE,
+                "payload_not_available": PAYLOAD_OFFLINE,
+            },
+            {
+                "topic": attrs,
+                "value_template": ("{{ 'online' if value_json.available else 'offline' }}"),
+            },
+        ],
+        "icon": "mdi:text-long",
+        "device": _device_block(pier_id),
+    }
+
+
+def narrative_state(narrative: str | None) -> str:
+    """The short state marker for the narrative sensor (the prose rides in attrs)."""
+    return "ready" if narrative else "unavailable"
+
+
+def narrative_attributes(narrative: str | None) -> dict[str, Any]:
+    """The JSON attributes payload: the availability flag and the full prose.
+
+    ``available`` drives the sensor's availability template, so a ``None`` narrative
+    publishes an explicit unavailable marker rather than leaving an earlier retained
+    narrative shown as current (spec ha-delivery).
+    """
+    return {"available": narrative is not None, "narrative": narrative}
+
+
 def build_refresh_discovery(pier_id: str, base_topic: str) -> dict[str, Any]:
     return {
         "name": "Refresh",
@@ -256,11 +315,22 @@ class MqttDelivery:
     Delivery consumes an already-produced document; it never computes one.
     """
 
-    def __init__(self, config: MqttConfig, client: MqttClient | None = None) -> None:
+    def __init__(
+        self,
+        config: MqttConfig,
+        client: MqttClient | None = None,
+        *,
+        manage_narrative: bool = False,
+    ) -> None:
         self._config = config
         self._client: MqttClient = client if client is not None else _new_paho_client()
         self._refresh_callback: Callable[[str], None] | None = None
         self._topic_to_pier: dict[str, str] = {}
+        # Told once, from config, whether this delivery owns the narrative entity
+        # (design D2/D7). When false, no narrative discovery or state is ever
+        # published, so a default deployment is byte-identical to the pre-feature
+        # output and gains no entity.
+        self._manage_narrative = manage_narrative
 
     @property
     def base_topic(self) -> str:
@@ -296,13 +366,20 @@ class MqttDelivery:
         if rc != mqtt.MQTT_ERR_SUCCESS:
             raise DeliveryError(f"Publish to {topic!r} failed with rc={rc}")
 
-    def publish_verdict(self, document: VerdictDocument) -> None:
+    def publish_verdict(self, document: VerdictDocument, narrative: str | None = None) -> None:
         """Publish discovery, state, and attributes for the document's pier.
 
         Discovery config, verdict state, and the JSON attributes are all
         published retained so a Home Assistant restart re-reads the last verdict
         and re-creates the entities. ``unique_id``/topics derive from the pier id,
         so re-publishing updates the same entities rather than creating duplicates.
+
+        ``narrative`` is the optional LLM prose for this recompute. It is published
+        only when this delivery manages the narrative entity (from config); when it
+        does, the entity is always published — with the prose when present, and with
+        an explicit unavailable marker when absent — so an earlier retained narrative
+        is never left shown as current (design D2, ADR-0011). The narrative's absence
+        or disablement never blocks or alters the other entities.
         """
         import json
 
@@ -338,6 +415,20 @@ class MqttDelivery:
             json.dumps(top_target_attributes(document)),
             retain=True,
         )
+        if self._manage_narrative:
+            self._publish(
+                discovery_topic(prefix, "sensor", pier, "narrative"),
+                json.dumps(build_narrative_discovery(pier, base)),
+                retain=True,
+            )
+            self._publish(
+                narrative_state_topic(base, pier), narrative_state(narrative), retain=True
+            )
+            self._publish(
+                narrative_attributes_topic(base, pier),
+                json.dumps(narrative_attributes(narrative)),
+                retain=True,
+            )
 
     def subscribe_refresh(self, pier_ids: Iterable[str], callback: Callable[[str], None]) -> None:
         """Subscribe to each pier's refresh command topic.

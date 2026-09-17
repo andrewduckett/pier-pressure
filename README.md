@@ -16,8 +16,10 @@ each pier has a horizon mask, and as of **M5** the `targets` list is a ranked se
 of deep-sky objects worth pointing at tonight — see
 [docs/target-ranking.md](docs/target-ranking.md). The document contract and the
 MQTT entity mapping are real and frozen; each milestone fills a field with real
-math behind the same contract. The remaining stub is the optional M6 LLM prose
-layer.
+math behind the same contract. The optional **M7** LLM explainer adds a plain-language
+narrative of the verdict, delivered as a separate Home Assistant sensor entity (never
+a field of the numbers document) and disabled by default — see
+[docs/llm-explainer.md](docs/llm-explainer.md).
 
 ## 🧩 The Problem
 

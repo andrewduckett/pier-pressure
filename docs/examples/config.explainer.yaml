@@ -1,0 +1,20 @@
+# Sample config with the optional M7 LLM explainer enabled.
+# See docs/llm-explainer.md. The explainer is disabled by default; this file shows
+# the block you add to turn it on. The ${ENV} references are expanded at load time,
+# so the secrets never sit in plaintext.
+mqtt:
+  host: 192.168.1.10
+  port: 1883
+  username: pierpressure
+  password: ${PIERPRESSURE_MQTT_PASSWORD}
+recompute:
+  interval_seconds: 900
+piers:
+  - id: backyard
+    latitude: 51.50
+    longitude: -0.12
+    elevation_m: 30
+explainer:
+  enabled: true
+  model: anthropic:claude-opus-5
+  api_key: ${ANTHROPIC_API_KEY}

@@ -15,10 +15,21 @@ def test_pierpressure_imports() -> None:
 
 
 # Names the pure core must never import: the delivery adapter, the HTTP client,
-# and the conditions *provider* package (network lives only at the provider edge,
-# design D1/ADR-0005). "pierpressure.conditions" is the provider package and is
-# distinct from the core's own "pierpressure.core.conditions" snapshot module.
-_FORBIDDEN = ("delivery", "httpx", "pierpressure.conditions")
+# the conditions *provider* package, the network-facing LLM explainer edge, and the
+# LLM SDKs (network lives only at the provider/explainer edges, design
+# D1/ADR-0005/ADR-0011). "pierpressure.conditions" is the provider package and is
+# distinct from the core's own "pierpressure.core.conditions" snapshot module;
+# "pierpressure.explain", "pydantic_ai", and "anthropic" are the explainer edge and
+# the LLM SDKs it may reach, which are non-deterministic and online and so must never
+# reach the pure core. ("pydantic_ai" does not match the core's own "pydantic" use.)
+_FORBIDDEN = (
+    "delivery",
+    "httpx",
+    "pierpressure.conditions",
+    "pierpressure.explain",
+    "pydantic_ai",
+    "anthropic",
+)
 
 
 def _is_forbidden(name: str) -> bool:

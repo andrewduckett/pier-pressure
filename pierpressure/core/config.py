@@ -206,12 +206,39 @@ class PierConfig(BaseModel):
         return self
 
 
+class ExplainerConfig(BaseModel):
+    """The optional LLM explainer edge, disabled by default (design D7).
+
+    The explainer turns a finished verdict into short prose delivered as a separate
+    Home Assistant entity; it never feeds the astronomy or scoring math (ADR-0011).
+    ``enabled`` gates both the provider and the narrative entity: an absent block or
+    ``enabled: false`` leaves the default (no provider constructed, no entity).
+
+    ``model`` is a Pydantic AI model spec (``"provider:model-name"``, e.g.
+    ``"anthropic:claude-opus-5"``, ``"openai:gpt-4o"``), so the LLM provider is chosen
+    by configuration rather than hard-coded. The optional ``api_key`` supports the same
+    ``${ENV}`` expansion as the broker credentials, so the secret need not sit in
+    plaintext; a missing key leaves a visible ``${VAR}`` placeholder (never logged) and
+    the explainer degrades to no-narrative rather than erroring. When ``api_key`` is
+    omitted, credentials are read from the provider's standard environment variable.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    model: str = "anthropic:claude-opus-5"
+    api_key: str | None = None
+
+
 class AppConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     mqtt: MqttConfig
     recompute: RecomputeConfig
     piers: list[PierConfig]
+    # The optional explainer edge (design D7). Absent -> disabled: no provider is
+    # constructed and no narrative entity is published.
+    explainer: ExplainerConfig | None = None
 
 
 def _expand_env(value: Any) -> Any:
@@ -264,10 +291,18 @@ def load_config(path: str | os.PathLike[str]) -> AppConfig:
     # Assembling ``AppConfig`` re-runs each pier's after-validator, which re-reads
     # any horizon file, so the same ``base_dir`` context is threaded through here —
     # otherwise a relative horizon path would re-resolve against the process cwd.
-    return AppConfig.model_validate(
-        {"mqtt": mqtt, "recompute": recompute, "piers": piers},
-        context={"base_dir": base_dir},
-    )
+    # ``explainer`` is optional (absent -> disabled) and its ``${ENV}``-expanded
+    # api_key rides along already-expanded from ``raw``.
+    assembled: dict[str, Any] = {"mqtt": mqtt, "recompute": recompute, "piers": piers}
+    if "explainer" in raw:
+        assembled["explainer"] = raw["explainer"]
+    try:
+        # This re-runs each pier's after-validator (a horizon file may be re-read),
+        # so a failure here is not necessarily the explainer block — keep the label
+        # neutral rather than blaming the wrong section.
+        return AppConfig.model_validate(assembled, context={"base_dir": base_dir})
+    except ValidationError as exc:
+        raise ConfigError(f"Invalid configuration: {exc}") from exc
 
 
 def validate_piers(raw_piers: list[Any], base_dir: Path | None = None) -> list[PierConfig]:

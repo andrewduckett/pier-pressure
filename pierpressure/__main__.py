@@ -13,13 +13,29 @@ import sys
 
 from pierpressure.conditions import build_provider
 from pierpressure.core.clock import SystemClock
-from pierpressure.core.config import ConfigError, load_config
+from pierpressure.core.config import AppConfig, ConfigError, load_config
 from pierpressure.delivery.mqtt import DeliveryError, MqttDelivery
+from pierpressure.explain import Explainer, build_explainer
 from pierpressure.service import Service
 
 logger = logging.getLogger("pierpressure")
 
 DEFAULT_CONFIG_PATH = "config.yaml"
+
+
+def build_delivery_and_explainer(config: AppConfig) -> tuple[MqttDelivery, Explainer]:
+    """Construct the delivery adapter and explainer from config (design D7).
+
+    The single ``explainer.enabled`` flag drives both edges: when enabled, the real
+    provider-backed explainer is wired and delivery manages the narrative entity;
+    when disabled (or the block is absent), the no-op explainer is wired and delivery
+    does not manage the entity — so no provider is constructed and no narrative entity
+    appears.
+    """
+    manage_narrative = config.explainer is not None and config.explainer.enabled
+    delivery = MqttDelivery(config.mqtt, manage_narrative=manage_narrative)
+    explainer = build_explainer(config.explainer)
+    return delivery, explainer
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -36,14 +52,20 @@ def main(argv: list[str] | None = None) -> int:
         logger.error("Configuration error: %s", exc)
         return 1
 
-    delivery = MqttDelivery(config.mqtt)
+    delivery, explainer = build_delivery_and_explainer(config)
     try:
         delivery.connect()
     except DeliveryError as exc:
         logger.error("Startup delivery failure: %s", exc)
         return 1
 
-    service = Service(config, delivery, SystemClock(), conditions_provider=build_provider().get)
+    service = Service(
+        config,
+        delivery,
+        SystemClock(),
+        conditions_provider=build_provider().get,
+        explainer=explainer,
+    )
     delivery.subscribe_refresh([pier.id for pier in config.piers], service.enqueue_refresh)
 
     logger.info("PierPressure started for %d pier(s)", len(config.piers))
