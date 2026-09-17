@@ -33,6 +33,12 @@ artifacts:
       implementation details belong in design.md.
 
       This is the foundation - specs, design, and tasks all build on this.
+
+      PLAIN LANGUAGE (a hard bar, not a pointer): write this in plain language
+      per ISO 24495-1 (and -3 for technical content). One idea per sentence — aim
+      for 15-20 words, never exceed 30. Use active voice with the actor named,
+      front-load each section, cut filler, and keep one term per concept. The
+      iso-24495 skill carries the full checklist.
     requires: []
 
   - id: specs
@@ -131,6 +137,12 @@ artifacts:
       ```
 
       Specs should be testable - each scenario is a potential test case.
+
+      PLAIN LANGUAGE (a hard bar, not a pointer): write this in plain language
+      per ISO 24495-1 (and -3 for technical content). One idea per sentence — aim
+      for 15-20 words, never exceed 30. Use active voice with the actor named,
+      front-load each section, cut filler, and keep one term per concept. The
+      iso-24495 skill carries the full checklist.
     requires:
       - proposal
 
@@ -166,6 +178,12 @@ artifacts:
       if a section would only restate them, point to them instead.
 
       Good design docs explain the "why" behind technical decisions.
+
+      PLAIN LANGUAGE (a hard bar, not a pointer): write this in plain language
+      per ISO 24495-1 (and -3 for technical content). One idea per sentence — aim
+      for 15-20 words, never exceed 30. Use active voice with the actor named,
+      front-load each section, cut filler, and keep one term per concept. The
+      iso-24495 skill carries the full checklist.
     requires:
       - proposal
 
@@ -186,15 +204,46 @@ artifacts:
          from each ADR's Supersedes field. Note the highest sequence number in
          use.
 
-      2. Re-read design.md. Identify decisions that meet ALL of these:
+      2. Re-read design.md and list the decisions it made. Write an ADR only
+         for a decision that is a real fork or an expensive-to-reverse call —
+         a choice among viable approaches where changing your mind later is
+         costly. Typical ADR categories: a stack, framework, or library
+         choice; a data model or schema; an auth strategy; an API
+         architecture; an infra, hosting, or provider choice; a privacy
+         posture.
 
-         - **Hard to reverse** — the cost of changing your mind later is meaningful
-         - **Surprising without context** — a future reader will wonder "why did they do it this way?"
-         - **The result of a real trade-off** — there were genuine alternatives and you picked one for specific reasons
+         A useful test: could an engineer reading only the code plausibly
+         reverse this decision without knowing why, and would that reversal be
+         costly? If yes, the why belongs in an ADR. Confusion is a separate
+         axis: fix a hard-to-read ADR by rewriting it, never by deleting it.
+
+         Write an ADR (good examples):
+         - **Stack forced by a constraint** — "Use an embedded datastore, not a networked database, because the app must run offline." Reversing it touches every storage call.
+         - **A canonical data model** — "Convert every input to one internal shape at its edge." Many consumers bind to that shape, so changing it later is costly.
+         - **A system boundary** — "Keep the core a pure library that emits one document, and make the integration a swappable adapter." The core stays testable on its own.
+
+         Do not write an ADR (bad examples):
+         - **Recoverable from code** — "Set the retry limit to 3." It lives in code, costs nothing to change, and you learn it by reading it.
+         - **Roadmap sequencing** — "Build reporting after billing." That is a roadmap decision, not an architectural fork.
+         - **A requirement, not a decision** — "Reject uploads over 10 MB." The spec owns that behavior; there is no fork between approaches.
+
+         An ADR is self-contained prose about the why. It MUST NOT cite FR/NFR
+         IDs, roadmap milestones, or table and column names, and it MUST NOT
+         restate the roadmap. If you cannot explain the decision without them,
+         it is probably a spec or roadmap item, not an ADR.
+
+         Write it to stand alone. A reader who knows the general domain but not
+         this project must be able to understand the decision and why it
+         matters. Name and briefly explain any project concept the decision
+         leans on, rather than assuming it or telling the reader to go read
+         another ADR. Extra sentences that orient a cold reader are welcome; each
+         still obeys the plain-language rules. If a decision cannot be made
+         legible without re-teaching the whole system, that is a sign it is
+         design or spec content, not an ADR.
 
       3. For each qualifying decision, create a NEW repository-level file at
          <repo>/docs/adr/NNNN-kebab-title.md following the template in 
-         <repo>/docs/adr/ADR-000-template.md
+         <repo>/docs/adr/0000-template.md
 
       4. Write openspec/changes/<change>/adr.md using the template. The
          manifest MUST state that ADR review completed for this change, list the
@@ -205,6 +254,12 @@ artifacts:
       5. If nothing meets the bar, do not invent ADRs. The manifest MUST
          explicitly state that no major durable architectural decisions were
          introduced and no new repository-level ADR files were created.
+
+      PLAIN LANGUAGE (a hard bar, not a pointer): write every ADR in plain
+      language per ISO 24495-1, and -3 for technical content. One idea per
+      sentence, aim for 15-20 words and never exceed 30, active voice with the
+      actor named, front-loaded, no filler, one term per concept. The iso-24495
+      skill carries the full checklist.
     requires:
       - design
 
@@ -269,6 +324,14 @@ artifacts:
       - Security: trust boundaries crossed without validation requirements;
         endpoints with no authz requirement; injection-shaped data flows
         with no sanitization requirement
+      - PLAIN LANGUAGE (ISO 24495) in EVERY reviewed artifact — proposal,
+        design, specs, adr. Flag sentences over 30 words, passive voice that
+        hides the actor, filler, elegant variation (two words for one concept),
+        and brainstorming narrative that restates the proposal. This is a
+        first-class review criterion, not a stylistic aside: an artifact that is
+        hard to read fails the review. Cite the artifact and the offending text
+        as a finding, and hold every artifact to reader-first, findable,
+        understandable, and actionable prose.
 
       VERDICT (mutually exclusive):
       - APPROVE — downstream artifacts may proceed.
@@ -360,6 +423,11 @@ artifacts:
       ```
 
       Reference specs for what needs to be built, design for how to build it.
+
+      PLAIN LANGUAGE (a hard bar, not a pointer): write task descriptions in
+      plain language per ISO 24495-1. One idea per line, active voice with the
+      actor named, front-loaded, and no filler. The iso-24495 skill carries the
+      full checklist.
     requires:
       - review
 

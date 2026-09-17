@@ -9,7 +9,7 @@ ADR review completed for the `add-walking-skeleton` change. `design.md` was re-r
 
 ## In-Force ADRs Reviewed
 
-- None — `docs/adr/` contained only `ADR-000-template.md` (the template); there were no in-force repository ADRs prior to this change. No supersession graph applies. Highest pre-existing sequence: 000 (template).
+- None — `docs/adr/` contained only `0000-template.md` (the template); there were no in-force repository ADRs prior to this change. No supersession graph applies. Highest pre-existing sequence: 000- (template).
 
 ## New Durable ADRs Created
 

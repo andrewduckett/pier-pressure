@@ -41,15 +41,8 @@ context: |
   - Toolchain: uv (env/deps/lockfile), just (task runner), ruff (lint AND
     format - no black), mypy (types), pytest (tests), pre-commit, GitHub
     Actions CI running `just check`. Python pinned to 3.12.
-rules:
-  proposal:
-    - "Write in plain language per ISO 24495-1: reader-first, purposefully structured, findable, understandable, and actionable."
-  specs:
-    - "Write in plain language per ISO 24495 (core -1; technical content also -3): reader-first, structured, findable, and actionable."
-  design:
-    - "Write in plain language per ISO 24495 (core -1; technical content also -3): reader-first, structured, findable, and actionable."
-  adr:
-    - "Write in plain language per ISO 24495 (core -1; technical content also -3): reader-first, structured, findable, and actionable."
-  review:
-    - "Write in plain language per ISO 24495-1: reader-first, purposefully structured, findable, understandable, and actionable."
+# Plain-language guidance (ISO 24495) now lives in the schema's per-artifact
+# instructions and is enforced across all artifacts at review time, so it is not
+# duplicated here. Add a project-specific `rules:` map (keyed by artifact id)
+# only for guidance the schema does not already carry.
 

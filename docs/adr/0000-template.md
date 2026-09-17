@@ -1,8 +1,8 @@
 ---
-id: adrs-adr000
+id: adrs-adrNNNN
 date: YYYY-MM-DD
 status: proposed | accepted | deprecated | superseded by ADR-NNNN
-title: 'ADR000: [TITLE]'
+title: 'ADRNNNN: [TITLE]'
 description: Architecture Decision Record (ADR) for [TITLE] [DESCRIPTION]
 ---
 

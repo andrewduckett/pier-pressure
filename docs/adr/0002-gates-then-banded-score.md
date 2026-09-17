@@ -10,25 +10,45 @@ description: Architecture Decision Record for computing the night verdict as har
 
 ## Context
 
-The night verdict must be trustworthy: a wrong answer that silently hides a dealbreaker (or scores a hopeless night as a near-miss) is worse than a coarse-but-honest one. A single weighted average across sky, conditions, and horizon factors can average away a dealbreaker — for example reporting 7/10 while the sky is fully overcast across the entire dark window.
+PierPressure produces one verdict each night: is tonight worth setting up for?
+That verdict must be trustworthy. A wrong answer that hides a dealbreaker, or
+scores a hopeless night as a near-miss, is worse than a coarse but honest one. The
+night is judged on several factors — the sky, the weather conditions, and the
+horizon. A single weighted average across those factors can average a dealbreaker
+away. It could report 7/10 while the sky is overcast across the entire dark
+window.
 
 ## Decision
 
-Compute hard gates first: if any gate fails (e.g. no astronomical-dark window, overcast across the dark window, wind above a safe limit) the verdict is NO-GO with a human-readable reason and a null score. Only when all gates pass is a banded 0-100 score computed from itemized bonus/penalty terms (dark-window length, best target altitude above the horizon mask, moon illumination and proximity, seeing/transparency). The itemized terms are surfaced directly as `reasons[]`, and `score` is null on any gated NO-GO.
+Compute hard gates first. If any gate fails — no astronomical-dark window,
+overcast across the dark window, or wind above a safe limit — the verdict is a
+NO-GO with a plain-language reason and no score. Only when every gate passes does
+a banded 0-to-100 score follow. The score is built from itemized terms, each a
+bonus or penalty: the length of the dark window, the best target's altitude above
+the horizon, the moon's brightness and nearness, and the seeing and transparency.
+Those itemized terms are surfaced directly as the verdict's reasons. A gated NO-GO
+carries no score at all.
 
 ## Consequences
 
-- Easier: explainability falls out of the scoring terms for free; a dealbreaker is never presented as a numeric near-miss; each gate and term is independently testable and deterministic.
-- Harder: the gate set and term weights must be curated and justified; the two-stage logic is slightly more involved than a single sum.
+- **Easier:** explainability comes for free — the scoring terms are the
+  explanation. A dealbreaker is never dressed up as a numeric near-miss. Each gate
+  and term is testable and deterministic on its own.
+- **Harder:** the gate set and the term weights must be curated and justified. The
+  two-stage logic is a little more involved than a single sum.
 
 ## Alternatives Considered
 
-### Alternative 1: Single weighted score with a go/no-go threshold
-- **Pros**: simplest to implement and reason about; one formula.
-- **Cons**: can mask dealbreakers by averaging; the go/no-go threshold is arbitrary.
-- **Why not**: fails the trustworthiness requirement — the core value of the product is not silently hiding a bad night or a blocked target.
+### Alternative 1: A single weighted score with a go/no-go threshold
+- **Pros**: the simplest thing to build and reason about; one formula.
+- **Cons**: averaging can mask a dealbreaker, and the go/no-go threshold is
+  arbitrary.
+- **Why not**: it fails the trustworthiness test. The product's core value is
+  never quietly hiding a bad night or a blocked target.
 
-### Alternative 2: A learned/ML scoring model
-- **Pros**: could capture subtle interactions from historical data.
-- **Cons**: opaque, hard to explain, non-deterministic, needs labelled data.
-- **Why not**: violates the deterministic-and-explainable requirement; astronomy/conditions truth must not come from an opaque model.
+### Alternative 2: A learned or machine-learned scoring model
+- **Pros**: it could capture subtle interactions from historical data.
+- **Cons**: it is opaque, hard to explain, non-deterministic, and needs labelled
+  data.
+- **Why not**: it breaks the deterministic-and-explainable rule. The truth about
+  astronomy and conditions must not come from an opaque model.
