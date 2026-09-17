@@ -10,25 +10,51 @@ description: Architecture Decision Record for making the decision core a standal
 
 ## Context
 
-PierPressure must deliver a night verdict into Home Assistant, and HA integrations are conventionally shipped as in-process custom components (HACS). But the project requires the decision core to be deterministic and testable off Home Assistant, requires that no single external dependency be load-bearing, and requires the verdict to stay correct if Home Assistant restarts. A custom component would drag heavy astronomy dependencies into HA's process and version pins, and entangle the core with HA's async lifecycle, making off-HA testing a constant fight.
+Home Assistant is the open-source home-automation hub that PierPressure delivers
+its night verdict into. The usual way to extend it is an add-on that runs inside
+Home Assistant's own process, often installed through HACS, its community add-on
+manager. That path has a cost. The decision core must be deterministic and
+testable on its own, no single dependency may be load-bearing, and the verdict
+must stay correct when Home Assistant restarts. An in-process add-on works
+against all three. It would pull heavy astronomy libraries into Home Assistant's
+process and version pins, and tie the core to Home Assistant's async lifecycle.
+Testing the core away from Home Assistant would then be a constant fight.
 
 ## Decision
 
-The decision core is a standalone, pure Python package with zero Home Assistant imports that emits a single JSON verdict document as its contract. It runs as a persistent, self-scheduling service (recompute on startup, on a configurable interval, and on demand) that owns its own freshness. Home Assistant is a dumb, replaceable delivery adapter; the primary adapter publishes via MQTT discovery (REST is an acceptable fallback), and Home Assistant is never load-bearing for freshness or correctness.
+Build the decision core as a standalone, pure Python package with no Home
+Assistant imports. It emits one JSON verdict document, and that document is its
+contract. It runs as a persistent service that schedules itself: it recomputes on
+startup, on a set interval, and on demand, so it owns its own freshness. Home
+Assistant becomes a dumb, replaceable delivery adapter. The main adapter publishes
+over MQTT discovery — a convention where Home Assistant auto-creates entities from
+messages on a broker — and a REST endpoint is an acceptable fallback. Home
+Assistant is never load-bearing for freshness or correctness.
 
 ## Consequences
 
-- Easier: unit-testing the core with pinned inputs; swapping or extending delivery without touching the core; surviving HA restarts via retained state; hosting the service on any box on the LAN.
-- Harder: no one-click "native" HACS install UX; requires a running container and an MQTT broker; entity lifecycle depends on MQTT discovery semantics (retain + Last-Will availability) rather than HA's config-flow.
+- **Easier:** the core is unit-tested with pinned inputs. Delivery can be swapped
+  or extended without touching it. Retained MQTT state survives Home Assistant
+  restarts. The service runs on any box on the local network.
+- **Harder:** there is no one-click native install. The setup needs a running
+  container and an MQTT broker. Entity lifecycle now depends on MQTT conventions —
+  retained messages plus a last-will availability signal — rather than Home
+  Assistant's built-in setup flow.
 
 ## Alternatives Considered
 
 ### Alternative 1: HACS custom component (in-process integration)
-- **Pros**: native UX, config-flow setup, entities without a broker.
-- **Cons**: heavy astronomy deps live in HA's venv; core coupled to HA's async loop and version pins; off-HA determinism/testing is hard.
-- **Why not**: directly violates the "deterministic and testable off HA" and "HA never load-bearing" requirements.
+- **Pros**: native install and setup; entities without a broker.
+- **Cons**: heavy astronomy libraries live in Home Assistant's environment; the
+  core is coupled to Home Assistant's async loop and version pins; testing it away
+  from Home Assistant is hard.
+- **Why not**: it breaks the two rules that matter most — the core must be
+  deterministic and testable off Home Assistant, and Home Assistant must never be
+  load-bearing.
 
-### Alternative 2: Standalone service that HA reads via REST only
-- **Pros**: simplest possible integration; no MQTT.
-- **Cons**: manual dashboard YAML; HA polling makes freshness HA-driven rather than self-scheduled.
-- **Why not**: MQTT discovery gives auto-created entities and self-scheduled push; REST is retained as a fallback adapter, not the primary path.
+### Alternative 2: Standalone service that Home Assistant reads over REST only
+- **Pros**: the simplest possible integration; no MQTT.
+- **Cons**: dashboards must be wired by hand, and Home Assistant polling makes
+  freshness depend on Home Assistant rather than the service.
+- **Why not**: MQTT discovery auto-creates entities and lets the service push on
+  its own schedule; REST stays a fallback, not the main path.

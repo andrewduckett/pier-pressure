@@ -3,75 +3,82 @@ id: adrs-adr0009
 date: 2026-09-11
 status: accepted
 title: 'ADR0009: The targets field is filled additively with a structured, numbers-only target element'
-description: Architecture Decision Record for defining the frozen shape of the verdict document's targets list as structured target objects (id, name, type, score, window, max_altitude, transit_time, moon_separation), filling a reserved-but-shapeless stub without changing any other field, and carrying no per-target prose.
+description: Architecture Decision Record for filling the verdict document's reserved targets list with structured objects of computed numbers rather than prose, without changing any other field, and leaving per-target prose to the optional explainer.
 ---
 
 # ADR-0009: The targets field is filled additively with a structured, numbers-only target element
 
 ## Context
 
-The verdict document is the frozen contract (ADR-0001): the delivery surface and
-the meaning of existing fields never change, but the document may grow additively
-as a milestone's science arrives, and a field may be reserved before its shape is
-known. `targets` has shipped since M1 as a present-but-empty `list[str]` — reserved
-with no element shape on purpose. Milestone M5 is the milestone that defines it.
-Once the element shape ships it is frozen, so choosing its fields — and whether to
-carry per-target prose — is a durable decision with the LLM explainer milestone (M7)
-downstream.
+PierPressure publishes one verdict document each night, and an earlier decision
+froze it as a contract (ADR-0001): existing fields never change meaning, and the
+document may only grow by adding new fields. A field can be reserved early —
+present but empty — before its shape is settled. The list of suggested targets is
+one such field. It has shipped from the start as an empty list of names, reserved
+on purpose with no defined element shape. This decision is where that shape is
+filled. Once the shape ships it is frozen, so choosing what each target carries —
+and whether it carries prose — is a durable, hard-to-reverse decision. A later,
+optional explainer that turns the verdict into plain prose is the main downstream
+consumer.
 
 ## Decision
 
-Fill `targets` with structured target objects, each carrying `id`, `name`
-(nullable), `type`, `score` (0–100, unbanded), `window` (`start`, `end`),
-`max_altitude`, `transit_time`, and `moon_separation`. This is additive fill of a
-reserved-but-shapeless stub, not a change to the meaning of any field: M5 fills
-`targets` only, and every other document field stays byte-identical. Each field is
-a value M5 actually computes, and the structure is the explanation — targets carry
-no per-target prose `reasons`.
+Fill the targets list with structured objects, each a set of computed numbers: an
+identity and type for the object, its ranking score, the window when it is
+observable, and its geometry against the sky and the moon. This is additive fill
+of a reserved, shapeless stub, not a change to any existing field's meaning. This
+step fills the targets list only, and every other field of the document stays
+byte-identical. Every value is a number the ranking already computes. The
+structure itself is the explanation, so a target carries no prose of its own.
 
 ## Consequences
 
-- Easier: consumers get machine-readable ranking detail (a dashboard card, the M7
-  LLM explainer) without parsing prose; the numbers are the explanation.
-- Easier: the additive-only claim is testable — in every golden fixture, only the
-  `targets` array changes, and a test asserts the other fields are byte-identical.
-- Easier: the M7 LLM explainer has structured inputs to turn into prose, keeping the
-  "LLM explains, never computes" boundary (ADR-0001) clean.
-- Constraint accepted: the element shape is now frozen; new per-target facts arrive
-  as additive fields, and no field is reserved before the milestone that defines it
-  (so no `fov_fit` field exists until equipment work lands).
-- Constraint accepted: the list is bounded (top 10) and stably ordered (score
-  descending, `id` tie-break) so the contract and any entity built on it have a
-  stable, deterministic size and order.
-- Constraint accepted: `list[str]` consumers (there were none in practice — the
-  list only ever shipped empty) would need to read objects; the empty-list shape
-  still appears when nothing is rankable.
+- **Easier:** consumers get machine-readable ranking detail without parsing prose.
+  A dashboard card, or the optional explainer, reads the numbers directly.
+- **Easier:** the additive-only claim is testable. In every recorded fixture, only
+  the targets list changes, and a test asserts every other field stays
+  byte-identical.
+- **Easier:** the optional explainer has structured inputs to turn into prose,
+  which keeps the rule that the language layer explains but never computes
+  (ADR-0001) clean.
+- **Constraint accepted:** the element shape is now frozen. New per-target facts
+  arrive as added fields, and no field is reserved before the work that defines it
+  — so no field for equipment fit exists until the equipment work lands.
+- **Constraint accepted:** the list is bounded to the top ten and stably ordered —
+  by score, with a fixed tie-break — so the contract and anything built on it have
+  a stable, deterministic size and order.
+- **Constraint accepted:** any consumer of the old names-only list would need to
+  read objects instead. In practice there were none — the list only ever shipped
+  empty — and the empty-list shape still appears when nothing is rankable.
 
 ## Alternatives Considered
 
-### Alternative 1: Keep `list[str]` — target names only
+### Alternative 1: Keep a names-only list
 
-- **Pros**: no shape change; smallest possible document growth.
+- **Pros**: no shape change, and the smallest possible document growth.
 - **Cons**: a bare name cannot express ranking, timing, or the moon relationship,
   so every consumer would need a side channel to explain why a target is listed.
-- **Why not**: the milestone's value is the ranking detail; hiding it defeats the
-  purpose and would force a real reshape later, which the frozen contract resists.
+- **Why not**: the value here is the ranking detail. Hiding it defeats the purpose
+  and would force a real reshape later, which the frozen contract resists.
 
-### Alternative 2: Carry a per-target `reasons` string list, mirroring the verdict
+### Alternative 2: Carry a per-target list of prose reasons, mirroring the verdict
 
-- **Pros**: symmetry with the verdict's explainability; human-readable per target.
-- **Cons**: string assembly per target bloats the contract and complicates
-  determinism, and it pre-empts the M7 LLM explainer, whose whole job is turning
+- **Pros**: symmetry with the verdict's own explainability, and human-readable per
+  target.
+- **Cons**: assembling a string per target bloats the contract and complicates
+  determinism, and it pre-empts the optional explainer, whose whole job is turning
   numbers into prose.
-- **Why not**: the structured fields already carry the "why" as data; prose is the
-  M7 explainer's responsibility, and keeping it out here preserves the
-  compute/explain boundary.
+- **Why not**: the structured numbers already carry the "why" as data. Prose is the
+  explainer's responsibility, and keeping it out here preserves the
+  compute-versus-explain boundary.
 
-### Alternative 3: Let target ranking also adjust the verdict score or reasons
+### Alternative 3: Let target ranking also adjust the top-level verdict score or reasons
 
-- **Pros**: "best target peaks at 78 degrees" could enrich the top-level verdict.
+- **Pros**: a note like "best target peaks at 78 degrees" could enrich the
+  top-level verdict.
 - **Cons**: it couples the additive ranking layer to the frozen go/no-go math, so
-  M5 would change fields beyond `targets` and every golden's verdict could shift.
-- **Why not**: keeping M5 to `targets` only gives a clean determinism and review
-  story and honors the additive-growth rule; verdict-level use of targets can be a
-  later, deliberate decision.
+  this step would change fields beyond the targets list, and every recorded verdict
+  could shift.
+- **Why not**: keeping this step to the targets list alone gives a clean
+  determinism and review story and honours the additive-growth rule. Using targets
+  at the verdict level can be a later, deliberate decision.
