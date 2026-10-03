@@ -1,7 +1,7 @@
 ## Why
 
 An adopter who wants to run PierPressure today must clone the repository and build
-the image. No published image exists, so nobody can pin a known-good build. The
+the image. No published image exists, so nobody can pin a known-good image. The
 maintainer also has no release process: *Release and deploy* is the only `gap` in
 the discovery journey map. This story is the walking skeleton for the
 "adoptable, maintainable release" epic (#19), because every later install path,

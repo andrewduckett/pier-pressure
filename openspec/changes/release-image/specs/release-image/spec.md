@@ -97,13 +97,24 @@ version tag. It SHALL then push no image and create no tag or GitHub release.
 
 Two releases SHALL NOT receive the same version. When the maintainer triggers a
 second release while one is still running, the second SHALL wait for the first
-to finish before it computes its version.
+to finish before it computes its version. At most one release SHALL wait at a
+time. A newer trigger SHALL cancel the waiting release before that release
+starts. A cancelled release SHALL push no image and create no tag or GitHub
+release.
 
 #### Scenario: Two releases triggered close together
 
 - **WHEN** the maintainer triggers two releases a few seconds apart
 - **THEN** the second release starts its work only after the first has finished
 - **AND** the two runs never compute the same version
+
+#### Scenario: Third release triggered while one waits
+
+- **WHEN** one release is running, a second is waiting, and the maintainer
+  triggers a third
+- **THEN** the second release is cancelled without pushing an image or creating
+  a tag
+- **AND** the third release waits for the first to finish
 
 ### Requirement: The image is published to GHCR for amd64 and arm64
 
@@ -131,6 +142,18 @@ The published image SHALL carry these OCI (Open Container Initiative) labels:
 - `org.opencontainers.image.version`: the release version.
 - `org.opencontainers.image.revision`: the full git commit SHA that was released.
 - `org.opencontainers.image.source`: the repository URL.
+
+The image index that groups the platforms SHALL carry the same three values as
+OCI annotations.
+
+#### Scenario: Inspect the index annotations
+
+- **WHEN** an adopter reads the raw image index of the tag `2026.10.0`, for
+  example with `docker buildx imagetools inspect --raw`
+- **THEN** its annotations include `org.opencontainers.image.version` set to
+  `2026.10.0`
+- **AND** its annotations include `org.opencontainers.image.revision` and
+  `org.opencontainers.image.source` with the same values as the labels
 
 #### Scenario: Inspect the labels
 

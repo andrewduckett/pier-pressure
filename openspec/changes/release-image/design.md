@@ -129,14 +129,24 @@ written carefully, and a one-liner cannot be unit tested.
   version and completes the release.
 - **One release at a time.** A `concurrency` group named `release`, with
   `cancel-in-progress: false`, queues a second run behind the first. Two runs
-  can therefore never read the same tag list and pick the same `N`.
+  can therefore never read the same tag list and pick the same `N`. GitHub keeps
+  at most one waiting run per group. A third trigger cancels the waiting run
+  before it starts, so the cancelled run pushes and tags nothing. The maintainer
+  starts releases by hand, so a cancelled duplicate loses nothing.
 - **Least privilege.** The `release` job alone gets `contents: write` (to create
   the tag and release) and `packages: write` (to push to GHCR). The `check` job
   gets `contents: read`.
-- **Standard actions.** `docker/metadata-action` produces the tags and OCI labels
-  (`version`, `revision`, `source`, `created`). `docker/build-push-action` builds
-  and pushes the image. The `source` label also links the GHCR package to the
-  repository.
+- **Standard actions.** `docker/metadata-action` produces the tags, the OCI labels
+  and the matching OCI annotations (`version`, `revision`, `source`, `created`).
+  `docker/build-push-action` builds and pushes the image, and receives both
+  outputs.
+- **Labels and annotations.** A multi-platform image has two layers of metadata.
+  Each platform's image config carries labels, which `docker inspect` shows after
+  a pull. The image index that ties the platforms together carries annotations.
+  GHCR reads `source` from the index annotations to link the package to the
+  repository. The workflow therefore sets
+  `DOCKER_METADATA_ANNOTATIONS_LEVELS=manifest,index`, so the annotations land on
+  both layers.
 
 ### D4: Build arm64 under QEMU emulation
 
@@ -156,10 +166,14 @@ QEMU later without any change that adopters can see.
   `:latest`.
 - `pyproject.toml` declares `[tool.uv] required-version = ">=0.12.17,<0.13"`.
 
-uv checks `required-version` itself. The check applies in the Nix shell, in CI
-(`setup-uv` also reads it to pick a uv version) and inside the Docker build,
-because `pyproject.toml` is copied in before `uv sync` runs. If anything drifts
-out of range, uv stops with a clear error.
+uv checks `required-version` itself, so the check applies everywhere:
+
+- in the Nix shell;
+- in CI, where `setup-uv` also reads the range to pick a uv version;
+- in the Docker build, because the `Dockerfile` copies `pyproject.toml` in before
+  `uv sync` runs.
+
+If any environment drifts out of range, uv stops with a clear error.
 
 The range spans one minor version. Before 1.0, a uv minor release can contain
 breaking changes, but a patch release does not change what `uv.lock` installs.
@@ -186,8 +200,8 @@ configuration error therefore always shows which version they ran.
   version such as `0.1.dev1+g…`.] → This is harmless, because no test asserts a
   specific version. The release job fetches tags explicitly.
 - [Re-running a failed release step re-pushes an image under the same version.]
-  → The re-run builds the same commit, and no adopter can have pulled that version
-  through a published release, because no tag or release existed yet.
+  → The re-run builds the same commit. No tag or release existed yet, so no
+  adopter could have found that version through a published release.
 - [A future Dependabot update (#26) moves uv to 0.13 in the `Dockerfile` while
   `required-version` still says `<0.13`.] → The image build fails loudly, which is
   the intended drift signal. The fix is one edit to the range.

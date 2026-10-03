@@ -3,7 +3,7 @@ id: adrs-adr0013
 date: 2026-10-03
 status: accepted
 title: 'ADR0013: Release versions are monthly CalVer, and the git tag is their only source'
-description: Architecture Decision Record for numbering PierPressure releases as YYYY.M.N calendar versions and for storing each version only in its git tag, from which the package and the container image both derive it at build time.
+description: Architecture Decision Record for numbering PierPressure releases as YYYY.M.N calendar versions. Each version lives only in its git tag, and the package and the image read it from there.
 ---
 
 # ADR-0013: Release versions are monthly CalVer, and the git tag is their only source
@@ -16,8 +16,8 @@ them. Once adopters pin a numbering scheme, changing it is costly. Every pinned
 tag, upgrade note and automation that compares versions depends on it.
 
 The project also needs one place where the version lives. Before this decision,
-the version `0.1.0` was written by hand in two source files and copied into the
-lockfile. Nothing kept the copies in step. The default branch only accepts
+the maintainer wrote the version `0.1.0` by hand in two source files, and the
+package manager copied it into the lockfile. Nothing kept the copies in step. The default branch only accepts
 reviewed pull requests, so an automated release cannot commit a version bump to
 it. The container build also has no access to git history.
 
@@ -42,8 +42,9 @@ version number.
 - **Easier:** a build that is not a release says so. A development checkout
   reports a development version, and an image built locally reports a
   placeholder.
-- **Harder:** CalVer says nothing about compatibility. A breaking change must be
-  announced in the release notes, because the number cannot signal it.
+- **Harder:** CalVer says nothing about compatibility. The maintainer must
+  announce a breaking change in the release notes, because the number cannot
+  signal it.
 - **Harder:** the build depends on a version plugin and on git tags being
   present. A shallow clone without tags reports a placeholder version, not an
   error.
