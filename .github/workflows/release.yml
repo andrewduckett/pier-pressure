@@ -58,6 +58,16 @@ jobs:
         with:
           fetch-depth: 0
 
+      # A re-run, or a run that waited in the queue, keeps its original commit.
+      # Release it only if it is still the latest commit on main.
+      - name: Refuse to release a commit that is no longer the latest on main
+        run: |
+          latest="$(git rev-parse origin/main)"
+          if [ "$latest" != "$GITHUB_SHA" ]; then
+            echo "::error::$GITHUB_SHA is not the latest commit on main ($latest)"
+            exit 1
+          fi
+
       # Fails if HEAD already carries a release tag: each commit releases once.
       - name: Compute the next version
         id: version
