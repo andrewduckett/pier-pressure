@@ -31,20 +31,35 @@ You need an MQTT broker that Home Assistant already uses, with
 turned on (it is on by default).
 
 1. Write a `config.yaml` (see [Configuration](#️-configuration)).
-2. Build and run the container:
+2. Pick a version from the
+   [releases page](https://github.com/andrewduckett/pier-pressure/releases) and
+   run that image. This example pins `2026.10.0`:
 
    ```bash
-   docker build -t pierpressure .
    docker run -d --restart unless-stopped \
      -v "$PWD/config.yaml:/app/config.yaml:ro" \
      -e PIERPRESSURE_MQTT_PASSWORD='your-broker-password' \
-     pierpressure
+     ghcr.io/andrewduckett/pier-pressure:2026.10.0
    ```
+
+   The image runs on `linux/amd64` and `linux/arm64`, such as a Raspberry Pi.
+   The `latest` tag always points at the newest release, but a pinned version
+   only changes when you change it.
 
 3. In Home Assistant, open **Settings → Devices & services → MQTT**. A device
    named `PierPressure <pier>` appears for each pier.
 
-No image is published yet, so you build it from this repository.
+The first line the container logs is its version, for example
+`PierPressure 2026.10.0`. Include it when you report a problem.
+
+To build the image from this repository instead:
+
+```bash
+docker build -t pierpressure .
+```
+
+Then run it as in step 2, with `pierpressure` as the image name. An image you
+build yourself reports the version `0.0.0+unreleased`.
 
 To run from source instead, install [uv](https://docs.astral.sh/uv/) and
 [just](https://github.com/casey/just), then:
@@ -272,6 +287,35 @@ just test-integration   # runs integration tests against a throwaway Mosquitto
 `docker compose --profile full up` runs PierPressure against a local broker. The
 manual end-to-end checklist against a real Home Assistant is in
 [`docs/acceptance/m1-ha-acceptance.md`](docs/acceptance/m1-ha-acceptance.md).
+
+### Releasing
+
+Releases are for the maintainer. Each one publishes an image to
+`ghcr.io/andrewduckett/pier-pressure` and creates a GitHub release.
+
+1. On GitHub, open **Actions → Release → Run workflow**, choose `main`, and run
+   it. The workflow re-runs `just check`, builds and pushes the image for amd64
+   and arm64, and then tags the commit and creates the release.
+2. The version is monthly CalVer, `YYYY.M.N`: the UTC year and month, and a
+   counter that starts at 0 each month. The first release in October 2026 is
+   `2026.10.0`, the next is `2026.10.1`. The git tag is the only place the
+   version is stored ([ADR-0013](docs/decisions/0013-calver-versions-from-git-tags.md)).
+3. A commit is released at most once. Running the workflow again on a commit
+   that already has a release tag fails.
+
+After the **first** release only, make the package public: open the package on
+GitHub, then **Package settings → Change visibility → Public**. Then pull the
+version tag from a machine that is not logged in to GHCR, run it, and check that
+the first log line shows the version.
+
+To undo a release, delete the GitHub release, its git tag and the package version
+on GHCR. If it was the newest release, `latest` is deleted with it. Point
+`latest` back at the previous release, for example `2026.10.0`:
+
+```bash
+docker buildx imagetools create -t ghcr.io/andrewduckett/pier-pressure:latest \
+  ghcr.io/andrewduckett/pier-pressure:2026.10.0
+```
 
 Planned work is in [GitHub issues](https://github.com/andrewduckett/pier-pressure/issues).
 AI agents should start with [`AGENTS.md`](AGENTS.md).
