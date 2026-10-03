@@ -2,7 +2,7 @@
 
 - [x] 1.1 Make the package version dynamic. In `pyproject.toml`, declare `dynamic = ["version"]`, add `hatch-vcs` to the build requirements, and set `[tool.hatch.version]` to `source = "vcs"` with `fallback-version = "0.0.0+unreleased"`. Run `uv lock`. Verify that `uv run python -c "import importlib.metadata as m; print(m.version('pierpressure'))"` prints a development version, and that `just check` passes.
 - [x] 1.2 Write a failing test that `pierpressure.__version__` equals `importlib.metadata.version("pierpressure")`. Then set `__version__` from package metadata in `pierpressure/__init__.py`, and verify that the test passes.
-- [ ] 1.3 Add `[tool.uv]` to `pyproject.toml` with `required-version = ">=0.12.17,<0.13"` and `cache-keys` covering `pyproject.toml` and the git commit and tags. Verify that `uv sync` succeeds. Then create a throwaway local tag, run `uv sync`, check that the reported version follows the tag, and delete the tag.
+- [x] 1.3 Add `[tool.uv]` to `pyproject.toml` with `required-version = ">=0.12.17,<0.13"` and `cache-keys` covering `pyproject.toml` and the git commit and tags. Verify that `uv sync` succeeds. Then create a throwaway local tag, run `uv sync`, check that the reported version follows the tag, and delete the tag.
 
 ## 2. The service logs its version first (design D6)
 
