@@ -70,7 +70,7 @@ Stage status checked against the code on 2026-10-03.
    up, and every config setting and entity — supported
 2. **Install and run** — *off Home Assistant*: the user builds the Docker image
    from the repository, because no image is published. *On Home Assistant*: there is
-   no add-on yet — partial
+   no add-on yet — partial ([#21](https://github.com/andrewduckett/pier-pressure/issues/21), [#23](https://github.com/andrewduckett/pier-pressure/issues/23), [#28](https://github.com/andrewduckett/pier-pressure/issues/28))
 3. **Connect to Home Assistant** — MQTT discovery creates one device per pier with
    its entities, and a last-will message marks them unavailable if the container
    stops — supported
@@ -84,7 +84,7 @@ Stage status checked against the code on 2026-10-03.
    notifies at a chosen time — supported
 7. **Choose a target** — the Top target sensor shows the best target. The full
    ranked list is only in JSON attributes, with no dashboard card to show it —
-   partial
+   partial ([#24](https://github.com/andrewduckett/pier-pressure/issues/24))
 8. **Stay current through the night** — the container recomputes on its interval
    and keeps the verdict fresh when Home Assistant restarts — supported
 
@@ -114,14 +114,15 @@ Stage status checked against the code on 2026-10-03.
 5. **Prove against real Home Assistant** — integration tests run against a real
    Mosquitto broker, but the manual Home Assistant checklist covers only the first
    delivery surface, not the top-target or narrative entities — partial
+   ([#22](https://github.com/andrewduckett/pier-pressure/issues/22))
 6. **Keep data and pins current** — the ephemeris and the OpenNGC catalogue are
    pinned, but there is no documented way to update them and no automated
-   dependency updates — partial
+   dependency updates — partial ([#26](https://github.com/andrewduckett/pier-pressure/issues/26), [#27](https://github.com/andrewduckett/pier-pressure/issues/27))
 7. **Notice a provider breaking** — caching and fallback keep the verdict going and
    failures are logged, but nothing tells the maintainer that a provider has been
-   failing for days — partial
+   failing for days — partial ([#25](https://github.com/andrewduckett/pier-pressure/issues/25))
 8. **Release and deploy** — no version tags, release notes, or published image;
-   deploying means building the image on the host — gap
+   deploying means building the image on the host — gap ([#21](https://github.com/andrewduckett/pier-pressure/issues/21))
 
 ## Backlog
 

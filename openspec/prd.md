@@ -35,8 +35,8 @@ household already looks: Home Assistant dashboards and notifications.
   it does not operate equipment.
 - Cloud hosting, multiple users, or accounts.
 - Live all-sky-camera cloud detection. It may become a conditions source later.
-- Packaging as a Home Assistant OS add-on, or choosing which host box runs the
-  container. The core does not depend on the host.
+- Choosing which host box runs the container. The core does not depend on the
+  host.
 
 ## 4. Users and context
 
@@ -46,7 +46,7 @@ household already looks: Home Assistant dashboards and notifications.
   notification. Notification timing is a Home Assistant automation, not part of
   PierPressure.
 - **How it runs:** a persistent container on the home network, next to an MQTT
-  broker.
+  broker. The container may run inside Home Assistant itself.
 
 ## 5. Product overview
 
@@ -163,7 +163,9 @@ decision records in [`docs/decisions/`](../docs/decisions/).
 - **Toolchain:** uv, just, ruff (lint and format), mypy, pytest, pre-commit.
   GitHub Actions CI runs `just check`.
 - **Deployment:** a Docker container, with a Compose file that includes a local
-  Mosquitto broker for development.
+  Mosquitto broker for development. Home Assistant OS cannot run arbitrary
+  containers, so a Home Assistant add-on wraps the same image for those users.
+  The add-on is packaging only: it adds no behaviour of its own.
 
 ## 10. Success criteria
 
@@ -179,4 +181,3 @@ decision records in [`docs/decisions/`](../docs/decisions/).
 - **Target suggestions** in the narrative ("start with M31, it transits at
   01:20"). Deferred so the LLM does not look load-bearing.
 - **More conditions sources**, such as a local all-sky camera.
-- **Home Assistant OS add-on** packaging.
