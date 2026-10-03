@@ -18,7 +18,7 @@
 ## 4. Dockerfile (design D1, D5)
 
 - [x] 4.1 In the `Dockerfile`, pin uv to `ghcr.io/astral-sh/uv:0.12.17`. After the dependency-only `uv sync`, declare an optional `PIERPRESSURE_VERSION` build argument and pass it to the project install as `SETUPTOOLS_SCM_PRETEND_VERSION`. Verify the result with `docker build .`: the container's first log line shows `0.0.0+unreleased`.
-- [ ] 4.2 Build the image with `--build-arg PIERPRESSURE_VERSION=2026.10.0`. Verify that its first log line shows `2026.10.0`, and that a second build with a different version reuses the cached dependency layer.
+- [x] 4.2 Build the image with `--build-arg PIERPRESSURE_VERSION=2026.10.0`. Verify that its first log line shows `2026.10.0`, and that a second build with a different version reuses the cached dependency layer.
 
 ## 5. Release workflow (design D3, D4)
 
