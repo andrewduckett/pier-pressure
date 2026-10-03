@@ -112,8 +112,8 @@ release.
 
 - **WHEN** one release is running, a second is waiting, and the maintainer
   triggers a third
-- **THEN** the second release is cancelled without pushing an image or creating
-  a tag
+- **THEN** GitHub cancels the second release before it pushes an image or
+  creates a tag
 - **AND** the third release waits for the first to finish
 
 ### Requirement: The image is published to GHCR for amd64 and arm64
@@ -163,9 +163,9 @@ OCI annotations.
 - **AND** `org.opencontainers.image.source` is
   `https://github.com/andrewduckett/pier-pressure`
 
-### Requirement: The commit is tagged and released only after the image is pushed
+### Requirement: The release tags the commit only after it pushes the image
 
-After the image is pushed, the release SHALL tag the released commit with the
+After it pushes the image, the release SHALL tag the released commit with the
 version. It SHALL also create a GitHub release with the same name and
 automatically generated notes. If the image build or push fails, the release
 SHALL create no tag and no GitHub release.

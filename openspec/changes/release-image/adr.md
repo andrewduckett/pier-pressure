@@ -15,8 +15,8 @@ The other design decisions do not need ADRs:
 
 - D2 (a tested version script), D3 (the workflow's shape) and D6 (the startup log
   line) are visible in the code and cheap to change.
-- D4 (QEMU emulation) can be swapped for native runners without any change that
-  adopters can see.
+- D4 (QEMU emulation): the maintainer can swap it for native runners without
+  any change that adopters can see.
 - D5 (the uv pin and range) is tooling configuration that #26 will maintain.
 
 ## In-Force ADRs Reviewed

@@ -122,8 +122,8 @@ written carefully, and a one-liner cannot be unit tested.
   project defines, and the integration tests need a broker service.
 - **Only `main` releases.** The first step fails unless `github.ref` is
   `refs/heads/main`.
-- **Image first, then tag.** The tag and GitHub release are created only after the
-  push succeeds, so a release can never exist without its image. If the release
+- **Image first, then tag.** The workflow creates the tag and GitHub release only
+  after the push succeeds, so a release can never exist without its image. If the release
   step fails after the push, re-running the workflow computes the same version,
   because no tag exists yet. It then pushes the same commit again under that
   version and completes the release.
@@ -194,8 +194,8 @@ configuration error therefore always shows which version they ran.
 
 - [A new GHCR package is private by default, so adopters' pulls fail with
   "unauthorized" after the first release.] → The Migration Plan includes a
-  one-time step to make the package public. The README is changed in this same
-  change, and the step is a checklist item in tasks.md.
+  one-time step to make the package public. This change also updates the README,
+  and tasks.md lists the step as a checklist item.
 - [`hatch-vcs` reads no tags in CI's shallow checkout, so CI builds report a
   version such as `0.1.dev1+g…`.] → This is harmless, because no test asserts a
   specific version. The release job fetches tags explicitly.
