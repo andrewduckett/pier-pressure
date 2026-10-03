@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import subprocess
 from datetime import date
+from pathlib import Path
 
 import pytest
-from next_version import next_version
+from next_version import main, next_version
 
 
 @pytest.mark.parametrize(
@@ -29,3 +31,55 @@ from next_version import next_version
 )
 def test_next_version(tags: list[str], today: date, expected: str) -> None:
     assert next_version(tags, today) == expected
+
+
+def _git(repo: Path, *args: str) -> None:
+    subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
+
+
+@pytest.fixture
+def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A scratch git repository with one commit, as the working directory."""
+    _git(tmp_path, "init", "-q")
+    _git(
+        tmp_path,
+        "-c",
+        "user.name=t",
+        "-c",
+        "user.email=t@example.com",
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "init",
+    )
+    monkeypatch.chdir(tmp_path)
+    return tmp_path
+
+
+def test_cli_refuses_a_commit_already_released(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _git(repo, "tag", "2026.10.0")
+
+    assert main(today=date(2026, 10, 20)) != 0
+    assert "2026.10.0" in capsys.readouterr().err
+
+
+def test_cli_prints_the_next_version(repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    _git(repo, "tag", "2026.10.0")
+    _git(
+        repo,
+        "-c",
+        "user.name=t",
+        "-c",
+        "user.email=t@example.com",
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "next",
+    )
+
+    assert main(today=date(2026, 10, 20)) == 0
+    assert capsys.readouterr().out == "2026.10.1\n"
