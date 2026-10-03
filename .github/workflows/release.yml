@@ -107,3 +107,12 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
           build-args: PIERPRESSURE_VERSION=${{ steps.version.outputs.version }}
+
+      # Last, and only once the push succeeds: a release never exists without its
+      # image. `gh release create` also creates the tag on the released commit.
+      - name: Tag the commit and create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          SHA: ${{ github.sha }}
+        run: gh release create "$VERSION" --target "$SHA" --title "$VERSION" --generate-notes
