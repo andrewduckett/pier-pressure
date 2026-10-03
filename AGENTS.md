@@ -36,7 +36,7 @@ MQTT-discovery adapter publishes it. Roadmap and milestone status live in
 ## Workflow
 
 - Planning uses **OpenSpec**: in-flight work lives under `openspec/changes/`;
-  durable specs under `openspec/specs/`; decision records under `docs/adr/`. Use
+  durable specs under `openspec/specs/`; decision records under `docs/decisions/`. Use
   the `opsx:*` skills (propose → apply → verify → archive).
 - **Toolchain:** `uv` (env/deps/lockfile), `just` (tasks), `ruff` (lint AND
   format — no black), `mypy` (strict types), `pytest`. Python pinned to 3.12.

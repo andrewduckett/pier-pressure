@@ -9,7 +9,7 @@ you open its change.
 ## Cross-cutting rules (hold across every milestone)
 
 These are the durable constraints. The genuinely hard-to-reverse ones become ADRs
-(`docs/adr/`) during a change's `adr` step; all of them live in
+(`docs/decisions/`) during a change's `adr` step; all of them live in
 `openspec/config.yaml` `context` so every generated artifact respects them.
 
 - **Pure core.** The decision core is Python 3.12+ with zero Home Assistant

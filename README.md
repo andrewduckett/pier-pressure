@@ -166,7 +166,7 @@ are `null` when `dark_window` is null.
 The astronomical fields are computed with a version-pinned ephemeris and
 Skyfield's built-in timescale — **fully offline and deterministic** (same pier
 and instant → byte-identical document). See
-[`docs/adr/0004-deterministic-offline-astronomy.md`](docs/adr/0004-deterministic-offline-astronomy.md).
+[`docs/decisions/0004-deterministic-offline-astronomy.md`](docs/decisions/0004-deterministic-offline-astronomy.md).
 
 ### Notifying at a chosen time (Home Assistant automation)
 
@@ -224,7 +224,7 @@ discovery topic is cleared.
   a Last-Will marks entities unavailable if the process dies.
 
 The full rationale lives in `openspec/changes/add-walking-skeleton/design.md` and
-the repository ADRs under `docs/adr/`.
+the repository ADRs under `docs/decisions/`.
 
 ## 📁 Project Layout
 
@@ -258,6 +258,6 @@ Assistant — is in [`docs/acceptance/m1-ha-acceptance.md`](docs/acceptance/m1-h
 
 This project uses OpenSpec. Planning artifacts for in-flight work live under
 `openspec/changes/`; durable cross-cutting rules are in `docs/roadmap.md` and
-`docs/adr/`. The core must stay pure (no HA/MQTT imports) and deterministic, and
+`docs/decisions/`. The core must stay pure (no HA/MQTT imports) and deterministic, and
 the verdict document plus MQTT entity mapping are a **frozen contract** — reserve
 new fields stubbed rather than reshaping either surface.
