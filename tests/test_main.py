@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 
+import pytest
+
+import pierpressure
 from pierpressure.core.clock import FixedClock
 from pierpressure.core.config import AppConfig, RecomputeConfig
 from pierpressure.delivery.mqtt import MqttDelivery, verdict_state_topic
@@ -37,3 +41,14 @@ def test_main_exits_nonzero_on_bad_config(tmp_path: object) -> None:
     from pierpressure.__main__ import main
 
     assert main(["/nonexistent/config.yaml"]) == 1
+
+
+def test_main_logs_version_before_config_error(caplog: pytest.LogCaptureFixture) -> None:
+    from pierpressure.__main__ import main
+
+    with caplog.at_level(logging.INFO, logger="pierpressure"):
+        main(["/nonexistent/config.yaml"])
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert messages[0] == f"PierPressure {pierpressure.__version__}"
+    assert messages[1].startswith("Configuration error")

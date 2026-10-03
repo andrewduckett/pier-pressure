@@ -6,7 +6,7 @@
 
 ## 2. The service logs its version first (design D6)
 
-- [ ] 2.1 Write a failing test that `main()` logs `PierPressure <version>` as its first record, before it reports a configuration error for a missing config file. Then add the log line to `pierpressure/__main__.py`, and verify that the test passes.
+- [x] 2.1 Write a failing test that `main()` logs `PierPressure <version>` as its first record, before it reports a configuration error for a missing config file. Then add the log line to `pierpressure/__main__.py`, and verify that the test passes.
 
 ## 3. Next-version script (design D2)
 

@@ -11,6 +11,7 @@ import logging
 import os
 import sys
 
+from pierpressure import __version__
 from pierpressure.conditions import build_provider
 from pierpressure.core.clock import SystemClock
 from pierpressure.core.config import AppConfig, ConfigError, load_config
@@ -43,6 +44,8 @@ def main(argv: list[str] | None = None) -> int:
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+    # First, before config loads, so every report names the version (design D6).
+    logger.info("PierPressure %s", __version__)
     args = sys.argv[1:] if argv is None else argv
     config_path = args[0] if args else os.environ.get("PIERPRESSURE_CONFIG", DEFAULT_CONFIG_PATH)
 
