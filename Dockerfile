@@ -20,10 +20,7 @@ RUN uv sync --frozen --no-install-project --no-dev
 # the project. Without it, the package reports its non-release fallback version.
 ARG PIERPRESSURE_VERSION=""
 COPY pierpressure ./pierpressure
-RUN if [ -n "$PIERPRESSURE_VERSION" ]; then \
-        export SETUPTOOLS_SCM_PRETEND_VERSION="$PIERPRESSURE_VERSION"; \
-    fi; \
-    uv sync --frozen --no-dev
+RUN SETUPTOOLS_SCM_PRETEND_VERSION="$PIERPRESSURE_VERSION" uv sync --frozen --no-dev
 
 
 FROM python:3.12-slim
