@@ -31,20 +31,35 @@ You need an MQTT broker that Home Assistant already uses, with
 turned on (it is on by default).
 
 1. Write a `config.yaml` (see [Configuration](#️-configuration)).
-2. Build and run the container:
+2. Pick a version from the
+   [releases page](https://github.com/andrewduckett/pier-pressure/releases) and
+   run that image. This example pins `2026.10.0`:
 
    ```bash
-   docker build -t pierpressure .
    docker run -d --restart unless-stopped \
      -v "$PWD/config.yaml:/app/config.yaml:ro" \
      -e PIERPRESSURE_MQTT_PASSWORD='your-broker-password' \
-     pierpressure
+     ghcr.io/andrewduckett/pier-pressure:2026.10.0
    ```
+
+   The image runs on `linux/amd64` and `linux/arm64`, such as a Raspberry Pi.
+   The `latest` tag always points at the newest release, but a pinned version
+   only changes when you change it.
 
 3. In Home Assistant, open **Settings → Devices & services → MQTT**. A device
    named `PierPressure <pier>` appears for each pier.
 
-No image is published yet, so you build it from this repository.
+The first line the container logs is its version, for example
+`PierPressure 2026.10.0`. Include it when you report a problem.
+
+To build the image from this repository instead:
+
+```bash
+docker build -t pierpressure .
+```
+
+Then run it as in step 2, with `pierpressure` as the image name. An image you
+build yourself reports the version `0.0.0+unreleased`.
 
 To run from source instead, install [uv](https://docs.astral.sh/uv/) and
 [just](https://github.com/casey/just), then:
