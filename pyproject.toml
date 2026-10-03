@@ -78,6 +78,8 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# scripts/ holds standalone tools such as next_version.py; tests import them directly.
+pythonpath = ["scripts"]
 markers = [
     "integration: opt-in tests that require a real local MQTT broker (deselected by default)",
 ]
