@@ -30,7 +30,7 @@
 ## 6. Documentation
 
 - [x] 6.1 Rewrite the README quick start to pull `ghcr.io/andrewduckett/pier-pressure:<version>`. Show pinning a version, and mention `latest`. Remove the "No image is published yet" sentence. Keep building from source as a secondary path. Verify that every command in the quick start runs as written.
-- [ ] 6.2 Add a short "Releasing" section for the maintainer: how to trigger the release, the CalVer scheme, and the one-time step to make the GHCR package public. Verify that it matches design.md's Migration Plan.
+- [x] 6.2 Add a short "Releasing" section for the maintainer: how to trigger the release, the CalVer scheme, and the one-time step to make the GHCR package public. Verify that it matches design.md's Migration Plan.
 
 ## 7. Pre-merge verification
 

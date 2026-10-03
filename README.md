@@ -288,6 +288,29 @@ just test-integration   # runs integration tests against a throwaway Mosquitto
 manual end-to-end checklist against a real Home Assistant is in
 [`docs/acceptance/m1-ha-acceptance.md`](docs/acceptance/m1-ha-acceptance.md).
 
+### Releasing
+
+Releases are for the maintainer. Each one publishes an image to
+`ghcr.io/andrewduckett/pier-pressure` and creates a GitHub release.
+
+1. On GitHub, open **Actions → Release → Run workflow**, choose `main`, and run
+   it. The workflow re-runs `just check`, builds and pushes the image for amd64
+   and arm64, and then tags the commit and creates the release.
+2. The version is monthly CalVer, `YYYY.M.N`: the UTC year and month, and a
+   counter that starts at 0 each month. The first release in October 2026 is
+   `2026.10.0`, the next is `2026.10.1`. The git tag is the only place the
+   version is stored ([ADR-0013](docs/decisions/0013-calver-versions-from-git-tags.md)).
+3. A commit is released at most once. Running the workflow again on a commit
+   that already has a release tag fails.
+
+After the **first** release only, make the package public: open the package on
+GitHub, then **Package settings → Change visibility → Public**. Then pull the
+version tag from a machine that is not logged in to GHCR, run it, and check that
+the first log line shows the version.
+
+To undo a release, delete the GitHub release, its git tag and the package version
+on GHCR.
+
 Planned work is in [GitHub issues](https://github.com/andrewduckett/pier-pressure/issues).
 AI agents should start with [`AGENTS.md`](AGENTS.md).
 
