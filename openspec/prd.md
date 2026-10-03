@@ -92,8 +92,10 @@ presses the "show me now" refresh button.
 ### 6.3 Piers and horizon masks
 
 - Several piers can be configured, each with its own location and horizon mask.
-- The canonical horizon is a sampled list of `(azimuth, altitude)` points.
-  Importers read Stellarium, NINA `.hrz`, and Telescopius formats.
+- The canonical horizon is a sampled list of `(azimuth, altitude)` points. A
+  horizon can be given inline, as a flat minimum altitude, or as an exported file.
+  The NINA `.hrz` importer is built; Stellarium and Telescopius are recognised
+  but not yet supported.
 - A target counts only when it clears the mask in its direction.
 
 ### 6.4 Targets

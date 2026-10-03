@@ -20,9 +20,9 @@ backlog is GitHub issues.
   version-pinned ephemeris; no runtime network access.
 - **The verdict document is a frozen contract.** The delivery surface (topics,
   entities, entity mapping) and the meaning of existing fields never change. The
-  document may grow **additively** (new fields/objects) as a milestone's science
-  arrives; reserve a field stubbed only when its shape is already known — don't
-  invent a shape before the milestone that defines it.
+  document may grow **additively** (new fields/objects) as new science arrives;
+  reserve a field stubbed only when its shape is already known — don't invent a
+  shape before the change that defines it.
 - **Home Assistant is never load-bearing** for freshness or correctness. Delivery
   is via MQTT discovery (REST is an acceptable fallback). The core runs as a
   persistent container that owns its own freshness: recompute on startup, on a
@@ -46,8 +46,10 @@ backlog is GitHub issues.
   yourself.
 - **Toolchain:** `uv` (env/deps/lockfile), `just` (tasks), `ruff` (lint AND
   format — no black), `mypy` (strict types), `pytest`. Python pinned to 3.12.
-- **`just check`** (ruff lint + format, mypy, pytest) is the CI gate — it must be
-  green before a PR. Practice TDD: write the failing test first.
+- **`just check`** (`ruff check`, mypy, pytest) is the CI gate — it must be green
+  before a PR. Formatting is enforced by the pre-commit hooks
+  (`uv run pre-commit install` once per clone), not by `just check`. Practice TDD:
+  write the failing test first.
 - Add dependencies with `uv add` so `pyproject.toml` and `uv.lock` stay in step.
 
 ### OpenSpec git workflow
@@ -68,9 +70,9 @@ between phases" step.
   verify → archive all on the branch; `archive` moves the change to
   `openspec/changes/archive/` and syncs delta specs into `openspec/specs/`. Flip the
   PR to ready when the archive commit lands.
-- **User owns the merge.** The agent never merges a PR unless explicitly asks and 
-  confirmed. Stacks merge bottom-up: parent to `main` first, then retarget and merge 
-  each child.
+- **User owns the merge.** The agent never merges a PR unless the user explicitly
+  asks and confirms. Stacks merge bottom-up: parent to `main` first, then retarget
+  and merge each child.
 - **If a ready PR gets change-requests,** flip it back to draft and `git revert` the
   archive commit — this restores the change under `openspec/changes/` and unwinds the
   spec sync. Make the fixes, re-archive as the last commit, and flip ready again. A
@@ -88,9 +90,9 @@ between phases" step.
 ## Writing document artifacts — plain language
 
 Write every document artifact — READMEs, ADRs, OpenSpec proposals/designs/specs,
-GitHub issue bodies, `docs/`, PR descriptions, and other prose deliverables — to the **ISO 24495 Plain
-Language** standard: reader-first, purposeful structure, findable, understandable,
-and actionable. Apply the core standard (`iso-24495-1`) to all prose, and the
+GitHub issue bodies, `docs/`, PR descriptions, and other prose deliverables — to
+the **ISO 24495 Plain Language** standard: reader-first, purposeful structure,
+findable, understandable, and actionable. Apply the core standard (`iso-24495-1`) to all prose, and the
 science/technical sector standard (`iso-24495-3`) to architecture specs, design
 docs, and software documentation. This governs prose only — code, config, and test
 fixtures follow the toolchain's own conventions.
