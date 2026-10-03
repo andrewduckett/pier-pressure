@@ -6,4 +6,8 @@ see design D1. That boundary is what makes the verdict document producible and
 testable off Home Assistant.
 """
 
-__version__ = "0.1.0"
+import importlib.metadata
+
+# The git tag is the only source of the version (ADR-0013); the build stamps it
+# into the package metadata.
+__version__ = importlib.metadata.version("pierpressure")
