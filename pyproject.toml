@@ -1,6 +1,6 @@
 [project]
 name = "pierpressure"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Decides whether tonight is worth setting up for from a pier, and delivers the verdict into Home Assistant over MQTT."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -15,8 +15,15 @@ dependencies = [
 ]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
+
+# The git tag is the only source of the version (ADR-0013). A build without git
+# history and without SETUPTOOLS_SCM_PRETEND_VERSION gets a placeholder that is
+# not CalVer, so it never claims to be a release.
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0.0.0+unreleased"
 
 [tool.hatch.build.targets.wheel]
 packages = ["pierpressure"]
