@@ -34,6 +34,6 @@
 
 ## 7. Pre-merge verification
 
-- [ ] 7.1 Build both platforms locally with `docker buildx build --platform linux/amd64,linux/arm64 --build-arg PIERPRESSURE_VERSION=2026.10.0 .` and check that both builds succeed.
+- [x] 7.1 Build both platforms locally with `docker buildx build --platform linux/amd64,linux/arm64 --build-arg PIERPRESSURE_VERSION=2026.10.0 .` and check that both builds succeed.
 - [ ] 7.2 Run `just check` and `openspec validate release-image --strict`, and check that both pass.
 - [ ] 7.3 Add an "After merge" checklist to the PR description. It covers the steps that need the workflow on `main`: the first release run, making the package public, an anonymous pull on amd64 and arm64, inspecting the labels and index annotations, and checking the startup log line.
