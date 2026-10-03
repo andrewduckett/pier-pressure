@@ -76,7 +76,7 @@ TOP_N = 10
 # as expected. The geometry proportions keep M5's ordering-within-geometry
 # (altitude > window > moon > transit); brightness enters just below transit's
 # neighbourhood and FOV a touch below brightness, so the ranking still answers
-# "best placed" first and breaks near-ties on suitability. See docs/roadmap.md M6.
+# "best placed" first and breaks near-ties on suitability. See docs/target-ranking.md.
 WEIGHT_ALTITUDE = 0.28
 WEIGHT_WINDOW = 0.24
 WEIGHT_MOON = 0.18

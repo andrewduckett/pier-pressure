@@ -32,8 +32,9 @@ on demand), so if Home Assistant restarts the verdict stays current.
 ## ✨ Why is this worth solving
 
 Freezing the contract now means every later milestone replaces a stub with real
-math instead of rewiring Home Assistant late. See `docs/roadmap.md` for the
-milestone plan.
+math instead of rewiring Home Assistant late. See
+[`openspec/prd.md`](openspec/prd.md) for the product intent; planned work is in
+[GitHub issues](https://github.com/andrewduckett/pier-pressure/issues).
 
 ## 📦 Install
 
@@ -166,7 +167,7 @@ are `null` when `dark_window` is null.
 The astronomical fields are computed with a version-pinned ephemeris and
 Skyfield's built-in timescale — **fully offline and deterministic** (same pier
 and instant → byte-identical document). See
-[`docs/adr/0004-deterministic-offline-astronomy.md`](docs/adr/0004-deterministic-offline-astronomy.md).
+[`docs/decisions/0004-deterministic-offline-astronomy.md`](docs/decisions/0004-deterministic-offline-astronomy.md).
 
 ### Notifying at a chosen time (Home Assistant automation)
 
@@ -224,7 +225,7 @@ discovery topic is cleared.
   a Last-Will marks entities unavailable if the process dies.
 
 The full rationale lives in `openspec/changes/add-walking-skeleton/design.md` and
-the repository ADRs under `docs/adr/`.
+the repository ADRs under `docs/decisions/`.
 
 ## 📁 Project Layout
 
@@ -235,7 +236,7 @@ pierpressure/
   service.py   # persistent loop wiring the two together
   __main__.py  # entrypoint: python -m pierpressure
 tests/         # core tests need no broker; delivery tests use a fake client
-docs/          # roadmap, ADRs, and the M1 acceptance checklist
+docs/          # decision records, guides, and the M1 acceptance checklist
 ```
 
 ## 🛠️ Development
@@ -257,7 +258,7 @@ Assistant — is in [`docs/acceptance/m1-ha-acceptance.md`](docs/acceptance/m1-h
 ## 🤖 For AI Agents
 
 This project uses OpenSpec. Planning artifacts for in-flight work live under
-`openspec/changes/`; durable cross-cutting rules are in `docs/roadmap.md` and
-`docs/adr/`. The core must stay pure (no HA/MQTT imports) and deterministic, and
+`openspec/changes/`; durable cross-cutting rules are in `openspec/prd.md` and
+`docs/decisions/`. The core must stay pure (no HA/MQTT imports) and deterministic, and
 the verdict document plus MQTT entity mapping are a **frozen contract** — reserve
 new fields stubbed rather than reshaping either surface.
