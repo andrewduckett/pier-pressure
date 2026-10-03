@@ -46,3 +46,9 @@ temp/
 # AI tooling
 .claude/settings.local.json
 .claude/worktrees/
+
+# Scratch and working files (see AGENTS.md)
+.workspace/
+
+# nix-direnv cache
+.direnv/
