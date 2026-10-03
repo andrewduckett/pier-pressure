@@ -36,3 +36,32 @@ jobs:
 
       - name: Run checks
         run: just check
+
+  release:
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the tag and the GitHub release
+      packages: write # push the image to GHCR
+    steps:
+      - name: Refuse to release from any branch but main
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          if [ "$REF" != "refs/heads/main" ]; then
+            echo "::error::Releases run only from main, not $REF"
+            exit 1
+          fi
+
+      # Full history and tags, so the version script sees every release tag.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Fails if HEAD already carries a release tag: each commit releases once.
+      - name: Compute the next version
+        id: version
+        run: |
+          version="$(python3 scripts/next_version.py)"
+          echo "Releasing $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
