@@ -22,7 +22,7 @@
 
 ## 5. Release workflow (design D3, D4)
 
-- [ ] 5.1 Create `.github/workflows/release.yml`, triggered only by `workflow_dispatch`. Give it the `release` concurrency group with `cancel-in-progress: false`, and a `check` job that reuses `ci.yml`'s setup and runs `just check` with `contents: read`. Verify the file with `actionlint`.
+- [x] 5.1 Create `.github/workflows/release.yml`, triggered only by `workflow_dispatch`. Give it the `release` concurrency group with `cancel-in-progress: false`, and a `check` job that reuses `ci.yml`'s setup and runs `just check` with `contents: read`. Verify the file with `actionlint`.
 - [ ] 5.2 Add the `release` job, with `needs: check` and `contents: write` and `packages: write`. It first fails unless the ref is `refs/heads/main`, then fetches the tags and runs `scripts/next_version.py`. Verify it with `actionlint`, and check that the job's permissions list nothing beyond those two scopes.
 - [ ] 5.3 Add the image steps to the `release` job: QEMU, buildx, a GHCR login with `GITHUB_TOKEN`, and `docker/metadata-action` (tags `VERSION` and `latest`, with `DOCKER_METADATA_ANNOTATIONS_LEVELS=manifest,index`). Then add `docker/build-push-action` for `linux/amd64,linux/arm64`, passing tags, labels, annotations and the version build argument. Verify with `actionlint`.
 - [ ] 5.4 Add a final step that runs `gh release create VERSION --target <sha> --generate-notes`, and runs only after the push step succeeds. Verify with `actionlint`, and check in the file that no step creates a tag or release before the push.

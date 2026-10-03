@@ -1,0 +1,38 @@
+name: Release
+
+# Cuts one versioned release by hand (design D3): re-run the checks, compute the
+# next CalVer version, push a multi-arch image to GHCR, then tag the commit and
+# create the GitHub release. Only a manual trigger on main releases anything.
+on:
+  workflow_dispatch:
+
+# One release at a time, so two runs never pick the same version. A waiting run
+# is never cancelled by the running one; a newer trigger replaces the waiting run.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install just
+        uses: extractions/setup-just@v2
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Sync dependencies
+        run: uv sync --frozen
+
+      - name: Run checks
+        run: just check
