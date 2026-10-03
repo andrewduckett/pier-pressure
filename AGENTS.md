@@ -7,8 +7,9 @@ Guidance for AI agents working in this repo. `CLAUDE.md` is a symlink to this fi
 PierPressure decides "is tonight worth setting up for, and what should I point at
 from this pier?" and delivers the verdict into Home Assistant over MQTT. A pure
 Python core computes one deterministic verdict document per pier; a dumb
-MQTT-discovery adapter publishes it. Roadmap and milestone status live in
-`docs/roadmap.md`.
+MQTT-discovery adapter publishes it. The product intent lives in
+`openspec/prd.md`; personas and journeys live in `openspec/discovery.md`; the
+backlog is GitHub issues.
 
 ## Durable constraints (honor in every change)
 
@@ -37,7 +38,12 @@ MQTT-discovery adapter publishes it. Roadmap and milestone status live in
 
 - Planning uses **OpenSpec**: in-flight work lives under `openspec/changes/`;
   durable specs under `openspec/specs/`; decision records under `docs/decisions/`. Use
-  the `opsx:*` skills (propose → apply → verify → archive).
+  the `opsx:*` skills (propose → apply → verify → archive). OpenSpec changes carry
+  product behavior. Repo maintenance (tooling, docs, backlog housekeeping) goes
+  through an ordinary branch and PR with Conventional Commits.
+- **Dev shell:** `flake.nix` provides Python (from `.python-version`), `uv`, and
+  `just`; `direnv` loads it through `.envrc`. Without Nix, install uv and just
+  yourself.
 - **Toolchain:** `uv` (env/deps/lockfile), `just` (tasks), `ruff` (lint AND
   format — no black), `mypy` (strict types), `pytest`. Python pinned to 3.12.
 - **`just check`** (ruff lint + format, mypy, pytest) is the CI gate — it must be
@@ -50,13 +56,15 @@ One branch and one pull request carry a change through its whole lifecycle —
 propose, apply, verify, archive — and merge once. There is no "cross `main`
 between phases" step.
 
-- **Branch per change.** One OpenSpec change (one discovery story) = one branch =
+- **Branch per change.** One OpenSpec change (one backlog issue) = one branch =
   one PR. Dependent stories **stack**: branch off the parent's branch and target
   its PR; independent stories branch off `main`.
 - **A commit per unit of work.** Each artifact (proposal, design, specs, tasks) is
   its own `docs:` commit; each implementation task is its own commit with its real
   type (`feat:`/`fix:`/`refactor:`/`test:`); the archive is its own `chore:` commit.
-- **Draft until archived.** Open the PR as a draft at propose. Run propose → apply →
+- **Draft until archived.** Open the PR as a draft at propose, and assign its issue
+  (`gh issue edit <n> --add-assignee @me`). An assigned open issue is in progress, so
+  propose does not pick it again. Run propose → apply →
   verify → archive all on the branch; `archive` moves the change to
   `openspec/changes/archive/` and syncs delta specs into `openspec/specs/`. Flip the
   PR to ready when the archive commit lands.
@@ -67,16 +75,20 @@ between phases" step.
   archive commit — this restores the change under `openspec/changes/` and unwinds the
   spec sync. Make the fixes, re-archive as the last commit, and flip ready again. A
   rejected PR is just closed and its branch deleted; `main` stays clean.
-- **Issue provenance.** When a change originates from a GitHub issue, discovery
-  records `Origin: #<issue>` on the story and propose carries it into `proposal.md`.
-  A PR that fully resolves a single issue says `Closes #<issue>`; a PR that is one of
-  many stories under an epic or milestone issue says `Part of #<issue>`, and that
-  parent issue is closed only once `discovery.md` shows all its stories archived.
+- **Every story is an issue.** Its body is the story packet; propose reads it and
+  names the issue in `proposal.md`. The story's PR says `Closes #<issue>`, so merging
+  closes it. An epic is a parent issue, labeled `kind/epic`, with its stories as
+  sub-issues; close the epic once all its sub-issues are closed. Dependencies are
+  "blocked by" links.
+- **Every story carries one MoSCoW priority label:** `priority/must`,
+  `priority/should`, `priority/could`, or `priority/wont`. The label matches the
+  `MoSCoW` line in the story packet; when you change one, change the other in the same
+  edit. Epics and untriaged issues have no priority label.
 
 ## Writing document artifacts — plain language
 
 Write every document artifact — READMEs, ADRs, OpenSpec proposals/designs/specs,
-`docs/`, PR descriptions, and other prose deliverables — to the **ISO 24495 Plain
+GitHub issue bodies, `docs/`, PR descriptions, and other prose deliverables — to the **ISO 24495 Plain
 Language** standard: reader-first, purposeful structure, findable, understandable,
 and actionable. Apply the core standard (`iso-24495-1`) to all prose, and the
 science/technical sector standard (`iso-24495-3`) to architecture specs, design
