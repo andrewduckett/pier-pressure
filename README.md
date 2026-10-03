@@ -309,7 +309,13 @@ version tag from a machine that is not logged in to GHCR, run it, and check that
 the first log line shows the version.
 
 To undo a release, delete the GitHub release, its git tag and the package version
-on GHCR.
+on GHCR. If it was the newest release, `latest` is deleted with it. Point
+`latest` back at the previous release, for example `2026.10.0`:
+
+```bash
+docker buildx imagetools create -t ghcr.io/andrewduckett/pier-pressure:latest \
+  ghcr.io/andrewduckett/pier-pressure:2026.10.0
+```
 
 Planned work is in [GitHub issues](https://github.com/andrewduckett/pier-pressure/issues).
 AI agents should start with [`AGENTS.md`](AGENTS.md).
