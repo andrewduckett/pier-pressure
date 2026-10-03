@@ -13,7 +13,7 @@
 - [x] 3.1 Write failing unit tests for `next_version(tags, today)`, one per CalVer scenario in the spec: first release of a month, later release in the same month, monthly reset, numeric comparison of `2026.10.10` against `2026.10.9`, and non-matching tags (such as `v1.0` or `2026.10.x`) being ignored.
 - [x] 3.2 Implement `scripts/next_version.py` with the pure `next_version` function, using only the standard library. Verify that the tests from 3.1 pass.
 - [x] 3.3 Add the command line to the script. It reads the tags from git, prints the next version, and exits non-zero with a message naming the existing version when `HEAD` already has a release tag. Write a test for the "commit already released" case first. Verify it by running the script in a scratch repository with and without a tag on `HEAD`.
-- [ ] 3.4 Extend mypy's scope to `scripts/` so that `just check` type-checks the script. Verify this by adding a deliberate type error, seeing `just check` fail, and then removing the error.
+- [x] 3.4 Extend mypy's scope to `scripts/` so that `just check` type-checks the script. Verify this by adding a deliberate type error, seeing `just check` fail, and then removing the error.
 
 ## 4. Dockerfile (design D1, D5)
 

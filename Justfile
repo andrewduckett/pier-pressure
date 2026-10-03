@@ -16,7 +16,7 @@ lint:
 format:
     uv run ruff format .
 
-# Type-check the package with mypy.
+# Type-check the package and scripts with mypy.
 typecheck:
     uv run mypy
 

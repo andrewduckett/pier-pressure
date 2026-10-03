@@ -65,7 +65,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.mypy]
 python_version = "3.12"
-packages = ["pierpressure"]
+files = ["pierpressure", "scripts"]
 strict = true
 warn_unused_ignores = true
 warn_redundant_casts = true
