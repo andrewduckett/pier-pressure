@@ -2,7 +2,8 @@
 # layer that runs the module. This is a plain container, not a HAOS add-on.
 FROM python:3.12-slim AS builder
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# Pinned to match [tool.uv] required-version in pyproject.toml (design D5).
+COPY --from=ghcr.io/astral-sh/uv:0.12.17 /uv /usr/local/bin/uv
 
 WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 \
@@ -14,8 +15,15 @@ ENV UV_COMPILE_BYTECODE=1 \
 COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --frozen --no-install-project --no-dev
 
+# The build has no git history, so the release workflow passes the version in
+# (design D1). Declared after the dependency layer, so a new version rebuilds only
+# the project. Without it, the package reports its non-release fallback version.
+ARG PIERPRESSURE_VERSION=""
 COPY pierpressure ./pierpressure
-RUN uv sync --frozen --no-dev
+RUN if [ -n "$PIERPRESSURE_VERSION" ]; then \
+        export SETUPTOOLS_SCM_PRETEND_VERSION="$PIERPRESSURE_VERSION"; \
+    fi; \
+    uv sync --frozen --no-dev
 
 
 FROM python:3.12-slim
