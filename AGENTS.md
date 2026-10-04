@@ -50,9 +50,6 @@ backlog is GitHub issues.
   before a PR. Formatting is enforced by the pre-commit hooks
   (`uv run pre-commit install` once per clone), not by `just check`. Practice TDD:
   write the failing test first.
-- **Real Home Assistant proof:** a change to what Home Assistant shows is proved by
-  hand with `docs/acceptance/ha-acceptance.md`. A change that adds or changes an
-  entity updates that checklist in the same PR.
 - Add dependencies with `uv add` so `pyproject.toml` and `uv.lock` stay in step.
 
 ### OpenSpec git workflow
