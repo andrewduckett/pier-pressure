@@ -92,7 +92,8 @@ jobs:
 
       # Tags plus the OCI version, revision and source metadata. The annotations go
       # on each platform manifest and on the index, which GHCR reads to link the
-      # package to this repository.
+      # package to this repository. The io.hass labels are the ones Home Assistant
+      # reads from add-on images (ha-addon design D6).
       - name: Compute image metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -104,7 +105,10 @@ jobs:
           tags: |
             type=raw,value=${{ steps.version.outputs.version }}
             type=raw,value=latest
-          labels: org.opencontainers.image.version=${{ steps.version.outputs.version }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            io.hass.version=${{ steps.version.outputs.version }}
+            io.hass.type=addon
           annotations: org.opencontainers.image.version=${{ steps.version.outputs.version }}
 
       - name: Build and push the image
