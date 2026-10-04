@@ -10,7 +10,7 @@ the existing `FakeMqttClient` and `make_document` helpers.
 ## 2. Rank topics and discovery
 
 - [x] 2.1 Write failing tests for the rank topic helpers: rank `n` of pier `<pier>` uses `pierpressure/<pier>/target_<n>/state` and `.../attributes`. Implement the helpers and verify the tests pass (design D1).
-- [ ] 2.2 Write failing tests for the rank discovery builder: for each rank from 1 to `TOP_N`, the payload validates against the sensor schema in `ha_schema.py`, has the name `Target <n>`, and has the `unique_id` `pierpressure_<pier>_target_<n>`. It must also use the two-entry availability list with the `available` flag template and not disable the entity by default. Implement and verify (spec: "Rank discovery is published for every rank").
+- [x] 2.2 Write failing tests for the rank discovery builder: for each rank from 1 to `TOP_N`, the payload validates against the sensor schema in `ha_schema.py`, has the name `Target <n>`, and has the `unique_id` `pierpressure_<pier>_target_<n>`. It must also use the two-entry availability list with the `available` flag template and not disable the entity by default. Implement and verify (spec: "Rank discovery is published for every rank").
 
 ## 3. Rank state and attributes
 

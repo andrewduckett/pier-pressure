@@ -221,6 +221,39 @@ def top_target_attributes(document: VerdictDocument) -> dict[str, Any]:
     }
 
 
+def build_rank_target_discovery(pier_id: str, base_topic: str, rank: int) -> dict[str, Any]:
+    """The sensor for one rank of the target list, Target 1 to Target TOP_N.
+
+    Its state is the display name of the target at that rank; the rank and the
+    target's fields ride along as JSON attributes. Availability is a two-entry list
+    with ``availability_mode: all`` — the shared LWT topic AND a template requiring
+    the attributes' ``available`` flag — so a rank with no target tonight renders
+    ``unavailable`` rather than a placeholder, like the narrative sensor (design D2).
+    """
+    attrs = rank_target_attributes_topic(base_topic, pier_id, rank)
+    return {
+        "name": f"Target {rank}",
+        "has_entity_name": True,
+        "unique_id": f"{node_id(pier_id)}_target_{rank}",
+        "state_topic": rank_target_state_topic(base_topic, pier_id, rank),
+        "json_attributes_topic": attrs,
+        "availability_mode": "all",
+        "availability": [
+            {
+                "topic": availability_topic(base_topic),
+                "payload_available": PAYLOAD_ONLINE,
+                "payload_not_available": PAYLOAD_OFFLINE,
+            },
+            {
+                "topic": attrs,
+                "value_template": ("{{ 'online' if value_json.available else 'offline' }}"),
+            },
+        ],
+        "icon": "mdi:telescope",
+        "device": _device_block(pier_id),
+    }
+
+
 def build_narrative_discovery(pier_id: str, base_topic: str) -> dict[str, Any]:
     """The optional narrative sensor (spec ha-delivery; ADR-0011; design D2).
 
