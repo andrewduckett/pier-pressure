@@ -283,7 +283,11 @@ def rank_target_attributes(document: VerdictDocument, rank: int) -> dict[str, An
     if rank > len(document.targets):
         return {"available": False, "rank": rank}
     target = json.loads(document.targets[rank - 1].model_dump_json())
-    return {"available": True, "rank": rank, **target}
+    payload = {"available": True, "rank": rank, **target}
+    # Re-assert the adapter's keys so a future target field of the same name can't
+    # replace them; ``update`` keeps them first in the payload.
+    payload.update(available=True, rank=rank)
+    return payload
 
 
 def build_narrative_discovery(pier_id: str, base_topic: str) -> dict[str, Any]:

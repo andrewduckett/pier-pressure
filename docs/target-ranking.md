@@ -102,8 +102,8 @@ the ranking. Put them on any entities card to see the whole list.
 
 - **State:** the name of the target at that rank, or its catalog `id` when it has
   no common name. Target 1 always matches the Top target sensor.
-- **Attributes:** `available`, the `rank`, and that target's fields, such as
-  `score`, `window`, and `max_altitude`.
+- **Attributes:** the `rank` and that target's fields, such as `score`,
+  `window`, and `max_altitude`.
 - **Unavailable when the rank is empty:** if fewer than ten targets rank tonight,
   the higher ranks show as unavailable. Each recompute updates all ten, so a rank
   never keeps an earlier target after the list gets shorter.

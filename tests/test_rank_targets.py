@@ -152,6 +152,15 @@ def test_filled_rank_attributes_carry_rank_and_target_fields() -> None:
     assert attributes["window"] == {"start": "2026-09-08T21:00:00Z", "end": "2026-09-09T02:00:00Z"}
 
 
+def test_target_fields_never_override_the_rank_keys(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The document grows additively, so a future target field named ``rank`` or
+    # ``available`` must not replace the adapter's own keys.
+    document = _document(_targets(3))
+    grown = '{"id": "NGC0003", "rank": 99, "available": null}'
+    monkeypatch.setattr(Target, "model_dump_json", lambda self: grown)
+    assert rank_target_attributes(document, 3) == {"available": True, "rank": 3, "id": "NGC0003"}
+
+
 def test_filled_rank_without_common_name_shows_the_catalog_id() -> None:
     document = _document([_target("NGC0224", "Andromeda Galaxy", 90), _target("NGC7000", None, 80)])
     assert rank_target_state(document, 2) == "NGC7000"
