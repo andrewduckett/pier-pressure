@@ -19,7 +19,7 @@ list on any card.
   Every publish updates all ten ranks. So when the list shrinks, a rank that
   had a target earlier in the night becomes unavailable instead of keeping its old
   target.
-- All ten sensors are enabled by default.
+- The adapter enables all ten sensors by default.
 - Update the README entities table, the MQTT topics table, and the
   entity-removal example to include the rank sensors.
 

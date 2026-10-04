@@ -59,8 +59,10 @@ The rank discovery payload uses the same two-entry availability list as the
 Narrative sensor. The second entry's template reads
 `{{ 'online' if value_json.available else 'offline' }}`.
 
-The attributes payload is flat, so a card can read a field without
-descending into a nested object:
+The attributes payload puts the target's fields at the top level, not under a
+`target` key, so a card can read a field directly. A field that is an object in
+the verdict document stays an object. For example, `window` keeps its `start`
+and `end` keys.
 
 - **Filled rank:** `{"available": true, "rank": n, ...}` followed by the
   target's fields as they appear in the verdict document (`id`, `name`, `type`,

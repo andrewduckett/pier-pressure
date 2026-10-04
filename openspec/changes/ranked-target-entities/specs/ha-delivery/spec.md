@@ -5,12 +5,12 @@
 On publishing, the system SHALL publish MQTT discovery configuration for one rank
 sensor per rank, from rank 1 to the ranking's maximum list length. These sensors
 are in addition to the existing entities, and each one belongs to the pier's device.
-Each rank sensor SHALL be enabled by default.
+The adapter SHALL publish each rank sensor as enabled by default.
 
 When the target list has an entry at a sensor's rank, the sensor's state SHALL be
 that target's name. When the catalog records no common name, the state SHALL be
-the target's designation. That target's rank and its fields SHALL be published as
-the sensor's JSON attributes payload.
+the target's catalog id. The adapter SHALL publish that target's rank and its
+fields as the sensor's JSON attributes payload.
 
 When the target list has no entry at a sensor's rank, the sensor SHALL resolve to
 unavailable rather than an empty or placeholder value.
@@ -19,8 +19,8 @@ Every publish SHALL update every rank sensor, including ranks with no target. So
 rank never keeps an earlier target after the list shrinks.
 
 Each discovery payload SHALL conform to Home Assistant's MQTT discovery schema for
-a sensor. Each SHALL be published retained to a discovery topic derived from the
-pier identifier and the rank. Each SHALL derive its unique identity from the pier
+a sensor. The adapter SHALL publish each one retained to a discovery topic derived from
+the pier identifier and the rank. Each SHALL derive its unique identity from the pier
 identifier and the rank, so re-publishing updates the existing entity rather than
 creating a duplicate. These entities are additive: every existing entity, topic,
 and mapping is unchanged.
@@ -39,20 +39,22 @@ and mapping is unchanged.
 - **THEN** the rank 3 sensor's state is that target's name
 - **AND** the rank 3 sensor's attributes carry rank 3 and that target's fields
 
-#### Scenario: A filled rank falls back to the designation
+#### Scenario: A filled rank falls back to the catalog id
 
 - **WHEN** the target at a rank has no common name in the catalog
-- **THEN** that rank sensor's state is the target's designation
+- **THEN** that rank sensor's state is the target's catalog id
 
 #### Scenario: An empty rank renders unavailable
 
 - **WHEN** the adapter publishes for a pier whose target list has fewer entries than the maximum list length
-- **THEN** each rank sensor beyond the last entry resolves to unavailable rather than showing an empty or placeholder value
+- **THEN** the adapter publishes, for each rank beyond the last entry, a retained attributes payload that marks the rank as having no target
+- **AND** each rank sensor's discovery payload declares an availability that makes the sensor unavailable when its rank is marked as having no target, rather than showing an empty or placeholder value
 
 #### Scenario: A shrinking list clears the old ranks
 
 - **WHEN** the adapter publishes a target list with 5 entries and then publishes a list with 2 entries for the same pier
-- **THEN** after the second publish, rank sensors 3 to 5 resolve to unavailable rather than showing their earlier targets
+- **THEN** the second publish overwrites the retained attributes for ranks 3 to 5 with payloads that mark each rank as having no target
+- **AND** no retained state or attributes for ranks 3 to 5 still carry their earlier targets
 
 #### Scenario: Existing entities are unchanged by the rank sensors
 
