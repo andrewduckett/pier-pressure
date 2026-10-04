@@ -1,0 +1,5 @@
+# Makes this repository a Home Assistant add-on repository (design D2). Users add
+# its URL in Home Assistant; the add-on itself lives in ha-addon/.
+name: PierPressure
+url: https://github.com/andrewduckett/pier-pressure
+maintainer: Andrew Duckett

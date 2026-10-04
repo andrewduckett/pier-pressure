@@ -70,6 +70,39 @@ just run                       # reads ./config.yaml
 uv run python -m pierpressure /path/to/config.yaml   # or name a file
 ```
 
+## 🏡 Install as a Home Assistant add-on (app)
+
+Home Assistant OS cannot run a container of your own, but it can run PierPressure
+as an add-on (Home Assistant now also calls these "apps"). The add-on runs the same
+release image as the Docker install, with the same `config.yaml`.
+
+It runs on `amd64` and `aarch64` (64-bit ARM, such as a Raspberry Pi 4 or 5 on a
+64-bit Home Assistant OS). Home Assistant hides it on other systems, such as 32-bit
+ARM.
+
+1. In Home Assistant, open **Settings → Add-ons → Add-on Store**. From the **⋮**
+   menu, choose **Repositories** and add
+   `https://github.com/andrewduckett/pier-pressure`.
+2. Install **PierPressure** from the store.
+3. Write `config.yaml` in the add-on's config folder,
+   `/addon_configs/<id>_pierpressure`, where `<id>` is a short code for this
+   repository. Open the folder with an add-on that can reach `addon_configs`,
+   such as Samba share or Studio Code Server. The add-on reads the file as
+   `/config/config.yaml`. With the Mosquitto broker add-on, set `mqtt.host` to
+   `core-mosquitto`.
+4. Start the add-on. Its log's first line ends with its version, and a device
+   named `PierPressure <pier>` appears under **Settings → Devices & services →
+   MQTT** for each pier.
+
+**The broker password sits in the file.** An add-on cannot set environment
+variables, so `${PIERPRESSURE_MQTT_PASSWORD}` is not replaced. Write the password
+straight into `config.yaml`. Anyone who can open the add-on's config folder can
+read it. A later version will find the Mosquitto add-on's broker for you
+([#28](https://github.com/andrewduckett/pier-pressure/issues/28)).
+
+The add-on's **Documentation** tab in Home Assistant repeats these steps. Home
+Assistant offers an update when a new release reaches the add-on.
+
 ## ⚙️ Configuration
 
 A minimal file needs the broker, a recompute interval, and one pier:
@@ -300,6 +333,21 @@ Releases are for the maintainer. Each one publishes an image to
    version is stored ([ADR-0013](docs/decisions/0013-calver-versions-from-git-tags.md)).
 3. A commit is released at most once. Running the workflow again on a commit
    that already has a release tag fails.
+4. Last, the workflow opens a pull request from the branch
+   `release/ha-addon-version`. It sets the add-on's version in
+   `ha-addon/config.yaml` to the new release and changes nothing else. Add-on
+   users see the update only when you merge it. If an earlier version pull
+   request is still open, the release replaces it, so at most one is ever open.
+   CI does not run on a pull request that a workflow opens, and `main` needs a
+   passing check before a merge. Close and reopen the pull request to run CI,
+   then merge.
+
+If the last step fails, the image, tag and release still stand. Open the
+pull request by hand with the same one-line change.
+
+The workflow needs one repository setting to open that pull request. Turn it on
+once: **Settings → Actions → General → Workflow permissions → Allow GitHub
+Actions to create and approve pull requests**.
 
 After the **first** release only, make the package public: open the package on
 GitHub, then **Package settings → Change visibility → Public**. Then pull the

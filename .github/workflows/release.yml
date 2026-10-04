@@ -2,7 +2,8 @@ name: Release
 
 # Cuts one versioned release by hand (design D3): re-run the checks, compute the
 # next CalVer version, push a multi-arch image to GHCR, then tag the commit and
-# create the GitHub release. Only a manual trigger on main releases anything.
+# create the GitHub release. Last, open a pull request that moves the Home Assistant
+# add-on to the new version. Only a manual trigger on main releases anything.
 on:
   workflow_dispatch:
 
@@ -41,8 +42,9 @@ jobs:
     needs: check
     runs-on: ubuntu-latest
     permissions:
-      contents: write # create the tag and the GitHub release
+      contents: write # create the tag and the GitHub release; push the add-on branch
       packages: write # push the image to GHCR
+      pull-requests: write # open the add-on version pull request
     steps:
       - name: Refuse to release from any branch but main
         env:
@@ -92,7 +94,8 @@ jobs:
 
       # Tags plus the OCI version, revision and source metadata. The annotations go
       # on each platform manifest and on the index, which GHCR reads to link the
-      # package to this repository.
+      # package to this repository. The io.hass labels are the ones Home Assistant
+      # reads from add-on images (ha-addon design D6).
       - name: Compute image metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -104,7 +107,10 @@ jobs:
           tags: |
             type=raw,value=${{ steps.version.outputs.version }}
             type=raw,value=latest
-          labels: org.opencontainers.image.version=${{ steps.version.outputs.version }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            io.hass.version=${{ steps.version.outputs.version }}
+            io.hass.type=addon
           annotations: org.opencontainers.image.version=${{ steps.version.outputs.version }}
 
       - name: Build and push the image
@@ -126,3 +132,39 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           SHA: ${{ github.sha }}
         run: gh release create "$VERSION" --target "$SHA" --title "$VERSION" --generate-notes
+
+      # After the release, so the pull request only ever names an image that exists
+      # (ha-addon design D5). One fixed branch, force-pushed, keeps at most one
+      # version pull request open. The release never pushes to main: the
+      # maintainer merges the pull request to deliver the update to add-on users.
+      - name: Open the add-on version pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          SHA: ${{ github.sha }}
+          BRANCH: release/ha-addon-version
+        run: |
+          trap 'echo "::error::Could not open or update the add-on version pull request for $VERSION. The image, tag and release stand; open the pull request by hand."' ERR
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch --force-create "$BRANCH" "$SHA"
+          python3 scripts/set_addon_version.py "$VERSION"
+          # Someone already set this version on main by hand: there is nothing to propose.
+          if git diff --quiet -- ha-addon/config.yaml; then
+            echo "The add-on is already at $VERSION; no pull request needed."
+            exit 0
+          fi
+          git commit --message "chore: move the Home Assistant add-on to $VERSION" -- ha-addon/config.yaml
+          git push --force origin "HEAD:refs/heads/$BRANCH"
+
+          title="chore: move the Home Assistant add-on to $VERSION"
+          body="Release $VERSION is published. Merge this pull request to offer it to Home Assistant add-on users.
+
+          It changes only the version in \`ha-addon/config.yaml\`. CI does not run on a pull request that a workflow opens, and main needs a passing check before a merge. Close and reopen this pull request to run CI, then merge."
+          number="$(gh pr list --head "$BRANCH" --base main --state open --json number --jq '.[0].number // empty')"
+          if [ -z "$number" ]; then
+            gh pr create --base main --head "$BRANCH" --title "$title" --body "$body"
+          else
+            gh pr edit "$number" --title "$title" --body "$body"
+          fi
