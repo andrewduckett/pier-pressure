@@ -20,13 +20,23 @@ from pierpressure.core.ranking import TOP_N
 from pierpressure.delivery.ha_schema import SENSOR_SCHEMA
 from pierpressure.delivery.mqtt import (
     MqttDelivery,
+    attributes_topic,
     availability_topic,
     build_rank_target_discovery,
+    build_refresh_discovery,
+    build_score_discovery,
+    build_top_target_discovery,
+    build_verdict_discovery,
     discovery_topic,
     rank_target_attributes,
     rank_target_attributes_topic,
     rank_target_state,
     rank_target_state_topic,
+    top_target_attributes,
+    top_target_attributes_topic,
+    top_target_state,
+    top_target_state_topic,
+    verdict_state_topic,
 )
 
 from .conftest import FakeMqttClient, make_document, make_mqtt_config
@@ -247,3 +257,60 @@ def test_shrinking_list_clears_the_old_ranks() -> None:
         _, state, attributes = _rank_topics(rank)
         assert json.loads(_last_retained(client, attributes)) == {"available": False, "rank": rank}
         assert _last_retained(client, state) not in earlier_names
+
+
+
+# --------------------------------------------------------------------------- #
+# Additive: existing entities unchanged, identity stable across republish
+# --------------------------------------------------------------------------- #
+
+
+def test_existing_entities_publish_the_same_topics_and_payloads() -> None:
+    delivery, client = _connected()
+    document = _document(_targets(3))
+    delivery.publish_verdict(document)
+
+    rank_topics = {topic for rank in RANKS for topic in _rank_topics(rank)}
+    others = [(p.topic, p.payload, p.retain) for p in client.published if p.topic not in rank_topics]
+    assert others == [
+        (availability_topic(BASE), "online", True),
+        (
+            discovery_topic(PREFIX, "sensor", "backyard", "verdict"),
+            json.dumps(build_verdict_discovery("backyard", BASE)),
+            True,
+        ),
+        (
+            discovery_topic(PREFIX, "sensor", "backyard", "score"),
+            json.dumps(build_score_discovery("backyard", BASE)),
+            True,
+        ),
+        (
+            discovery_topic(PREFIX, "button", "backyard", "refresh"),
+            json.dumps(build_refresh_discovery("backyard", BASE)),
+            True,
+        ),
+        (
+            discovery_topic(PREFIX, "sensor", "backyard", "top_target"),
+            json.dumps(build_top_target_discovery("backyard", BASE)),
+            True,
+        ),
+        (verdict_state_topic(BASE, "backyard"), document.verdict.value, True),
+        (attributes_topic(BASE, "backyard"), document.to_json(), True),
+        (top_target_state_topic(BASE, "backyard"), top_target_state(document), True),
+        (
+            top_target_attributes_topic(BASE, "backyard"),
+            json.dumps(top_target_attributes(document)),
+            True,
+        ),
+    ]
+
+
+def test_republish_introduces_no_new_rank_identity() -> None:
+    delivery, client = _connected()
+    delivery.publish_verdict(_document(_targets(5)))
+    delivery.publish_verdict(_document(_targets(2)))
+
+    for rank in RANKS:
+        config = client.publishes_to(_rank_topics(rank)[0])
+        unique_ids = {json.loads(p.payload)["unique_id"] for p in config}
+        assert unique_ids == {f"pierpressure_backyard_target_{rank}"}
