@@ -161,7 +161,7 @@ jobs:
           title="chore: move the Home Assistant add-on to $VERSION"
           body="Release $VERSION is published. Merge this pull request to offer it to Home Assistant add-on users.
 
-          It changes only the version in \`ha-addon/config.yaml\`. CI does not run on a pull request that a workflow opens; close and reopen it to run CI."
+          It changes only the version in \`ha-addon/config.yaml\`. CI does not run on a pull request that a workflow opens, and main needs a passing check before a merge. Close and reopen this pull request to run CI, then merge."
           number="$(gh pr list --head "$BRANCH" --base main --state open --json number --jq '.[0].number // empty')"
           if [ -z "$number" ]; then
             gh pr create --base main --head "$BRANCH" --title "$title" --body "$body"

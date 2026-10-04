@@ -109,9 +109,9 @@ The job gains `pull-requests: write`. It uses the built-in `GITHUB_TOKEN`.
 - *Why not commit to `main`:* the maintainer owns merges to `main`, and the
   release spec says a release does not change `main`.
 - *Alternative:* a personal access token or a GitHub App, so CI runs on the pull
-  request. Rejected for now: it adds a secret to rotate. CI runs when the
-  pull request merges to `main`. The maintainer can also close and reopen the
-  pull request to run CI on it.
+  request. Rejected for now: it adds a secret to rotate. The `main` ruleset
+  requires the `check` status before a merge, so the maintainer closes and
+  reopens the pull request to run CI on it before merging.
 - *Failure:* if the step fails, the run fails after the image, tag and release
   exist. The maintainer then opens the pull request by hand. The release itself
   stands.
@@ -146,9 +146,8 @@ architecture (`linux/amd64` → `amd64`, `linux/arm64` → `aarch64`).
 - [GitHub Actions cannot create pull requests until the maintainer turns this on]
   → The tasks include turning it on before the next release. If it is off, the run
   fails loudly (D5).
-- [CI does not run on the version pull request] → The pull request changes one
-  line. CI runs on merge to `main`. Closing and reopening the pull request runs CI
-  on it.
+- [CI does not run on the version pull request, and `main` requires it before a
+  merge] → The maintainer closes and reopens the pull request, which runs CI.
 - [Broker password sits in plain text in the add-on folder] → Only people who
   can open the add-on's config folder, through add-ons such as File editor or
   Samba, can read it. #28 removes it for Mosquitto users.

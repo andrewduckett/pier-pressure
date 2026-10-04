@@ -340,7 +340,9 @@ Releases are for the maintainer. Each one publishes an image to
    `ha-addon/config.yaml` to the new release and changes nothing else. Add-on
    users see the update only when you merge it. If an earlier version pull
    request is still open, the release replaces it, so at most one is ever open.
-   CI does not run on this pull request; close and reopen it to run CI.
+   CI does not run on a pull request that a workflow opens, and `main` needs a
+   passing check before a merge. Close and reopen the pull request to run CI,
+   then merge.
 
 If the last step fails, the image, tag and release still stand. Open the
 pull request by hand with the same one-line change.
