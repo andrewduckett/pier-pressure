@@ -143,3 +143,28 @@ def test_filled_rank_attributes_carry_rank_and_target_fields() -> None:
 def test_filled_rank_without_common_name_shows_the_catalog_id() -> None:
     document = _document([_target("NGC0224", "Andromeda Galaxy", 90), _target("NGC7000", None, 80)])
     assert rank_target_state(document, 2) == "NGC7000"
+
+
+# --------------------------------------------------------------------------- #
+# An empty rank (design D2)
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize("rank", [3, TOP_N])
+def test_empty_rank_state_is_an_empty_string(rank: int) -> None:
+    assert rank_target_state(_document(_targets(2)), rank) == ""
+
+
+@pytest.mark.parametrize("rank", [3, TOP_N])
+def test_empty_rank_attributes_mark_no_target(rank: int) -> None:
+    assert rank_target_attributes(_document(_targets(2)), rank) == {
+        "available": False,
+        "rank": rank,
+    }
+
+
+def test_every_rank_is_empty_when_no_target_ranks() -> None:
+    document = _document([])
+    for rank in RANKS:
+        assert rank_target_state(document, rank) == ""
+        assert rank_target_attributes(document, rank) == {"available": False, "rank": rank}
