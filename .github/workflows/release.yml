@@ -150,6 +150,11 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch --force-create "$BRANCH" "$SHA"
           python3 scripts/set_addon_version.py "$VERSION"
+          # Someone already set this version on main by hand: there is nothing to propose.
+          if git diff --quiet -- ha-addon/config.yaml; then
+            echo "The add-on is already at $VERSION; no pull request needed."
+            exit 0
+          fi
           git commit --message "chore: move the Home Assistant add-on to $VERSION" -- ha-addon/config.yaml
           git push --force origin "HEAD:refs/heads/$BRANCH"
 
