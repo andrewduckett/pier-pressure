@@ -31,4 +31,4 @@ the existing `FakeMqttClient` and `make_document` helpers.
 
 ## 6. Gate
 
-- [ ] 6.1 Run `just check` and verify that ruff, mypy, and pytest are all green.
+- [x] 6.1 Run `just check` and verify that ruff, mypy, and pytest are all green.

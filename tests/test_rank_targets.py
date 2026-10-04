@@ -212,9 +212,7 @@ def test_publish_writes_every_rank_retained(count: int) -> None:
         config, state, attributes = (client.publishes_to(t) for t in _rank_topics(rank))
         assert len(config) == len(state) == len(attributes) == 1
         assert all(p.retain for p in (*config, *state, *attributes))
-        assert json.loads(config[0].payload) == build_rank_target_discovery(
-            "backyard", BASE, rank
-        )
+        assert json.loads(config[0].payload) == build_rank_target_discovery("backyard", BASE, rank)
         assert state[0].payload == rank_target_state(document, rank)
         assert json.loads(attributes[0].payload) == rank_target_attributes(document, rank)
 
@@ -259,7 +257,6 @@ def test_shrinking_list_clears_the_old_ranks() -> None:
         assert _last_retained(client, state) not in earlier_names
 
 
-
 # --------------------------------------------------------------------------- #
 # Additive: existing entities unchanged, identity stable across republish
 # --------------------------------------------------------------------------- #
@@ -271,7 +268,9 @@ def test_existing_entities_publish_the_same_topics_and_payloads() -> None:
     delivery.publish_verdict(document)
 
     rank_topics = {topic for rank in RANKS for topic in _rank_topics(rank)}
-    others = [(p.topic, p.payload, p.retain) for p in client.published if p.topic not in rank_topics]
+    others = [
+        (p.topic, p.payload, p.retain) for p in client.published if p.topic not in rank_topics
+    ]
     assert others == [
         (availability_topic(BASE), "online", True),
         (
