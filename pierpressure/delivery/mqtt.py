@@ -75,6 +75,14 @@ def top_target_attributes_topic(base_topic: str, pier_id: str) -> str:
     return f"{base_topic}/{pier_id}/top_target/attributes"
 
 
+def rank_target_state_topic(base_topic: str, pier_id: str, rank: int) -> str:
+    return f"{base_topic}/{pier_id}/target_{rank}/state"
+
+
+def rank_target_attributes_topic(base_topic: str, pier_id: str, rank: int) -> str:
+    return f"{base_topic}/{pier_id}/target_{rank}/attributes"
+
+
 def narrative_state_topic(base_topic: str, pier_id: str) -> str:
     return f"{base_topic}/{pier_id}/narrative/state"
 
