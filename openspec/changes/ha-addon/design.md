@@ -141,13 +141,6 @@ architecture (`linux/amd64` → `amd64`, `linux/arm64` → `aarch64`).
 - *Why:* a later change to the release platforms or image name fails `just check`
   until the add-on follows.
 
-### D8. The maintainer proves the add-on on Home Assistant OS before merge
-
-Home Assistant accepts a repository URL with a branch, such as
-`https://github.com/andrewduckett/pier-pressure#ha-addon`. The branch pins
-`version: 2026.10.0`, which exists. The maintainer installs from that URL and runs
-a new add-on section in `docs/acceptance/ha-acceptance.md`.
-
 ## Risks / Trade-offs
 
 - [GitHub Actions cannot create pull requests until the maintainer turns this on]

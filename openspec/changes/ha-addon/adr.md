@@ -16,7 +16,6 @@ The other design decisions do not need ADRs:
   are add-on settings that the code shows and that are cheap to change.
 - D6 (the two image labels) and D7 (the drift test) can change without users
   noticing.
-- D8 (proving the add-on before merge) is a verification step, not a fork.
 
 ## In-Force ADRs Reviewed
 

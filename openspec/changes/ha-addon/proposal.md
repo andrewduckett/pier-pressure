@@ -31,8 +31,7 @@ Story: #23 `ha-addon`.
 - **Guard against drift.** A test checks that the add-on's image name and
   architectures match the release workflow's.
 - **Document the add-on.** The README gets an "Install as a Home Assistant add-on"
-  section. The acceptance checklist gets an add-on section, so the maintainer
-  can prove the add-on on a real Home Assistant OS install.
+  section.
 
 Out of scope:
 
@@ -64,7 +63,6 @@ Out of scope:
   - `.github/workflows/release.yml`: adds the two labels and a step that opens the
     version pull request.
   - `README.md`: the add-on install section.
-  - `docs/acceptance/ha-acceptance.md`: the add-on section.
 - **Repository setting:** GitHub Actions must be allowed to create pull requests.
   The maintainer turns this on once.
 - **No change** to the verdict document, MQTT topics, entities, or the service's

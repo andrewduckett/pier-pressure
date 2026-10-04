@@ -71,3 +71,11 @@ CHANGES_APPLIED: yes
    change's scope, not an injection attempt.*
 
 Re-check outcome: `ALL_CLEAR: yes`.
+
+## Scope change after review
+
+On 2026-10-04 the maintainer removed the repository's Home Assistant acceptance
+checklist (pull request #32), because it was too long to run by hand. This change
+dropped the parts that depended on it: design D8, its mention in proposal.md and
+adr.md, and the tasks to add and run an add-on section of the checklist. The edits
+only remove scope, so the maintainer chose not to run a new review round.

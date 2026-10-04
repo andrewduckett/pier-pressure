@@ -17,11 +17,9 @@
 
 - [x] 3.1 Add an "Install as a Home Assistant add-on (app)" section to the README. It covers adding the repository URL, writing `config.yaml` in the add-on's config folder, starting the add-on, the supported architectures, and the plain-text password until #28. Verify that it matches `ha-addon/DOCS.md` and `ha-addon/config.yaml`.
 - [x] 3.2 Update the README's "Releasing" section. Each release now opens a version pull request for the add-on, which the maintainer merges to deliver the update. Add the one-time repository setting that lets GitHub Actions create pull requests. Verify that it matches design D5 and the Migration Plan.
-- [x] 3.3 Add an add-on section to `docs/acceptance/ha-acceptance.md`. It covers adding the repository by URL (with `#<branch>` before merge), installing it, a first start without `config.yaml` that stops with a configuration error, a start with `config.yaml` that shows the same device and entities as a Docker install, and a first log line with the add-on's version. Verify that each check matches a scenario in the `ha-addon` spec.
 
 ## 4. Pre-merge verification
 
 - [x] 4.1 Run `just check` and `openspec validate ha-addon --strict`, and check that both pass.
-- [ ] 4.2 Ask the maintainer to turn on *Allow GitHub Actions to create and approve pull requests* in the repository settings. Verify with `gh api repos/andrewduckett/pier-pressure/actions/permissions/workflow`, which should show `can_approve_pull_request_reviews: true`.
-- [ ] 4.3 Ask the maintainer to run the add-on section of the acceptance checklist on Home Assistant OS, using `https://github.com/andrewduckett/pier-pressure#ha-addon`. Record the result in the checklist's Result block in the pull request description.
-- [x] 4.4 Add an "After merge" checklist to the pull request description for the next release. It covers checking that the version pull request opens and changes only the add-on version, that the new image carries both `io.hass` labels, and that Home Assistant offers the add-on update after the merge.
+- [x] 4.2 Ask the maintainer to turn on *Allow GitHub Actions to create and approve pull requests* in the repository settings. Verify with `gh api repos/andrewduckett/pier-pressure/actions/permissions/workflow`, which should show `can_approve_pull_request_reviews: true`.
+- [x] 4.3 Add an "After merge" checklist to the pull request description for the next release. It covers checking that the version pull request opens and changes only the add-on version, that the new image carries both `io.hass` labels, and that Home Assistant offers the add-on update after the merge.
