@@ -5,7 +5,7 @@ the existing `FakeMqttClient` and `make_document` helpers.
 
 ## 1. Shared display-name rule
 
-- [ ] 1.1 Extract a helper in `pierpressure/delivery/mqtt.py` that returns a target's name, or its id when the name is null. Make `top_target_state` use it. Verify that `tests/test_top_target.py` still passes unchanged (design D4).
+- [x] 1.1 Extract a helper in `pierpressure/delivery/mqtt.py` that returns a target's name, or its id when the name is null. Make `top_target_state` use it. Verify that `tests/test_top_target.py` still passes unchanged (design D4).
 
 ## 2. Rank topics and discovery
 

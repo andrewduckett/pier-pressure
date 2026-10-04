@@ -29,7 +29,7 @@ from typing import Any, Protocol
 import paho.mqtt.client as mqtt
 
 from pierpressure.core.config import MqttConfig
-from pierpressure.core.model import VerdictDocument
+from pierpressure.core.model import Target, VerdictDocument
 
 logger = logging.getLogger(__name__)
 
@@ -182,12 +182,19 @@ def build_top_target_discovery(pier_id: str, base_topic: str) -> dict[str, Any]:
     }
 
 
+def target_display_name(target: Target) -> str:
+    """A target's display name: its common name, or its id when unnamed (design D4).
+
+    The top-target and rank sensors share this rule so the two can't drift apart.
+    """
+    return target.name if target.name else target.id
+
+
 def top_target_state(document: VerdictDocument) -> str:
     """The top target's display name for the sensor state (id when unnamed)."""
     if not document.targets:
         return ""
-    top = document.targets[0]
-    return top.name if top.name else top.id
+    return target_display_name(document.targets[0])
 
 
 def top_target_attributes(document: VerdictDocument) -> dict[str, Any]:
