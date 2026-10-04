@@ -2,7 +2,7 @@
 
 - [x] 1.1 Write failing tests in `tests/test_ha_addon.py` for the `ha-addon` spec's file scenarios. `repository.yaml` and `ha-addon/config.yaml` parse as YAML. The add-on config sets `name`, `version`, `slug`, `description`, `arch` and `image`, and `slug` is `pierpressure`. `version` matches `YYYY.M.N`. `image` is `ghcr.io/andrewduckett/pier-pressure`, with no tag and no `{arch}`. `map` includes `addon_config`, and `environment` sets `PIERPRESSURE_CONFIG` to `/config/config.yaml`. Verify that the tests fail because the files are missing.
 - [x] 1.2 Write a failing test that maps each platform in `release.yml`'s build step to an add-on architecture (`linux/amd64` to `amd64`, `linux/arm64` to `aarch64`). The test checks that the add-on's `arch` list is exactly those architectures, and that the release's image name matches the add-on's `image`. Verify that it fails.
-- [ ] 1.3 Create `repository.yaml` with the repository's name, URL and maintainer. Verify that its test from 1.1 passes.
+- [x] 1.3 Create `repository.yaml` with the repository's name, URL and maintainer. Verify that its test from 1.1 passes.
 - [ ] 1.4 Create `ha-addon/config.yaml` with `version: "2026.10.0"`, slug `pierpressure`, `arch` `[amd64, aarch64]`, the GHCR `image`, `map: [addon_config]` and the `PIERPRESSURE_CONFIG` environment variable. Leave `init` at its default and add no `options`. Verify that every test from 1.1 and 1.2 passes.
 - [ ] 1.5 Write `ha-addon/DOCS.md` for the add-on's Documentation tab. It covers where to put `config.yaml`, the `core-mosquitto` broker host, writing the password straight into the file, and a link to the README for the config format. Verify that each step names a real path or setting from 1.4.
 
