@@ -1,0 +1,20 @@
+# PierPressure as a Home Assistant add-on (app). Packaging only: Home Assistant
+# pulls the released image at this version and never builds one (design D1).
+name: PierPressure
+# Each release opens a pull request that moves this line to the new version
+# (design D5). Quoted so YAML keeps it a string.
+version: "2026.10.0"
+slug: pierpressure
+description: Decides whether tonight is worth setting up for, and what to point at.
+url: https://github.com/andrewduckett/pier-pressure
+# Exactly the platforms the release image is built for (tests/test_ha_addon.py).
+arch:
+  - amd64
+  - aarch64
+image: ghcr.io/andrewduckett/pier-pressure
+# The add-on's own config folder, mounted at /config, holds the user's
+# config.yaml (design D3). No options form: the file is the whole config.
+map:
+  - addon_config
+environment:
+  PIERPRESSURE_CONFIG: /config/config.yaml
