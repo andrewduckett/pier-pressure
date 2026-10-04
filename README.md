@@ -297,7 +297,7 @@ pierpressure/
   data/openngc/  # vendored OpenNGC catalogue (CC BY-SA 4.0)
   service.py     # the persistent loop that wires these together
 tests/           # core tests need no broker; delivery tests use a fake client
-docs/            # decision records, guides, and the Home Assistant acceptance checklist
+docs/            # decision records and guides
 openspec/        # product intent, discovery map, specs, and change history
 ```
 
@@ -317,9 +317,7 @@ just check       # lint + typecheck + test: the CI gate
 just test-integration   # runs integration tests against a throwaway Mosquitto
 ```
 
-`docker compose --profile full up` runs PierPressure against a local broker. Before
-merging a change, prove it against a real Home Assistant with the checklist in
-[`docs/acceptance/ha-acceptance.md`](docs/acceptance/ha-acceptance.md).
+`docker compose --profile full up` runs PierPressure against a local broker.
 
 ### Releasing
 
