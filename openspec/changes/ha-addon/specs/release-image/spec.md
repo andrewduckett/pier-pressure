@@ -21,13 +21,13 @@ against `main` that sets the add-on's `version` to the new release version. The
 pull request SHALL change nothing else. The release SHALL NOT change `main`
 itself, so the maintainer decides when add-on users see the update.
 
-At most one such pull request SHALL be open. When a release runs while an earlier
-version pull request is still open, the release SHALL update that pull request to
-the newest version.
+The release SHALL keep at most one version pull request open. When a release runs
+while an earlier version pull request is still open, the release SHALL update that
+pull request's change, title and description to the newest version.
 
 If the release cannot open or update the pull request, the run SHALL fail with an
-error that says so. The image, tag and GitHub release SHALL remain, because they
-are already published.
+error that says so. The release SHALL NOT remove the image, tag or GitHub release
+it has already published.
 
 #### Scenario: Release opens the version pull request
 
@@ -43,6 +43,7 @@ are already published.
   is still open
 - **THEN** exactly one version pull request is open
 - **AND** it sets the add-on version to `2026.10.2`
+- **AND** its title and description name `2026.10.2` and no earlier version
 
 #### Scenario: Pull request cannot be opened
 

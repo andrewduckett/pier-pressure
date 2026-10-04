@@ -97,7 +97,8 @@ A new last step in the `release` job runs after `gh release create`:
    commit only that file.
 3. Force-push the branch.
 4. If no pull request is open from that branch, open one against `main`.
-   Otherwise, set the open pull request's title to the new version.
+   Otherwise, rewrite the open pull request's title and description for the new
+   version, so neither names an older release.
 
 The job gains `pull-requests: write`. It uses the built-in `GITHUB_TOKEN`.
 
@@ -140,7 +141,7 @@ architecture (`linux/amd64` → `amd64`, `linux/arm64` → `aarch64`).
 - *Why:* a later change to the release platforms or image name fails `just check`
   until the add-on follows.
 
-### D8. The add-on is proved on Home Assistant OS before merge
+### D8. The maintainer proves the add-on on Home Assistant OS before merge
 
 Home Assistant accepts a repository URL with a branch, such as
 `https://github.com/andrewduckett/pier-pressure#ha-addon`. The branch pins

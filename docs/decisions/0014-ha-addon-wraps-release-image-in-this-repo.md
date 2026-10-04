@@ -3,7 +3,7 @@ id: adrs-adr0014
 date: 2026-10-03
 status: accepted
 title: 'ADR0014: The Home Assistant add-on lives in this repository and runs the released image'
-description: Architecture Decision Record for packaging PierPressure as a Home Assistant add-on from the main repository, pulling the published release image rather than building on the user's machine, with releases proposing each add-on version update as a pull request.
+description: Architecture Decision Record for the Home Assistant add-on. The add-on lives in this repository and pulls the released image. Each release proposes the add-on's new version in a pull request.
 ---
 
 # ADR-0014: The Home Assistant add-on lives in this repository and runs the released image

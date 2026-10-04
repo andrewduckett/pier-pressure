@@ -31,8 +31,8 @@ Story: #23 `ha-addon`.
 - **Guard against drift.** A test checks that the add-on's image name and
   architectures match the release workflow's.
 - **Document the add-on.** The README gets an "Install as a Home Assistant add-on"
-  section. The acceptance checklist gets an add-on section, so the add-on is
-  proved on a real Home Assistant OS install.
+  section. The acceptance checklist gets an add-on section, so the maintainer
+  can prove the add-on on a real Home Assistant OS install.
 
 Out of scope:
 
