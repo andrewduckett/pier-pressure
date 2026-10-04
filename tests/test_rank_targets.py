@@ -138,3 +138,8 @@ def test_filled_rank_attributes_carry_rank_and_target_fields() -> None:
     assert list(attributes)[:2] == ["available", "rank"]
     assert attributes["id"] == "NGC0003"
     assert attributes["window"] == {"start": "2026-09-08T21:00:00Z", "end": "2026-09-09T02:00:00Z"}
+
+
+def test_filled_rank_without_common_name_shows_the_catalog_id() -> None:
+    document = _document([_target("NGC0224", "Andromeda Galaxy", 90), _target("NGC7000", None, 80)])
+    assert rank_target_state(document, 2) == "NGC7000"
