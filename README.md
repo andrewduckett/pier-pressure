@@ -335,6 +335,19 @@ Releases are for the maintainer. Each one publishes an image to
    version is stored ([ADR-0013](docs/decisions/0013-calver-versions-from-git-tags.md)).
 3. A commit is released at most once. Running the workflow again on a commit
    that already has a release tag fails.
+4. Last, the workflow opens a pull request from the branch
+   `release/ha-addon-version`. It sets the add-on's version in
+   `ha-addon/config.yaml` to the new release and changes nothing else. Add-on
+   users see the update only when you merge it. If an earlier version pull
+   request is still open, the release replaces it, so at most one is ever open.
+   CI does not run on this pull request; close and reopen it to run CI.
+
+If the last step fails, the image, tag and release still stand. Open the
+pull request by hand with the same one-line change.
+
+The workflow needs one repository setting to open that pull request. Turn it on
+once: **Settings → Actions → General → Workflow permissions → Allow GitHub
+Actions to create and approve pull requests**.
 
 After the **first** release only, make the package public: open the package on
 GitHub, then **Package settings → Change visibility → Public**. Then pull the
