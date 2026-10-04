@@ -228,3 +228,22 @@ def test_rank_sensors_publish_in_design_order() -> None:
     assert states == sorted(states)
     for rank in RANKS:
         assert topics.index(_rank_topics(rank)[2]) == states[rank - 1] + 1
+
+
+def _last_retained(client: FakeMqttClient, topic: str) -> str:
+    published = client.publishes_to(topic)
+    assert published and published[-1].retain
+    return str(published[-1].payload)
+
+
+def test_shrinking_list_clears_the_old_ranks() -> None:
+    delivery, client = _connected()
+    earlier = _targets(5)
+    delivery.publish_verdict(_document(earlier))
+    delivery.publish_verdict(_document(_targets(2)))
+
+    earlier_names = {target.name for target in earlier}
+    for rank in (3, 4, 5):
+        _, state, attributes = _rank_topics(rank)
+        assert json.loads(_last_retained(client, attributes)) == {"available": False, "rank": rank}
+        assert _last_retained(client, state) not in earlier_names

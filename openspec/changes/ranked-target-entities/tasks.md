@@ -21,7 +21,7 @@ the existing `FakeMqttClient` and `make_document` helpers.
 ## 4. Publishing
 
 - [x] 4.1 Write failing tests that `publish_verdict` publishes retained discovery, state, and attributes for every rank from 1 to `TOP_N`, for a full list, a short list, and an empty list. Wire the rank sensors into `publish_verdict` in the order design D6 gives, and verify.
-- [ ] 4.2 Write a failing test that publishing 5 targets and then 2 for the same pier leaves ranks 3 to 5 with `available: false` as their last retained attributes, and that no last retained state still names an earlier target. Verify it passes (spec: "A shrinking list clears the old ranks"; design D3).
+- [x] 4.2 Write a failing test that publishing 5 targets and then 2 for the same pier leaves ranks 3 to 5 with `available: false` as their last retained attributes, and that no last retained state still names an earlier target. Verify it passes (spec: "A shrinking list clears the old ranks"; design D3).
 - [ ] 4.3 Write a test that the verdict, score, top-target, and refresh entities publish the same topics and payloads as before. Also check that re-publishing for the same pier adds no new rank `unique_id`. Verify it passes, along with `tests/test_publish.py` and `tests/test_narrative_delivery.py` (spec: "Existing entities are unchanged by the rank sensors").
 
 ## 5. Documentation
