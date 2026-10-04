@@ -58,8 +58,8 @@ Out of scope:
 ## Impact
 
 - **New files:** `repository.yaml`, `ha-addon/config.yaml`,
-  `ha-addon/README.md` (the add-on's description in Home Assistant), and a test
-  for the add-on files.
+  `ha-addon/DOCS.md` (the add-on's Documentation tab in Home Assistant), and a
+  test for the add-on files.
 - **Changed files:**
   - `.github/workflows/release.yml`: adds the two labels and a step that opens the
     version pull request.
