@@ -13,8 +13,11 @@ Purpose                      Topic                                              
 Verdict discovery cfg        ``P/sensor/pierpressure_<pier>/verdict/config``     yes
 Score discovery cfg          ``P/sensor/pierpressure_<pier>/score/config``       yes
 Refresh discovery cfg        ``P/button/pierpressure_<pier>/refresh/config``     yes
+Rank n discovery cfg         ``P/sensor/pierpressure_<pier>/target_<n>/config``  yes
 Verdict state                ``B/<pier>/verdict/state``                          yes
 Document attributes (JSON)   ``B/<pier>/verdict/attributes``                     yes
+Rank n state                 ``B/<pier>/target_<n>/state``                       yes
+Rank n attributes (JSON)     ``B/<pier>/target_<n>/attributes``                  yes
 Refresh command              ``B/<pier>/refresh/command``                        no
 Availability (LWT)           ``B/status``                                        yes
 ===========================  ==================================================  ======
@@ -29,9 +32,13 @@ from typing import Any, Protocol
 import paho.mqtt.client as mqtt
 
 from pierpressure.core.config import MqttConfig
-from pierpressure.core.model import VerdictDocument
+from pierpressure.core.model import Target, VerdictDocument
+from pierpressure.core.ranking import TOP_N
 
 logger = logging.getLogger(__name__)
+
+# The rank sensors, Target 1 to Target TOP_N: one per place the ranking can emit.
+RANKS = range(1, TOP_N + 1)
 
 PAYLOAD_ONLINE = "online"
 PAYLOAD_OFFLINE = "offline"
@@ -73,6 +80,14 @@ def top_target_state_topic(base_topic: str, pier_id: str) -> str:
 
 def top_target_attributes_topic(base_topic: str, pier_id: str) -> str:
     return f"{base_topic}/{pier_id}/top_target/attributes"
+
+
+def rank_target_state_topic(base_topic: str, pier_id: str, rank: int) -> str:
+    return f"{base_topic}/{pier_id}/target_{rank}/state"
+
+
+def rank_target_attributes_topic(base_topic: str, pier_id: str, rank: int) -> str:
+    return f"{base_topic}/{pier_id}/target_{rank}/attributes"
 
 
 def narrative_state_topic(base_topic: str, pier_id: str) -> str:
@@ -182,12 +197,19 @@ def build_top_target_discovery(pier_id: str, base_topic: str) -> dict[str, Any]:
     }
 
 
+def target_display_name(target: Target) -> str:
+    """A target's display name: its common name, or its id when unnamed (design D4).
+
+    The top-target and rank sensors share this rule so the two can't drift apart.
+    """
+    return target.name if target.name else target.id
+
+
 def top_target_state(document: VerdictDocument) -> str:
     """The top target's display name for the sensor state (id when unnamed)."""
     if not document.targets:
         return ""
-    top = document.targets[0]
-    return top.name if top.name else top.id
+    return target_display_name(document.targets[0])
 
 
 def top_target_attributes(document: VerdictDocument) -> dict[str, Any]:
@@ -204,6 +226,68 @@ def top_target_attributes(document: VerdictDocument) -> dict[str, Any]:
         "top": targets[0] if targets else None,
         "targets": targets,
     }
+
+
+def build_rank_target_discovery(pier_id: str, base_topic: str, rank: int) -> dict[str, Any]:
+    """The sensor for one rank of the target list, Target 1 to Target TOP_N.
+
+    Its state is the display name of the target at that rank; the rank and the
+    target's fields ride along as JSON attributes. Availability is a two-entry list
+    with ``availability_mode: all`` — the shared LWT topic AND a template requiring
+    the attributes' ``available`` flag — so a rank with no target tonight renders
+    ``unavailable`` rather than a placeholder, like the narrative sensor (design D2).
+    """
+    attrs = rank_target_attributes_topic(base_topic, pier_id, rank)
+    return {
+        "name": f"Target {rank}",
+        "has_entity_name": True,
+        "unique_id": f"{node_id(pier_id)}_target_{rank}",
+        "state_topic": rank_target_state_topic(base_topic, pier_id, rank),
+        "json_attributes_topic": attrs,
+        "availability_mode": "all",
+        "availability": [
+            {
+                "topic": availability_topic(base_topic),
+                "payload_available": PAYLOAD_ONLINE,
+                "payload_not_available": PAYLOAD_OFFLINE,
+            },
+            {
+                "topic": attrs,
+                "value_template": ("{{ 'online' if value_json.available else 'offline' }}"),
+            },
+        ],
+        "icon": "mdi:telescope",
+        "device": _device_block(pier_id),
+    }
+
+
+def rank_target_state(document: VerdictDocument, rank: int) -> str:
+    """The display name of the target at ``rank`` (1-based), id when unnamed.
+
+    An empty rank publishes an empty string; its availability makes it unavailable.
+    """
+    if rank > len(document.targets):
+        return ""
+    return target_display_name(document.targets[rank - 1])
+
+
+def rank_target_attributes(document: VerdictDocument, rank: int) -> dict[str, Any]:
+    """The JSON attributes payload for one rank: the flag, the rank, then its target.
+
+    The target's fields sit at the top level so a card can read each one directly;
+    a field that is an object in the document (``window``) stays an object. An
+    empty rank carries only ``available: false`` and its rank.
+    """
+    import json
+
+    if rank > len(document.targets):
+        return {"available": False, "rank": rank}
+    target = json.loads(document.targets[rank - 1].model_dump_json())
+    payload = {"available": True, "rank": rank, **target}
+    # Re-assert the adapter's keys so a future target field of the same name can't
+    # replace them; ``update`` keeps them first in the payload.
+    payload.update(available=True, rank=rank)
+    return payload
 
 
 def build_narrative_discovery(pier_id: str, base_topic: str) -> dict[str, Any]:
@@ -407,6 +491,12 @@ class MqttDelivery:
             json.dumps(build_top_target_discovery(pier, base)),
             retain=True,
         )
+        for rank in RANKS:
+            self._publish(
+                discovery_topic(prefix, "sensor", pier, f"target_{rank}"),
+                json.dumps(build_rank_target_discovery(pier, base, rank)),
+                retain=True,
+            )
         self._publish(verdict_state_topic(base, pier), document.verdict.value, retain=True)
         self._publish(attributes_topic(base, pier), document.to_json(), retain=True)
         self._publish(top_target_state_topic(base, pier), top_target_state(document), retain=True)
@@ -415,6 +505,19 @@ class MqttDelivery:
             json.dumps(top_target_attributes(document)),
             retain=True,
         )
+        # Every rank is written on every publish, filled or not, so a shrinking list
+        # never leaves an earlier target retained (design D3).
+        for rank in RANKS:
+            self._publish(
+                rank_target_state_topic(base, pier, rank),
+                rank_target_state(document, rank),
+                retain=True,
+            )
+            self._publish(
+                rank_target_attributes_topic(base, pier, rank),
+                json.dumps(rank_target_attributes(document, rank)),
+                retain=True,
+            )
         if self._manage_narrative:
             self._publish(
                 discovery_topic(prefix, "sensor", pier, "narrative"),

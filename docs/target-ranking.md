@@ -93,3 +93,17 @@ alongside the existing verdict, score, and refresh entities:
 
 The sensor is additive. Your existing verdict, score, and refresh entities keep
 their topics and identities unchanged.
+
+### One sensor per rank
+
+Stock dashboard cards can't list the Top target sensor's attributes. So each pier
+also gets ten rank sensors, **Target 1** to **Target 10**, one for each place in
+the ranking. Put them on any entities card to see the whole list.
+
+- **State:** the name of the target at that rank, or its catalog `id` when it has
+  no common name. Target 1 always matches the Top target sensor.
+- **Attributes:** the `rank` and that target's fields, such as `score`,
+  `window`, and `max_altitude`.
+- **Unavailable when the rank is empty:** if fewer than ten targets rank tonight,
+  the higher ranks show as unavailable. Each recompute updates all ten, so a rank
+  never keeps an earlier target after the list gets shorter.

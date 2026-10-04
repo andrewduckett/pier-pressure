@@ -167,6 +167,7 @@ Each pier becomes one device, `PierPressure <pier>`, with these entities:
 | **Verdict** (sensor) | `GO`, `MAYBE`, or `NO-GO` | The full verdict document is in its attributes. |
 | **Score** (sensor) | 0–100 | Shows as unavailable on a `NO-GO` caused by a gate, rather than `0`. |
 | **Top target** (sensor) | The best target's name, or its catalogue id | The full ranked list is in its attributes. Unavailable when nothing is rankable. See [docs/target-ranking.md](docs/target-ranking.md). |
+| **Target 1** to **Target 10** (sensors) | The name, or catalogue id, of the target at that rank | One sensor per rank, so any dashboard card can list the whole ranking. Its attributes hold the rank and that target's fields. Unavailable when no target holds that rank tonight. |
 | **Refresh** (button) | — | "Show me now": recomputes and republishes straight away. |
 | **Narrative** (sensor) | `ready` or unavailable | Only when the explainer is on. The text is in its attributes. |
 
@@ -177,10 +178,11 @@ If the container stops, its last-will message marks every entity unavailable.
 
 | Purpose | Topic | Retained |
 |---|---|---|
-| Discovery configs | `homeassistant/<sensor\|button>/pierpressure_<pier>/<verdict\|score\|top_target\|narrative\|refresh>/config` | yes |
+| Discovery configs | `homeassistant/<sensor\|button>/pierpressure_<pier>/<verdict\|score\|top_target\|target_<n>\|narrative\|refresh>/config` | yes |
 | Verdict state | `pierpressure/<pier>/verdict/state` | yes |
 | Verdict document | `pierpressure/<pier>/verdict/attributes` | yes |
 | Top target state and list | `pierpressure/<pier>/top_target/state`, `.../top_target/attributes` | yes |
+| Target rank `<n>` (1 to 10) state and details | `pierpressure/<pier>/target_<n>/state`, `.../target_<n>/attributes` | yes |
 | Narrative state and text | `pierpressure/<pier>/narrative/state`, `.../narrative/attributes` | yes |
 | Refresh command | `pierpressure/<pier>/refresh/command` | no |
 | Availability | `pierpressure/status` | yes |
@@ -267,7 +269,8 @@ empty retained message to each discovery topic. For a pier called `backyard`:
 ```bash
 for e in sensor/pierpressure_backyard/verdict sensor/pierpressure_backyard/score \
          sensor/pierpressure_backyard/top_target sensor/pierpressure_backyard/narrative \
-         button/pierpressure_backyard/refresh; do
+         button/pierpressure_backyard/refresh \
+         sensor/pierpressure_backyard/target_{1..10}; do
   mosquitto_pub -r -n -t "homeassistant/$e/config"
 done
 ```
