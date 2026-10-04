@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import Any
 
 import pytest
 import yaml
+from next_version import RELEASE_TAG
 
 ROOT = Path(__file__).resolve().parent.parent
 REPOSITORY_FILE = ROOT / "repository.yaml"
@@ -19,9 +19,6 @@ IMAGE = "ghcr.io/andrewduckett/pier-pressure"
 
 # Docker platform the release builds -> Home Assistant add-on architecture.
 PLATFORM_TO_ARCH = {"linux/amd64": "amd64", "linux/arm64": "aarch64"}
-
-# Exactly YYYY.M.N with no prefix and no leading zeros, as scripts/next_version.py.
-RELEASE_VERSION = re.compile(r"[1-9]\d{3}\.[1-9]\d?\.(0|[1-9]\d*)")
 
 
 def _load(path: Path) -> Any:
@@ -62,7 +59,7 @@ def test_addon_config_sets_the_required_fields(addon: dict[str, Any]) -> None:
 def test_addon_version_is_a_release_version(addon: dict[str, Any]) -> None:
     # Quoted in the file, so YAML keeps it a string rather than a float.
     assert isinstance(addon["version"], str)
-    assert RELEASE_VERSION.fullmatch(addon["version"])
+    assert RELEASE_TAG.fullmatch(addon["version"])
 
 
 def test_addon_runs_the_release_image_without_tag_or_arch(addon: dict[str, Any]) -> None:
