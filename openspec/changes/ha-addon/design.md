@@ -94,7 +94,8 @@ A new last step in the `release` job runs after `gh release create`:
 
 1. Create or reset the branch `release/ha-addon-version` at the released commit.
 2. Replace the `version:` line in `ha-addon/config.yaml` with the new version, and
-   commit only that file.
+   commit only that file. If the file already has that version, stop: there is
+   nothing to propose.
 3. Force-push the branch.
 4. If no pull request is open from that branch, open one against `main`.
    Otherwise, rewrite the open pull request's title and description for the new
