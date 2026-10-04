@@ -13,8 +13,11 @@ Purpose                      Topic                                              
 Verdict discovery cfg        ``P/sensor/pierpressure_<pier>/verdict/config``     yes
 Score discovery cfg          ``P/sensor/pierpressure_<pier>/score/config``       yes
 Refresh discovery cfg        ``P/button/pierpressure_<pier>/refresh/config``     yes
+Rank n discovery cfg         ``P/sensor/pierpressure_<pier>/target_<n>/config``  yes
 Verdict state                ``B/<pier>/verdict/state``                          yes
 Document attributes (JSON)   ``B/<pier>/verdict/attributes``                     yes
+Rank n state                 ``B/<pier>/target_<n>/state``                       yes
+Rank n attributes (JSON)     ``B/<pier>/target_<n>/attributes``                  yes
 Refresh command              ``B/<pier>/refresh/command``                        no
 Availability (LWT)           ``B/status``                                        yes
 ===========================  ==================================================  ======
@@ -30,8 +33,12 @@ import paho.mqtt.client as mqtt
 
 from pierpressure.core.config import MqttConfig
 from pierpressure.core.model import Target, VerdictDocument
+from pierpressure.core.ranking import TOP_N
 
 logger = logging.getLogger(__name__)
+
+# The rank sensors, Target 1 to Target TOP_N: one per place the ranking can emit.
+RANKS = range(1, TOP_N + 1)
 
 PAYLOAD_ONLINE = "online"
 PAYLOAD_OFFLINE = "offline"
@@ -480,6 +487,12 @@ class MqttDelivery:
             json.dumps(build_top_target_discovery(pier, base)),
             retain=True,
         )
+        for rank in RANKS:
+            self._publish(
+                discovery_topic(prefix, "sensor", pier, f"target_{rank}"),
+                json.dumps(build_rank_target_discovery(pier, base, rank)),
+                retain=True,
+            )
         self._publish(verdict_state_topic(base, pier), document.verdict.value, retain=True)
         self._publish(attributes_topic(base, pier), document.to_json(), retain=True)
         self._publish(top_target_state_topic(base, pier), top_target_state(document), retain=True)
@@ -488,6 +501,19 @@ class MqttDelivery:
             json.dumps(top_target_attributes(document)),
             retain=True,
         )
+        # Every rank is written on every publish, filled or not, so a shrinking list
+        # never leaves an earlier target retained (design D3).
+        for rank in RANKS:
+            self._publish(
+                rank_target_state_topic(base, pier, rank),
+                rank_target_state(document, rank),
+                retain=True,
+            )
+            self._publish(
+                rank_target_attributes_topic(base, pier, rank),
+                json.dumps(rank_target_attributes(document, rank)),
+                retain=True,
+            )
         if self._manage_narrative:
             self._publish(
                 discovery_topic(prefix, "sensor", pier, "narrative"),

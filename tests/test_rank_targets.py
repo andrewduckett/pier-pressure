@@ -19,15 +19,17 @@ from pierpressure.core.model import Target, TargetWindow, VerdictDocument
 from pierpressure.core.ranking import TOP_N
 from pierpressure.delivery.ha_schema import SENSOR_SCHEMA
 from pierpressure.delivery.mqtt import (
+    MqttDelivery,
     availability_topic,
     build_rank_target_discovery,
+    discovery_topic,
     rank_target_attributes,
     rank_target_attributes_topic,
     rank_target_state,
     rank_target_state_topic,
 )
 
-from .conftest import make_document
+from .conftest import FakeMqttClient, make_document, make_mqtt_config
 
 BASE = "pierpressure"
 PREFIX = "homeassistant"
@@ -168,3 +170,61 @@ def test_every_rank_is_empty_when_no_target_ranks() -> None:
     for rank in RANKS:
         assert rank_target_state(document, rank) == ""
         assert rank_target_attributes(document, rank) == {"available": False, "rank": rank}
+
+
+# --------------------------------------------------------------------------- #
+# Publishing every rank (design D3, D6)
+# --------------------------------------------------------------------------- #
+
+
+def _connected() -> tuple[MqttDelivery, FakeMqttClient]:
+    client = FakeMqttClient()
+    delivery = MqttDelivery(make_mqtt_config(), client=client)
+    delivery.connect()
+    return delivery, client
+
+
+def _rank_topics(rank: int) -> tuple[str, str, str]:
+    return (
+        discovery_topic(PREFIX, "sensor", "backyard", f"target_{rank}"),
+        rank_target_state_topic(BASE, "backyard", rank),
+        rank_target_attributes_topic(BASE, "backyard", rank),
+    )
+
+
+@pytest.mark.parametrize("count", [TOP_N, 3, 0])
+def test_publish_writes_every_rank_retained(count: int) -> None:
+    delivery, client = _connected()
+    document = _document(_targets(count))
+    delivery.publish_verdict(document)
+
+    for rank in RANKS:
+        config, state, attributes = (client.publishes_to(t) for t in _rank_topics(rank))
+        assert len(config) == len(state) == len(attributes) == 1
+        assert all(p.retain for p in (*config, *state, *attributes))
+        assert json.loads(config[0].payload) == build_rank_target_discovery(
+            "backyard", BASE, rank
+        )
+        assert state[0].payload == rank_target_state(document, rank)
+        assert json.loads(attributes[0].payload) == rank_target_attributes(document, rank)
+
+
+def test_rank_sensors_publish_in_design_order() -> None:
+    delivery, client = _connected()
+    delivery.publish_verdict(_document(_targets(2)))
+    topics = [p.topic for p in client.published]
+
+    configs = [topics.index(_rank_topics(rank)[0]) for rank in RANKS]
+    states = [topics.index(_rank_topics(rank)[1]) for rank in RANKS]
+    top_target_config = topics.index(discovery_topic(PREFIX, "sensor", "backyard", "top_target"))
+    top_target_attributes = topics.index(f"{BASE}/backyard/top_target/attributes")
+
+    # Rank configs follow the other discovery configs and precede every state.
+    assert configs == sorted(configs)
+    assert top_target_config < configs[0]
+    assert configs[-1] < topics.index(f"{BASE}/backyard/verdict/state")
+    # Rank states and attributes follow the top target's, rank by rank.
+    assert top_target_attributes < states[0]
+    assert states == sorted(states)
+    for rank in RANKS:
+        assert topics.index(_rank_topics(rank)[2]) == states[rank - 1] + 1
