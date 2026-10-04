@@ -27,7 +27,7 @@ the existing `FakeMqttClient` and `make_document` helpers.
 ## 5. Documentation
 
 - [x] 5.1 Update `README.md`: add a `Target 1` to `Target 10` row to the entities table, add the rank topics to the MQTT topics table, and add the rank discovery topics to the entity-removal example. Verify by reading the rendered sections.
-- [ ] 5.2 Update the Home Assistant section of `docs/target-ranking.md` to mention the rank sensors. Verify that `tests/test_docs.py` passes.
+- [x] 5.2 Update the Home Assistant section of `docs/target-ranking.md` to mention the rank sensors. Verify that `tests/test_docs.py` passes.
 
 ## 6. Gate
 
