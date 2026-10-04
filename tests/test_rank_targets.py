@@ -10,22 +10,55 @@ rank, so a shrinking list never leaves an earlier target retained.
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 
 import jsonschema
 import pytest
 
+from pierpressure.core.model import Target, TargetWindow, VerdictDocument
 from pierpressure.core.ranking import TOP_N
 from pierpressure.delivery.ha_schema import SENSOR_SCHEMA
 from pierpressure.delivery.mqtt import (
     availability_topic,
     build_rank_target_discovery,
+    rank_target_attributes,
     rank_target_attributes_topic,
+    rank_target_state,
     rank_target_state_topic,
 )
+
+from .conftest import make_document
 
 BASE = "pierpressure"
 PREFIX = "homeassistant"
 RANKS = range(1, TOP_N + 1)
+
+
+def _target(id_: str, name: str | None, score: int) -> Target:
+    return Target(
+        id=id_,
+        name=name,
+        type="G",
+        score=score,
+        window=TargetWindow(
+            start=datetime(2026, 9, 8, 21, 0, tzinfo=UTC),
+            end=datetime(2026, 9, 9, 2, 0, tzinfo=UTC),
+        ),
+        max_altitude=61.0,
+        transit_time=datetime(2026, 9, 8, 23, 30, tzinfo=UTC),
+        moon_separation=100.0,
+        size_arcmin=178.0,
+        magnitude=3.4,
+        surface_brightness=13.5,
+    )
+
+
+def _targets(count: int) -> list[Target]:
+    return [_target(f"NGC{n:04d}", f"Object {n}", 100 - n) for n in range(1, count + 1)]
+
+
+def _document(targets: list[Target]) -> VerdictDocument:
+    return make_document().model_copy(update={"targets": targets})
 
 
 # --------------------------------------------------------------------------- #
@@ -81,3 +114,27 @@ def test_rank_discovery_availability_reads_the_available_flag(rank: int) -> None
 def test_rank_discovery_is_enabled_by_default(rank: int) -> None:
     payload = build_rank_target_discovery("backyard", BASE, rank)
     assert payload.get("enabled_by_default", True) is True
+
+
+# --------------------------------------------------------------------------- #
+# State and attributes of a filled rank (design D2)
+# --------------------------------------------------------------------------- #
+
+
+def test_filled_rank_state_is_the_target_name() -> None:
+    document = _document(_targets(5))
+    assert rank_target_state(document, 3) == "Object 3"
+
+
+def test_filled_rank_attributes_carry_rank_and_target_fields() -> None:
+    targets = _targets(5)
+    document = _document(targets)
+    attributes = rank_target_attributes(document, 3)
+    assert attributes == {
+        "available": True,
+        "rank": 3,
+        **json.loads(targets[2].model_dump_json()),
+    }
+    assert list(attributes)[:2] == ["available", "rank"]
+    assert attributes["id"] == "NGC0003"
+    assert attributes["window"] == {"start": "2026-09-08T21:00:00Z", "end": "2026-09-09T02:00:00Z"}

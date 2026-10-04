@@ -14,7 +14,7 @@ the existing `FakeMqttClient` and `make_document` helpers.
 
 ## 3. Rank state and attributes
 
-- [ ] 3.1 Write failing tests for a filled rank: the state is the target's name, and the attributes are `available: true` and `rank: n`, followed by the target's fields at the top level, with `window` still nested. Implement and verify (spec: "A filled rank shows its target"; design D2).
+- [x] 3.1 Write failing tests for a filled rank: the state is the target's name, and the attributes are `available: true` and `rank: n`, followed by the target's fields at the top level, with `window` still nested. Implement and verify (spec: "A filled rank shows its target"; design D2).
 - [ ] 3.2 Write a failing test that a filled rank whose target has no common name shows the target's id as its state. Verify it passes with the helper from 1.1 (spec: "A filled rank falls back to the catalog id").
 - [ ] 3.3 Write failing tests for an empty rank: the state is an empty string and the attributes are exactly `{"available": false, "rank": n}`. Implement and verify (spec: "An empty rank renders unavailable").
 

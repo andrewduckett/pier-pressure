@@ -254,6 +254,23 @@ def build_rank_target_discovery(pier_id: str, base_topic: str, rank: int) -> dic
     }
 
 
+def rank_target_state(document: VerdictDocument, rank: int) -> str:
+    """The display name of the target at ``rank`` (1-based), id when unnamed."""
+    return target_display_name(document.targets[rank - 1])
+
+
+def rank_target_attributes(document: VerdictDocument, rank: int) -> dict[str, Any]:
+    """The JSON attributes payload for one rank: the flag, the rank, then its target.
+
+    The target's fields sit at the top level so a card can read each one directly;
+    a field that is an object in the document (``window``) stays an object.
+    """
+    import json
+
+    target = json.loads(document.targets[rank - 1].model_dump_json())
+    return {"available": True, "rank": rank, **target}
+
+
 def build_narrative_discovery(pier_id: str, base_topic: str) -> dict[str, Any]:
     """The optional narrative sensor (spec ha-delivery; ADR-0011; design D2).
 
