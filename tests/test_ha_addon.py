@@ -12,9 +12,13 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 REPOSITORY_FILE = ROOT / "repository.yaml"
 ADDON_CONFIG = ROOT / "ha-addon" / "config.yaml"
+RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
 
 REPOSITORY_URL = "https://github.com/andrewduckett/pier-pressure"
 IMAGE = "ghcr.io/andrewduckett/pier-pressure"
+
+# Docker platform the release builds -> Home Assistant add-on architecture.
+PLATFORM_TO_ARCH = {"linux/amd64": "amd64", "linux/arm64": "aarch64"}
 
 # Exactly YYYY.M.N with no prefix and no leading zeros, as scripts/next_version.py.
 RELEASE_VERSION = re.compile(r"[1-9]\d{3}\.[1-9]\d?\.(0|[1-9]\d*)")
@@ -29,6 +33,15 @@ def addon() -> dict[str, Any]:
     config = _load(ADDON_CONFIG)
     assert isinstance(config, dict)
     return config
+
+
+def _release_step(uses_prefix: str) -> dict[str, Any]:
+    """The one step of the release job that uses the action ``uses_prefix``."""
+    steps = _load(RELEASE_WORKFLOW)["jobs"]["release"]["steps"]
+    matches = [step for step in steps if str(step.get("uses", "")).startswith(uses_prefix)]
+    assert len(matches) == 1, f"expected one {uses_prefix} step in the release job"
+    step: dict[str, Any] = matches[0]
+    return step
 
 
 def test_repository_file_names_this_repository() -> None:
@@ -66,3 +79,19 @@ def test_addon_reads_config_from_its_own_folder(addon: dict[str, Any]) -> None:
 def test_addon_offers_no_options(addon: dict[str, Any]) -> None:
     assert "options" not in addon
     assert "schema" not in addon
+
+
+def test_addon_architectures_match_the_release_platforms(addon: dict[str, Any]) -> None:
+    build = _release_step("docker/build-push-action@")
+    platforms = [p.strip() for p in build["with"]["platforms"].split(",")]
+
+    assert set(platforms) <= PLATFORM_TO_ARCH.keys(), f"unmapped release platform in {platforms}"
+    assert sorted(addon["arch"]) == sorted(PLATFORM_TO_ARCH[p] for p in platforms)
+
+
+def test_addon_image_matches_the_release_image(addon: dict[str, Any]) -> None:
+    meta = _release_step("docker/metadata-action@")
+    repository = REPOSITORY_URL.removeprefix("https://github.com/")
+    released = meta["with"]["images"].replace("${{ github.repository }}", repository)
+
+    assert released == addon["image"]
