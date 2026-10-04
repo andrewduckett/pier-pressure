@@ -17,7 +17,7 @@
 
 - [x] 3.1 Add an "Install as a Home Assistant add-on (app)" section to the README. It covers adding the repository URL, writing `config.yaml` in the add-on's config folder, starting the add-on, the supported architectures, and the plain-text password until #28. Verify that it matches `ha-addon/DOCS.md` and `ha-addon/config.yaml`.
 - [x] 3.2 Update the README's "Releasing" section. Each release now opens a version pull request for the add-on, which the maintainer merges to deliver the update. Add the one-time repository setting that lets GitHub Actions create pull requests. Verify that it matches design D5 and the Migration Plan.
-- [ ] 3.3 Add an add-on section to `docs/acceptance/ha-acceptance.md`. It covers adding the repository by URL (with `#<branch>` before merge), installing it, a first start without `config.yaml` that stops with a configuration error, a start with `config.yaml` that shows the same device and entities as a Docker install, and a first log line with the add-on's version. Verify that each check matches a scenario in the `ha-addon` spec.
+- [x] 3.3 Add an add-on section to `docs/acceptance/ha-acceptance.md`. It covers adding the repository by URL (with `#<branch>` before merge), installing it, a first start without `config.yaml` that stops with a configuration error, a start with `config.yaml` that shows the same device and entities as a Docker install, and a first log line with the add-on's version. Verify that each check matches a scenario in the `ha-addon` spec.
 
 ## 4. Pre-merge verification
 

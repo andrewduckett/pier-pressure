@@ -151,9 +151,45 @@ The commands below assume the default `base_topic` of `pierpressure`.
 - [ ] **Starting again restores them.** Start PierPressure. `pierpressure/status`
       is `online`, and every entity is available again.
 
+## 9. Home Assistant add-on
+
+Run this section on Home Assistant OS when a change touches the add-on
+(`repository.yaml` or `ha-addon/`). It replaces the Docker container with the
+add-on, so stop the container first (`docker stop <container>`): two copies would
+publish to the same topics.
+
+Before the change merges, add the repository with its branch, for example
+`https://github.com/andrewduckett/pier-pressure#ha-addon`. After it merges, use
+the plain URL.
+
+- [ ] **The store lists the add-on.** Open *Settings → Add-ons → Add-on Store*,
+      then *⋮ → Repositories*, and add the repository URL. The store shows a
+      **PierPressure** add-on from that repository.
+- [ ] **Installing pulls the pinned release.** Install the add-on. Its *Info*
+      tab shows the `version` from `ha-addon/config.yaml`, for example
+      `2026.10.0`.
+- [ ] **A missing config stops the add-on.** Start the add-on before writing
+      `config.yaml`. It stops, and its log shows a `Configuration error` that
+      names `/config/config.yaml`.
+- [ ] **The log names the version.** The add-on log's first line ends with
+      `PierPressure <version>`, the same version as the *Info* tab.
+- [ ] **A config file runs the service.** Copy the `config.yaml` you used for the
+      Docker run into `/addon_configs/<id>_pierpressure/`. Write the broker
+      password straight into the file, and use `core-mosquitto` as `mqtt.host` if
+      you use the Mosquitto add-on. Start the add-on. It keeps running, and the
+      log shows `PierPressure started for 1 pier(s)`.
+- [ ] **Same device and entities as Docker.** *Settings → Devices &
+      services → MQTT* shows the same **PierPressure backyard** device, with the
+      same entities and entity ids as in [section 1](#1-entities-and-device).
+      The Verdict updates as in [section 2](#2-a-normal-night).
+
+When you finish, stop or uninstall the add-on before you run the Docker container
+again.
+
 ## Result
 
 - Date run:
 - PierPressure version or branch:
+- Install (Docker, source or add-on):
 - Home Assistant version and broker:
 - Outcome (pass or fail, with notes):
