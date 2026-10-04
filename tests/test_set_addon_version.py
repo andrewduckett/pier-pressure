@@ -23,6 +23,14 @@ def test_replaces_only_the_version_line() -> None:
     assert updated == CONFIG.replace('version: "2026.10.0"', 'version: "2026.10.1"')
 
 
+def test_keeps_a_trailing_comment_on_the_version_line() -> None:
+    config = "name: PierPressure\nversion: 2026.10.0  # set by the release\n"
+
+    assert set_version(config, "2026.10.1") == (
+        'name: PierPressure\nversion: "2026.10.1"  # set by the release\n'
+    )
+
+
 def test_keeps_windows_line_endings() -> None:
     crlf = CONFIG.replace("\n", "\r\n")
 
