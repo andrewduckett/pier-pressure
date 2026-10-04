@@ -284,9 +284,9 @@ just check       # lint + typecheck + test: the CI gate
 just test-integration   # runs integration tests against a throwaway Mosquitto
 ```
 
-`docker compose --profile full up` runs PierPressure against a local broker. The
-manual end-to-end checklist against a real Home Assistant is in
-[`docs/acceptance/m1-ha-acceptance.md`](docs/acceptance/m1-ha-acceptance.md).
+`docker compose --profile full up` runs PierPressure against a local broker. Before
+merging a change, prove it against a real Home Assistant with the checklist in
+[`docs/acceptance/ha-acceptance.md`](docs/acceptance/ha-acceptance.md).
 
 ### Releasing
 
