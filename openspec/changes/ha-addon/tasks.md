@@ -21,7 +21,7 @@
 
 ## 4. Pre-merge verification
 
-- [ ] 4.1 Run `just check` and `openspec validate ha-addon --strict`, and check that both pass.
+- [x] 4.1 Run `just check` and `openspec validate ha-addon --strict`, and check that both pass.
 - [ ] 4.2 Ask the maintainer to turn on *Allow GitHub Actions to create and approve pull requests* in the repository settings. Verify with `gh api repos/andrewduckett/pier-pressure/actions/permissions/workflow`, which should show `can_approve_pull_request_reviews: true`.
 - [ ] 4.3 Ask the maintainer to run the add-on section of the acceptance checklist on Home Assistant OS, using `https://github.com/andrewduckett/pier-pressure#ha-addon`. Record the result in the checklist's Result block in the pull request description.
 - [ ] 4.4 Add an "After merge" checklist to the pull request description for the next release. It covers checking that the version pull request opens and changes only the add-on version, that the new image carries both `io.hass` labels, and that Home Assistant offers the add-on update after the merge.
