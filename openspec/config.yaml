@@ -47,7 +47,7 @@ context: |
   - confidence {band: LOW|MEDIUM|HIGH, value: 0-100} reflects forecast
     lead-time/freshness and rises as dusk nears.
   - No single external data source is load-bearing: providers sit behind an
-    interface with caching and graceful fallback.
+    interface with graceful fallback.
   - The LLM layer is optional and never feeds the astronomy/ephemeris math; it
     only explains an already-computed verdict. The system degrades gracefully
     without it.

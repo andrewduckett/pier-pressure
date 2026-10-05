@@ -31,7 +31,7 @@ backlog is GitHub issues.
   then a banded 0–100 SCORE only when gates pass; `reasons[]` are the itemized
   terms. Target windows are hard-clamped to astronomical night (sun below −18°).
 - **No single external data source is load-bearing:** providers sit behind an
-  interface with caching and graceful fallback. The optional LLM layer only
+  interface with graceful fallback. The optional LLM layer only
   explains an already-computed verdict — it never feeds the astronomy math.
 
 ## Workflow
