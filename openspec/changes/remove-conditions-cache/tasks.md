@@ -19,7 +19,7 @@ a different thing and stay unchanged.
 ## 3. Comments and docstrings
 
 - [x] 3.1 Reword the module docstrings in `pierpressure/conditions/provider.py` and `pierpressure/conditions/__init__.py` so they describe graceful fallback with no cache. Reword the "fetches, fails, caches" docstring in `pierpressure/core/conditions.py`. Verify with `git grep -n -i cach -- pierpressure/conditions pierpressure/core/conditions.py`, which must return nothing.
-- [ ] 3.2 Reword the freshness comment in `pierpressure/core/scoring.py` so the 12-hour point is the age at which base data reaches the freshness floor, with no mention of the cache. Leave every constant unchanged. Verify that `tests/test_tuning_constants.py` passes (design D2).
+- [x] 3.2 Reword the freshness comment in `pierpressure/core/scoring.py` so the 12-hour point is the age at which base data reaches the freshness floor, with no mention of the cache. Leave every constant unchanged. Verify that `tests/test_tuning_constants.py` passes (design D2).
 
 ## 4. Durable constraint and docs
 
