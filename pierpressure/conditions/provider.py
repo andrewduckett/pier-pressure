@@ -1,4 +1,4 @@
-"""Provider interface, group assembly, caching, and graceful fallback (design D6).
+"""Provider interface, group assembly, and graceful fallback (design D6).
 
 A source provider parses one external forecast into a :class:`SourceForecast` — a
 per-hour set of readings plus the data's issue time. :func:`assemble_snapshot`
@@ -6,10 +6,10 @@ promotes the base and secondary forecasts into the core's per-source
 :class:`~pierpressure.core.conditions.Conditions`: one self-stamped
 :class:`~pierpressure.core.conditions.BaseGroup` (cloud/wind) and
 :class:`~pierpressure.core.conditions.SecondaryGroup` (seeing/transparency), each
-present only when its source returned rows (design D1). :class:`CachingProvider`
-bridges a transient outage by reusing the last-good forecast within a staleness
-bound, and :class:`CompositeProvider` fetches the two sources independently so one
-failing never fails the other.
+present only when its source returned rows (design D1). :class:`CompositeProvider`
+fetches the two sources independently so one failing never fails the other. A
+failed or empty fetch leaves its source unavailable until the next good fetch; it
+is never filled from an earlier one.
 """
 
 from __future__ import annotations
@@ -59,8 +59,8 @@ class SourceForecast:
     """A source's parsed hourly readings, keyed by top-of-hour UTC, plus issue time.
 
     ``issued_at`` is the time the source issued this data (not when it was
-    fetched), so reusing a cached forecast keeps the original issue time and its
-    staleness stays visible (design's per-source issue-time rule).
+    fetched), so the data's own age stays visible (design's per-source issue-time
+    rule).
     """
 
     issued_at: datetime | None = None

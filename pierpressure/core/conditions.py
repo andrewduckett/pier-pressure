@@ -8,7 +8,7 @@ guarantee stays a hard wall rather than "deterministic if mocked correctly".
 
 Shape (design D1): the conditions input is modelled as one self-stamped group per
 source rather than a flat hourly grid with side-channel issue times. Each source
-is the unit that fetches, fails, caches, and stamps an issue time, so the source
+is the unit that fetches, fails, and stamps an issue time, so the source
 is the honest grouping boundary. "Base" and "secondary" name the source *role* —
 the load-bearing cloud/wind spine versus the optional seeing/transparency polish —
 never a vendor, so the core still never learns a source's scale or resolution.
