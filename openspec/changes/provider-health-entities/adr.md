@@ -12,7 +12,8 @@ separate entities, and it is kept only in memory. This is a system boundary, and
 reversing it later would be costly. So it gets a new ADR.
 
 The other design decisions stay in `design.md`. These are the types, the module
-placement, the topic names, the error allowlist, and the README automation. Each can
+placement, the topic names, the startup order, the error allowlist, and the README
+automation. Each can
 be read from the code and changed cheaply.
 
 ## In-Force ADRs Reviewed

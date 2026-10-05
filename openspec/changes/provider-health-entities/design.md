@@ -65,7 +65,7 @@ The service unpacks the result. It passes only `conditions` to `produce_verdict`
 
 The new module holds `FetchOutcome`, `ProviderHealth`, and a pure function
 `fold(previous, outcome) -> ProviderHealth`. It also holds `describe_error(exc)`,
-which shortens an exception for display (see D5).
+which builds a safe error description (see D6).
 
 `fold` applies these rules:
 
@@ -92,17 +92,42 @@ The service seeds the dictionary at startup with every configured provider, each
 with no history. So discovery covers every configured provider, even one not tried
 on a given publish.
 
-The first thing `Service.run()` does is publish that seeded health for every pier.
-It does this before any fetch or narrative call, so the startup publish waits on
-nothing but the broker. This replaces any retained health from before the restart.
-Without it, a slow first fetch would leave an old success time showing as current
-while the process is online. If the publish fails, `DeliveryError` ends the process
-as it does today, and the last-will message marks it offline.
+The service also records `tracking_since`, the clock time when `run()` starts. Every
+health record carries it. The README automation measures how long a sensor has been
+unknown from this time (see D7).
 
-A sub-second window remains between the `online` message in `connect()` and this
-first publish. Only broker messages fall inside it, so Home Assistant could at most
-flash the old value. Moving the `online` message later would change the existing
-startup contract for every entity, which costs more than the flash.
+### D4 — Startup resets health before the process goes online
+
+Today `MqttDelivery.connect()` connects and then publishes the retained `online`
+message. This change splits that in two:
+
+1. `connect()` registers the last-will message and connects. It no longer publishes
+   `online`.
+2. A new `MqttDelivery.go_online()` publishes the retained `online` message.
+
+`Service.run()` then starts in this order:
+
+1. Publish the seeded health for every pier: discovery, a `None` state, and
+   attributes with no history.
+2. Call `delivery.go_online()`.
+3. Fetch and publish every pier, as today.
+
+So the old retained health is replaced before any entity can be online. The reset
+waits on nothing but the broker, because no fetch or narrative call comes before it.
+If the reset publish raises `DeliveryError`, `run()` stops before step 2. The process
+then exits without publishing `online`.
+
+A service with no health providers skips step 1 and goes online at once. The
+existing "retained online availability while running" requirement still holds.
+
+- **Alternative considered:** keep `online` in `connect()` and reset just after it.
+  That leaves a window where Home Assistant shows the old success time as current.
+  The window is short but unbounded if the reset publish stalls.
+
+**Known limit (#41).** A clean disconnect does not trigger the last-will message, and
+`_publish()` does not wait for the broker to confirm. So on a failed reset, the
+retained availability keeps whatever value the previous run left. This change does
+not make that worse. Issue #41 fixes it for every entity.
 
 `CompositeProvider` exposes its providers (key, display name, role) so `__main__.py`
 can pass them to the service. The default no-conditions provider has none, so a
@@ -115,11 +140,12 @@ payload is deterministic.
 Health is never written to disk. After a restart, every provider starts with no
 history.
 
-### D4 — A separate `publish_health` method in delivery
+### D5 — A separate `publish_health` method in delivery
 
 `MqttDelivery.publish_health(pier_id, healths)` publishes discovery, state, and
 attributes for each health record. `publish_verdict` does not change. The service
-calls `publish_health` right after `publish_verdict`.
+calls `publish_health` for the startup reset (D4), and right after each
+`publish_verdict`.
 
 Topics, for base topic `B`, discovery prefix `P`, and provider key `<provider>`:
 
@@ -147,6 +173,7 @@ The attributes payload is:
 {
   "provider": "Open-Meteo",
   "role": "base",
+  "tracking_since": "2026-10-05T09:00:00+00:00",
   "status": "failed",
   "last_fetch": "2026-10-05T18:00:00+00:00",
   "last_error": "ConnectError",
@@ -156,6 +183,9 @@ The attributes payload is:
 
 Before any fetch, `status`, `last_fetch`, `last_error`, and `issued_at` are null.
 
+An `issued_at` can also be null after a success, when the provider gave no issue
+time.
+
 `SENSOR_SCHEMA` in `ha_schema.py` gains `device_class` and `entity_category`
 (limited to `diagnostic` and `config`). The schema test then checks the new payloads.
 
@@ -163,17 +193,20 @@ Before any fetch, `status`, `last_fetch`, `last_error`, and `issued_at` are null
   narrative did. But the verdict publish is already long, and health has its own
   lifecycle. A separate method keeps the verdict path unchanged and testable alone.
 
-### D5 — Errors are shortened before they leave the provider layer
+### D6 — Errors are built from an allowlist
 
 `describe_error(exc)` builds the error from an allowlist. It never copies the
 exception's own text.
 
-- For an HTTP status error, it returns the error type, status code, and reason, such
-  as `HTTPStatusError: 503 Service Unavailable`.
+- For an HTTP status error, it returns the error type, the status code, and that
+  code's standard phrase, such as `HTTPStatusError: 503 Service Unavailable`. The
+  phrase comes from Python's `http.HTTPStatus` table. The reason phrase in the
+  server's response is never used, because the server controls that text. An
+  unknown code gets no phrase.
 - For every other error, it returns the error type alone, such as `ConnectError`,
   `ReadTimeout`, or `JSONDecodeError`.
 
-Exception text is free-form. httpx puts the full request URL in some messages, and
+Exception and response text is free-form. httpx puts the full request URL in some messages, and
 that URL carries the pier's latitude and longitude. A parser error could quote a
 coordinate with no URL around it. Removing URLs would not catch that case, so the
 design keeps no free-form text at all. The full message still goes to the log, as
@@ -185,12 +218,16 @@ HTTP error, or a parse failure.
   format leaks location into Home Assistant's history database. An allowlist cannot
   leak.
 
-### D6 — The README automation alerts on stale or unknown, not unavailable
+### D7 — The README automation alerts on stale or unknown, not unavailable
 
 One template decides whether a provider is failing. It is true when the last success
-is older than a chosen number of hours. It is also true when the sensor has been
-`unknown` for that long, judged by the entity's `last_changed` time. It is false for
-`unavailable`, which means the whole process is down and deserves its own alert.
+is older than a chosen number of hours. It is also true when the sensor is `unknown`
+and its `tracking_since` attribute is that old. It is false for `unavailable`, which
+means the whole process is down and deserves its own alert.
+
+`tracking_since` comes from PierPressure, not from Home Assistant. So a Home
+Assistant restart does not reset the count. An entity's `last_changed` time would
+reset, which is why the template does not use it.
 
 The automation uses that template twice:
 
@@ -205,20 +242,17 @@ timer on restart, so an already-unknown sensor could stay silent.
 
 The README shows Open-Meteo and says to copy the automation for 7Timer!. It says to
 set the threshold to several recompute intervals. It notes that Open-Meteo's issue
-time and last success come from the same fetch, so they match closely. The "Removing the entities" loop gains both
-health discovery topics.
+time and last success come from the same fetch, so they match closely. The "Removing
+the entities" loop gains both health discovery topics.
 
 ## Risks / Trade-offs
 
 - [The repository's discovery schemas are hand-authored, so passing them cannot
-  prove Home Assistant's behaviour] → Verification includes a manual check on a real
-  instance: the sensor shows as a diagnostic timestamp, the `None` state shows as
-  unknown, and the sensor stays available while its provider fails. Current Home
-  Assistant MQTT sensor code reads `None` as unknown. If that check fails, switch to
-  a `value_template` that maps the payload to `None`.
-- [After a Home Assistant restart, `last_changed` resets, so an `unknown` sensor
-  alerts only after the threshold passes again] → Accepted. The start trigger still
-  alerts at once on a stale success time.
+  prove how Home Assistant behaves] → Verification adds a manual check on a real
+  instance (see below).
+- [Startup now publishes `online` after the health reset, not inside `connect()`]
+  → The delay is a few broker messages. Tests that expect `online` from `connect()`
+  move to `go_online()`.
 - [Each pier fetches separately, so a flaky network may fail one pier and not
   another] → That is accurate. Health is per pier for that reason.
 - [Two more retained entities per pier add MQTT traffic on every publish] → It is
@@ -229,6 +263,19 @@ health discovery topics.
   automation treats a long `unknown` as a failure.
 - [Changing `ConditionsProvider`'s return type touches every test stub] → The change
   is mechanical. A helper that wraps bare `Conditions` keeps the stubs short.
+
+## Manual check in Home Assistant
+
+During verification, run the change against a real Home Assistant instance and
+confirm these four things:
+
+1. Each health sensor appears under the pier's device as a diagnostic entity.
+2. Its state shows as a timestamp after a success.
+3. Its state shows as unknown after a restart where the first fetch fails.
+4. It stays available while its provider fails.
+
+Current Home Assistant MQTT sensor code reads a `None` payload as unknown. If check
+3 fails, change the discovery to a `value_template` that maps the payload to `None`.
 
 ## Migration Plan
 

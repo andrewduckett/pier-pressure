@@ -59,3 +59,15 @@ Round 1 reviewer adjudication; no author response has been entered for this roun
 - 🟡 5, ADR determinism argument — **accepted by reviewer**: ADR-0015 now bases the decision on the frozen contract and document churn (`docs/decisions/0015-provider-health-beside-verdict-in-memory.md:46–54`).
 - 🟡 6, terminology and dense ADR prose — **accepted by reviewer**: the event terminology is consistent and the cited ADR passages are shorter. The current proposal and design readability issues are listed above.
 - 📌 1, speculative seeding — addressed: startup reset now gives seeding a present use.
+### Author responses to round 2 (after escalation to the human, 2026-10-05)
+
+The human chose the approach for 🔴 1, 🔴 2, and 🟡 1.
+
+- 🔴 1 (startup shows an old time): fixed by the human's choice. design.md D4 resets health before `go_online()` publishes `online`. The spec adds "before it publishes its online availability" and a failed-reset scenario.
+- 🔴 2 (last will and unconfirmed publishes): split out by the human's choice into bug #41, which affects every entity. The spec now promises only that a failed reset exits without publishing `online`. design.md D4 records the known limit.
+- 🔴 3 (server reason phrase): fixed. design.md D6 takes the phrase from `http.HTTPStatus`, never from the response. The conditions spec adds a malicious-reason scenario.
+- 🟡 1 (unknown age lost on an HA restart): fixed by the human's choice. Attributes gain `tracking_since`, and design.md D7 measures unknown age from it.
+- 🟡 2 (schema wording): fixed. The new requirement says "the repository's discovery schema". design.md has a separate "Manual check in Home Assistant" section.
+- 🟡 3 (success with no issue time): fixed. Both specs allow a null issue time after a success.
+- 🟡 4 (dense passages): fixed. The proposal's attribute list is now bullets. The manual check is its own section with numbered steps.
+- 📌 1 ("flash"): addressed. The window no longer exists.
