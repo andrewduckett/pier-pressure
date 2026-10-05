@@ -17,6 +17,7 @@ from pierpressure.conditions.provider import (
     build_provider,
 )
 from pierpressure.conditions.seven_timer import parse_seven_timer
+from pierpressure.core.conditions import Conditions
 
 from .conftest import make_pier
 
@@ -255,10 +256,19 @@ class _ScriptedProvider:
         return outcome
 
 
-def _recent_base() -> SourceForecast:
-    # Issued just now, so no staleness bound could excuse reusing it.
-    return SourceForecast(
-        issued_at=datetime.now(UTC), readings={_hour(21): SourceReading(cloud_cover=25.0)}
+def _good_then(failure: SourceForecast | Exception) -> CompositeProvider:
+    """A production stack whose two sources each succeed once, then fail.
+
+    The data is issued at the real current time, not a pinned one, so it is fresh
+    by any measure: reuse bounded by a staleness limit would still be caught.
+    """
+    now = datetime.now(UTC)
+    base = SourceForecast(issued_at=now, readings={_hour(21): SourceReading(cloud_cover=25.0)})
+    secondary = SourceForecast(
+        issued_at=now, readings={_hour(21): SourceReading(seeing=0.8, transparency=0.7)}
+    )
+    return build_provider(
+        base=_ScriptedProvider(base, failure), secondary=_ScriptedProvider(secondary, failure)
     )
 
 
@@ -266,27 +276,24 @@ def _recent_base() -> SourceForecast:
 def test_a_failed_fetch_is_not_filled_from_the_same_piers_earlier_fetch(
     failure: SourceForecast | Exception,
 ) -> None:
-    stack = build_provider(
-        base=_ScriptedProvider(_recent_base(), failure),
-        secondary=_ScriptedProvider(SourceForecast(), SourceForecast()),
-    )
+    stack = _good_then(failure)
     pier = make_pier()
-    assert stack.get(pier).base is not None  # the first fetch succeeds
+    first = stack.get(pier)
+    assert first.base is not None and first.secondary is not None
 
-    assert stack.get(pier).base is None  # no values or issue time carried over
+    # No values or issue time carry over from the earlier fetch, for either source.
+    assert stack.get(pier) == Conditions(base=None, secondary=None)
 
 
 @pytest.mark.parametrize("failure", [RuntimeError("source down"), SourceForecast()])
 def test_a_failed_fetch_is_not_filled_from_another_piers_fetch(
     failure: SourceForecast | Exception,
 ) -> None:
-    stack = build_provider(
-        base=_ScriptedProvider(_recent_base(), failure),
-        secondary=_ScriptedProvider(SourceForecast(), SourceForecast()),
-    )
-    assert stack.get(make_pier("pier-a")).base is not None
+    stack = _good_then(failure)
+    first = stack.get(make_pier("pier-a"))
+    assert first.base is not None and first.secondary is not None
 
-    assert stack.get(make_pier("pier-b")).base is None
+    assert stack.get(make_pier("pier-b")) == Conditions(base=None, secondary=None)
 
 
 # --------------------------------------------------------------------------- #
