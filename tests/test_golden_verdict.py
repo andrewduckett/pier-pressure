@@ -19,14 +19,13 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
 from pierpressure.conditions.open_meteo import parse_open_meteo
 from pierpressure.conditions.provider import (
-    CachingProvider,
     SourceForecast,
     SourceReading,
     assemble_snapshot,
@@ -68,19 +67,6 @@ def _secondary_full() -> SourceForecast:
     return parse_seven_timer(_load_raw("seven_timer_full.json"))
 
 
-class _StubProvider:
-    """A one-shot source provider, optionally failing, for the cache path."""
-
-    def __init__(self, forecast: SourceForecast, *, fail: bool = False) -> None:
-        self._forecast = forecast
-        self.fail = fail
-
-    def fetch(self, _pier: PierConfig) -> SourceForecast:
-        if self.fail:
-            raise RuntimeError("source down")
-        return self._forecast
-
-
 def _wind_without_cloud() -> SourceForecast:
     """The base source returned wind rows but no cloud (round-2 Critical case)."""
     full = _base_full()
@@ -94,24 +80,6 @@ def _wind_without_cloud() -> SourceForecast:
 def _subset(forecast: SourceForecast, times: list[datetime]) -> SourceForecast:
     readings = {t: forecast.readings[t] for t in times if t in forecast.readings}
     return SourceForecast(issued_at=forecast.issued_at, readings=readings)
-
-
-def _over_stale_base() -> SourceForecast:
-    """A base forecast served from cache while 11h old — near the staleness floor.
-
-    Primes the cache with a stale-issued forecast, then a failed refresh reuses it
-    (still within ``MAX_STALENESS``), so the served forecast keeps its old issue
-    time and freshness decays toward its floor. This exercises the cache-reuse path
-    into the freshness factor.
-    """
-    stub = _StubProvider(_base_full(issued_at=_STALE_ISSUED))
-    caching = CachingProvider(inner=stub, now=lambda: _STALE_ISSUED + timedelta(minutes=1))
-    primed = caching.fetch(make_pier())  # cache the stale-issued forecast
-    stub.fail = True
-    caching.now = lambda: _STALE_ISSUED + timedelta(hours=11)  # within 12h staleness
-    reused = caching.fetch(make_pier())
-    assert reused.readings and reused is primed  # served from cache, not dropped
-    return reused
 
 
 # Each case: name -> (pier, base forecast, secondary forecast). The verdict for
@@ -133,7 +101,12 @@ _CASES: dict[str, Callable[[], tuple[PierConfig, SourceForecast, SourceForecast]
         _subset(_secondary_full(), _WINDOW_SLOTS[4:]),  # seeing only late
     ),
     "empty": lambda: (make_pier(), SourceForecast(), SourceForecast()),
-    "over_stale_cache": lambda: (make_pier(), _over_stale_base(), _secondary_full()),
+    # An 11h-old base forecast, so freshness decays toward its floor.
+    "stale_issued_base": lambda: (
+        make_pier(),
+        _base_full(issued_at=_STALE_ISSUED),
+        _secondary_full(),
+    ),
 }
 
 

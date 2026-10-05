@@ -1,20 +1,23 @@
-"""Tasks 3.1-3.5: provider parsing, assembly, resampling, caching, and fallback."""
+"""Tasks 3.1-3.5: provider parsing, assembly, resampling, and fallback."""
 
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
+
+import pytest
 
 from pierpressure.conditions.open_meteo import parse_open_meteo
 from pierpressure.conditions.provider import (
-    CachingProvider,
     CompositeProvider,
     SourceForecast,
     SourceReading,
     assemble_snapshot,
+    build_provider,
 )
 from pierpressure.conditions.seven_timer import parse_seven_timer
+from pierpressure.core.conditions import Conditions
 
 from .conftest import make_pier
 
@@ -236,36 +239,66 @@ def test_base_failure_still_yields_the_secondary_group() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# 3.4 caching: reuse within staleness, drop when over-stale
+# A failed fetch is never filled from an earlier fetch (issue #37, design D1)
 # --------------------------------------------------------------------------- #
 
 
-def test_cache_reuses_recent_data_after_a_failed_fetch() -> None:
-    good = SourceForecast(
-        issued_at=_hour(18), readings={_hour(21): SourceReading(cloud_cover=25.0)}
+class _ScriptedProvider:
+    """Answer each fetch with the next scripted outcome: a forecast or a failure."""
+
+    def __init__(self, *outcomes: SourceForecast | Exception) -> None:
+        self._outcomes = list(outcomes)
+
+    def fetch(self, pier: object) -> SourceForecast:
+        outcome = self._outcomes.pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+
+def _good_then(failure: SourceForecast | Exception) -> CompositeProvider:
+    """A production stack whose two sources each succeed once, then fail.
+
+    The data is issued at the real current time, not a pinned one, so it is fresh
+    by any measure: reuse bounded by a staleness limit would still be caught.
+    """
+    now = datetime.now(UTC)
+    base = SourceForecast(issued_at=now, readings={_hour(21): SourceReading(cloud_cover=25.0)})
+    secondary = SourceForecast(
+        issued_at=now, readings={_hour(21): SourceReading(seeing=0.8, transparency=0.7)}
     )
-    provider = _StubProvider(good)
-    now = _hour(19)
-    caching = CachingProvider(inner=provider, now=lambda: now)
-    assert caching.fetch(make_pier()).readings  # primes the cache
-
-    # Next fetch fails; the cache (1h old) is within staleness and reused.
-    provider._fail = True  # type: ignore[attr-defined]
-    reused = caching.fetch(make_pier())
-    assert reused.readings[_hour(21)].cloud_cover == 25.0
-    assert reused.issued_at == _hour(18)  # original issue time preserved
+    return build_provider(
+        base=_ScriptedProvider(base, failure), secondary=_ScriptedProvider(secondary, failure)
+    )
 
 
-def test_cache_drops_over_stale_data() -> None:
-    good = SourceForecast(issued_at=_hour(0), readings={_hour(21): SourceReading(cloud_cover=25.0)})
-    provider = _StubProvider(good)
-    now = _hour(0) + timedelta(hours=20)  # far past MAX_STALENESS (12h)
-    caching = CachingProvider(inner=provider, now=lambda: now)
-    caching.fetch(make_pier())  # prime
+@pytest.mark.parametrize("failure", [RuntimeError("source down"), SourceForecast()])
+def test_a_failed_fetch_is_not_filled_from_the_same_piers_earlier_fetch(
+    failure: SourceForecast | Exception,
+) -> None:
+    stack = _good_then(failure)
+    pier = make_pier()
+    first = stack.get(pier)
+    assert first.base is not None and first.secondary is not None
 
-    provider._fail = True  # type: ignore[attr-defined]
-    reused = caching.fetch(make_pier())
-    assert reused.is_empty  # too old to serve
+    # No values or issue time carry over from the earlier fetch, for either source.
+    assert stack.get(pier) == Conditions(base=None, secondary=None)
+
+
+@pytest.mark.parametrize("failure", [RuntimeError("source down"), SourceForecast()])
+def test_a_failed_fetch_is_not_filled_from_another_piers_fetch(
+    failure: SourceForecast | Exception,
+) -> None:
+    stack = _good_then(failure)
+    first = stack.get(make_pier("pier-a"))
+    assert first.base is not None and first.secondary is not None
+
+    assert stack.get(make_pier("pier-b")) == Conditions(base=None, secondary=None)
+
+
+# --------------------------------------------------------------------------- #
+# 3.4 forecast horizon
+# --------------------------------------------------------------------------- #
 
 
 def test_forecast_horizon_beyond_the_data_is_unavailable() -> None:
@@ -282,22 +315,3 @@ def test_forecast_horizon_beyond_the_data_is_unavailable() -> None:
     assert conditions.base is not None
     assert conditions.base.at(_hour(21)) is not None
     assert conditions.base.at(_hour(23)) is None  # beyond the forecast horizon
-
-
-def test_cache_is_per_source_so_base_survives_secondary_outage() -> None:
-    # Two independent caches: base fresh, secondary failing -> base still usable.
-    base_cache = CachingProvider(
-        inner=_StubProvider(
-            SourceForecast(
-                issued_at=_hour(18), readings={_hour(21): SourceReading(cloud_cover=15.0)}
-            )
-        ),
-        now=lambda: _hour(19),
-    )
-    secondary_cache = CachingProvider(inner=_StubProvider(fail=True), now=lambda: _hour(19))
-    composite = CompositeProvider(base=base_cache, secondary=secondary_cache)
-    conditions = composite.get(make_pier())
-    assert conditions.secondary is None
-    assert conditions.base is not None
-    base_hour = conditions.base.at(_hour(21))
-    assert base_hour is not None and base_hour.cloud_cover == 15.0

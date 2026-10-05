@@ -33,7 +33,9 @@ verdict consumes one uniform grid regardless of how each source reports.
 Every conditions field SHALL be marked as available or unavailable. A partial
 snapshot — some fields present, others absent — SHALL be a valid result rather
 than a failure, so the verdict can degrade by reading what is absent rather than
-by handling an error.
+by handling an error. Any hours of the selected dark window that a source's
+forecast horizon does not reach SHALL be marked unavailable for that source's
+fields rather than filled in.
 
 #### Scenario: A partial snapshot is valid
 
@@ -41,27 +43,33 @@ by handling an error.
 - **THEN** the snapshot is returned with each field marked available or unavailable
 - **AND** the absence of a field is not reported as an error
 
+#### Scenario: Hours beyond a source's forecast horizon are unavailable
+
+- **WHEN** a source's forecast does not reach part or all of the dark window
+- **THEN** that source's fields are marked unavailable for the hours its forecast does not reach
+- **AND** the hours its forecast does reach keep their values
+
 ### Requirement: The snapshot records when its data was issued
 
-The snapshot SHALL record the issue time of the data it carries for each source
-independently, so downstream trust can reflect how stale each source's data is
-even when the sources refresh on different cadences. When data from a source is
-reused after a failed refresh, its recorded issue time SHALL remain that of the
-data actually carried, so staleness is visible rather than hidden.
+The snapshot SHALL record an issue time for each source independently. Each
+recorded issue time SHALL be the one the source gave for the data it returned on
+this fetch. Recording them separately lets downstream trust reflect each source's
+own age, even when the sources refresh on different cadences.
 
 #### Scenario: Each source's issue time reflects the data actually carried
 
 - **WHEN** a snapshot is produced from more than one source
 - **THEN** it records an issue time for each source's data
-- **AND** when a source's data is reused after a failed refresh, that source's recorded issue time is the reused data's
+- **AND** each recorded issue time is the one the source gave for the data it returned on this fetch
 
 ### Requirement: No single source is load-bearing
 
-Conditions SHALL come from more than one independent source — a base source for
-cloud and wind, and a secondary source for seeing and transparency. The failure
-of one source SHALL NOT prevent the data from another source from being used, so
-losing the secondary source still yields cloud and wind, and losing the base
-source still yields whatever the secondary source provided.
+Conditions SHALL come from more than one independent source. The base source
+supplies cloud and wind. The secondary source supplies seeing and transparency.
+The failure of one source SHALL NOT prevent the other source's data from being
+used. When a source's fetch fails or returns no data, that source's fields SHALL
+be marked unavailable in the snapshot. The system SHALL NOT fill them with data
+from an earlier fetch, whether for the same pier or another pier.
 
 #### Scenario: Secondary source failure leaves base data intact
 
@@ -75,32 +83,17 @@ source still yields whatever the secondary source provided.
 - **THEN** the snapshot is still produced with cloud and wind marked unavailable
 - **AND** any fields the secondary source provided remain available
 
-### Requirement: Caching tolerates transient outages
+#### Scenario: A failed fetch is not filled from an earlier fetch
 
-When a fresh fetch fails, the system SHALL reuse the most recently obtained
-conditions rather than dropping them, so a transient outage does not blind the
-verdict. Reused data SHALL carry its original issue time. Cached data SHALL be
-reused when it is within a defined maximum staleness; any hours of the selected
-dark window that its forecast horizon does not reach SHALL be treated as
-unavailable rather than served. Beyond the maximum staleness, cached data SHALL
-be treated as unavailable regardless of coverage.
+- **WHEN** a source's fetch succeeded for a pier earlier, and its next fetch for that pier fails or returns no data
+- **THEN** that source's fields are marked unavailable in the new snapshot
+- **AND** the snapshot carries no values or issue time from the earlier fetch
 
-#### Scenario: Recent data is reused during a transient outage
+#### Scenario: A failed fetch for one pier is not filled from another pier's fetch
 
-- **WHEN** a fresh fetch fails and recently obtained conditions are within the maximum staleness
-- **THEN** the recent conditions are reused
-- **AND** they carry their original issue time
-- **AND** any hours of the dark window beyond their forecast horizon are treated as unavailable
-
-#### Scenario: Over-stale data is treated as unavailable
-
-- **WHEN** the only available conditions are older than the maximum staleness
-- **THEN** those fields are treated as unavailable rather than served
-
-#### Scenario: Cached data that does not reach the dark window is treated as unavailable
-
-- **WHEN** the only available conditions are fresh by issue time but their forecast horizon does not cover part or all of the dark window
-- **THEN** the hours not covered are treated as unavailable rather than served
+- **WHEN** a source's fetch succeeds for one pier, and its fetch for a second pier then fails or returns no data
+- **THEN** that source's fields are marked unavailable in the second pier's snapshot
+- **AND** the second pier's snapshot carries no values or issue time from the first pier's fetch
 
 ### Requirement: The snapshot is self-contained so the verdict needs no network
 

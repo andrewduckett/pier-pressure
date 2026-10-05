@@ -18,10 +18,14 @@ import httpx
 
 from pierpressure.core.config import PierConfig
 
-from .provider import SourceForecast, SourceReading, _utcnow
+from .provider import SourceForecast, SourceReading
 
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 _TIMEOUT_SECONDS = 10.0
+
+
+def _utcnow() -> datetime:
+    return datetime.now(UTC)
 
 
 def _parse_hour(value: str) -> datetime:

@@ -380,8 +380,9 @@ def assemble_score(window: tuple[datetime, datetime], conditions: Conditions, mo
 
 # --- Confidence (design D5; task 5.1) -------------------------------------- #
 # Lead time L: 1 within L_FULL hours of dusk (or once mid-session), decaying to
-# L_MIN by L_FAR hours out. Freshness F: 1 within F_FRESH hours of issue, decaying
-# to F_MIN by F_STALE hours (the cache max staleness). K: completeness.
+# L_MIN by L_FAR hours out. Freshness F: 1 within F_FRESH hours of the base
+# source's issue, decaying to F_MIN by F_STALE hours, the age at which base data
+# reaches the freshness floor. K: completeness.
 _L_FULL_HOURS = 3.0
 _L_FAR_HOURS = 24.0
 _L_MIN = 0.5

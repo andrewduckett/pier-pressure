@@ -148,7 +148,7 @@ decision records in [`docs/decisions/`](../docs/decisions/).
 - **Home Assistant is never load-bearing.** The container owns its own freshness.
   If Home Assistant restarts, the verdict stays current.
 - **No load-bearing data source.** Conditions providers sit behind an interface
-  with caching and graceful fallback.
+  with graceful fallback.
 - **The LLM never feeds the math.** Astronomy and ephemeris results never come
   from the LLM.
 - **Offline astronomy.** Ephemeris data is version-pinned and computed offline,

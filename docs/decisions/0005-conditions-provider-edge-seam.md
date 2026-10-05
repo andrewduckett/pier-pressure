@@ -24,7 +24,7 @@ verdict rather than crash it.
 
 ## Decision
 
-Confine all network access, caching, and fallback to a provider layer outside
+Confine all network access and fallback to a provider layer outside
 `pierpressure/core/`. Have `produce_verdict(pier, clock, conditions)` receive
 conditions as an immutable, availability-stamped snapshot, not a fetching
 interface. The core only reads the snapshot, so it stays a pure function of its
@@ -39,8 +39,8 @@ inputs. Network lives only at the provider edge.
   availability flags. The core degrades by reading `absent`, never by catching a
   network error.
 - **Easier:** providers are swappable and testable on their own against recorded
-  fixtures. A provider outage is buffered by cache and shows up as lower
-  confidence, not a crash.
+  fixtures. A provider outage shows up as missing data and lower confidence,
+  not a crash.
 - **Harder:** the snapshot must carry enough provenance — per-field availability
   and per-provider issue time — for the core to judge completeness and freshness
   without touching the clock or network. The service must fetch before it
@@ -72,3 +72,11 @@ inputs. Network lives only at the provider edge.
 - **Cons**: impossible in principle. A forecast for tonight cannot ship in the
   image; it must be fetched near the time it applies.
 - **Why not**: not achievable — weather is external by nature.
+
+## Amendments
+
+- **2026-10-04, change `remove-conditions-cache` (issue #37):** removed caching
+  from the Decision and Consequences. The provider layer no longer reuses an
+  earlier forecast when a fetch fails. Reused data hid a failing source for up to
+  12 hours, and its single shared slot could give one pier another pier's weather.
+  The seam itself is unchanged.

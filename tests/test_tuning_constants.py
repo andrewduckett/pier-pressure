@@ -12,7 +12,6 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from pierpressure.conditions.provider import MAX_STALENESS
 from pierpressure.core.config import DEFAULT_GO_THRESHOLD
 from pierpressure.core.model import Band
 from pierpressure.core.ranking import (
@@ -80,10 +79,6 @@ def test_freshness_curve_saturation_and_floor() -> None:
 
 def test_missing_issue_time_is_treated_as_maximally_stale() -> None:
     assert freshness_factor(_START, None) == 0.2
-
-
-def test_cache_max_staleness_is_twelve_hours() -> None:
-    assert timedelta(hours=12) == MAX_STALENESS
 
 
 def test_high_cloud_max_penalty_is_a_fixed_constant_below_the_moon_penalty() -> None:
