@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Protocol
 
 from pierpressure.core.conditions import (
@@ -31,9 +31,6 @@ from pierpressure.core.conditions import (
 from pierpressure.core.config import PierConfig
 
 logger = logging.getLogger(__name__)
-
-def _utcnow() -> datetime:
-    return datetime.now(UTC)
 
 
 @dataclass(frozen=True)
