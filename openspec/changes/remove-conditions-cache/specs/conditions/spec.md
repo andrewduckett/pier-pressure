@@ -23,10 +23,10 @@ fields rather than filled in.
 
 ### Requirement: The snapshot records when its data was issued
 
-The snapshot SHALL record the issue time of the data it carries for each source
-independently, so downstream trust can reflect how stale each source's data is
-even when the sources refresh on different cadences. Each source's recorded issue
-time SHALL be that of the data the source returned on this fetch.
+The snapshot SHALL record an issue time for each source independently. Each
+recorded issue time SHALL be the one the source gave for the data it returned on
+this fetch. Recording them separately lets downstream trust reflect each source's
+own age, even when the sources refresh on different cadences.
 
 #### Scenario: Each source's issue time reflects the data actually carried
 
@@ -36,13 +36,12 @@ time SHALL be that of the data the source returned on this fetch.
 
 ### Requirement: No single source is load-bearing
 
-Conditions SHALL come from more than one independent source — a base source for
-cloud and wind, and a secondary source for seeing and transparency. The failure
-of one source SHALL NOT prevent the data from another source from being used, so
-losing the secondary source still yields cloud and wind, and losing the base
-source still yields whatever the secondary source provided. When a source's fetch
-fails or returns no data, that source's fields SHALL be marked unavailable in the
-snapshot. The system SHALL NOT fill them with data from an earlier fetch.
+Conditions SHALL come from more than one independent source. The base source
+supplies cloud and wind. The secondary source supplies seeing and transparency.
+The failure of one source SHALL NOT prevent the other source's data from being
+used. When a source's fetch fails or returns no data, that source's fields SHALL
+be marked unavailable in the snapshot. The system SHALL NOT fill them with data
+from an earlier fetch, whether for the same pier or another pier.
 
 #### Scenario: Secondary source failure leaves base data intact
 
@@ -61,6 +60,12 @@ snapshot. The system SHALL NOT fill them with data from an earlier fetch.
 - **WHEN** a source's fetch succeeded for a pier earlier, and its next fetch for that pier fails or returns no data
 - **THEN** that source's fields are marked unavailable in the new snapshot
 - **AND** the snapshot carries no values or issue time from the earlier fetch
+
+#### Scenario: A failed fetch for one pier is not filled from another pier's fetch
+
+- **WHEN** a source's fetch succeeds for one pier, and its fetch for a second pier then fails or returns no data
+- **THEN** that source's fields are marked unavailable in the second pier's snapshot
+- **AND** the second pier's snapshot carries no values or issue time from the first pier's fetch
 
 ## REMOVED Requirements
 

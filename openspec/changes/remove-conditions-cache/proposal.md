@@ -11,8 +11,8 @@ missing-data rules the verdict already has.
 
 - **BREAKING (behaviour):** a failed or empty fetch leaves that source's data
   unavailable until the next successful fetch. The system no longer reuses data from
-  an earlier fetch. When Open-Meteo fails, the verdict becomes `MAYBE` with score 0
-  and "conditions unavailable" until it recovers. When 7Timer! fails, seeing and
+  an earlier fetch. When Open-Meteo fails on a night with a dark window, the verdict
+  becomes `MAYBE` with score 0 and "conditions unavailable" until it recovers. When 7Timer! fails, seeing and
   transparency drop out and confidence falls. The verdict document's shape and the
   delivery surface do not change.
 - Remove `CachingProvider` and `MAX_STALENESS` from the conditions provider layer.
@@ -24,8 +24,11 @@ missing-data rules the verdict already has.
   fallback" wherever it is written down.
 - Edit ADR 0005 in place. Remove the cache from its decision and consequences, and
   add a dated note that says why.
-- Keep the freshness term in confidence. It still measures how old each source's
-  data is, which matters for 7Timer!'s model runs.
+- Keep the freshness term in confidence unchanged. It reads only the base source's
+  issue time. Without the cache that is always the fetch time, so the term stays at
+  full strength in practice. A missing 7Timer! still lowers confidence, through the
+  completeness term rather than freshness. Removing or retuning freshness is a
+  separate change.
 
 Out of scope:
 

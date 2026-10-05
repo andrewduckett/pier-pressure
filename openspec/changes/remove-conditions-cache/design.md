@@ -12,10 +12,17 @@ group. The core already reads a `None` group as "this source's fields are
 unavailable". So the path a failed fetch needs already exists. The cache only sits
 in front of it.
 
-The core never sees the cache. It receives a snapshot with an issue time per source,
-and its freshness term in confidence decays with that age. The decay runs from 1
-hour to 12 hours (`_F_FRESH_HOURS`, `_F_STALE_HOURS` in `pierpressure/core/scoring.py`).
-A comment ties the 12-hour point to the cache's `MAX_STALENESS`.
+The core never sees the cache. It receives a snapshot with an issue time per source.
+Confidence's freshness term reads only the **base** source's issue time. The
+secondary source's issue time is kept for provenance and never affects confidence.
+When the secondary source is missing, confidence still falls, through the
+completeness term: missing seeing and transparency trim it.
+The term decays from 1 hour to 12 hours of age (`_F_FRESH_HOURS`, `_F_STALE_HOURS`
+in `pierpressure/core/scoring.py`). A comment ties the 12-hour point to the cache's
+`MAX_STALENESS`.
+
+Open-Meteo, the base source, stamps its issue time at fetch. So today only cached
+base data ever reaches the core with any real age.
 
 ## Goals / Non-Goals
 
@@ -42,17 +49,28 @@ Remove `CachingProvider` and `MAX_STALENESS`. `build_provider()` passes
   leaves dead code with no caller and a constant with no meaning. It also keeps the
   shared-slot bug one config change away. Deleting it is simpler.
 
+Two regression tests guard the spec's "not filled from an earlier fetch" scenarios.
+Both use one `build_provider()`-style stack, with stub sources, across fetches:
+
+- **Same pier:** a fetch succeeds, then the next fetch for that pier fails or
+  returns nothing.
+- **Two piers:** a fetch succeeds for pier A, then the fetch for pier B fails or
+  returns nothing.
+
+Each test asserts that the failed snapshot's group for that source is `None`. So
+it carries no values and no issue time from the earlier fetch.
+
 ### D2 — Keep the freshness term and its 12-hour stale point
 
-The freshness term stays as it is. Without the cache it still measures something
-real: how old each source's data was when it was issued. That matters for 7Timer!,
-whose issue time is its model run. Only the comment changes. It will describe the
-12-hour point as the age at which data reaches the freshness floor, with no link to
-a cache.
+The freshness term stays as it is. Without the cache, the base issue time is always
+the fetch time, so the term stays at full strength in practice. It remains correct
+for any base data that does carry an age, and the golden cases still exercise it.
+Only the comment changes. It will describe the 12-hour point as the age at which
+base data reaches the freshness floor, with no link to a cache.
 
-- **Alternative considered:** drop the freshness term now that the cache is gone.
-  That would change confidence for 7Timer! data and every golden verdict. It is a
-  tuning change with its own evidence to gather, so it stays out of this change.
+- **Alternative considered:** drop the freshness term now that it rarely acts. That
+  changes confidence in the stale golden case and touches the confidence spec. It is
+  a tuning change with its own question, so it stays out of this change.
 
 ### D3 — Build the stale golden case directly, and rename it
 
