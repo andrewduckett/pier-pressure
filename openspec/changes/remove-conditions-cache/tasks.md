@@ -8,7 +8,7 @@ a different thing and stay unchanged.
 - [x] 1.1 Give `build_provider()` optional `base` and `secondary` source arguments that default to the real providers, so tests can run the production stack with stub sources. Verify that existing tests pass.
 - [x] 1.2 In `tests/test_conditions_provider.py`, write the same-pier regression test from design D1: through `build_provider()` with stub sources, a successful fetch and then a failed fetch for the same pier. Assert the failed snapshot's base group is `None`. Repeat with an empty fetch in place of the failure. Verify the test fails against the current cache (spec: "A failed fetch is not filled from an earlier fetch").
 - [x] 1.3 Write the two-pier regression test from design D1: a successful fetch for pier A, then a failed or empty fetch for pier B through the same stack. Assert pier B's base group is `None`. Verify the test fails against the current cache (spec: "A failed fetch for one pier is not filled from another pier's fetch").
-- [ ] 1.4 Remove `CachingProvider` and `MAX_STALENESS` from `pierpressure/conditions/provider.py`. Make `build_provider()` pass `OpenMeteoProvider()` and `SevenTimerProvider()` straight to `CompositeProvider`. Remove the exports from `pierpressure/conditions/__init__.py`. Verify that tests 1.2 and 1.3 pass (design D1).
+- [x] 1.4 Remove `CachingProvider` and `MAX_STALENESS` from `pierpressure/conditions/provider.py`. Make `build_provider()` pass `OpenMeteoProvider()` and `SevenTimerProvider()` straight to `CompositeProvider`. Remove the exports from `pierpressure/conditions/__init__.py`. Verify that tests 1.2 and 1.3 pass (design D1).
 
 ## 2. Tests that depended on the cache
 

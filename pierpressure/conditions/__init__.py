@@ -15,7 +15,6 @@ core stays offline and deterministic while conditions are fetched live.
 from __future__ import annotations
 
 from .provider import (
-    CachingProvider,
     CompositeProvider,
     Provider,
     SourceForecast,
@@ -25,7 +24,6 @@ from .provider import (
 )
 
 __all__ = [
-    "CachingProvider",
     "CompositeProvider",
     "Provider",
     "SourceForecast",
