@@ -185,12 +185,20 @@ class CompositeProvider:
             return SourceForecast()
 
 
-def build_provider() -> CompositeProvider:
-    """Assemble the production provider stack: each source cached, then composed."""
+def build_provider(
+    base: Provider | None = None, secondary: Provider | None = None
+) -> CompositeProvider:
+    """Assemble the production provider stack: each source cached, then composed.
+
+    ``base`` and ``secondary`` default to the real sources; tests pass stubs to run
+    the production stack without the network.
+    """
     from .open_meteo import OpenMeteoProvider
     from .seven_timer import SevenTimerProvider
 
     return CompositeProvider(
-        base=CachingProvider(OpenMeteoProvider()),
-        secondary=CachingProvider(SevenTimerProvider()),
+        base=CachingProvider(base if base is not None else OpenMeteoProvider()),
+        secondary=CachingProvider(
+            secondary if secondary is not None else SevenTimerProvider()
+        ),
     )
