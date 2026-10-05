@@ -285,7 +285,7 @@ done
 - **Frozen contract.** Topics, entities, and the meaning of existing fields never
   change. The document only gains new fields.
 - **No single weather source is required.** Providers (Open-Meteo, 7Timer!) sit
-  behind one interface, with caching and fallback.
+  behind one interface, with fallback.
 - **The LLM never touches the numbers.** It only explains a finished verdict.
 
 The reasons behind each choice are in the decision records under
@@ -294,7 +294,7 @@ The reasons behind each choice are in the decision records under
 ```
 pierpressure/
   core/          # pure decision core: config, sky, scoring, ranking, model
-  conditions/    # weather providers (Open-Meteo, 7Timer!) with caching and fallback
+  conditions/    # weather providers (Open-Meteo, 7Timer!) with fallback
   delivery/      # MQTT discovery publisher and refresh-command subscriber
   explain/       # optional LLM narrative
   data/openngc/  # vendored OpenNGC catalogue (CC BY-SA 4.0)

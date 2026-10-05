@@ -118,7 +118,7 @@ Stage status checked against the code on 2026-10-03.
 6. **Keep data and pins current** — the ephemeris and the OpenNGC catalogue are
    pinned, but there is no documented way to update them and no automated
    dependency updates — partial ([#26](https://github.com/andrewduckett/pier-pressure/issues/26), [#27](https://github.com/andrewduckett/pier-pressure/issues/27))
-7. **Notice a provider breaking** — caching and fallback keep the verdict going and
+7. **Notice a provider breaking** — fallback keeps the verdict going and
    failures are logged, but nothing tells the maintainer that a provider has been
    failing for days — partial ([#25](https://github.com/andrewduckett/pier-pressure/issues/25))
 8. **Release and deploy** — no version tags, release notes, or published image;

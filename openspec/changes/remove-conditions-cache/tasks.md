@@ -24,7 +24,7 @@ a different thing and stay unchanged.
 ## 4. Durable constraint and docs
 
 - [x] 4.1 Change "caching and graceful fallback" to "graceful fallback" in the durable constraint in `AGENTS.md`, `openspec/config.yaml`, and `openspec/prd.md`. Verify by reading each changed line in the diff.
-- [ ] 4.2 Remove "caching" from the two conditions lines in `README.md` and from the *Notice a provider breaking* stage in `openspec/discovery.md`. Verify by reading each changed line in the diff, and verify that `tests/test_docs.py` passes.
+- [x] 4.2 Remove "caching" from the two conditions lines in `README.md` and from the *Notice a provider breaking* stage in `openspec/discovery.md`. Verify by reading each changed line in the diff, and verify that `tests/test_docs.py` passes.
 - [ ] 4.3 Edit ADR 0005 in place: remove "caching" from the Decision paragraph, and replace "A provider outage is buffered by cache" with a line saying an outage shows as missing data and lower confidence, not a crash. Add a dated note at the end that names this change and says why. Keep its status `accepted`. Verify by reading the rendered ADR (design D4).
 - [ ] 4.4 Search the repo with `git grep -n -i cach -- ':!openspec/changes'`. Verify that every remaining hit is the explainer's cache, the ranking's per-night cache, the catalog loader, a Docker or `.gitignore` entry, ADR 0004, or deprecated ADR 0006.
 
