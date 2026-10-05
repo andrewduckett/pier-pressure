@@ -6,6 +6,8 @@ import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
+
 from pierpressure.conditions.open_meteo import parse_open_meteo
 from pierpressure.conditions.provider import (
     CachingProvider,
@@ -13,6 +15,7 @@ from pierpressure.conditions.provider import (
     SourceForecast,
     SourceReading,
     assemble_snapshot,
+    build_provider,
 )
 from pierpressure.conditions.seven_timer import parse_seven_timer
 
@@ -233,6 +236,45 @@ def test_base_failure_still_yields_the_secondary_group() -> None:
     assert conditions.secondary is not None
     secondary_hour = conditions.secondary.at(_hour(21))
     assert secondary_hour is not None and secondary_hour.seeing == 0.9
+
+
+# --------------------------------------------------------------------------- #
+# A failed fetch is never filled from an earlier fetch (issue #37, design D1)
+# --------------------------------------------------------------------------- #
+
+
+class _ScriptedProvider:
+    """Answer each fetch with the next scripted outcome: a forecast or a failure."""
+
+    def __init__(self, *outcomes: SourceForecast | Exception) -> None:
+        self._outcomes = list(outcomes)
+
+    def fetch(self, pier: object) -> SourceForecast:
+        outcome = self._outcomes.pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+
+def _recent_base() -> SourceForecast:
+    # Issued just now, so no staleness bound could excuse reusing it.
+    return SourceForecast(
+        issued_at=datetime.now(UTC), readings={_hour(21): SourceReading(cloud_cover=25.0)}
+    )
+
+
+@pytest.mark.parametrize("failure", [RuntimeError("source down"), SourceForecast()])
+def test_a_failed_fetch_is_not_filled_from_the_same_piers_earlier_fetch(
+    failure: SourceForecast | Exception,
+) -> None:
+    stack = build_provider(
+        base=_ScriptedProvider(_recent_base(), failure),
+        secondary=_ScriptedProvider(SourceForecast(), SourceForecast()),
+    )
+    pier = make_pier()
+    assert stack.get(pier).base is not None  # the first fetch succeeds
+
+    assert stack.get(pier).base is None  # no values or issue time carried over
 
 
 # --------------------------------------------------------------------------- #
