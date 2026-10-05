@@ -277,6 +277,19 @@ def test_a_failed_fetch_is_not_filled_from_the_same_piers_earlier_fetch(
     assert stack.get(pier).base is None  # no values or issue time carried over
 
 
+@pytest.mark.parametrize("failure", [RuntimeError("source down"), SourceForecast()])
+def test_a_failed_fetch_is_not_filled_from_another_piers_fetch(
+    failure: SourceForecast | Exception,
+) -> None:
+    stack = build_provider(
+        base=_ScriptedProvider(_recent_base(), failure),
+        secondary=_ScriptedProvider(SourceForecast(), SourceForecast()),
+    )
+    assert stack.get(make_pier("pier-a")).base is not None
+
+    assert stack.get(make_pier("pier-b")).base is None
+
+
 # --------------------------------------------------------------------------- #
 # 3.4 caching: reuse within staleness, drop when over-stale
 # --------------------------------------------------------------------------- #
