@@ -12,9 +12,13 @@ separate entities, and it is kept only in memory. This is a system boundary, and
 reversing it later would be costly. So it gets a new ADR.
 
 The other design decisions stay in `design.md`. These are the types, the module
-placement, the topic names, the startup order, the error allowlist, and the README
-automation. Each can
-be read from the code and changed cheaply.
+placement, the startup order, the error allowlist, and the README automation. Each
+can be read from the code and changed cheaply.
+
+The new topics, entity identities, and attribute names are different. They join the
+stable delivery surface, so a later change must not rename them. The `ha-delivery`
+spec and `design.md` record them. They need no ADR, because they follow the pattern
+ADR-0001 and ADR-0011 already set.
 
 ## In-Force ADRs Reviewed
 

@@ -28,7 +28,8 @@ process SHALL exit without publishing its online availability.
 The sensor's JSON attributes SHALL carry:
 
 - the provider's role (`base` or `secondary`)
-- the time health tracking started, which is when the process started
+- the time health tracking started: the moment the service loop starts, just before
+  the startup reset. It stays the same until the process restarts.
 - the status of the latest fetch (`ok` or `failed`), or null before the first fetch
 - the time of the latest fetch, or null before the first fetch
 - the error from the latest failed fetch, or null when the latest fetch succeeded or

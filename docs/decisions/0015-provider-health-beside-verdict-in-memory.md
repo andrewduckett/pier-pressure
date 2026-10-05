@@ -47,11 +47,10 @@ not save it to disk.
 
 - **Pros**: one document holds everything about a pier's night.
 - **Cons**: the verdict document is a frozen contract about the sky. Health describes
-  the system, not the sky. It would become a new input to the core, and the document
-  would change on every failed fetch even when the verdict does not. Consumers that
-  watch the document for changes would then see churn.
-- **Why not**: it mixes operational state into the decision contract, and the core
-  would take an input it has no use for.
+  the system, not the sky. The document would change on every failed fetch, even
+  when the verdict does not. Consumers that watch the document for changes would
+  then see churn.
+- **Why not**: it mixes operational state into the decision contract.
 
 ### Alternative 2: Let health lower the verdict's confidence directly
 

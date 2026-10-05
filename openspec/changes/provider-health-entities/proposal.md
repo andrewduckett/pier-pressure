@@ -14,7 +14,8 @@ on it, the same way verdict notifications already work.
 - The sensor's state is the time of the provider's last successful fetch for that
   pier. Its attributes give:
   - the provider's role (`base` or `secondary`)
-  - when health tracking started, which is when the process started
+  - when health tracking started: the moment the service loop starts, just before
+    the startup reset
   - the status of the latest fetch (`ok` or `failed`)
   - when that fetch ran, and its error if it failed
   - the issue time of the data from the last successful fetch
@@ -33,8 +34,8 @@ on it, the same way verdict notifications already work.
   the pier's coordinates. The full text still goes to the log.
 - The README gains an example automation. It notifies when a provider has not
   succeeded for a chosen number of hours. It measures from the tracking start time
-  when the last success is unknown, so a restart of PierPressure or of Home Assistant
-  does not reset the count. The README's "Removing the entities" steps gain the two new
+  when the last success is unknown. A Home Assistant restart keeps that count. A
+  PierPressure restart starts a new count, because health is kept in memory only. The README's "Removing the entities" steps gain the two new
   discovery topics.
 
 This change is additive. Every existing entity, topic, and mapping stays the same.

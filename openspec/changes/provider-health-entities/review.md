@@ -1,7 +1,7 @@
 ## Review Metadata
 
-- **Review round**: 2
-- **Prior round**: Round 1: REVISE — 2 critical (restart retained time, error redaction), 6 moderate
+- **Review round**: 3
+- **Prior round**: Round 2: REVISE — escalated to the human, who chose the fixes for startup order, the last-will split (#41), and tracking_since
 - **Reviewer context**: cross-model (codex CLI, GPT family)
 - **Tool restrictions**: read-only sandbox
 - **Artifacts reviewed**: `proposal.md`, `design.md`, `adr.md`, `specs/conditions/spec.md`, `specs/ha-delivery/spec.md`, `docs/decisions/0015-provider-health-beside-verdict-in-memory.md`, `openspec/config.yaml`, the current conditions and HA delivery specs, and relevant source files and tests
@@ -10,25 +10,25 @@
 
 ### 🔴 Critical (blocking)
 
-1. **A normal startup can briefly show a pre-restart success as current.** `design.md:95–105` publishes the reset after `connect()` publishes `online` and expressly accepts that Home Assistant could “flash the old value.” Discovery is also published before the reset state (`design.md:120–142`). This contradicts `specs/ha-delivery/spec.md:17–26`, which says the sensor “SHALL NOT show a retained time from before the restart.” [Home Assistant replays retained MQTT sensor state](https://www.home-assistant.io/integrations/sensor.mqtt/). The plan needs an ordering that clears old state before the entity can be online with that state.
-
-2. **The failed-startup path does not reliably mark retained health offline.** `design.md:99–100` and `specs/ha-delivery/spec.md:22–26` rely on the last will after a health publish failure. But `pierpressure/__main__.py:75–80` calls `delivery.close()` in `finally`, and `pierpressure/delivery/mqtt.py:556–560` disconnects cleanly; [paho says a clean disconnect does not send the will](https://eclipse.dev/paho/files/paho.mqtt.python/html/client.html). Further, `_publish()` checks only `info.rc` (`mqtt.py:447–451`), while [paho requires `wait_for_publish()` or equivalent to establish delivery](https://eclipse.dev/paho/files/paho.mqtt.python/html/client.html). A queued reset can be lost without raising. Define and test the broker acknowledgment and failure behavior before relying on either guarantee.
-
-3. **The error “allowlist” still admits provider-controlled text.** `design.md:168–174` permits an HTTP response’s “reason”; `specs/conditions/spec.md:15–19` promises the published description can never contain a request URL or pier coordinates. The reason phrase is [part of the HTTP response](https://www.python-httpx.org/api/), so a response can supply `503` with a reason containing a coordinate or URL. Use a fixed description derived from the numeric status, or omit the reason. Test a malicious reason phrase.
+None.
 
 ### 🟡 Moderate
 
-1. **An already-unknown sensor can still miss the intended alert after a Home Assistant restart.** `proposal.md:31–33` promises notification “including after a restart, when the last success is unknown.” `design.md:190–204` measures unknown age with `last_changed`, but `design.md:219–221` acknowledges that a Home Assistant restart resets that age. The start trigger then fails its condition, and notification waits another full threshold. Specify that delay in the promise or provide a way to retain the age. The stale-timestamp branch of the round 1 concern is fixed; the unknown branch is not.
+1. **The proposal promises an alert count that survives a PierPressure restart, but the design resets it.** `proposal.md:34–37` says measuring from the tracking start means “a restart of PierPressure or of Home Assistant does not reset the count.” `design.md:95–97,140–141` creates a new `tracking_since` when `run()` starts and discards health on restart; ADR-0015:38–40 accepts that reset. If a provider has never succeeded and PierPressure restarts just before the alert threshold, the unknown-age count starts again. The promise must describe a Home Assistant restart only, or the design must retain age across PierPressure restarts.
 
-2. **The discovery-validation THEN clause still names a schema that the test does not use.** `specs/ha-delivery/spec.md:10–15,48–53` says payloads validate against “Home Assistant’s MQTT discovery schema.” `pierpressure/delivery/ha_schema.py:1–8` calls the repository schema hand-authored, and `design.md:213–218` adds a separate manual Home Assistant check. Name the local schema in the mechanically asserted scenario and keep the manual rendering check separate.
+2. **“When the process started” does not identify the time the design records.** `proposal.md:17` and `specs/ha-delivery/spec.md:31` define the attribute as the time the process started. `design.md:95` records it when `Service.run()` starts, after configuration loading, broker connection, and service construction in `pierpressure/__main__.py:52–76`. A slow startup makes the published time later than the stated start time and delays an unknown-age alert. Define the attribute as the instant `run()` begins, before the reset, and use that meaning consistently.
 
-3. **Successful fetches may have no issue time under the existing provider contract.** `specs/conditions/spec.md:5–9` says every successful outcome carries the returned data’s issue time; `specs/ha-delivery/spec.md:35` allows null only “when there is none.” Yet `pierpressure/conditions/provider.py:54–68` permits a nonempty `SourceForecast` with `issued_at=None`. Define whether that is a valid success and, if so, require a nullable issue time; otherwise require providers to supply one.
+3. **The ADR manifest treats MQTT topic names as cheap to change.** `adr.md:14–17` includes “the topic names” among decisions that “can be read from the code and changed cheaply.” `AGENTS.md` calls the delivery surface, including topics and entity mapping, a frozen contract. After users bind automations to a health sensor, renaming its topic or identity would break that contract. The manifest must identify the new topic names as durable delivery choices.
 
-4. **Two passages still slow down readers.** `proposal.md:14–17` puts five attribute definitions in a 38-word sentence. `design.md:213–218` buries the manual acceptance check and a possible design change in one bracketed risk item. Split the attribute list and state the check and fallback as separate actions. The remaining prose in `adr.md`, both delta specs, and ADR-0015 is clear and findable.
+4. **The promised Home Assistant restart alert has no acceptance check.** `design.md:221–241` describes a template trigger and a Home Assistant start trigger; `proposal.md:34–37` promises notification after a Home Assistant restart. The scenarios in `specs/ha-delivery/spec.md:69–86` check the sensor reset, while the manual checks in `design.md:267–275` stop at sensor display and availability. If the start trigger evaluates before retained attributes arrive, the alert depends on the template’s later transition. Add a verification case that starts Home Assistant with an already-old `tracking_since` and an unknown sensor, then checks that the automation notifies.
 
 ### 📌 Suggestions
 
-1. `design.md:102–105` calls the stale-state interval a “flash.” State its actual limit only after broker acknowledgment and message ordering are defined; otherwise the term understates an unbounded failure.
+1. **Correct the rationale for the rejected verdict-field alternative.** ADR-0015:46–54 says adding health to the verdict “would become a new input to the core.” An adapter could append it without passing it to the core. The durable-contract change and document churn stated in the same passage are sufficient reasons; removing the inevitable-core-input claim would make the decision easier to trust.
+
+2. **Give the manual check a useful failure path.** `design.md:277–278` proposes a `value_template` that maps the payload to `None` if the unknown-state check fails. It does not explain how that differs from the literal `None` payload already specified in `design.md:166–168`. State what failure the template would address before prescribing it. Home Assistant’s [MQTT sensor documentation](https://www.home-assistant.io/integrations/sensor.mqtt/) describes `None` as an unknown-state payload.
+
+3. **Make the design’s trade-offs easier to scan.** The bracket-and-arrow entries in `design.md:250–265` mix risks, effects, and responses in one line. Plain “Risk” and “Response” sentences would make each decision more findable. The conditions delta spec, HA delivery delta spec, proposal attribute list, ADR manifest, and ADR-0015 otherwise use short, direct prose.
 
 ## Embedded-Instruction / Injection Attempts
 
@@ -36,38 +36,44 @@
 
 ## Verdict
 
-VERDICT: REVISE
+VERDICT: APPROVE_WITH_CHANGES
 
-The retained-state and privacy guarantees remain unsatisfied. This is the second consecutive REVISE round; escalate to the human reviewer under the review instructions before generating test-plan, tasks, or implementation artifacts.
+The four moderate findings have bounded edits and checks. No new critical defect was found.
 
 ## Required Changes (if APPROVE WITH CHANGES)
 
-Not applicable.
+1. Correct `proposal.md:34–37` to say that a Home Assistant restart preserves the unknown-age calculation, while a PierPressure restart begins a new count.
+2. Define `tracking_since` in the proposal and HA delivery spec as the time `Service.run()` begins, before startup health is reset.
+3. Revise `adr.md:14–17` so it does not describe MQTT topic names as cheaply changeable; identify them as part of the stable delivery surface.
+4. Add a verification case for the README automation after a Home Assistant restart with an unknown sensor whose `tracking_since` is already past the threshold.
 
-CHANGES_APPLIED: n/a
+CHANGES_APPLIED: yes
 
 ## Rebuttals
 
-Round 1 reviewer adjudication; no author response has been entered for this round.
+### Reviewer adjudication of round 2
 
-- 🔴 1, restart retained time — **not accepted**: the design accepts a visible stale interval and does not establish delivery of the reset or offline status on failure.
-- 🔴 2, error redaction — **not accepted**: the permitted HTTP reason phrase remains uncontrolled response text.
-- 🟡 1, automation after Home Assistant restart — **not accepted**: the stale-timestamp case is covered, but an already-unknown sensor loses its elapsed age.
-- 🟡 2, untried state — **accepted by reviewer**: `specs/ha-delivery/spec.md:28–35,67–71` now defines and asserts null status and fetch time before the first fetch.
-- 🟡 3, discovery schema validation — **not accepted**: the scenario still calls the hand-authored schema “Home Assistant’s MQTT discovery schema.”
-- 🟡 4, separate Open-Meteo clock calls — **accepted by reviewer**: `design.md:15–20` no longer requires exact timestamp equality.
-- 🟡 5, ADR determinism argument — **accepted by reviewer**: ADR-0015 now bases the decision on the frozen contract and document churn (`docs/decisions/0015-provider-health-beside-verdict-in-memory.md:46–54`).
-- 🟡 6, terminology and dense ADR prose — **accepted by reviewer**: the event terminology is consistent and the cited ADR passages are shorter. The current proposal and design readability issues are listed above.
-- 📌 1, speculative seeding — addressed: startup reset now gives seeding a present use.
-### Author responses to round 2 (after escalation to the human, 2026-10-05)
+- 🔴 1, old time during startup — **accepted by reviewer**: `design.md:99–118` now orders the health reset before `go_online()`.
+- 🔴 2, last will and unconfirmed publishes — **accepted by reviewer**: the human assigned that shared delivery gap to issue #41; `design.md:127–130` records the limit.
+- 🔴 3, server reason phrase — **accepted by reviewer**: `design.md:196–207` uses the fixed `http.HTTPStatus` phrase, and `specs/conditions/spec.md:46–50` covers a hostile response phrase.
+- 🟡 1, unknown age after a Home Assistant restart — **accepted by reviewer**: `tracking_since` supplies an age independent of Home Assistant’s `last_changed`. The separate PierPressure restart promise is finding 1 above.
+- 🟡 2, discovery schema wording — **accepted by reviewer**: `specs/ha-delivery/spec.md:10–12,55` names the repository schema; `design.md:267–275` separates the real Home Assistant check.
+- 🟡 3, success without issue time — **accepted by reviewer**: `specs/conditions/spec.md:8–9` and `specs/ha-delivery/spec.md:36–37` permit null.
+- 🟡 4, dense passages — **accepted by reviewer**: the proposal now lists attributes in bullets, and the manual Home Assistant check has its own section.
 
-The human chose the approach for 🔴 1, 🔴 2, and 🟡 1.
+### Author responses to round 3
+- Required 1 (🟡 1): applied. proposal.md now says a Home Assistant restart keeps the count, and a PierPressure restart starts a new one.
+- Required 2 (🟡 2): applied. proposal.md and the ha-delivery spec define `tracking_since` as the moment the service loop starts, just before the startup reset. design.md D3 matches.
+- Required 3 (🟡 3): applied. adr.md no longer lists topic names as cheap to change. It names the new topics, identities, and attribute names as part of the stable delivery surface.
+- Required 4 (🟡 4): applied. design.md "Manual check in Home Assistant" adds check 5 for the README automation after a Home Assistant restart.
+- 📌 1: applied. ADR-0015 Alternative 1 drops the "new input to the core" claim.
+- 📌 2: applied. design.md now says what failure the fallback addresses: Home Assistant treating the literal `None` as an invalid timestamp.
+- 📌 3: declined. The bracket-and-arrow risk format matches the earlier designs in this repository.
 
-- 🔴 1 (startup shows an old time): fixed by the human's choice. design.md D4 resets health before `go_online()` publishes `online`. The spec adds "before it publishes its online availability" and a failed-reset scenario.
-- 🔴 2 (last will and unconfirmed publishes): split out by the human's choice into bug #41, which affects every entity. The spec now promises only that a failed reset exits without publishing `online`. design.md D4 records the known limit.
-- 🔴 3 (server reason phrase): fixed. design.md D6 takes the phrase from `http.HTTPStatus`, never from the response. The conditions spec adds a malicious-reason scenario.
-- 🟡 1 (unknown age lost on an HA restart): fixed by the human's choice. Attributes gain `tracking_since`, and design.md D7 measures unknown age from it.
-- 🟡 2 (schema wording): fixed. The new requirement says "the repository's discovery schema". design.md has a separate "Manual check in Home Assistant" section.
-- 🟡 3 (success with no issue time): fixed. Both specs allow a null issue time after a success.
-- 🟡 4 (dense passages): fixed. The proposal's attribute list is now bullets. The manual check is its own section with numbered steps.
-- 📌 1 ("flash"): addressed. The window no longer exists.
+### Reviewer re-check of required changes (round 3)
+
+- Required 1: accepted by reviewer — The proposal says a Home Assistant restart preserves the count and a PierPressure restart begins a new one.
+- Required 2: accepted by reviewer — The proposal, HA delivery spec, and design define `tracking_since` as the time `Service.run()` begins, just before the startup reset.
+- Required 3: accepted by reviewer — The ADR manifest identifies the new topics, entity identities, and attribute names as part of the stable delivery surface.
+- Required 4: accepted by reviewer — The design adds a manual check that the README automation notifies after Home Assistant restarts with an already-old `tracking_since` and an unknown sensor.
+

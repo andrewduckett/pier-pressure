@@ -92,7 +92,8 @@ The service seeds the dictionary at startup with every configured provider, each
 with no history. So discovery covers every configured provider, even one not tried
 on a given publish.
 
-The service also records `tracking_since`, the clock time when `run()` starts. Every
+The service also records `tracking_since`, the clock time when `run()` starts,
+just before the startup reset. It stays fixed until the process restarts. Every
 health record carries it. The README automation measures how long a sensor has been
 unknown from this time (see D7).
 
@@ -267,15 +268,22 @@ the entities" loop gains both health discovery topics.
 ## Manual check in Home Assistant
 
 During verification, run the change against a real Home Assistant instance and
-confirm these four things:
+confirm these five things:
 
 1. Each health sensor appears under the pier's device as a diagnostic entity.
 2. Its state shows as a timestamp after a success.
 3. Its state shows as unknown after a restart where the first fetch fails.
 4. It stays available while its provider fails.
+5. The README automation notifies after a Home Assistant restart. Set up a sensor
+   that is unknown and whose `tracking_since` is already past the threshold. Then
+   restart Home Assistant and confirm the notification arrives. If the start trigger
+   runs before the retained attributes arrive, the template trigger must still fire
+   once they do.
 
 Current Home Assistant MQTT sensor code reads a `None` payload as unknown. If check
-3 fails, change the discovery to a `value_template` that maps the payload to `None`.
+3 fails, Home Assistant is treating the literal text `None` as an invalid timestamp.
+In that case, publish an empty state and add a `value_template` that turns an empty
+payload into `None`.
 
 ## Migration Plan
 
