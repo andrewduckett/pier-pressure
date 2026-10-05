@@ -19,12 +19,19 @@ pier. When the provider has not succeeded for that pier since the process starte
 the sensor SHALL resolve to unknown. It SHALL NOT show a retained time from before the
 restart.
 
+On startup, the system SHALL publish every configured provider's health with no
+history, for every pier. It SHALL do this before it fetches any conditions or asks
+for any narrative. This replaces any retained health from before the restart. If
+that publish fails, the process SHALL exit, so its last-will message marks it
+offline.
+
 The sensor's JSON attributes SHALL carry:
 
 - the provider's role (`base` or `secondary`)
-- the status of the latest fetch (`ok` or `failed`)
-- the time of the latest fetch
-- the error from the latest failed fetch, or null when the latest fetch succeeded
+- the status of the latest fetch (`ok` or `failed`), or null before the first fetch
+- the time of the latest fetch, or null before the first fetch
+- the error from the latest failed fetch, or null when the latest fetch succeeded or
+  there has been no fetch
 - the issue time of the data from the last successful fetch, or null when there is none
 
 A failed fetch SHALL leave the last-success time and its issue time unchanged.
@@ -56,6 +63,12 @@ every existing entity, topic, and mapping is unchanged.
 - **WHEN** a provider's fetch for a pier succeeded earlier, and its next fetch fails
 - **THEN** that provider's health sensor state is still the time of the earlier success
 - **AND** its attributes give status `failed`, the time of the failed fetch, its error, and the issue time from the earlier success
+
+#### Scenario: Startup clears retained health before any fetch
+
+- **WHEN** the process starts, and the broker holds a retained health state from before the restart
+- **THEN** the system publishes each configured provider's health with no history before it fetches any conditions
+- **AND** each health sensor's state is published as unknown, with null status, fetch time, error, and issue time
 
 #### Scenario: No success since a restart resolves to unknown
 

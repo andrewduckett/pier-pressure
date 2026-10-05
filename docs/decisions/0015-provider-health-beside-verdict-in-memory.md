@@ -3,7 +3,7 @@ id: adrs-adr0015
 date: 2026-10-05
 status: accepted
 title: 'ADR0015: Provider health travels beside the verdict as diagnostic entities, held only in memory'
-description: Architecture Decision Record for reporting each weather provider's fetch health as separate diagnostic Home Assistant entities, outside the deterministic verdict document and never read by the verdict, with the health kept in process memory rather than persisted.
+description: Architecture Decision Record for weather provider health. Each provider's health is a separate diagnostic Home Assistant entity. It stays outside the verdict document, the verdict never reads it, and it lives only in process memory.
 ---
 
 # ADR-0015: Provider health travels beside the verdict as diagnostic entities, held only in memory
@@ -46,10 +46,12 @@ not save it to disk.
 ### Alternative 1: A health field in the verdict document
 
 - **Pros**: one document holds everything about a pier's night.
-- **Cons**: health changes with every fetch, even when the conditions do not. The
-  document would then differ for identical conditions, which breaks its byte-identity
-  promise. Health also describes the system, not the sky.
-- **Why not**: it mixes operational state into a deterministic decision document.
+- **Cons**: the verdict document is a frozen contract about the sky. Health describes
+  the system, not the sky. It would become a new input to the core, and the document
+  would change on every failed fetch even when the verdict does not. Consumers that
+  watch the document for changes would then see churn.
+- **Why not**: it mixes operational state into the decision contract, and the core
+  would take an input it has no use for.
 
 ### Alternative 2: Let health lower the verdict's confidence directly
 

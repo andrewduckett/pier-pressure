@@ -18,14 +18,16 @@ on it, the same way verdict notifications already work.
 - A fetch that returns no readings counts as `failed`, with its own error text. This
   matches the conditions rule that an empty fetch leaves the source unavailable. A
   fetch that returns readings with some blank fields counts as `ok`.
-- Health is kept in memory only. After a restart, the last success is unknown until
-  the provider next succeeds.
+- Health is kept in memory only. On startup, the system clears each sensor before it
+  fetches anything. The last success then stays unknown until the provider next
+  succeeds.
 - Health travels beside the verdict document, not inside it. The verdict, score, and
   confidence never read it. The verdict document does not change.
 - The health sensors are available whenever the process is online. A failing provider
   keeps showing its last success time, because the age of that time is the signal.
-- Error text is shortened to the error type and a short message. It never carries the
-  request URL, which holds the pier's coordinates.
+- The error shows only the error type, plus the status code and reason for an HTTP
+  error. It never copies the error's own text, which can hold the request URL and
+  the pier's coordinates. The full text still goes to the log.
 - The README gains an example automation. It notifies when a provider has not
   succeeded for a chosen number of hours, including after a restart, when the last
   success is unknown. The README's "Removing the entities" steps gain the two new

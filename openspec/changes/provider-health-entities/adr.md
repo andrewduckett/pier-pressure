@@ -5,12 +5,15 @@
 
 ## Review Summary
 
-ADR review completed for this change. The design makes one durable decision: provider
-health travels beside the verdict as separate entities and is kept only in memory.
-That is a system boundary that a later change could reverse at real cost, so it gets
-a new ADR. The other design decisions (types, module placement, topic names, error
-shortening, and the README automation) can be read from the code and changed cheaply,
-so they stay in `design.md`.
+ADR review completed for this change.
+
+The design makes one durable decision. Provider health travels beside the verdict as
+separate entities, and it is kept only in memory. This is a system boundary, and
+reversing it later would be costly. So it gets a new ADR.
+
+The other design decisions stay in `design.md`. These are the types, the module
+placement, the topic names, the error allowlist, and the README automation. Each can
+be read from the code and changed cheaply.
 
 ## In-Force ADRs Reviewed
 

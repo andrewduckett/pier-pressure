@@ -12,8 +12,11 @@ A fetch that returns no readings SHALL be reported as failed, with an error that
 says no readings were returned. A fetch that returns readings SHALL be reported as
 successful, even when some fields in those readings are blank.
 
-The error description SHALL give the kind of error and a short message. It SHALL NOT
-contain the request URL or the pier's coordinates.
+The error description SHALL be built only from a fixed set of safe parts. These are
+the kind of error, the status code and reason of an HTTP error response, and fixed
+messages such as the one for an empty fetch. It SHALL NOT include any other text
+from the error. So it never contains the request URL or the
+pier's coordinates.
 
 The outcomes SHALL NOT reach the verdict. The verdict, score, confidence, and
 reasons SHALL depend only on the snapshot, never on the outcomes.
@@ -28,7 +31,13 @@ reasons SHALL depend only on the snapshot, never on the outcomes.
 
 - **WHEN** a provider's fetch for a pier raises an error
 - **THEN** its outcome for that fetch is reported as failed
-- **AND** the outcome carries the kind of error and a short message
+- **AND** the outcome carries the kind of error
+
+#### Scenario: An HTTP error response is reported with its status
+
+- **WHEN** a provider answers a fetch for a pier with an HTTP error status, such as 503
+- **THEN** its outcome for that fetch is reported as failed
+- **AND** the error gives the kind of error, the status code, and the reason
 
 #### Scenario: An empty fetch is reported as failed
 
@@ -45,6 +54,11 @@ reasons SHALL depend only on the snapshot, never on the outcomes.
 
 - **WHEN** a provider's fetch fails with an error whose own message includes the request URL
 - **THEN** the reported error contains neither the URL nor the pier's latitude and longitude
+
+#### Scenario: The error never contains coordinates outside a URL
+
+- **WHEN** a provider's fetch fails with an error whose own message includes the pier's latitude, with no URL
+- **THEN** the reported error does not contain the latitude
 
 #### Scenario: Outcomes do not change the verdict
 
