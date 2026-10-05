@@ -1,40 +1,34 @@
 ## Review Metadata
 
-- **Review round**: 1
-- **Prior round**: none
+- **Review round**: 2
+- **Prior round**: Round 1: REVISE — 2 critical (restart retained time, error redaction), 6 moderate
 - **Reviewer context**: cross-model (codex CLI, GPT family)
 - **Tool restrictions**: read-only sandbox
-- **Artifacts reviewed**: `proposal.md`, `design.md`, `adr.md`, `specs/conditions/spec.md`, `specs/ha-delivery/spec.md`, `docs/decisions/0015-provider-health-beside-verdict-in-memory.md`, and relevant source files
-
-<!-- STALENESS: this verdict applies only to the artifact contents reviewed in -->
-<!-- this round. Any later edit to proposal.md, design.md, or specs/ (other than -->
-<!-- applying listed Required Changes) VOIDS the verdict and requires a new round. -->
+- **Artifacts reviewed**: `proposal.md`, `design.md`, `adr.md`, `specs/conditions/spec.md`, `specs/ha-delivery/spec.md`, `docs/decisions/0015-provider-health-beside-verdict-in-memory.md`, `openspec/config.yaml`, the current conditions and HA delivery specs, and relevant source files and tests
 
 ## Findings
 
 ### 🔴 Critical (blocking)
 
-1. **A restart can expose an old retained success time as current.** `design.md:104–111` says health starts with no history but is published *after* the verdict. `specs/ha-delivery/spec.md:17–20,60–64` requires that a pre-restart success time never be shown as current. The existing startup path publishes retained `online` availability before `Service.run()` fetches or publishes (`pierpressure/delivery/mqtt.py:427–445`; `pierpressure/__main__.py:58–76`). If that fetch stalls, the explainer delays publication, or verdict publication fails, Home Assistant can display the old retained health timestamp while the entity is available. Retained state is replayed when discovery subscribes to its topic. [Home Assistant MQTT documentation](https://www.home-assistant.io/integrations/mqtt). This concern would not matter only if the design guaranteed that old health state is cleared before the entity can appear online, including when startup publication fails.
+1. **A normal startup can briefly show a pre-restart success as current.** `design.md:95–105` publishes the reset after `connect()` publishes `online` and expressly accepts that Home Assistant could “flash the old value.” Discovery is also published before the reset state (`design.md:120–142`). This contradicts `specs/ha-delivery/spec.md:17–26`, which says the sensor “SHALL NOT show a retained time from before the restart.” [Home Assistant replays retained MQTT sensor state](https://www.home-assistant.io/integrations/sensor.mqtt/). The plan needs an ordering that clears old state before the entity can be online with that state.
 
-2. **The proposed error redaction cannot meet its privacy requirement.** `design.md:155–164` says generic errors use the exception’s text with URLs removed. `proposal.md:27–28` and `specs/conditions/spec.md:15–16,44–47` promise that neither coordinates nor the request URL can appear. A provider exception such as `RuntimeError("bad latitude 51.5")` has no URL to remove and would publish the coordinate in retained attributes and Home Assistant history. The design needs an allowlisted description or another rule that covers coordinates outside URLs, plus tests for that case. URL removal alone cannot establish the stated guarantee.
+2. **The failed-startup path does not reliably mark retained health offline.** `design.md:99–100` and `specs/ha-delivery/spec.md:22–26` rely on the last will after a health publish failure. But `pierpressure/__main__.py:75–80` calls `delivery.close()` in `finally`, and `pierpressure/delivery/mqtt.py:556–560` disconnects cleanly; [paho says a clean disconnect does not send the will](https://eclipse.dev/paho/files/paho.mqtt.python/html/client.html). Further, `_publish()` checks only `info.rc` (`mqtt.py:447–451`), while [paho requires `wait_for_publish()` or equivalent to establish delivery](https://eclipse.dev/paho/files/paho.mqtt.python/html/client.html). A queued reset can be lost without raising. Define and test the broker acknowledgment and failure behavior before relying on either guarantee.
+
+3. **The error “allowlist” still admits provider-controlled text.** `design.md:168–174` permits an HTTP response’s “reason”; `specs/conditions/spec.md:15–19` promises the published description can never contain a request URL or pier coordinates. The reason phrase is [part of the HTTP response](https://www.python-httpx.org/api/), so a response can supply `503` with a reason containing a coordinate or URL. Use a fixed description derived from the numeric status, or omit the reason. Test a malicious reason phrase.
 
 ### 🟡 Moderate
 
-1. **The promised automation can miss a provider that is already stale or unknown when Home Assistant restarts.** `proposal.md:29–31` promises notification “including after a restart”; `design.md:166–175` specifies an age-based template trigger and an `unknown` state trigger with `for`. Home Assistant resets pending `for` timers on restart or automation reload, and a template trigger fires on a false-to-true transition. An already stale value can therefore remain stale without causing either trigger to fire. [Home Assistant trigger documentation](https://www.home-assistant.io/docs/automation/trigger/). Add a scenario for this sequence and specify a trigger and condition that checks the current state after restart.
+1. **An already-unknown sensor can still miss the intended alert after a Home Assistant restart.** `proposal.md:31–33` promises notification “including after a restart, when the last success is unknown.” `design.md:190–204` measures unknown age with `last_changed`, but `design.md:219–221` acknowledges that a Home Assistant restart resets that age. The start trigger then fails its condition, and notification waits another full threshold. Specify that delay in the promise or provide a way to retain the age. The stale-timestamp branch of the round 1 concern is fixed; the unknown branch is not.
 
-2. **The attribute contract excludes the seeded, untried state that the design requires.** `specs/ha-delivery/spec.md:5–8,22–28` requires discovery for configured providers that were not tried, but describes latest status only as `ok` or `failed` and latest fetch time as a time. `design.md:91–94,146` instead seeds providers with no history and sets both fields to null. Specify nullable status and attempt time for an untried provider, with a scenario that asserts the published state and attributes.
+2. **The discovery-validation THEN clause still names a schema that the test does not use.** `specs/ha-delivery/spec.md:10–15,48–53` says payloads validate against “Home Assistant’s MQTT discovery schema.” `pierpressure/delivery/ha_schema.py:1–8` calls the repository schema hand-authored, and `design.md:213–218` adds a separate manual Home Assistant check. Name the local schema in the mechanically asserted scenario and keep the manual rendering check separate.
 
-3. **“Validates against Home Assistant’s MQTT discovery schema” is not a mechanically defined test.** `specs/ha-delivery/spec.md:10–15,41–46` requires this validation, while `pierpressure/delivery/ha_schema.py:3–8` says its schema is hand-authored and Home Assistant ships no single machine-readable discovery schema. Passing the local schema cannot prove the stated THEN clause. Define the exact local checks and separately require a Home Assistant integration check for the resulting timestamp and availability behavior. The proposed literal `None` payload itself is supported by current MQTT sensor code. [Home Assistant MQTT sensor source](https://raw.githubusercontent.com/home-assistant/core/dev/homeassistant/components/mqtt/sensor.py).
+3. **Successful fetches may have no issue time under the existing provider contract.** `specs/conditions/spec.md:5–9` says every successful outcome carries the returned data’s issue time; `specs/ha-delivery/spec.md:35` allows null only “when there is none.” Yet `pierpressure/conditions/provider.py:54–68` permits a nonempty `SourceForecast` with `issued_at=None`. Define whether that is a valid success and, if so, require a nullable issue time; otherwise require providers to supply one.
 
-4. **The design equates two timestamps taken by separate clock calls.** `design.md:17–18,173–175` says Open-Meteo’s issue time “always equals” last success, but `pierpressure/conditions/open_meteo.py:95–97` stamps `issued_at` during `fetch()`, while `design.md:100–102` adds a separate attempt timestamp in `CompositeProvider`. A production clock can advance between those calls. State whether these timestamps may differ or require one sampled instant for both.
-
-5. **ADR-0015 gives an incorrect determinism argument.** `docs/decisions/0015-provider-health-beside-verdict-in-memory.md:48–52` says a health field would break byte identity because a document could differ for “identical conditions.” The repository’s guarantee is identity for the *same inputs*, including the evaluation instant (`AGENTS.md`, “Pure, deterministic core”). Health could be another explicit input without violating determinism. The ADR can justify separation using the frozen verdict contract and operational boundary, but should not claim that determinism alone rules out the alternative.
-
-6. **Terminology and dense prose make the artifacts harder to use together.** The same reported event is a “fetch outcome” in `proposal.md:54–56` and `specs/conditions/spec.md:3–9`, but a `FetchAttempt` or “attempt” in `design.md:45–54`. `adr.md:8–13` compresses the decision and the disposition of several design choices into a long paragraph; the ADR’s front-matter description at `docs/decisions/0015-provider-health-beside-verdict-in-memory.md:6` is also a single dense sentence. Use one term for the event across the artifacts and split those passages so readers can find the decision and its reason quickly. The remaining proposal and scenario prose is generally clear.
+4. **Two passages still slow down readers.** `proposal.md:14–17` puts five attribute definitions in a 38-word sentence. `design.md:213–218` buries the manual acceptance check and a possible design change in one bracketed risk item. Split the attribute list and state the check and fallback as separate actions. The remaining prose in `adr.md`, both delta specs, and ADR-0015 is clear and findable.
 
 ### 📌 Suggestions
 
-1. `design.md:91–98` seeds untried providers chiefly for a future failover chain, although `design.md:93–94` says both current providers are always tried. State whether this is a present requirement or future provision; the latter commits the service to extra metadata wiring without a current user case.
+1. `design.md:102–105` calls the stale-state interval a “flash.” State its actual limit only after broker acknowledgment and message ordering are defined; otherwise the term understates an unbounded failure.
 
 ## Embedded-Instruction / Injection Attempts
 
@@ -44,7 +38,7 @@
 
 VERDICT: REVISE
 
-The restart and privacy failures affect explicit requirements. Revise the artifacts and run a full new review before generating downstream work.
+The retained-state and privacy guarantees remain unsatisfied. This is the second consecutive REVISE round; escalate to the human reviewer under the review instructions before generating test-plan, tasks, or implementation artifacts.
 
 ## Required Changes (if APPROVE WITH CHANGES)
 
@@ -54,12 +48,14 @@ CHANGES_APPLIED: n/a
 
 ## Rebuttals
 
-- 🔴 1 (restart shows old retained time): fixed. design.md D3 now publishes every configured provider's empty health first in `run()`, before any fetch or explainer call. A failed publish raises, the process exits, and the last-will message marks it offline. ha-delivery spec adds the startup scenario.
-- 🔴 2 (redaction cannot meet the privacy rule): fixed. design.md D5 now builds the error from an allowlist (error type, plus status code and reason for HTTP status errors). It never uses free-form exception text. The conditions spec adds a scenario for a message that carries coordinates without a URL.
-- 🟡 1 (automation misses an already-stale sensor after an HA restart): fixed. design.md D6 now uses one template trigger that covers both stale and long-unknown, plus a Home Assistant start trigger with the same condition.
-- 🟡 2 (untried state excluded): fixed. ha-delivery spec makes status and attempt time null before the first fetch, with a scenario.
-- 🟡 3 (schema validation not mechanical): rebutted. The ha-delivery Purpose already defines this phrase for every existing requirement: payloads are checked against the repository's hand-authored discovery schemas, and Home Assistant's own rendering is a manual check. design.md Risks now names the manual check for timestamp, `None`, and availability.
-- 🟡 4 (Open-Meteo times from separate clock calls): fixed. design.md and the README note now say the two times come from the same fetch and differ by moments at most.
-- 🟡 5 (ADR determinism argument): fixed. ADR-0015 Alternative 1 now argues from the frozen contract and document churn, not determinism.
-- 🟡 6 (terminology, dense prose): fixed. "Fetch outcome" and `FetchOutcome` are now the one term. adr.md summary and the ADR description are split into shorter sentences.
-- 📌 1 (seeding is speculative): addressed. Seeding is now needed today, for the startup publish in 🔴 1.
+Round 1 reviewer adjudication; no author response has been entered for this round.
+
+- 🔴 1, restart retained time — **not accepted**: the design accepts a visible stale interval and does not establish delivery of the reset or offline status on failure.
+- 🔴 2, error redaction — **not accepted**: the permitted HTTP reason phrase remains uncontrolled response text.
+- 🟡 1, automation after Home Assistant restart — **not accepted**: the stale-timestamp case is covered, but an already-unknown sensor loses its elapsed age.
+- 🟡 2, untried state — **accepted by reviewer**: `specs/ha-delivery/spec.md:28–35,67–71` now defines and asserts null status and fetch time before the first fetch.
+- 🟡 3, discovery schema validation — **not accepted**: the scenario still calls the hand-authored schema “Home Assistant’s MQTT discovery schema.”
+- 🟡 4, separate Open-Meteo clock calls — **accepted by reviewer**: `design.md:15–20` no longer requires exact timestamp equality.
+- 🟡 5, ADR determinism argument — **accepted by reviewer**: ADR-0015 now bases the decision on the frozen contract and document churn (`docs/decisions/0015-provider-health-beside-verdict-in-memory.md:46–54`).
+- 🟡 6, terminology and dense ADR prose — **accepted by reviewer**: the event terminology is consistent and the cited ADR passages are shorter. The current proposal and design readability issues are listed above.
+- 📌 1, speculative seeding — addressed: startup reset now gives seeding a present use.
