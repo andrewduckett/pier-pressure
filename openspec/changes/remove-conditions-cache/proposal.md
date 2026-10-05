@@ -58,7 +58,8 @@ None.
   `tests/test_golden_verdict.py` builds its stale case without the cache. Every
   golden verdict stays byte-identical, because the core does not change.
 - **Docs:** `AGENTS.md`, `openspec/config.yaml`, `openspec/prd.md`,
-  `openspec/discovery.md`, `README.md`, ADR 0005, and a wording fix in ADR 0006.
+  `openspec/discovery.md`, `README.md`, and ADR 0005. ADR 0006 also mentions
+  caching, but it is deprecated, so it stays as written.
 - **Users:** a short outage now shows in the verdict instead of being hidden. Users
   who notify on verdict changes may see a `MAYBE` and then a recovery.
 - **Dependencies:** none.
