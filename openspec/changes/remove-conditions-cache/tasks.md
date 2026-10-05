@@ -14,7 +14,7 @@ a different thing and stay unchanged.
 
 - [x] 2.1 Delete `test_cache_reuses_recent_data_after_a_failed_fetch`, `test_cache_drops_over_stale_data`, and `test_cache_is_per_source_so_base_survives_secondary_outage` from `tests/test_conditions_provider.py`. Keep `test_forecast_horizon_beyond_the_data_is_unavailable`. Verify that `test_secondary_failure_leaves_base_data_intact` still covers one source failing while the other survives.
 - [x] 2.2 Delete `test_cache_max_staleness_is_twelve_hours` and its `MAX_STALENESS` import from `tests/test_tuning_constants.py`. Verify that the file's other tests pass.
-- [ ] 2.3 In `tests/test_golden_verdict.py`, rename the `over_stale_cache` case to `stale_issued_base` and build it directly with `_base_full(issued_at=_STALE_ISSUED)`. Delete `_over_stale_base` and `_StubProvider`. `git mv` both golden files to `stale_issued_base.json`, in `tests/fixtures/golden/expected/` and `tests/fixtures/golden/stub/`, without changing their contents. Verify that `tests/test_golden_verdict.py` and `tests/test_producer_targets.py` pass with no golden regenerated (design D3).
+- [x] 2.3 In `tests/test_golden_verdict.py`, rename the `over_stale_cache` case to `stale_issued_base` and build it directly with `_base_full(issued_at=_STALE_ISSUED)`. Delete `_over_stale_base` and `_StubProvider`. `git mv` both golden files to `stale_issued_base.json`, in `tests/fixtures/golden/expected/` and `tests/fixtures/golden/stub/`, without changing their contents. Verify that `tests/test_golden_verdict.py` and `tests/test_producer_targets.py` pass with no golden regenerated (design D3).
 
 ## 3. Comments and docstrings
 
