@@ -17,6 +17,7 @@ import logging
 import math
 import os
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -256,6 +257,69 @@ def _expand_env(value: Any) -> Any:
     return value
 
 
+@dataclass(frozen=True)
+class BrokerSettings:
+    """A broker's connection settings from outside the config file (ha-addon-mqtt-service D2).
+
+    Plain data: the edge looks these up (the Home Assistant Supervisor's ``mqtt``
+    service) and hands them in, so the core never triggers network access.
+    """
+
+    host: str
+    port: int
+    username: str | None = None
+    password: str | None = None
+
+
+# The ``mqtt`` keys that make up the broker connection. They come from one source
+# as a group: the file when it names a host, otherwise the supplied broker.
+_CONNECTION_KEYS = ("host", "port", "username", "password")
+
+
+@dataclass(frozen=True)
+class ConfigFile:
+    """A config file read and ``${VAR}``-expanded, but not yet validated (D2).
+
+    ``base_dir`` is the folder that holds the file, which anchors relative horizon
+    file references.
+    """
+
+    raw: dict[str, Any]
+    base_dir: Path
+
+    @property
+    def names_broker_host(self) -> bool:
+        """Whether the file's ``mqtt`` block sets a broker ``host``."""
+        mqtt = self.raw.get("mqtt")
+        return isinstance(mqtt, dict) and mqtt.get("host") is not None
+
+
+def read_config(path: str | os.PathLike[str]) -> ConfigFile:
+    """Read the YAML config at ``path`` and expand ``${VAR}`` (design D2, step 1).
+
+    Reads only the file and the environment. Raises :class:`ConfigError` if the
+    root is not a mapping, or if the file sets ``mqtt.port``, ``mqtt.username`` or
+    ``mqtt.password`` without ``mqtt.host`` — the connection settings come from one
+    source, so a partial set would be silently ignored otherwise.
+    """
+    config_path = Path(path)
+    text = config_path.read_text(encoding="utf-8")
+    raw = yaml.safe_load(text)
+    if not isinstance(raw, dict):
+        raise ConfigError("Configuration root must be a mapping")
+    read = ConfigFile(raw=_expand_env(raw), base_dir=config_path.resolve().parent)
+
+    mqtt = read.raw.get("mqtt")
+    if isinstance(mqtt, dict) and not read.names_broker_host:
+        partial = [f"mqtt.{key}" for key in _CONNECTION_KEYS[1:] if key in mqtt]
+        if partial:
+            raise ConfigError(
+                f"{', '.join(partial)} is set without mqtt.host; set mqtt.host too, "
+                "or leave out all of the broker connection settings"
+            )
+    return read
+
+
 def load_config(path: str | os.PathLike[str]) -> AppConfig:
     """Load and validate the YAML config at ``path``.
 
@@ -263,15 +327,32 @@ def load_config(path: str | os.PathLike[str]) -> AppConfig:
     ``recompute`` are invalid, or if no valid pier remains after per-pier
     validation.
     """
-    config_path = Path(path)
-    text = config_path.read_text(encoding="utf-8")
-    raw = yaml.safe_load(text)
-    if not isinstance(raw, dict):
-        raise ConfigError("Configuration root must be a mapping")
-    raw = _expand_env(raw)
+    return build_config(read_config(path))
+
+
+def build_config(read: ConfigFile, broker: BrokerSettings | None = None) -> AppConfig:
+    """Validate a read config file into :class:`AppConfig` (design D2, step 2).
+
+    When the file names no ``mqtt.host`` and ``broker`` is given, the broker
+    supplies the host, port, username and password; ``discovery_prefix`` and
+    ``base_topic`` still come from the file or their defaults. When the file names
+    a host, ``broker`` is ignored. Raises :class:`ConfigError` as
+    :func:`load_config` describes.
+    """
+    raw = read.raw
+    raw_mqtt = raw.get("mqtt")
+    if broker is not None and not read.names_broker_host:
+        topics = raw_mqtt if isinstance(raw_mqtt, dict) else {}
+        raw_mqtt = {
+            **{k: v for k, v in topics.items() if k not in _CONNECTION_KEYS},
+            "host": broker.host,
+            "port": broker.port,
+            "username": broker.username,
+            "password": broker.password,
+        }
 
     try:
-        mqtt = MqttConfig.model_validate(raw.get("mqtt"))
+        mqtt = MqttConfig.model_validate(raw_mqtt)
         recompute = RecomputeConfig.model_validate(raw.get("recompute"))
     except ValidationError as exc:
         raise ConfigError(f"Invalid mqtt/recompute configuration: {exc}") from exc
@@ -283,7 +364,7 @@ def load_config(path: str | os.PathLike[str]) -> AppConfig:
     # The config file's own directory anchors relative horizon file references, so
     # a horizon file placed beside config.yaml is found regardless of the process
     # working directory (design D3).
-    base_dir = config_path.resolve().parent
+    base_dir = read.base_dir
     piers = validate_piers(raw_piers, base_dir)
     if not piers:
         raise ConfigError("No valid pier in configuration; nothing to publish")
