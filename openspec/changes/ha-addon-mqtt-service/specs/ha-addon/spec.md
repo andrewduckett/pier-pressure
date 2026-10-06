@@ -118,8 +118,8 @@ When the service needs the Supervisor's broker and the Supervisor does not provi
 it yet, the service SHALL keep asking. A Mosquitto add-on that is still starting
 withdraws its service details for a few seconds, so a short wait covers a reboot.
 The service SHALL start no new request later than 60 seconds after the first one.
-Each request SHALL have a timeout of no more than 5 seconds. If the broker's
-request started within those 60 seconds returns usable details, the service SHALL
+Each request SHALL have a timeout of no more than 5 seconds. If a request started
+within those 60 seconds returns usable broker details, the service SHALL
 use them and start normally.
 
 These cases count as "not provided yet":
