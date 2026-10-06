@@ -3,7 +3,7 @@
 
 # Pinned to match [tool.uv] required-version in pyproject.toml (design D5). A named
 # stage, not `COPY --from=<image>`, because Dependabot reads only FROM lines (#26).
-FROM ghcr.io/astral-sh/uv:0.12.17 AS uv
+FROM ghcr.io/astral-sh/uv:0.12.23 AS uv
 
 FROM python:3.12-slim AS builder
 
