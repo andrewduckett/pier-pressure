@@ -107,13 +107,16 @@ before this change.
 When the service needs the Supervisor's broker and the Supervisor does not provide
 it yet, the service SHALL keep asking. A Mosquitto add-on that is still starting
 withdraws its service details for a few seconds, so a short wait covers a reboot.
-The wait SHALL end no later than 60 seconds after the first request, including
-the time of any request still in progress. If the broker's details arrive within
-that time, the service SHALL use them and start normally.
+The service SHALL start no new request later than 60 seconds after the first one.
+Each request SHALL have a timeout of no more than 5 seconds. If the broker's
+details arrive in that time, the service SHALL use them and start normally.
 
-These count as "not provided yet": the Supervisor says the service is not enabled,
-the request cannot connect or times out, the Supervisor returns a server error, or
-the response has no usable host and port.
+These cases count as "not provided yet":
+
+- The Supervisor says the service is not enabled.
+- The request cannot connect, or it times out.
+- The Supervisor returns a server error.
+- The response has no usable host and port.
 
 If the details do not arrive in time, the add-on SHALL stop with an error. The
 error SHALL say that no MQTT broker was found. It SHALL tell the user to install
@@ -143,8 +146,9 @@ and to report the problem.
 #### Scenario: The wait ends on time
 
 - **WHEN** the Supervisor provides no `mqtt` service
-- **AND** each request to the Supervisor takes as long as it is allowed
-- **THEN** the add-on stops no later than 60 seconds after the first request
+- **AND** each request to the Supervisor times out
+- **THEN** the service starts no request later than 60 seconds after the first
+- **AND** the add-on stops no later than 65 seconds after the first request
 
 #### Scenario: The Supervisor refuses access
 
@@ -171,3 +175,19 @@ without TLS.
 - **AND** its log says the broker requires TLS, which PierPressure does not
   support, and tells the user to set a broker listener without TLS in
   `config.yaml`
+
+### Requirement: The add-on refuses a Supervisor broker that needs another MQTT version
+
+PierPressure speaks MQTT version 3.1.1. If the Supervisor's `mqtt` service names
+any other protocol version, the add-on SHALL stop with an error. The error SHALL
+name the version the broker asked for, and say that PierPressure supports only
+3.1.1. It SHALL tell the user to set `mqtt.host` and `mqtt.port` in `config.yaml`
+to a broker that accepts 3.1.1. A response that names no protocol SHALL count as
+3.1.1, which is the Supervisor's default.
+
+#### Scenario: The Supervisor's broker asks for MQTT 3.1
+
+- **WHEN** the user's `config.yaml` has no `mqtt.host`
+- **AND** the Supervisor's `mqtt` service names protocol `3.1`
+- **THEN** the add-on stops without connecting to the broker
+- **AND** its log names protocol `3.1`, and says PierPressure supports only 3.1.1

@@ -32,8 +32,9 @@ Story: #28 `ha-addon-mqtt-service`.
   Supervisor has no `mqtt` service after the wait, the service stops. Its error
   says to install the Mosquitto add-on or to set `mqtt.host`. If the Supervisor
   refuses the add-on access, the service stops at once with an error that says
-  so. If the Supervisor's broker requires TLS, the service stops with an error,
-  because PierPressure does not support TLS yet.
+  so. If the Supervisor's broker requires TLS, or an MQTT version other than
+  3.1.1, the service stops with an error, because PierPressure supports neither
+  yet.
 - **The log names the broker's source.** It logs where the broker settings came
   from, and the host and port. It never logs the password.
 - **Document it.** `ha-addon/DOCS.md` and the README's add-on section explain that
@@ -44,7 +45,7 @@ Out of scope:
 - Any change outside the add-on. Without `SUPERVISOR_TOKEN`, a Docker or source
   install behaves exactly as it does today, and still requires `mqtt.host`.
 - Finding brokers other than the one the Supervisor provides.
-- TLS connections to any broker.
+- TLS connections, and MQTT versions other than 3.1.1, for any broker.
 - Retrying the broker connection itself. That is #33.
 
 ## Capabilities
@@ -72,7 +73,7 @@ None.
   - `ha-addon/DOCS.md` and `README.md`: the add-on setup.
 - **New code:** a small Supervisor client outside `pierpressure/core/`, using
   `httpx`, which is already a dependency.
-- **Tests:** the precedence rule, the wait and its time limit, the TLS, "access
-  refused" and "no broker" errors, the add-on config's `services` entry, and that Docker
-  behaviour is unchanged.
+- **Tests:** the precedence rule, the wait and its time limit, the TLS, MQTT
+  version, "access refused" and "no broker" errors, relative horizon files, the
+  add-on config's `services` entry, and that Docker behaviour is unchanged.
 - **No change** to the verdict document, MQTT topics, entities, or entity mapping.

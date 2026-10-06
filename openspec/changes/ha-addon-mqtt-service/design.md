@@ -45,8 +45,10 @@ Facts that shape the approach:
 
 - Watching for later changes to the Supervisor's broker details. The service reads
   them once, at startup.
-- Using the `protocol` field. The Mosquitto add-on always reports `3.1.1`, which is
-  paho's default.
+- Supporting MQTT versions other than 3.1.1, or TLS. The Mosquitto add-on always
+  reports `3.1.1` without TLS. D5 refuses anything else with a clear error.
+- A hard wall-clock limit on a single request. The Supervisor is a trusted local
+  service, so each request's own timeout is enough (D4).
 - Sharing a back-off with #33. That story may reuse or replace this wait.
 
 ## Decisions
@@ -68,11 +70,15 @@ exactly as before.
 The core never calls code that reaches the network. ADR-0005 requires the core to
 receive data, not an interface that fetches it. So config loading splits in two:
 
-1. `read_config(path)` reads the YAML file, expands `${VAR}`, and returns the raw
-   config. It also reports whether the file's `mqtt` block names a `host`. Both
-   are pure: the only input is the file and the environment, as today.
-2. `build_config(raw, broker=None)` validates the raw config and returns
+1. `read_config(path)` reads the YAML file and expands `${VAR}`. It returns a
+   small value that holds the raw config and the folder that holds the file. It
+   also reports whether the file's `mqtt` block names a `host`. This step reads
+   only the file and the environment, as `load_config` does today.
+2. `build_config(read, broker=None)` validates the raw config and returns
    `AppConfig`. `broker` is plain data: host, port, username and password.
+   Relative horizon `file:` paths still resolve against the config file's
+   folder, which the value from step 1 carries. The existing test for this in
+   `tests/test_horizon_config.py` must keep passing unchanged.
 
 `__main__` runs step 1. If `SUPERVISOR_TOKEN` is set and the file names no host,
 it asks the Supervisor for the broker (D3). Then it runs step 2 with the result.
@@ -115,24 +121,29 @@ that returns the broker's connection settings or raises an error. It takes an
 `httpx.Client`, a sleep function and a monotonic clock as optional arguments, so
 tests inject an `httpx.MockTransport` and a fake clock.
 
-Each request has a timeout of 5 seconds, or the time left before the deadline in
-D4 if that is shorter. The client reads `data.host`, `data.port`,
-`data.username`, `data.password` and `data.ssl`. `username` and `password` may be
+Each request has an `httpx` timeout of 5 seconds. The client reads `data.host`,
+`data.port`, `data.username`, `data.password`, `data.ssl` and `data.protocol`. `username` and `password` may be
 missing; the client passes them on as `None`.
 
 - *Why:* a module of its own keeps Supervisor knowledge in one place, and keeps
   `__main__` short. `httpx` is already a dependency.
 
-### D4. The client retries until a 60-second deadline, except when access is refused
+### D4. The client retries for 60 seconds, except when access is refused
 
-The deadline is 60 seconds after the first request starts. It caps the total
-time, including requests and pauses. The client tries once, then pauses 2
-seconds between tries. It shortens each pause and each request timeout to the
-time left, and stops trying when no time is left.
+The client tries once, then pauses 2 seconds between tries. It starts no new
+request later than 60 seconds after the first one. It shortens the last pause so
+that it does not end past that point. Each request keeps its own 5-second timeout
+(D3), so the whole wait ends within about 65 seconds.
+
+An `httpx` timeout limits each step of a request, such as connecting or reading
+one chunk, not the request as a whole. So a server that kept sending small chunks
+could hold one request open for longer. The Supervisor is a trusted local
+service, so the design accepts that risk rather than add a separate wall-clock
+cut-off.
 
 The Supervisor answers "Service not enabled" with HTTP 400, a bad token with 401,
-and an undeclared service with 403. The client treats these as "not available
-yet", and retries:
+and an undeclared service with 403. The client treats the following cases as
+"not available yet", and retries:
 
 - HTTP 400, which is how the Supervisor says "Service not enabled"
 - HTTP 404, or any 5xx status
@@ -159,16 +170,24 @@ user who watches the log sees why startup is slow.
   Mosquitto add-on is installed. Rejected: Mosquitto returns the same answer while
   it restarts, so the two cases cannot be told apart.
 
-### D5. A broker that requires TLS is refused at once
+### D5. A broker that needs TLS or another MQTT version is refused at once
 
-If the details say `ssl: true`, the client raises an error at once. It does not
-retry. The message says the broker requires TLS, which PierPressure does not
-support. It tells the user to set `mqtt.host` and `mqtt.port` in `config.yaml` to a
-broker listener that accepts connections without TLS.
+The client checks two fields, and raises an error at once for either. It does not
+retry.
 
-- *Why:* the Mosquitto add-on never reports TLS, so this guards only against other
-  providers. Connecting without TLS would quietly drop the encryption the provider
-  asked for, and send its credentials in plain text.
+- **`ssl: true`.** The message says the broker requires TLS, which PierPressure
+  does not support. It tells the user to set `mqtt.host` and `mqtt.port` in
+  `config.yaml` to a broker listener that accepts connections without TLS.
+- **`protocol` other than `3.1.1`.** The Supervisor's schema also allows `3.1`.
+  The message names the version and says PierPressure supports only 3.1.1. It
+  tells the user to set `mqtt.host` and `mqtt.port` to a broker that accepts
+  3.1.1. A missing `protocol` counts as `3.1.1`, the Supervisor's default.
+
+- *Why:* the Mosquitto add-on never reports TLS or version 3.1, so these checks
+  guard only against other providers. Connecting without TLS would quietly drop
+  the encryption the provider asked for, and send its credentials in plain text.
+- *Alternative:* support MQTT 3.1 by passing the version to paho. Rejected: it
+  adds a protocol setting to the delivery code for a provider nobody here uses.
 
 ### D6. The log names the source, never the password
 
@@ -179,7 +198,7 @@ line and no error message includes the password or the token.
 
 ## Risks / Trade-offs
 
-- [Startup is up to 60 seconds slower when no broker add-on is installed and the
+- [Startup is up to about 65 seconds slower when no broker add-on is installed and the
   file names no host.] → The first miss logs a line that explains the wait. The
   final error says how to fix it.
 - [The Supervisor's API could change shape.] → The client reads five fields from
@@ -199,3 +218,9 @@ No migration. Existing config files keep working, because a file that sets
 `mqtt.host` behaves as before. The change reaches add-on users through the usual
 release and add-on version pull request. To roll back, the maintainer reverts the
 add-on version to the previous release.
+
+The archive step also updates the Purpose paragraph of
+`openspec/specs/ha-addon/spec.md`. It now says the add-on "is packaging only" and
+"adds no behaviour". After archive it must say that the add-on's only behaviour of
+its own is to use the Supervisor's broker when the file names none. A delta spec
+cannot change a Purpose, so `tasks.md` lists this as an explicit archive task.
