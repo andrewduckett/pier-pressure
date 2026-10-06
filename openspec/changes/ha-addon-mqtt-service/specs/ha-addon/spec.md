@@ -54,6 +54,10 @@ The service SHALL ask the Supervisor only when it runs inside an add-on. Outside
 add-on, `mqtt.host` SHALL stay required, and the service SHALL behave as it did
 before this change.
 
+The service SHALL send its requests, and the Supervisor's token, straight to the
+Supervisor. It SHALL NOT send them through a proxy, even when the container's
+environment names one.
+
 #### Scenario: Mosquitto user leaves out the broker settings
 
 - **WHEN** the Mosquitto add-on provides the `mqtt` service
@@ -97,6 +101,12 @@ before this change.
 - **THEN** it stops with the same configuration error as before this change
 - **AND** it does not try to reach the Supervisor
 
+#### Scenario: Proxy settings do not reach the token
+
+- **WHEN** the container's environment sets `HTTP_PROXY` or `ALL_PROXY`
+- **AND** the service asks the Supervisor for the broker
+- **THEN** the request goes straight to the Supervisor, not through the proxy
+
 #### Scenario: Add-on config declares the service
 
 - **WHEN** the test suite reads the add-on config file
@@ -109,7 +119,8 @@ it yet, the service SHALL keep asking. A Mosquitto add-on that is still starting
 withdraws its service details for a few seconds, so a short wait covers a reboot.
 The service SHALL start no new request later than 60 seconds after the first one.
 Each request SHALL have a timeout of no more than 5 seconds. If the broker's
-details arrive in that time, the service SHALL use them and start normally.
+request started within those 60 seconds returns usable details, the service SHALL
+use them and start normally.
 
 These cases count as "not provided yet":
 
@@ -118,7 +129,8 @@ These cases count as "not provided yet":
 - The Supervisor returns a server error.
 - The response has no usable host and port.
 
-If the details do not arrive in time, the add-on SHALL stop with an error. The
+If no request started within those 60 seconds returns usable details, the add-on
+SHALL stop with an error. The
 error SHALL say that no MQTT broker was found. It SHALL tell the user to install
 the Mosquitto broker add-on, or to set `mqtt.host` in `config.yaml`.
 
@@ -131,14 +143,16 @@ and to report the problem.
 
 - **WHEN** the service starts while the Supervisor does not yet provide the `mqtt`
   service
-- **AND** the service appears within 60 seconds
+- **AND** a request started within 60 seconds of the first returns usable broker
+  details
 - **THEN** the service uses the broker it gives and publishes a verdict for each
   pier
 
 #### Scenario: No broker add-on is installed
 
 - **WHEN** the user's `config.yaml` has no `mqtt.host`
-- **AND** the Supervisor provides no `mqtt` service for 60 seconds
+- **AND** no request started within 60 seconds of the first returns usable broker
+  details
 - **THEN** the add-on stops
 - **AND** its log says no MQTT broker was found, and tells the user to install the
   Mosquitto broker add-on or to set `mqtt.host`

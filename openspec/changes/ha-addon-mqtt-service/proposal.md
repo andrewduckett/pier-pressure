@@ -75,5 +75,6 @@ None.
   `httpx`, which is already a dependency.
 - **Tests:** the precedence rule, the wait and its time limit, the TLS, MQTT
   version, "access refused" and "no broker" errors, relative horizon files, the
-  add-on config's `services` entry, and that Docker behaviour is unchanged.
+  add-on config's `services` entry, that proxy settings never receive the
+  Supervisor token, and that Docker behaviour is unchanged.
 - **No change** to the verdict document, MQTT topics, entities, or entity mapping.

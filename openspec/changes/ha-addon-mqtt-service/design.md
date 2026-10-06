@@ -121,7 +121,11 @@ that returns the broker's connection settings or raises an error. It takes an
 `httpx.Client`, a sleep function and a monotonic clock as optional arguments, so
 tests inject an `httpx.MockTransport` and a fake clock.
 
-Each request has an `httpx` timeout of 5 seconds. The client reads `data.host`,
+Each request has an `httpx` timeout of 5 seconds. The production client is built
+with `trust_env=False`. By default, `httpx` sends requests through any proxy named
+in `HTTP_PROXY` or `ALL_PROXY`, and that proxy would see the Supervisor token. A
+test sets those variables and checks that the request still goes straight to the
+Supervisor. The client reads `data.host`,
 `data.port`, `data.username`, `data.password`, `data.ssl` and `data.protocol`. `username` and `password` may be
 missing; the client passes them on as `None`.
 
@@ -201,7 +205,7 @@ line and no error message includes the password or the token.
 - [Startup is up to about 65 seconds slower when no broker add-on is installed and the
   file names no host.] → The first miss logs a line that explains the wait. The
   final error says how to fix it.
-- [The Supervisor's API could change shape.] → The client reads five fields from
+- [The Supervisor's API could change shape.] → The client reads six fields from
   a path that has been stable across API versions. A response that is not JSON,
   or lacks a host and port, counts as "not available yet" (D4). After the
   deadline, the user gets the "no MQTT broker found" error.
@@ -223,4 +227,5 @@ The archive step also updates the Purpose paragraph of
 `openspec/specs/ha-addon/spec.md`. It now says the add-on "is packaging only" and
 "adds no behaviour". After archive it must say that the add-on's only behaviour of
 its own is to use the Supervisor's broker when the file names none. A delta spec
-cannot change a Purpose, so `tasks.md` lists this as an explicit archive task.
+cannot change a Purpose, so `tasks.md` must include this as an explicit archive
+task when it is written.
