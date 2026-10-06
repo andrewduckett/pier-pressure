@@ -659,5 +659,5 @@ class MqttDelivery:
         try:
             self._client.loop_stop()
             self._client.disconnect()
-        except (OSError, ValueError):  # pragma: no cover - best-effort shutdown
+        except OSError, ValueError:  # pragma: no cover - best-effort shutdown
             logger.warning("Error during MQTT shutdown", exc_info=True)

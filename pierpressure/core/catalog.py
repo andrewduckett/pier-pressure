@@ -169,7 +169,7 @@ def load_catalog() -> tuple[CatalogObject, ...]:
                 continue
             try:
                 obj = parse_row(row)
-            except (ValueError, KeyError):
+            except ValueError, KeyError:
                 continue
             if is_eligible(obj):
                 objects.append(obj)
