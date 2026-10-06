@@ -78,6 +78,10 @@ jobs:
           echo "Releasing $version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
+      - name: Read the Python version
+        id: python
+        run: echo "version=$(cat .python-version)" >> "$GITHUB_OUTPUT"
+
       # arm64 builds under QEMU emulation on the amd64 runner (design D4).
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -122,7 +126,9 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
-          build-args: PIERPRESSURE_VERSION=${{ steps.version.outputs.version }}
+          build-args: |
+            PIERPRESSURE_VERSION=${{ steps.version.outputs.version }}
+            PYTHON_VERSION=${{ steps.python.outputs.version }}
 
       # Last, and only once the push succeeds: a release never exists without its
       # image. `gh release create` also creates the tag on the released commit.

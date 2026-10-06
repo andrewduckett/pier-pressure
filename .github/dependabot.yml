@@ -32,7 +32,8 @@ updates:
         patterns: ["*"]
         update-types: [minor, patch]
 
-  # The FROM lines in the Dockerfile: the Python base image and the uv stage.
+  # The uv stage in the Dockerfile. The Python base image takes its version from
+  # .python-version through a build argument, which Dependabot does not read.
   - package-ecosystem: docker
     directory: /
     schedule:
@@ -44,11 +45,6 @@ updates:
       docker-minor-and-patch:
         patterns: ["*"]
         update-types: [minor, patch]
-    ignore:
-      # The Python version changes only through .python-version, never through a
-      # bot pull request. To Dependabot, 3.12-slim -> 3.13-slim is a minor update.
-      - dependency-name: python
-        update-types: ["version-update:semver-major", "version-update:semver-minor"]
 
   # The inputs locked in flake.lock, which give the dev shell its Python, uv and just.
   - package-ecosystem: nix

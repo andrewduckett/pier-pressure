@@ -16,7 +16,8 @@
       forAllSystems = f: lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
 
       # "3.12" or "3.12.4" in .python-version both select python312.
-      pythonVersion = lib.splitString "." (lib.trim (builtins.readFile ./.python-version));
+      pythonVersionString = lib.trim (builtins.readFile ./.python-version);
+      pythonVersion = lib.splitString "." pythonVersionString;
       pythonAttr = "python${lib.elemAt pythonVersion 0}${lib.elemAt pythonVersion 1}";
     in
     {
@@ -35,6 +36,8 @@
           env = {
             UV_PYTHON = "${pkgs.${pythonAttr}}/bin/python";
             UV_PYTHON_DOWNLOADS = "never";
+            # The image's Python version, which compose.yaml needs (#45).
+            PYTHON_VERSION = pythonVersionString;
             LD_LIBRARY_PATH = lib.makeLibraryPath [
               pkgs.stdenv.cc.cc.lib
               pkgs.zlib

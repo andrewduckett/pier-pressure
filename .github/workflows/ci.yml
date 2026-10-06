@@ -59,6 +59,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Read the Python version
+        id: python
+        run: echo "version=$(cat .python-version)" >> "$GITHUB_OUTPUT"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -68,5 +72,6 @@ jobs:
           context: .
           platforms: linux/amd64
           push: false
+          build-args: PYTHON_VERSION=${{ steps.python.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
