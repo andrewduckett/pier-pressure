@@ -465,6 +465,10 @@ CI runs on every update pull request: `just check`, the integration tests, an
 image build, and CodeQL. Merge an update when its checks pass. Nothing merges
 automatically.
 
+An update to `skyfield` or `skyfield-data` can change the verdict, and the bundled
+OpenNGC catalogue is never updated by Dependabot. For both, follow
+[docs/data-updates.md](docs/data-updates.md).
+
 ### Releasing
 
 Releases are for the maintainer. Each one publishes an image to

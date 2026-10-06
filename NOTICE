@@ -28,13 +28,16 @@ license and the record of the version pin.
 ### Share-alike compatibility
 
 The OpenNGC data is licensed CC-BY-SA-4.0, which requires attribution and that
-adaptations of the data be shared under the same or a compatible license. This
-repository does not yet declare its own license. The CC-BY-SA-4.0 obligation
-therefore applies only to the bundled data and to adaptations of it, not to the
-project's source code, which is a separate work that merely reads the data.
+adaptations of the data be shared under the same or a compatible license. The
+project's own source code is licensed MIT (see `LICENSE`). It is a separate work
+that only reads the data, so the CC-BY-SA-4.0 obligation applies only to the
+bundled data and to adaptations of it, not to the code.
 
-If a license is later chosen for this repository's own code, it must remain
-compatible with redistributing the bundled CC-BY-SA-4.0 data — the data files and
-their attribution and license stay under CC-BY-SA-4.0 regardless of the code's
-license. This share-alike compatibility is a merge-time check for any change that
-alters how the catalog is bundled.
+The data files and their attribution and license stay under CC-BY-SA-4.0
+regardless of the code's license. This share-alike compatibility is a merge-time
+check for any change that alters how the catalog is bundled.
+
+## Updating the bundled data
+
+How to update the catalog, and how to record a new version pin here, is described
+in `docs/data-updates.md`.
