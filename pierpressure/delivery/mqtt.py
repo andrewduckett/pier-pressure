@@ -7,20 +7,23 @@ fake client with no broker.
 
 Topic scheme (design D5), for base topic ``B`` and discovery prefix ``P``:
 
-===========================  ==================================================  ======
-Purpose                      Topic                                               Retain
-===========================  ==================================================  ======
-Verdict discovery cfg        ``P/sensor/pierpressure_<pier>/verdict/config``     yes
-Score discovery cfg          ``P/sensor/pierpressure_<pier>/score/config``       yes
-Refresh discovery cfg        ``P/button/pierpressure_<pier>/refresh/config``     yes
-Rank n discovery cfg         ``P/sensor/pierpressure_<pier>/target_<n>/config``  yes
-Verdict state                ``B/<pier>/verdict/state``                          yes
-Document attributes (JSON)   ``B/<pier>/verdict/attributes``                     yes
-Rank n state                 ``B/<pier>/target_<n>/state``                       yes
-Rank n attributes (JSON)     ``B/<pier>/target_<n>/attributes``                  yes
-Refresh command              ``B/<pier>/refresh/command``                        no
-Availability (LWT)           ``B/status``                                        yes
-===========================  ==================================================  ======
+===========================  ====================================================  ======
+Purpose                      Topic                                                 Retain
+===========================  ====================================================  ======
+Verdict discovery cfg        ``P/sensor/pierpressure_<pier>/verdict/config``       yes
+Score discovery cfg          ``P/sensor/pierpressure_<pier>/score/config``         yes
+Refresh discovery cfg        ``P/button/pierpressure_<pier>/refresh/config``       yes
+Rank n discovery cfg         ``P/sensor/pierpressure_<pier>/target_<n>/config``    yes
+Health discovery cfg         ``P/sensor/pierpressure_<pier>/<key>_health/config``  yes
+Verdict state                ``B/<pier>/verdict/state``                            yes
+Document attributes (JSON)   ``B/<pier>/verdict/attributes``                       yes
+Rank n state                 ``B/<pier>/target_<n>/state``                         yes
+Rank n attributes (JSON)     ``B/<pier>/target_<n>/attributes``                    yes
+Health state                 ``B/<pier>/health/<key>/state``                       yes
+Health attributes (JSON)     ``B/<pier>/health/<key>/attributes``                  yes
+Refresh command              ``B/<pier>/refresh/command``                          no
+Availability (LWT)           ``B/status``                                          yes
+===========================  ====================================================  ======
 """
 
 from __future__ import annotations

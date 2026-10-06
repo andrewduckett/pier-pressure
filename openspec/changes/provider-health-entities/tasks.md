@@ -35,8 +35,8 @@ file.
 
 ## 5. README
 
-- [ ] 5.1 Add a "Watching provider health" section to `README.md`: what each health sensor and attribute means; that Open-Meteo's issue time and last success come from the same fetch; and the example automation from design D7, with a template trigger and a Home Assistant start trigger that share one condition, measuring unknown age from `tracking_since`. Tell readers to copy it for 7Timer! and to set the threshold to several recompute intervals. Verify that `tests/test_docs.py` passes.
-- [ ] 5.2 Add both health discovery topics to the "Removing the entities" loop in `README.md`, and add the health topics to the topic table in the `pierpressure/delivery/mqtt.py` module docstring. Verify by reading the diff.
+- [x] 5.1 Add a "Watching provider health" section to `README.md`: what each health sensor and attribute means; that Open-Meteo's issue time and last success come from the same fetch; and the example automation from design D7, with a template trigger and a Home Assistant start trigger that share one condition, measuring unknown age from `tracking_since`. Tell readers to copy it for 7Timer! and to set the threshold to several recompute intervals. Verify that `tests/test_docs.py` passes.
+- [x] 5.2 Add both health discovery topics to the "Removing the entities" loop in `README.md`, and add the health topics to the topic table in the `pierpressure/delivery/mqtt.py` module docstring. Verify by reading the diff.
 
 ## 6. Gate and manual check
 
