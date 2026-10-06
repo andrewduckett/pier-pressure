@@ -307,3 +307,31 @@ def _jump_past_deadline(time: FakeTime) -> Callable[[], float]:
         return next(readings, time.now + supervisor.WAIT_SECONDS + 1.0)
 
     return monotonic
+
+
+# --------------------------------------------------------------------------- #
+# Review fixes
+# --------------------------------------------------------------------------- #
+
+
+def test_a_null_protocol_counts_as_3_1_1(time: FakeTime) -> None:
+    assert _supervisor(time, _ok(protocol=None)).fetch().host == "core-mosquitto"
+
+
+def test_no_broker_error_names_the_last_reason(time: FakeTime) -> None:
+    with pytest.raises(SupervisorError, match="HTTP 500"):
+        _supervisor(time, _not_enabled(), httpx.Response(500)).fetch()
+
+
+def test_the_client_it_creates_is_closed(time: FakeTime, monkeypatch: pytest.MonkeyPatch) -> None:
+    created: list[httpx.Client] = []
+    real_client = httpx.Client
+
+    def make_client(**kwargs: Any) -> httpx.Client:
+        client = real_client(transport=httpx.MockTransport(lambda _r: _ok()), **kwargs)
+        created.append(client)
+        return client
+
+    monkeypatch.setattr(supervisor.httpx, "Client", make_client)
+    fetch_mqtt_broker(TOKEN, sleep=time.sleep, monotonic=time.monotonic)
+    assert [client.is_closed for client in created] == [True]

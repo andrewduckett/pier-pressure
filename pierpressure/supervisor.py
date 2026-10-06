@@ -39,7 +39,8 @@ SUPPORTED_PROTOCOL = "3.1.1"
 ISSUES_URL = "https://github.com/andrewduckett/pier-pressure/issues"
 
 _NO_BROKER = (
-    "No MQTT broker was found: the Supervisor does not provide an mqtt service. "
+    "No MQTT broker was found: the Supervisor gave no usable mqtt service "
+    "(last answer: {reason}). "
     "Install the Mosquitto broker add-on, or set mqtt.host in config.yaml."
 )
 
@@ -66,15 +67,27 @@ def fetch_mqtt_broker(
     :class:`SupervisorError` when the wait runs out, when the Supervisor refuses
     access, or when the broker requires TLS or another MQTT version.
     """
+    if client is not None:
+        return _wait_for_broker(client, token, sleep, monotonic)
     # trust_env=False: a proxy named in HTTP_PROXY or ALL_PROXY must never see the
     # Supervisor token (spec "Proxy settings do not reach the token").
-    client = client or httpx.Client(timeout=REQUEST_TIMEOUT_SECONDS, trust_env=False)
+    with httpx.Client(timeout=REQUEST_TIMEOUT_SECONDS, trust_env=False) as own_client:
+        return _wait_for_broker(own_client, token, sleep, monotonic)
+
+
+def _wait_for_broker(
+    client: httpx.Client,
+    token: str,
+    sleep: Callable[[float], None],
+    monotonic: Callable[[], float],
+) -> BrokerSettings:
     deadline = monotonic() + WAIT_SECONDS
     waiting = False
     while True:
         try:
             return _ask(client, token)
         except _NotYet as exc:
+            reason = str(exc)
             if not waiting:
                 waiting = True
                 logger.info(
@@ -84,7 +97,7 @@ def fetch_mqtt_broker(
                 )
         remaining = deadline - monotonic()
         if remaining <= 0:
-            raise SupervisorError(_NO_BROKER)
+            raise SupervisorError(_NO_BROKER.format(reason=reason))
         sleep(min(PAUSE_SECONDS, remaining))
 
 
@@ -127,7 +140,8 @@ def _broker_from(data: dict[str, Any]) -> BrokerSettings:
             "support. Set mqtt.host and mqtt.port in config.yaml to a broker listener "
             "that accepts connections without TLS."
         )
-    protocol = data.get("protocol", SUPPORTED_PROTOCOL)
+    # A missing or null protocol is the Supervisor's default (spec D5).
+    protocol = data.get("protocol") or SUPPORTED_PROTOCOL
     if protocol != SUPPORTED_PROTOCOL:
         raise SupervisorError(
             f"The Supervisor's MQTT broker asks for MQTT {protocol}, but PierPressure "

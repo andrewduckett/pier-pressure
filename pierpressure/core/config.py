@@ -273,7 +273,8 @@ class BrokerSettings:
 
 # The ``mqtt`` keys that make up the broker connection. They come from one source
 # as a group: the file when it names a host, otherwise the supplied broker.
-_CONNECTION_KEYS = ("host", "port", "username", "password")
+_CREDENTIAL_KEYS = ("port", "username", "password")
+_CONNECTION_KEYS = ("host", *_CREDENTIAL_KEYS)
 
 
 @dataclass(frozen=True)
@@ -289,29 +290,35 @@ class ConfigFile:
 
     @property
     def names_broker_host(self) -> bool:
-        """Whether the file's ``mqtt`` block sets a broker ``host``."""
+        """Whether the file's ``mqtt`` block sets a broker ``host`` (blank is unset)."""
         mqtt = self.raw.get("mqtt")
-        return isinstance(mqtt, dict) and mqtt.get("host") is not None
+        return isinstance(mqtt, dict) and mqtt.get("host") not in (None, "")
 
 
 def read_config(path: str | os.PathLike[str]) -> ConfigFile:
     """Read the YAML config at ``path`` and expand ``${VAR}`` (design D2, step 1).
 
     Reads only the file and the environment. Raises :class:`ConfigError` if the
-    root is not a mapping, or if the file sets ``mqtt.port``, ``mqtt.username`` or
-    ``mqtt.password`` without ``mqtt.host`` — the connection settings come from one
-    source, so a partial set would be silently ignored otherwise.
+    file is not valid YAML, if the root or the ``mqtt`` block is not a mapping, or
+    if the file sets ``mqtt.port``, ``mqtt.username`` or ``mqtt.password`` without
+    ``mqtt.host`` — the connection settings come from one source, so a partial set
+    would be silently ignored otherwise.
     """
     config_path = Path(path)
     text = config_path.read_text(encoding="utf-8")
-    raw = yaml.safe_load(text)
+    try:
+        raw = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        raise ConfigError(f"{config_path} is not valid YAML: {exc}") from exc
     if not isinstance(raw, dict):
         raise ConfigError("Configuration root must be a mapping")
     read = ConfigFile(raw=_expand_env(raw), base_dir=config_path.resolve().parent)
 
     mqtt = read.raw.get("mqtt")
-    if isinstance(mqtt, dict) and not read.names_broker_host:
-        partial = [f"mqtt.{key}" for key in _CONNECTION_KEYS[1:] if key in mqtt]
+    if mqtt is not None and not isinstance(mqtt, dict):
+        raise ConfigError("The mqtt block must be a mapping of settings, such as mqtt.host")
+    if mqtt is not None and not read.names_broker_host:
+        partial = [f"mqtt.{key}" for key in _CREDENTIAL_KEYS if mqtt.get(key) is not None]
         if partial:
             raise ConfigError(
                 f"{', '.join(partial)} is set without mqtt.host; set mqtt.host too, "

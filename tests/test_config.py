@@ -267,3 +267,26 @@ def test_build_config_without_a_host_or_broker_keeps_the_missing_host_error(
     text = "mqtt:\n  base_topic: observatory\n" + NO_MQTT_CONFIG
     with pytest.raises(ConfigError, match=r"(?s)^Invalid mqtt/recompute configuration: .*host"):
         build_config(read_config(_write(tmp_path, text)))
+
+
+def test_read_config_reports_malformed_yaml_as_a_config_error(tmp_path: Path) -> None:
+    with pytest.raises(ConfigError, match="not valid YAML"):
+        read_config(_write(tmp_path, "mqtt: [unclosed\n" + NO_MQTT_CONFIG))
+
+
+@pytest.mark.parametrize("block", ["mqtt: broker.lan\n", "mqtt: [broker.lan]\n"])
+def test_read_config_rejects_an_mqtt_block_that_is_not_a_mapping(
+    tmp_path: Path, block: str
+) -> None:
+    with pytest.raises(ConfigError, match="mqtt"):
+        read_config(_write(tmp_path, block + NO_MQTT_CONFIG))
+
+
+def test_read_config_ignores_blank_broker_settings(tmp_path: Path) -> None:
+    text = "mqtt:\n  host:\n  port:\n  username:\n  password:\n" + NO_MQTT_CONFIG
+    assert not read_config(_write(tmp_path, text)).names_broker_host
+
+
+def test_read_config_treats_an_empty_host_as_unset(tmp_path: Path) -> None:
+    text = 'mqtt:\n  host: ""\n' + NO_MQTT_CONFIG
+    assert not read_config(_write(tmp_path, text)).names_broker_host
