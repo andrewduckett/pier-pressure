@@ -58,6 +58,7 @@ def main(argv: list[str] | None = None) -> int:
     delivery, explainer = build_delivery_and_explainer(config)
     try:
         delivery.connect()
+        delivery.go_online()
     except DeliveryError as exc:
         logger.error("Startup delivery failure: %s", exc)
         return 1

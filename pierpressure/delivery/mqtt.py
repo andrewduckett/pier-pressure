@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Iterable
+from datetime import datetime
 from typing import Any, Protocol
 
 import paho.mqtt.client as mqtt
@@ -34,6 +35,7 @@ import paho.mqtt.client as mqtt
 from pierpressure.core.config import MqttConfig
 from pierpressure.core.model import Target, VerdictDocument
 from pierpressure.core.ranking import TOP_N
+from pierpressure.health import ProviderHealth
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +98,14 @@ def narrative_state_topic(base_topic: str, pier_id: str) -> str:
 
 def narrative_attributes_topic(base_topic: str, pier_id: str) -> str:
     return f"{base_topic}/{pier_id}/narrative/attributes"
+
+
+def health_state_topic(base_topic: str, pier_id: str, provider_key: str) -> str:
+    return f"{base_topic}/{pier_id}/health/{provider_key}/state"
+
+
+def health_attributes_topic(base_topic: str, pier_id: str, provider_key: str) -> str:
+    return f"{base_topic}/{pier_id}/health/{provider_key}/attributes"
 
 
 def discovery_topic(discovery_prefix: str, component: str, pier_id: str, object_id: str) -> str:
@@ -355,6 +365,57 @@ def build_refresh_discovery(pier_id: str, base_topic: str) -> dict[str, Any]:
     }
 
 
+def build_health_discovery(
+    pier_id: str, base_topic: str, provider_key: str, provider_name: str
+) -> dict[str, Any]:
+    """A provider's health sensor (spec ha-delivery; provider-health-entities D5).
+
+    A diagnostic timestamp sensor whose state is the provider's last successful
+    fetch. Availability is the shared last-will topic only, with no template, so a
+    failing provider keeps showing its last success: the age of that time is the
+    signal.
+    """
+    return {
+        "name": f"{provider_name} health",
+        "has_entity_name": True,
+        "unique_id": f"{node_id(pier_id)}_{provider_key}_health",
+        "state_topic": health_state_topic(base_topic, pier_id, provider_key),
+        "json_attributes_topic": health_attributes_topic(base_topic, pier_id, provider_key),
+        "device_class": "timestamp",
+        "entity_category": "diagnostic",
+        "availability_topic": availability_topic(base_topic),
+        "payload_available": PAYLOAD_ONLINE,
+        "payload_not_available": PAYLOAD_OFFLINE,
+        "device": _device_block(pier_id),
+    }
+
+
+def _iso(moment: datetime | None) -> str | None:
+    """ISO 8601 with its UTC offset, floored to whole seconds; ``None`` stays null."""
+    return None if moment is None else moment.replace(microsecond=0).isoformat()
+
+
+def health_state(health: ProviderHealth) -> str:
+    """The last successful fetch, or the literal ``None``, which reads as unknown.
+
+    Publishing ``None`` actively replaces any retained time from before a restart.
+    """
+    return _iso(health.last_success) or "None"
+
+
+def health_attributes(health: ProviderHealth) -> dict[str, Any]:
+    """The JSON attributes: the provider, its role, and the latest fetch."""
+    return {
+        "provider": health.name,
+        "role": health.role,
+        "tracking_since": _iso(health.tracking_since),
+        "status": health.status,
+        "last_fetch": _iso(health.last_fetch),
+        "last_error": health.last_error,
+        "issued_at": _iso(health.issued_at),
+    }
+
+
 # --------------------------------------------------------------------------- #
 # The MQTT client protocol (satisfied by paho and by the test fake)
 # --------------------------------------------------------------------------- #
@@ -425,10 +486,12 @@ class MqttDelivery:
         return self._config.discovery_prefix
 
     def connect(self) -> None:
-        """Register the retained offline LWT, connect, and publish retained online.
+        """Register the retained offline LWT and connect; do not go online yet.
 
-        Any failure to reach the broker is raised as :class:`DeliveryError` — it
-        is never reported as success (design D9).
+        The service publishes its startup health reset first, then calls
+        :meth:`go_online` (provider-health-entities D4). Any failure to reach the
+        broker is raised as :class:`DeliveryError` — it is never reported as
+        success (design D9).
         """
         status = availability_topic(self._config.base_topic)
         try:
@@ -442,7 +505,10 @@ class MqttDelivery:
             self._client.loop_start()
         except (OSError, ValueError) as exc:
             raise DeliveryError(f"Could not connect to MQTT broker: {exc}") from exc
-        self._publish(status, PAYLOAD_ONLINE, retain=True)
+
+    def go_online(self) -> None:
+        """Publish the retained ``online`` availability for every entity."""
+        self._publish(availability_topic(self._config.base_topic), PAYLOAD_ONLINE, retain=True)
 
     def _publish(self, topic: str, payload: str, *, retain: bool) -> None:
         info = self._client.publish(topic, payload, qos=1, retain=retain)
@@ -530,6 +596,31 @@ class MqttDelivery:
             self._publish(
                 narrative_attributes_topic(base, pier),
                 json.dumps(narrative_attributes(narrative)),
+                retain=True,
+            )
+
+    def publish_health(self, pier_id: str, healths: Iterable[ProviderHealth]) -> None:
+        """Publish discovery, state, and attributes for each provider's health.
+
+        All retained, so a Home Assistant restart re-reads them. Health travels
+        beside the verdict document and never inside it (ADR-0015).
+        """
+        import json
+
+        base = self._config.base_topic
+        prefix = self._config.discovery_prefix
+        for health in healths:
+            self._publish(
+                discovery_topic(prefix, "sensor", pier_id, f"{health.key}_health"),
+                json.dumps(build_health_discovery(pier_id, base, health.key, health.name)),
+                retain=True,
+            )
+            self._publish(
+                health_state_topic(base, pier_id, health.key), health_state(health), retain=True
+            )
+            self._publish(
+                health_attributes_topic(base, pier_id, health.key),
+                json.dumps(health_attributes(health)),
                 retain=True,
             )
 
