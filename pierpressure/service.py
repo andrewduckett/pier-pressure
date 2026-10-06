@@ -126,6 +126,10 @@ class Service:
             for outcome in result.outcomes:
                 if outcome.key in healths:
                     healths[outcome.key] = fold(healths[outcome.key], outcome)
+                else:
+                    logger.warning(
+                        "Ignoring fetch outcome from unconfigured provider %r", outcome.key
+                    )
             self._delivery.publish_health(pier.id, healths.values())
 
     def _reset_health(self) -> None:

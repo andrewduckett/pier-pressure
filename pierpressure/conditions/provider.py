@@ -207,13 +207,14 @@ def build_provider(
     """Assemble the production provider stack: both sources, composed.
 
     ``base`` and ``secondary`` default to the real sources; tests pass stubs to run
-    the production stack without the network. ``now`` stamps each fetch outcome.
+    the production stack without the network. ``now`` stamps each fetch outcome,
+    and Open-Meteo's issue time, so the two always come from the same clock.
     """
     from .open_meteo import OpenMeteoProvider
     from .seven_timer import SevenTimerProvider
 
     return CompositeProvider(
-        base=base if base is not None else OpenMeteoProvider(),
+        base=base if base is not None else OpenMeteoProvider(now=now),
         secondary=secondary if secondary is not None else SevenTimerProvider(),
         now=now,
     )

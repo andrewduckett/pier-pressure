@@ -9,9 +9,10 @@ last-will topic only, so a failing provider keeps showing its last success.
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 
 import jsonschema
+import pytest
 
 from pierpressure.delivery.ha_schema import SENSOR_SCHEMA
 from pierpressure.delivery.mqtt import (
@@ -175,3 +176,22 @@ def test_publish_verdict_output_is_unchanged_by_health() -> None:
         next(p.payload for p in plain_client.published if p.topic.endswith("verdict/attributes"))
     )
     assert not any("health" in key for key in attributes)
+
+
+def test_times_are_rendered_in_utc_whatever_their_offset() -> None:
+    plus_two = timezone(timedelta(hours=2))
+    health = ProviderHealth.empty(
+        key="open_meteo",
+        name="Open-Meteo",
+        role="base",
+        tracking_since=datetime(2026, 10, 5, 11, 0, tzinfo=plus_two),
+    )
+    assert health_attributes(health)["tracking_since"] == "2026-10-05T09:00:00+00:00"
+
+
+def test_a_time_with_no_time_zone_is_rejected() -> None:
+    health = ProviderHealth.empty(
+        key="open_meteo", name="Open-Meteo", role="base", tracking_since=datetime(2026, 10, 5)
+    )
+    with pytest.raises(ValueError, match="time zone"):
+        health_attributes(health)

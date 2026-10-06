@@ -289,3 +289,21 @@ def test_fetch_outcomes_do_not_change_the_verdict_document() -> None:
         assert [h.status for h in delivery.healths[-1][1]] == ["ok" if ok else "failed"] * 2
         documents.append(delivery.documents[0].to_json())
     assert documents[0] == documents[1]
+
+
+def test_an_outcome_from_an_unconfigured_provider_is_logged(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    delivery = RecordingDelivery()
+    service = Service(
+        _app_config(),
+        delivery,  # type: ignore[arg-type]
+        FixedClock(_START),
+        conditions_provider=_ScriptedFetch(delivery.events, {"backyard": [True]}),
+        providers=_PROVIDERS[:1],  # seven_timer outcomes are not configured
+    )
+    service.run(monotonic=ScriptedMonotonic([0.0]), max_iterations=0)
+
+    assert "seven_timer" in caplog.text
+    _, healths = delivery.healths[-1]
+    assert [h.key for h in healths] == ["open_meteo"]

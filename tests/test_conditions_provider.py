@@ -407,3 +407,14 @@ def test_forecast_horizon_beyond_the_data_is_unavailable() -> None:
     assert conditions.base is not None
     assert conditions.base.at(_hour(21)) is not None
     assert conditions.base.at(_hour(23)) is None  # beyond the forecast horizon
+
+
+def test_build_provider_passes_its_clock_to_open_meteo() -> None:
+    # Open-Meteo stamps its issue time at fetch, so it must use the same clock as
+    # the fetch outcomes, or its issue time could look later than its last success.
+    def clock() -> datetime:
+        return _FETCHED
+
+    stack = build_provider(now=clock)
+    assert stack.now is clock
+    assert stack.base.now is clock

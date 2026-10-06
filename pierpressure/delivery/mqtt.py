@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Iterable
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Protocol
 
 import paho.mqtt.client as mqtt
@@ -394,8 +394,16 @@ def build_health_discovery(
 
 
 def _iso(moment: datetime | None) -> str | None:
-    """ISO 8601 with its UTC offset, floored to whole seconds; ``None`` stays null."""
-    return None if moment is None else moment.replace(microsecond=0).isoformat()
+    """UTC ISO 8601 with its ``+00:00`` offset, to the whole second; ``None`` stays null.
+
+    A time with no time zone is rejected: Home Assistant's timestamp sensor needs
+    an offset, and guessing one would misreport the time.
+    """
+    if moment is None:
+        return None
+    if moment.tzinfo is None:
+        raise ValueError(f"health time {moment!r} has no time zone")
+    return moment.astimezone(UTC).isoformat(timespec="seconds")
 
 
 def health_state(health: ProviderHealth) -> str:
