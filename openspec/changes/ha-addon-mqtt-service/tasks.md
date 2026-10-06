@@ -22,7 +22,7 @@ ready. No golden verdict file changes, and the verdict document is untouched.
 - [x] 3.1 Write tests first in `tests/test_main.py`: with `SUPERVISOR_TOKEN` set and no `mqtt.host` in the file, `main` asks the Supervisor and connects to its broker; with a file host, it never asks; without `SUPERVISOR_TOKEN`, it never asks and the missing-host error is unchanged; a Supervisor failure logs a "Configuration error" and returns 1. Verify the tests fail (design D1, D2; spec "Outside an add-on, nothing changes").
 - [x] 3.2 Write a test first that `main` logs the broker's source and `host:port` for both sources, and that the log never contains the password. Verify it fails (design D6; spec "The log names the broker's source without the password").
 - [x] 3.3 Wire `pierpressure/__main__.py`: run `read_config`, ask the Supervisor only when `SUPERVISOR_TOKEN` is set and the file names no host, then run `build_config` and log the source. Verify that 3.1, 3.2 and every existing `tests/test_main.py` and `tests/test_integration.py` test pass.
-- [ ] 3.4 Write a test first in `tests/test_ha_addon.py` that the add-on config's `services` list contains `mqtt:want`, then add it to `ha-addon/config.yaml`. Verify that the test and every existing add-on test pass (spec "Add-on config declares the service").
+- [x] 3.4 Write a test first in `tests/test_ha_addon.py` that the add-on config's `services` list contains `mqtt:want`, then add it to `ha-addon/config.yaml`. Verify that the test and every existing add-on test pass (spec "Add-on config declares the service").
 
 ## 4. Documentation
 

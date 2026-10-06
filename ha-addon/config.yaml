@@ -1,5 +1,5 @@
-# PierPressure as a Home Assistant add-on (app). Packaging only: Home Assistant
-# pulls the released image at this version and never builds one (design D1).
+# PierPressure as a Home Assistant add-on (app). Home Assistant pulls the
+# released image at this version and never builds one (design D1).
 name: PierPressure
 # Each release opens a pull request that moves this line to the new version
 # (design D5). Quoted so YAML keeps it a string.
@@ -18,3 +18,8 @@ map:
   - addon_config
 environment:
   PIERPRESSURE_CONFIG: /config/config.yaml
+# Ask the Supervisor for the broker another add-on (usually Mosquitto) provides.
+# "want", not "need", so the add-on still installs with any other broker. Used
+# only when config.yaml names no mqtt.host (ha-addon-mqtt-service).
+services:
+  - mqtt:want
