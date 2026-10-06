@@ -13,7 +13,7 @@ backlog is GitHub issues.
 
 ## Durable constraints (honor in every change)
 
-- **Pure, deterministic core.** `pierpressure/core/` is pure Python 3.12+ with
+- **Pure, deterministic core.** `pierpressure/core/` is pure Python 3.14+ with
   zero Home Assistant or MQTT imports (a test enforces the boundary). Same inputs
   — including a pinned evaluation instant from the injectable clock — yield a
   byte-identical verdict document. Astronomy is computed fully offline from a
@@ -45,7 +45,8 @@ backlog is GitHub issues.
   `just`; `direnv` loads it through `.envrc`. Without Nix, install uv and just
   yourself.
 - **Toolchain:** `uv` (env/deps/lockfile), `just` (tasks), `ruff` (lint AND
-  format — no black), `mypy` (strict types), `pytest`. Python pinned to 3.12.
+  format — no black), `mypy` (strict types), `pytest`. Python 3.14, pinned only in
+  `.python-version`.
 - **`just check`** (`ruff check`, mypy, pytest) is the CI gate — it must be green
   before a PR. Formatting is enforced by the pre-commit hooks
   (`uv run pre-commit install` once per clone), not by `just check`. Practice TDD:
