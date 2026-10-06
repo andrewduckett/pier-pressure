@@ -25,6 +25,7 @@ def _connected_delivery() -> tuple[MqttDelivery, FakeMqttClient]:
     client = FakeMqttClient()
     delivery = MqttDelivery(make_mqtt_config(), client=client)
     delivery.connect()
+    delivery.go_online()
     return delivery, client
 
 
@@ -62,7 +63,7 @@ def test_discovery_state_and_availability_are_all_retained() -> None:
         published = client.publishes_to(topic)
         assert published and all(p.retain for p in published)
 
-    # Availability was published online + retained on connect.
+    # Availability was published online + retained by go_online().
     avail = client.publishes_to(availability_topic("pierpressure"))
     assert avail and avail[-1].payload == PAYLOAD_ONLINE and avail[-1].retain is True
 
@@ -95,5 +96,24 @@ def test_unreachable_broker_is_reported_as_a_failure() -> None:
 def test_publish_failure_rc_is_reported() -> None:
     client = FakeMqttClient(publish_rc=4)  # non-zero rc
     delivery = MqttDelivery(make_mqtt_config(), client=client)
+    delivery.connect()
     with pytest.raises(DeliveryError):
-        delivery.connect()  # first publish (online) fails with rc=4
+        delivery.go_online()  # the online publish fails with rc=4
+
+
+def test_connect_registers_the_will_but_does_not_go_online() -> None:
+    client = FakeMqttClient()
+    delivery = MqttDelivery(make_mqtt_config(), client=client)
+    delivery.connect()
+    assert client.connected and client.will is not None
+    assert client.published == []
+
+
+def test_go_online_publishes_retained_online() -> None:
+    client = FakeMqttClient()
+    delivery = MqttDelivery(make_mqtt_config(), client=client)
+    delivery.connect()
+    delivery.go_online()
+    assert [(p.topic, p.payload, p.retain) for p in client.published] == [
+        (availability_topic("pierpressure"), PAYLOAD_ONLINE, True)
+    ]

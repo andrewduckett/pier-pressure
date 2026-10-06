@@ -30,6 +30,7 @@ from .conftest import (
     FakeMqttClient,
     RecordingDelivery,
     ScriptedMonotonic,
+    fixed_conditions,
     make_conditions,
     make_mqtt_config,
     make_pier,
@@ -46,7 +47,7 @@ def _app_config(explainer: ExplainerConfig | None = None) -> AppConfig:
 
 
 def _clear_sky_provider() -> object:
-    return lambda _pier: make_conditions(cloud=5.0)
+    return fixed_conditions(make_conditions(cloud=5.0))
 
 
 # --------------------------------------------------------------------------- #

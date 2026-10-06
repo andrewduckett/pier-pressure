@@ -200,6 +200,7 @@ def _connected() -> tuple[MqttDelivery, FakeMqttClient]:
     client = FakeMqttClient()
     delivery = MqttDelivery(make_mqtt_config(), client=client)
     delivery.connect()
+    delivery.go_online()
     return delivery, client
 
 

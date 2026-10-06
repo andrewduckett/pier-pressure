@@ -48,6 +48,8 @@ SENSOR_SCHEMA: dict[str, Any] = {
         "json_attributes_topic": {"type": "string"},
         "value_template": {"type": "string"},
         "icon": {"type": "string"},
+        "device_class": {"type": "string"},
+        "entity_category": {"enum": ["diagnostic", "config"]},
         "availability_topic": {"type": "string"},
         "payload_available": {"type": "string"},
         "payload_not_available": {"type": "string"},

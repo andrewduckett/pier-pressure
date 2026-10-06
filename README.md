@@ -170,6 +170,7 @@ Each pier becomes one device, `PierPressure <pier>`, with these entities:
 | **Target 1** to **Target 10** (sensors) | The name, or catalogue id, of the target at that rank | One sensor per rank, so any dashboard card can list the whole ranking. Its attributes hold the rank and that target's fields. Unavailable when no target holds that rank tonight. |
 | **Refresh** (button) | — | "Show me now": recomputes and republishes straight away. |
 | **Narrative** (sensor) | `ready` or unavailable | Only when the explainer is on. The text is in its attributes. |
+| **Open-Meteo health**, **7Timer! health** (diagnostic sensors) | When that weather source last succeeded, or unknown | One per weather source. See [Watching provider health](#watching-provider-health). |
 
 If the container stops, its last-will message marks every entity unavailable.
 
@@ -179,11 +180,13 @@ If the container stops, its last-will message marks every entity unavailable.
 | Purpose | Topic | Retained |
 |---|---|---|
 | Discovery configs | `homeassistant/<sensor\|button>/pierpressure_<pier>/<verdict\|score\|top_target\|target_<n>\|narrative\|refresh>/config` | yes |
+| Health discovery configs | `homeassistant/sensor/pierpressure_<pier>/<open_meteo\|seven_timer>_health/config` | yes |
 | Verdict state | `pierpressure/<pier>/verdict/state` | yes |
 | Verdict document | `pierpressure/<pier>/verdict/attributes` | yes |
 | Top target state and list | `pierpressure/<pier>/top_target/state`, `.../top_target/attributes` | yes |
 | Target rank `<n>` (1 to 10) state and details | `pierpressure/<pier>/target_<n>/state`, `.../target_<n>/attributes` | yes |
 | Narrative state and text | `pierpressure/<pier>/narrative/state`, `.../narrative/attributes` | yes |
+| Provider health state and details | `pierpressure/<pier>/health/<open_meteo\|seven_timer>/state`, `.../attributes` | yes |
 | Refresh command | `pierpressure/<pier>/refresh/command` | no |
 | Availability | `pierpressure/status` | yes |
 
@@ -261,6 +264,100 @@ automation:
             start with {{ states('sensor.pierpressure_backyard_top_target') }}
 ```
 
+### Watching provider health
+
+PierPressure gets its weather from two sources. Open-Meteo gives cloud and wind
+and is the base source. 7Timer! gives seeing and transparency and is the
+secondary source. If a source fails, the verdict still arrives, with that data
+missing. A broken 7Timer! only lowers confidence, so it is easy to miss. The
+health sensors show each failure as it happens.
+
+Each pier has one diagnostic sensor per source: **Open-Meteo health** and
+**7Timer! health**. You find them under the pier's device, in the diagnostic
+section.
+
+**State.** The time of that source's last successful fetch for this pier. It is
+**unknown** until the source succeeds after PierPressure starts, because health is
+kept in memory only. A failing source keeps showing its last success time, and
+the sensor stays available. The age of that time is the signal: the older it is,
+the longer the source has been failing.
+
+**Attributes.**
+
+| Attribute | Meaning |
+|---|---|
+| `provider` | The source's name. |
+| `role` | `base` (Open-Meteo) or `secondary` (7Timer!). |
+| `tracking_since` | When PierPressure started tracking health. It stays the same until PierPressure restarts. |
+| `status` | `ok` or `failed` for the latest fetch, or `null` before the first fetch. |
+| `last_fetch` | When the latest fetch ran, or `null` before the first fetch. |
+| `last_error` | Why the latest fetch failed, such as `ConnectError` or `HTTPStatusError: 503 Service Unavailable`. `null` when it succeeded. A fetch that returns no data fails with `no readings returned`. |
+| `issued_at` | When the source issued the data from the last successful fetch, or `null`. |
+
+The error never contains the request URL or your pier's coordinates. The full
+error goes to the PierPressure log.
+
+Open-Meteo does not report when it issued its data, so PierPressure stamps it at
+fetch time. Its `issued_at` and its last success therefore come from the same
+fetch and match closely. 7Timer! reports its own model run time, so its
+`issued_at` can be hours older than its last success.
+
+**Getting told when a source fails.** This automation notifies you when
+Open-Meteo has not succeeded for 6 hours. It also counts the time a sensor has
+been unknown, measured from `tracking_since`. It does not fire when the sensor is
+unavailable, because that means PierPressure itself is down.
+
+It has two triggers that share one condition:
+
+- The template trigger fires when the source crosses the limit while Home
+  Assistant runs.
+- The start trigger covers a source that was already past the limit when Home
+  Assistant started. A template trigger only fires on a change, so it would miss
+  that case.
+
+The YAML anchor `&failing` names the template once, and `*failing` reuses it as
+the condition.
+
+```yaml
+automation:
+  - alias: "PierPressure — Open-Meteo is failing"
+    trigger:
+      - platform: template
+        value_template: &failing >
+          {% set entity = 'sensor.pierpressure_backyard_open_meteo_health' %}
+          {% set limit = timedelta(hours=6) %}
+          {% set current = states(entity) %}
+          {% if current == 'unknown' %}
+            {% set since = state_attr(entity, 'tracking_since') %}
+          {% elif current == 'unavailable' %}
+            {% set since = none %}
+          {% else %}
+            {% set since = current %}
+          {% endif %}
+          {{ since is not none and now() - as_datetime(since) > limit }}
+      - platform: homeassistant
+        event: start
+    condition:
+      - condition: template
+        value_template: *failing
+    action:
+      - service: notify.mobile_app_your_phone
+        data:
+          title: "PierPressure: Open-Meteo is failing"
+          message: >
+            Last success: {{ states('sensor.pierpressure_backyard_open_meteo_health') }}.
+            Last error: {{ state_attr('sensor.pierpressure_backyard_open_meteo_health', 'last_error') }}
+```
+
+To watch 7Timer!, copy the automation and change the entity to
+`sensor.pierpressure_backyard_7timer_health`. Set the limit to several recompute
+intervals, so one failed fetch does not notify you. With the 15-minute interval
+above, 6 hours is 24 fetches in a row.
+
+A Home Assistant restart does not reset the count, because `tracking_since` comes
+from PierPressure. A PierPressure restart does reset it, because health is kept in
+memory only.
+
 ### Removing the entities
 
 Home Assistant removes an entity when its discovery topic is cleared. Publish an
@@ -270,6 +367,8 @@ empty retained message to each discovery topic. For a pier called `backyard`:
 for e in sensor/pierpressure_backyard/verdict sensor/pierpressure_backyard/score \
          sensor/pierpressure_backyard/top_target sensor/pierpressure_backyard/narrative \
          button/pierpressure_backyard/refresh \
+         sensor/pierpressure_backyard/open_meteo_health \
+         sensor/pierpressure_backyard/seven_timer_health \
          sensor/pierpressure_backyard/target_{1..10}; do
   mosquitto_pub -r -n -t "homeassistant/$e/config"
 done
