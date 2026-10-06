@@ -7,10 +7,12 @@ verification strategy in design D11.
 from __future__ import annotations
 
 import queue
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from pierpressure.conditions import FetchResult
 from pierpressure.core.conditions import (
     BaseGroup,
     BaseHour,
@@ -29,6 +31,7 @@ from pierpressure.core.model import (
     Verdict,
     VerdictDocument,
 )
+from pierpressure.health import ProviderHealth
 
 
 @dataclass
@@ -96,15 +99,33 @@ class FakeMessage:
 
 class RecordingDelivery:
     """A delivery stand-in that records the documents (and narratives) it is asked
-    to publish."""
+    to publish, the provider health it publishes, and the order of every call.
 
-    def __init__(self) -> None:
+    ``events`` holds one entry per call: ``("verdict", pier)``,
+    ``("health", pier)``, or ``("online",)``. ``health_error`` makes every
+    ``publish_health`` call raise it.
+    """
+
+    def __init__(self, *, health_error: Exception | None = None) -> None:
         self.documents: list[VerdictDocument] = []
         self.narratives: list[str | None] = []
+        self.healths: list[tuple[str, tuple[ProviderHealth, ...]]] = []
+        self.events: list[tuple[str, ...]] = []
+        self._health_error = health_error
 
     def publish_verdict(self, document: VerdictDocument, narrative: str | None = None) -> None:
+        self.events.append(("verdict", document.pier))
         self.documents.append(document)
         self.narratives.append(narrative)
+
+    def publish_health(self, pier_id: str, healths: Iterable[ProviderHealth]) -> None:
+        if self._health_error is not None:
+            raise self._health_error
+        self.events.append(("health", pier_id))
+        self.healths.append((pier_id, tuple(healths)))
+
+    def go_online(self) -> None:
+        self.events.append(("online",))
 
 
 class StepClock:
@@ -231,3 +252,8 @@ def make_document(
         dark_window=DarkWindow(start=None, end=None),
         moon=Moon(illumination=0.0, phase=MoonPhase.NEW),
     )
+
+
+def fixed_conditions(conditions: Conditions) -> Callable[[PierConfig], FetchResult]:
+    """A conditions provider that returns ``conditions`` with no fetch outcomes."""
+    return lambda _pier: FetchResult(conditions)

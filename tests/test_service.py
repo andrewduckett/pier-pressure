@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import queue
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
+import pytest
+
+from pierpressure.conditions import FetchResult
 from pierpressure.core.clock import FixedClock
-from pierpressure.core.config import AppConfig, RecomputeConfig
-from pierpressure.delivery.mqtt import MqttDelivery, refresh_command_topic
+from pierpressure.core.config import AppConfig, PierConfig, RecomputeConfig
+from pierpressure.delivery.mqtt import DeliveryError, MqttDelivery, refresh_command_topic
+from pierpressure.health import FetchOutcome, ProviderHealth, ProviderInfo
 from pierpressure.service import Service
 
 from .conftest import (
@@ -17,6 +21,7 @@ from .conftest import (
     ScriptedMonotonic,
     ScriptedQueue,
     StepClock,
+    fixed_conditions,
     make_conditions,
     make_mqtt_config,
     make_pier,
@@ -37,7 +42,7 @@ def test_full_recompute_with_a_provider_publishes_a_real_verdict() -> None:
     # not the empty-snapshot "conditions unavailable" degradation.
     delivery = RecordingDelivery()
     clock = FixedClock(datetime(2026, 9, 8, 14, 0, tzinfo=UTC))  # London daytime -> that night
-    provider = lambda _pier: make_conditions(cloud=5.0)  # noqa: E731
+    provider = fixed_conditions(make_conditions(cloud=5.0))
     service = Service(_app_config(), delivery, clock, conditions_provider=provider)  # type: ignore[arg-type]
     service.run(monotonic=ScriptedMonotonic([0.0]), max_iterations=0)
 
@@ -138,3 +143,149 @@ def test_command_on_refresh_topic_republishes_with_current_timestamp() -> None:
     attrs = client.publishes_to(attributes_topic("pierpressure", "backyard"))
     generated_at = datetime.fromisoformat(json.loads(attrs[-1].payload)["generated_at"])
     assert generated_at >= command_time
+
+
+# --------------------------------------------------------------------------- #
+# Provider health (provider-health-entities D3, D4)
+# --------------------------------------------------------------------------- #
+
+_PROVIDERS = (
+    ProviderInfo(key="open_meteo", name="Open-Meteo", role="base"),
+    ProviderInfo(key="seven_timer", name="7Timer!", role="secondary"),
+)
+_START = datetime(2026, 9, 8, 14, 0, tzinfo=UTC)
+
+
+class _ScriptedFetch:
+    """Answer each pier's fetches with scripted (base ok, secondary ok) pairs.
+
+    Each fetch is stamped at the next whole hour after ``_START``, and every call
+    is logged to ``events`` so tests can see when fetching started.
+    """
+
+    def __init__(self, events: list[tuple[str, ...]], script: dict[str, list[bool]]) -> None:
+        self._events = events
+        self._script = {pier: list(oks) for pier, oks in script.items()}
+        self._calls = 0
+
+    def __call__(self, pier: PierConfig) -> FetchResult:
+        self._events.append(("fetch", pier.id))
+        self._calls += 1
+        ok = self._script[pier.id].pop(0)
+        fetched_at = _START + timedelta(hours=self._calls)
+        outcomes = tuple(
+            FetchOutcome(
+                key=info.key,
+                name=info.name,
+                role=info.role,
+                fetched_at=fetched_at,
+                ok=ok,
+                error=None if ok else "ConnectError",
+                issued_at=_START if ok else None,
+            )
+            for info in _PROVIDERS
+        )
+        return FetchResult(make_conditions(), outcomes)
+
+
+def _health_service(
+    delivery: RecordingDelivery,
+    script: dict[str, list[bool]],
+    pier_ids: tuple[str, ...] = ("backyard",),
+) -> Service:
+    return Service(
+        _app_config(pier_ids=pier_ids),
+        delivery,  # type: ignore[arg-type]
+        FixedClock(_START),
+        conditions_provider=_ScriptedFetch(delivery.events, script),
+        providers=_PROVIDERS,
+    )
+
+
+def test_startup_resets_health_before_going_online_and_before_fetching() -> None:
+    delivery = RecordingDelivery()
+    service = _health_service(delivery, {"a": [True], "b": [True]}, pier_ids=("a", "b"))
+    service.run(monotonic=ScriptedMonotonic([0.0]), max_iterations=0)
+
+    assert delivery.events[:3] == [("health", "a"), ("health", "b"), ("online",)]
+    assert delivery.events[3] == ("fetch", "a")
+    for pier_id, healths in delivery.healths[:2]:
+        assert healths == tuple(
+            ProviderHealth.empty(
+                key=info.key, name=info.name, role=info.role, tracking_since=_START
+            )
+            for info in _PROVIDERS
+        ), pier_id
+
+
+def test_a_failed_startup_reset_raises_and_never_goes_online() -> None:
+    delivery = RecordingDelivery(health_error=DeliveryError("publish failed"))
+    service = _health_service(delivery, {"backyard": [True]})
+    with pytest.raises(DeliveryError):
+        service.run(monotonic=ScriptedMonotonic([0.0]), max_iterations=0)
+
+    assert ("online",) not in delivery.events
+    assert not any(event[0] == "fetch" for event in delivery.events)
+
+
+def test_each_publish_sends_the_piers_health_right_after_its_verdict() -> None:
+    delivery = RecordingDelivery()
+    service = _health_service(delivery, {"backyard": [True]})
+    service.run(monotonic=ScriptedMonotonic([0.0]), max_iterations=0)
+
+    assert delivery.events[-3:] == [
+        ("fetch", "backyard"),
+        ("verdict", "backyard"),
+        ("health", "backyard"),
+    ]
+    _, healths = delivery.healths[-1]
+    assert [h.status for h in healths] == ["ok", "ok"]
+    assert all(h.last_success == _START + timedelta(hours=1) for h in healths)
+
+
+def test_a_failure_after_a_success_publishes_the_earlier_success() -> None:
+    delivery = RecordingDelivery()
+    service = _health_service(delivery, {"backyard": [True, False]})
+    service.run(monotonic=ScriptedMonotonic([0.0]), max_iterations=0)
+    service.publish_pier("backyard")
+
+    _, healths = delivery.healths[-1]
+    for health in healths:
+        assert health.status == "failed"
+        assert health.last_error == "ConnectError"
+        assert health.last_fetch == _START + timedelta(hours=2)
+        assert health.last_success == _START + timedelta(hours=1)
+        assert health.issued_at == _START
+
+
+def test_health_is_kept_per_pier() -> None:
+    delivery = RecordingDelivery()
+    service = _health_service(delivery, {"a": [True], "b": [False]}, pier_ids=("a", "b"))
+    service.run(monotonic=ScriptedMonotonic([0.0]), max_iterations=0)
+
+    latest = dict(delivery.healths)
+    assert all(h.status == "ok" for h in latest["a"])
+    assert all(h.status == "failed" and h.last_success is None for h in latest["b"])
+
+
+def test_with_no_providers_no_health_is_published_and_it_goes_online_first() -> None:
+    delivery = RecordingDelivery()
+    service = Service(_app_config(), delivery, FixedClock(_START))  # type: ignore[arg-type]
+    service.run(monotonic=ScriptedMonotonic([0.0]), max_iterations=0)
+
+    assert delivery.events == [("online",), ("verdict", "backyard")]
+    assert delivery.healths == []
+
+
+def test_fetch_outcomes_do_not_change_the_verdict_document() -> None:
+    # Same pier, instant, and snapshot; one run's fetches all succeed and the
+    # other's all fail. The verdict documents must be byte-identical.
+    documents = []
+    for ok in (True, False):
+        delivery = RecordingDelivery()
+        _health_service(delivery, {"backyard": [ok]}).run(
+            monotonic=ScriptedMonotonic([0.0]), max_iterations=0
+        )
+        assert [h.status for h in delivery.healths[-1][1]] == ["ok" if ok else "failed"] * 2
+        documents.append(delivery.documents[0].to_json())
+    assert documents[0] == documents[1]

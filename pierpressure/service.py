@@ -14,6 +14,12 @@ interval recompute forever. Instead each iteration first checks whether the
 deadline has passed (recompute all, reset the deadline) and otherwise waits only
 the remaining time; a dequeued refresh recomputes that one pier *without* moving
 the deadline.
+
+Provider health (provider-health-entities D3, D4) is kept here, in memory, per
+pier and provider. On startup the service publishes every provider's health with
+no history before it goes online, so no retained success from before a restart is
+ever shown as current. After each fetch it folds that fetch's outcomes into the
+pier's health and publishes it beside the verdict.
 """
 
 from __future__ import annotations
@@ -21,29 +27,31 @@ from __future__ import annotations
 import logging
 import queue
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 
+from pierpressure.conditions import FetchResult
 from pierpressure.core.clock import Clock
 from pierpressure.core.conditions import Conditions
 from pierpressure.core.config import AppConfig, PierConfig
 from pierpressure.core.producer import produce_verdict
 from pierpressure.delivery.mqtt import MqttDelivery
 from pierpressure.explain import Explainer, no_op_explainer
+from pierpressure.health import ProviderHealth, ProviderInfo, fold
 
 logger = logging.getLogger(__name__)
 
 MonotonicFn = Callable[[], float]
 
 # A conditions provider: given a pier, return an already-obtained Conditions
-# value. It never raises — a failed fetch yields a partial (a present group beside
-# an absent one) or empty value, so the service always publishes an honest verdict
-# (design D6).
-ConditionsProvider = Callable[[PierConfig], Conditions]
+# value and the outcome of each source fetch behind it. It never raises — a failed
+# fetch yields a partial (a present group beside an absent one) or empty value, so
+# the service always publishes an honest verdict (design D6).
+ConditionsProvider = Callable[[PierConfig], FetchResult]
 
 
-def _no_conditions(_pier: PierConfig) -> Conditions:
+def _no_conditions(_pier: PierConfig) -> FetchResult:
     """Fallback provider: the canonical empty value (astronomy-only verdicts)."""
-    return Conditions(None, None)
+    return FetchResult(Conditions(None, None))
 
 
 class Service:
@@ -57,6 +65,7 @@ class Service:
         refresh_queue: queue.Queue[str] | None = None,
         conditions_provider: ConditionsProvider | None = None,
         explainer: Explainer | None = None,
+        providers: Sequence[ProviderInfo] = (),
     ) -> None:
         self._config = config
         self._delivery = delivery
@@ -75,6 +84,11 @@ class Service:
         # deferred async path (design Open Questions). The cache makes steady state a
         # local hit, and a disabled explainer adds nothing.
         self._explainer = explainer or no_op_explainer
+        # The conditions providers whose health this service reports, and that
+        # health per pier and provider key. It is seeded by run(); with no
+        # providers (the default), no health is published.
+        self._providers = tuple(providers)
+        self._health: dict[str, dict[str, ProviderHealth]] = {}
 
     def enqueue_refresh(self, pier_id: str) -> None:
         """Callback for the network thread: record an on-demand refresh request."""
@@ -101,10 +115,35 @@ class Service:
         freshness (design D7). The provider never raises; a failed fetch degrades
         to a partial snapshot rather than skipping a publish.
         """
-        conditions = self._conditions_provider(pier)
-        document = produce_verdict(pier, self._clock, conditions)
+        result = self._conditions_provider(pier)
+        # Only the conditions reach the core; the fetch outcomes feed health alone.
+        document = produce_verdict(pier, self._clock, result.conditions)
         narrative = self._explainer(document)  # never raises; may be None
         self._delivery.publish_verdict(document, narrative=narrative)
+
+        healths = self._health.get(pier.id)
+        if healths:
+            for outcome in result.outcomes:
+                if outcome.key in healths:
+                    healths[outcome.key] = fold(healths[outcome.key], outcome)
+            self._delivery.publish_health(pier.id, healths.values())
+
+    def _reset_health(self) -> None:
+        """Seed every pier's health with no history and publish it (design D4).
+
+        Raises :class:`~pierpressure.delivery.mqtt.DeliveryError` if the publish
+        fails, so the process exits before it reports itself online.
+        """
+        tracking_since = self._clock.now()
+        for pier in self._config.piers:
+            self._health[pier.id] = {
+                info.key: ProviderHealth.empty(
+                    key=info.key, name=info.name, role=info.role, tracking_since=tracking_since
+                )
+                for info in self._providers
+            }
+            if self._providers:
+                self._delivery.publish_health(pier.id, self._health[pier.id].values())
 
     def _drain_refreshes(self, first: str) -> set[str]:
         """Collapse duplicate queued refreshes into one recompute per pier (D7).
@@ -127,12 +166,16 @@ class Service:
         monotonic: MonotonicFn = time.monotonic,
         max_iterations: int | None = None,
     ) -> None:
-        """Publish all piers on startup, then loop until stopped.
+        """Reset health, go online, publish all piers, then loop until stopped.
 
+        The health reset comes before ``go_online()`` and before any fetch, so an
+        entity never shows a retained health time from before this start.
         ``monotonic`` and ``max_iterations`` are injection points for tests;
         production calls ``run()`` with the defaults (loops forever).
         """
         interval = self._config.recompute.interval_seconds
+        self._reset_health()
+        self._delivery.go_online()
         self.publish_all()
         deadline = monotonic() + interval
 

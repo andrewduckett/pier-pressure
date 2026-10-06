@@ -10,7 +10,7 @@ import pytest
 import pierpressure
 from pierpressure.core.clock import FixedClock
 from pierpressure.core.config import AppConfig, RecomputeConfig
-from pierpressure.delivery.mqtt import MqttDelivery, verdict_state_topic
+from pierpressure.delivery.mqtt import MqttDelivery, availability_topic, verdict_state_topic
 from pierpressure.service import Service
 
 from .conftest import FakeMqttClient, make_mqtt_config, make_pier
@@ -35,6 +35,9 @@ def test_startup_publishes_a_verdict_against_a_fake_broker() -> None:
     state = client.publishes_to(verdict_state_topic("pierpressure", "backyard"))
     assert state and state[0].payload == "MAYBE"
     assert client.will is not None  # LWT registered on connect
+    # run() publishes the retained online availability; connect() no longer does.
+    online = client.publishes_to(availability_topic("pierpressure"))
+    assert [(p.payload, p.retain) for p in online] == [("online", True)]
 
 
 def test_main_exits_nonzero_on_bad_config(tmp_path: object) -> None:

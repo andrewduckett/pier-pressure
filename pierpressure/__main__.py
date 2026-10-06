@@ -58,24 +58,30 @@ def main(argv: list[str] | None = None) -> int:
     delivery, explainer = build_delivery_and_explainer(config)
     try:
         delivery.connect()
-        delivery.go_online()
     except DeliveryError as exc:
         logger.error("Startup delivery failure: %s", exc)
         return 1
 
-    conditions = build_provider()
+    clock = SystemClock()
+    conditions = build_provider(now=clock.now)
     service = Service(
         config,
         delivery,
-        SystemClock(),
-        conditions_provider=lambda pier: conditions.get(pier).conditions,
+        clock,
+        conditions_provider=conditions.get,
         explainer=explainer,
+        providers=conditions.providers,
     )
     delivery.subscribe_refresh([pier.id for pier in config.piers], service.enqueue_refresh)
 
     logger.info("PierPressure started for %d pier(s)", len(config.piers))
     try:
         service.run()
+    except DeliveryError as exc:
+        # Includes a failed startup health reset, which happens before the
+        # process reports itself online (provider-health-entities D4).
+        logger.error("Delivery failure: %s", exc)
+        return 1
     except KeyboardInterrupt:  # pragma: no cover - interactive shutdown
         logger.info("Shutting down")
     finally:
