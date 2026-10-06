@@ -26,11 +26,11 @@ ready. No golden verdict file changes, and the verdict document is untouched.
 
 ## 4. Documentation
 
-- [ ] 4.1 Update `ha-addon/DOCS.md`: with the Mosquitto broker add-on, leave the `mqtt:` connection settings out and the add-on uses the Supervisor's broker; setting `mqtt.host` uses the file's settings instead, all four together; what each startup error means. Replace the minimal example and the "Write the password into the file" section to match. Verify by reading the diff.
-- [ ] 4.2 Update the add-on section of `README.md` the same way, in fewer words, and link to the add-on docs for details. Verify that `tests/test_docs.py` passes and by reading the diff.
+- [x] 4.1 Update `ha-addon/DOCS.md`: with the Mosquitto broker add-on, leave the `mqtt:` connection settings out and the add-on uses the Supervisor's broker; setting `mqtt.host` uses the file's settings instead, all four together; what each startup error means. Replace the minimal example and the "Write the password into the file" section to match. Verify by reading the diff.
+- [x] 4.2 Update the add-on section of `README.md` the same way, in fewer words, and link to the add-on docs for details. Verify that `tests/test_docs.py` passes and by reading the diff.
 
 ## 5. Verify and archive
 
-- [ ] 5.1 Run `just check` and verify it is green.
+- [x] 5.1 Run `just check` and verify it is green.
 - [ ] 5.2 After a release with this change, install that version of the add-on on a Home Assistant OS instance running the Mosquitto add-on, with a `config.yaml` that has no `mqtt:` block. Verify that the log names `core-mosquitto:1883` as coming from the Supervisor's `mqtt` service, and that a device appears for each pier. If no release is available before archive, record this check as pending in the PR description.
 - [ ] 5.3 At archive, update the Purpose paragraph of `openspec/specs/ha-addon/spec.md`: the add-on runs the released image with the user's own config file, and its only behaviour of its own is to use the Supervisor's broker when the file names none. A delta spec cannot change a Purpose. Verify by reading the archived spec (design Migration Plan).
