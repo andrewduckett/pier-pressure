@@ -127,7 +127,7 @@ jobs:
           annotations: org.opencontainers.image.version=${{ steps.version.outputs.version }}
 
       - name: Build and push the image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64,linux/arm64
