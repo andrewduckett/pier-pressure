@@ -40,5 +40,5 @@ file.
 
 ## 6. Gate and manual check
 
-- [ ] 6.1 Run `just check` and verify that ruff, mypy, and pytest are all green.
+- [x] 6.1 Run `just check` and verify that ruff, mypy, and pytest are all green.
 - [ ] 6.2 Run the five checks in design.md "Manual check in Home Assistant" against a real instance, and record the results in the PR. If check 3 fails, apply the fallback the design names and re-run the check.
