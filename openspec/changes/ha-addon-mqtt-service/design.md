@@ -1,0 +1,173 @@
+## Context
+
+See proposal.md for why, and `specs/ha-addon/spec.md` for the required behaviour.
+This design covers how the service finds the Supervisor's broker without breaking
+the pure core.
+
+Facts that shape the approach:
+
+- **The Supervisor's API.** An add-on reads a service with
+  `GET http://supervisor/services/mqtt` and the header
+  `Authorization: Bearer $SUPERVISOR_TOKEN`. The Supervisor checks only that the
+  add-on declared the service. The add-on needs no `hassio_api` permission
+  (`supervisor/api/middleware/security.py`, `supervisor/api/services.py`).
+- **The response.** On the maintainer's instance (Supervisor 2026.09.3,
+  Mosquitto 7.1.1), the response was
+  `{"result":"ok","data":{"host":"core-mosquitto","port":1883,"ssl":false,
+  "protocol":"3.1.1","username":"addons","password":"…","addon":"core_mosquitto"}}`.
+  The `/v2/services/mqtt` path renames `addon` to `app`. PierPressure reads
+  neither key.
+- **No provider.** When no add-on provides the service, the Supervisor answers
+  with an error result, "Service not enabled".
+- **Mosquitto withdraws its details on every start.** Its `discovery` script waits
+  for port 1883, deletes its `mqtt` registration, then publishes it again. The
+  details are always `port: 1883, ssl: false`, even when TLS listeners are on.
+- **Only add-ons get the token.** The Supervisor sets `SUPERVISOR_TOKEN` in every
+  add-on container (`supervisor/docker/app.py`). Docker and source installs never
+  have it.
+- **`load_config` is in the core.** `pierpressure/core/config.py` must not import
+  Home Assistant code or reach the network. A test enforces the import boundary.
+  `MqttConfig.host` is required today.
+- **Tests run offline.** `tests/offline_guard.py` makes any real connection fail.
+  The weather providers already accept an injected `httpx.Client`.
+
+## Goals / Non-Goals
+
+**Goals:**
+
+- The core stays pure. The only network access lives outside
+  `pierpressure/core/`.
+- The service asks the Supervisor only when the file names no host. A user with
+  their own broker never triggers a request.
+- Tests cover the wait without real sleeping and without network access.
+
+**Non-Goals:**
+
+- Watching for later changes to the Supervisor's broker details. The service reads
+  them once, at startup.
+- Using the `protocol` field. The Mosquitto add-on always reports `3.1.1`, which is
+  paho's default.
+- Sharing a back-off with #33. That story may reuse or replace this wait.
+
+## Decisions
+
+### D1. `SUPERVISOR_TOKEN` decides whether the service is inside an add-on
+
+`__main__` treats a set, non-empty `SUPERVISOR_TOKEN` as "running inside an
+add-on". Without it, the service passes no broker lookup to `load_config`, so
+behaviour is exactly as before.
+
+- *Why:* the Supervisor sets the token in every add-on, and nothing else sets it.
+  Checking it needs no network access.
+- *Alternative:* an explicit setting such as `PIERPRESSURE_SUPERVISOR=1` in the
+  add-on's `environment`. Rejected: it adds a setting that has to agree with the
+  token anyway, because the request needs the token.
+
+### D2. The core takes an injected broker lookup, and calls it only when needed
+
+`load_config(path, broker_lookup=None)` gains one optional argument. It is a
+callable that takes no arguments and returns the broker's connection settings:
+host, port, username and password. The core calls it only when the file's `mqtt`
+block has no `host`.
+
+The core applies the precedence rule from the spec:
+
+1. The file sets `mqtt.host`: build `MqttConfig` from the file alone. The lookup
+   is not called.
+2. The file sets `mqtt.port`, `mqtt.username` or `mqtt.password` without
+   `mqtt.host`: raise `ConfigError`, telling the user to set `mqtt.host` too.
+3. No host and no lookup: validate as today, so the missing-host error stays the
+   same.
+4. No host and a lookup: call it, and merge its four settings into the file's
+   `mqtt` block. `discovery_prefix` and `base_topic` keep the file's values or
+   defaults. The `mqtt:` block itself may be missing.
+
+A lookup failure raises `ConfigError`, so `__main__` logs it as a
+"Configuration error" and exits with status 1, as it does for other config errors.
+
+- *Why:* only the core knows whether the file names a host, after it parses the
+  YAML and expands `${VAR}`. Injecting a callable keeps the I/O outside the core.
+  The service already injects its conditions provider the same way.
+- *Alternative:* `__main__` always fetches the broker first and passes plain
+  settings in. Rejected: it would ask the Supervisor, and wait up to 60 seconds,
+  even when the file names its own broker.
+- *Alternative:* `__main__` parses the YAML itself to check for `mqtt.host`.
+  Rejected: it would duplicate the parsing and the `${VAR}` expansion.
+
+### D3. A small Supervisor client lives in `pierpressure/supervisor.py`
+
+The new module sits beside `health.py`, outside the core. It exposes one function
+that returns the broker's connection settings or raises an error. It takes an
+`httpx.Client`, a sleep function and a monotonic clock as optional arguments, so
+tests inject an `httpx.MockTransport` and a fake clock.
+
+Each request has a 5-second timeout. The client reads `data.host`, `data.port`,
+`data.username`, `data.password` and `data.ssl`. `username` and `password` may be
+missing; the client passes them on as `None`.
+
+- *Why:* a module of its own keeps Supervisor knowledge in one place, and keeps
+  `__main__` short. `httpx` is already a dependency.
+
+### D4. The client retries for up to 60 seconds, then fails with one message
+
+The client tries once, then every 2 seconds, until 60 seconds have passed since
+the first try. It treats all of these as "not available yet":
+
+- an error result, such as "Service not enabled"
+- a connection error or timeout
+- any HTTP error status
+- a response without a usable `host` and `port`
+
+After the deadline, it raises an error that says no MQTT broker was found. The
+message tells the user to install the Mosquitto broker add-on, or to set
+`mqtt.host` in `config.yaml`. It logs one line at the first miss, so a user who
+watches the log sees why startup is slow.
+
+- *Why:* the Mosquitto add-on withdraws its details for a few seconds on each
+  start, so a short wait covers a reboot. One rule for every failure keeps the
+  client simple. The spec treats a failed request the same as a missing service.
+- *Alternative:* fail at once, and leave all waiting at startup to #33. Rejected:
+  this change would then add a new way to fail at boot for the very users it
+  serves.
+- *Alternative:* stop at once on "Service not enabled", because that may mean no
+  Mosquitto add-on is installed. Rejected: Mosquitto returns the same answer while
+  it restarts, so the two cases cannot be told apart.
+
+### D5. A broker that requires TLS is refused at once
+
+If the details say `ssl: true`, the client raises an error at once. It does not
+retry. The message says the broker requires TLS, which PierPressure does not
+support, and tells the user to set the broker's settings in `config.yaml`.
+
+- *Why:* the Mosquitto add-on never reports TLS, so this guards only against other
+  providers. Connecting without TLS would quietly drop the encryption the provider
+  asked for, and send its credentials in plain text.
+
+### D6. The log names the source, never the password
+
+After it loads the config, `__main__` logs one line with the broker's source and
+its `host:port`. Examples: `MQTT broker from the Supervisor's mqtt service:
+core-mosquitto:1883`, and `MQTT broker from config.yaml: broker.lan:1883`. No log
+line and no error message includes the password or the token.
+
+## Risks / Trade-offs
+
+- [Startup is up to 60 seconds slower when no broker add-on is installed and the
+  file names no host.] → The first miss logs a line that explains the wait. The
+  final error says how to fix it.
+- [The Supervisor's API could change shape.] → The client reads five fields from
+  a path that has been stable across API versions. Any surprise falls into D4's
+  "not available" rule, and then the clear error.
+- [An existing add-on user whose file sets `host: core-mosquitto` gets nothing
+  new.] → That file keeps working, unchanged. The add-on docs explain that leaving
+  out `host` uses the Supervisor's broker.
+- [Mosquitto could replace its `addons` password while PierPressure runs.] → The
+  password comes from Mosquitto's stored data and survives restarts. If it ever
+  changes, restarting PierPressure picks up the new one. #44 covers reconnecting.
+
+## Migration Plan
+
+No migration. Existing config files keep working, because a file that sets
+`mqtt.host` behaves as before. The change reaches add-on users through the usual
+release and add-on version pull request. To roll back, the maintainer reverts the
+add-on version to the previous release.
