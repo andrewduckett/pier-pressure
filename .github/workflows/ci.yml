@@ -18,7 +18,7 @@ jobs:
         uses: astral-sh/setup-uv@v5
 
       - name: Install just
-        uses: extractions/setup-just@v2
+        uses: extractions/setup-just@v4
 
       - name: Set up Python
         run: uv python install 3.12
@@ -38,7 +38,7 @@ jobs:
         uses: astral-sh/setup-uv@v5
 
       - name: Install just
-        uses: extractions/setup-just@v2
+        uses: extractions/setup-just@v4
 
       - name: Set up Python
         run: uv python install 3.12
