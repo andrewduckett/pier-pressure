@@ -4,14 +4,23 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 
 import pytest
 
 import pierpressure
+from pierpressure import __main__ as entry
 from pierpressure.core.clock import FixedClock
-from pierpressure.core.config import AppConfig, RecomputeConfig
-from pierpressure.delivery.mqtt import MqttDelivery, availability_topic, verdict_state_topic
+from pierpressure.core.config import AppConfig, BrokerSettings, MqttConfig, RecomputeConfig
+from pierpressure.delivery.mqtt import (
+    DeliveryError,
+    MqttDelivery,
+    availability_topic,
+    verdict_state_topic,
+)
 from pierpressure.service import Service
+from pierpressure.supervisor import SupervisorError
 
 from .conftest import FakeMqttClient, make_mqtt_config, make_pier
 
@@ -55,3 +64,153 @@ def test_main_logs_version_before_config_error(caplog: pytest.LogCaptureFixture)
     messages = [record.getMessage() for record in caplog.records]
     assert messages[0] == f"PierPressure {pierpressure.__version__}"
     assert messages[1].startswith("Configuration error")
+
+
+# --------------------------------------------------------------------------- #
+# ha-addon-mqtt-service: the broker's source (design D1, D2, D6)
+# --------------------------------------------------------------------------- #
+
+PIERS = """
+recompute:
+  interval_seconds: 900
+piers:
+  - id: backyard
+    latitude: 51.50
+    longitude: -0.12
+    elevation_m: 30
+"""
+FILE_BROKER = "mqtt:\n  host: broker.lan\n  username: me\n  password: file-secret\n"
+SUPERVISOR_PASSWORD = "supervisor-secret"
+SUPERVISOR_BROKER = BrokerSettings(
+    host="core-mosquitto", port=1883, username="addons", password=SUPERVISOR_PASSWORD
+)
+
+
+class StartupStub:
+    """Stands in for the broker connection and the Supervisor lookup.
+
+    ``connected_to`` records the MQTT config the delivery was built with; its
+    ``connect`` then fails, so ``main`` stops right after config loading.
+    ``supervisor_calls`` records each token the Supervisor was asked with.
+    """
+
+    def __init__(self, monkeypatch: pytest.MonkeyPatch, supervisor: Any = SUPERVISOR_BROKER):
+        self.connected_to: list[MqttConfig] = []
+        self.supervisor_calls: list[str] = []
+        stub = self
+
+        class FakeDelivery:
+            def __init__(self, mqtt: MqttConfig, **_kwargs: Any) -> None:
+                stub.connected_to.append(mqtt)
+
+            def connect(self) -> None:
+                raise DeliveryError("stopped by test")
+
+        def fake_fetch(token: str) -> BrokerSettings:
+            stub.supervisor_calls.append(token)
+            if isinstance(supervisor, Exception):
+                raise supervisor
+            assert isinstance(supervisor, BrokerSettings)
+            return supervisor
+
+        monkeypatch.setattr(entry, "MqttDelivery", FakeDelivery)
+        monkeypatch.setattr(entry, "fetch_mqtt_broker", fake_fetch)
+
+
+def _config(tmp_path: Path, text: str) -> str:
+    path = tmp_path / "config.yaml"
+    path.write_text(text, encoding="utf-8")
+    return str(path)
+
+
+def test_in_an_addon_main_uses_the_supervisor_broker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    stub = StartupStub(monkeypatch)
+    entry.main([_config(tmp_path, PIERS)])
+    assert stub.supervisor_calls == ["token-1"]
+    assert [(m.host, m.username) for m in stub.connected_to] == [("core-mosquitto", "addons")]
+
+
+def test_a_file_host_means_main_never_asks_the_supervisor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    stub = StartupStub(monkeypatch)
+    entry.main([_config(tmp_path, FILE_BROKER + PIERS)])
+    assert stub.supervisor_calls == []
+    assert [m.host for m in stub.connected_to] == ["broker.lan"]
+
+
+@pytest.mark.parametrize("token", [None, ""], ids=["unset", "empty"])
+def test_outside_an_addon_main_never_asks_the_supervisor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, token: str | None
+) -> None:
+    if token is None:
+        monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    else:
+        monkeypatch.setenv("SUPERVISOR_TOKEN", token)
+    stub = StartupStub(monkeypatch)
+    assert entry.main([_config(tmp_path, PIERS)]) == 1
+    assert stub.supervisor_calls == []
+
+
+def test_outside_an_addon_the_missing_host_error_is_unchanged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    StartupStub(monkeypatch)
+    with caplog.at_level(logging.ERROR, logger="pierpressure"):
+        entry.main([_config(tmp_path, PIERS)])
+    [error] = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+    assert error.startswith("Configuration error: Invalid mqtt/recompute configuration")
+
+
+def test_a_supervisor_failure_is_a_configuration_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    stub = StartupStub(monkeypatch, supervisor=SupervisorError("No MQTT broker was found."))
+    with caplog.at_level(logging.ERROR, logger="pierpressure"):
+        assert entry.main([_config(tmp_path, PIERS)]) == 1
+    errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+    assert errors == ["Configuration error: No MQTT broker was found."]
+    assert stub.connected_to == []
+
+
+def test_credentials_without_a_host_stop_before_asking_the_supervisor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    stub = StartupStub(monkeypatch)
+    assert entry.main([_config(tmp_path, "mqtt:\n  username: me\n" + PIERS)]) == 1
+    assert stub.supervisor_calls == []
+
+
+@pytest.mark.parametrize(
+    ("text", "token", "expected"),
+    [
+        (PIERS, "token-1", "MQTT broker from the Supervisor's mqtt service: core-mosquitto:1883"),
+        (FILE_BROKER + PIERS, None, "MQTT broker from config.yaml: broker.lan:1883"),
+    ],
+    ids=["supervisor", "file"],
+)
+def test_main_logs_the_broker_source(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    text: str,
+    token: str | None,
+    expected: str,
+) -> None:
+    if token is None:
+        monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    else:
+        monkeypatch.setenv("SUPERVISOR_TOKEN", token)
+    StartupStub(monkeypatch)
+    with caplog.at_level(logging.DEBUG):
+        entry.main([_config(tmp_path, text)])
+    assert expected in [r.getMessage() for r in caplog.records]
+    assert SUPERVISOR_PASSWORD not in caplog.text
+    assert "file-secret" not in caplog.text
