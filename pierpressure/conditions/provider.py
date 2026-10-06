@@ -10,14 +10,18 @@ present only when its source returned rows (design D1). :class:`CompositeProvide
 fetches the two sources independently so one failing never fails the other. A
 failed or empty fetch leaves its source unavailable until the next good fetch; it
 is never filled from an earlier one.
+
+Each fetch also reports a :class:`~pierpressure.health.FetchOutcome` per source.
+The outcomes travel beside the conditions in a :class:`FetchResult`, so they feed
+provider health and never reach the verdict (provider-health-entities D1).
 """
 
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Protocol
 
 from pierpressure.core.conditions import (
@@ -29,6 +33,7 @@ from pierpressure.core.conditions import (
     SecondaryHour,
 )
 from pierpressure.core.config import PierConfig
+from pierpressure.health import NO_READINGS, FetchOutcome, ProviderInfo, Role, describe_error
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +74,17 @@ class SourceForecast:
 
 
 class Provider(Protocol):
-    """Anything that can fetch one source's forecast for a pier."""
+    """Anything that can fetch one source's forecast for a pier.
+
+    ``key`` is the provider's stable identifier, used in health topics and entity
+    identities; ``name`` is its display name.
+    """
+
+    @property
+    def key(self) -> str: ...
+
+    @property
+    def name(self) -> str: ...
 
     def fetch(self, pier: PierConfig) -> SourceForecast: ...
 
@@ -111,6 +126,18 @@ def assemble_snapshot(base: SourceForecast, secondary: SourceForecast) -> Condit
     )
 
 
+def _utcnow() -> datetime:
+    return datetime.now(UTC)
+
+
+@dataclass(frozen=True)
+class FetchResult:
+    """One pier's conditions, and the outcome of each source fetch behind them."""
+
+    conditions: Conditions
+    outcomes: tuple[FetchOutcome, ...] = ()
+
+
 @dataclass
 class CompositeProvider:
     """Fetch the base and secondary sources independently and merge them.
@@ -119,33 +146,68 @@ class CompositeProvider:
     secondary source still yields cloud and wind, and losing the base source still
     yields whatever the secondary provided. A partial snapshot is a valid result,
     not an error.
+
+    ``now`` stamps each outcome's fetch time; tests pass a fixed clock.
     """
 
     base: Provider
     secondary: Provider
+    now: Callable[[], datetime] = _utcnow
 
-    def get(self, pier: PierConfig) -> Conditions:
-        return assemble_snapshot(
-            self._safe_fetch(self.base, pier, "base"),
-            self._safe_fetch(self.secondary, pier, "secondary"),
+    @property
+    def providers(self) -> tuple[ProviderInfo, ...]:
+        """Each source's key, display name, and role, in fetch order."""
+        return (
+            ProviderInfo(key=self.base.key, name=self.base.name, role="base"),
+            ProviderInfo(key=self.secondary.key, name=self.secondary.name, role="secondary"),
         )
 
-    @staticmethod
-    def _safe_fetch(provider: Provider, pier: PierConfig, label: str) -> SourceForecast:
+    def get(self, pier: PierConfig) -> FetchResult:
+        base, base_outcome = self._safe_fetch(self.base, pier, "base")
+        secondary, secondary_outcome = self._safe_fetch(self.secondary, pier, "secondary")
+        return FetchResult(
+            conditions=assemble_snapshot(base, secondary),
+            outcomes=(base_outcome, secondary_outcome),
+        )
+
+    def _safe_fetch(
+        self, provider: Provider, pier: PierConfig, role: Role
+    ) -> tuple[SourceForecast, FetchOutcome]:
+        """Fetch one source; a failure or an empty forecast is a failed outcome.
+
+        The full error text goes to the log only. The outcome carries the safe
+        description from :func:`~pierpressure.health.describe_error`.
+        """
+        fetched_at = self.now()
+        error: str | None = None
         try:
-            return provider.fetch(pier)
+            forecast = provider.fetch(pier)
         except Exception as exc:  # noqa: BLE001 - a failed source degrades, never fails
-            logger.warning("conditions %s source failed: %s", label, exc)
-            return SourceForecast()
+            logger.warning("conditions %s source failed: %s", role, exc)
+            forecast, error = SourceForecast(), describe_error(exc)
+        else:
+            if forecast.is_empty:
+                error = NO_READINGS
+        return forecast, FetchOutcome(
+            key=provider.key,
+            name=provider.name,
+            role=role,
+            fetched_at=fetched_at,
+            ok=error is None,
+            error=error,
+            issued_at=forecast.issued_at if error is None else None,
+        )
 
 
 def build_provider(
-    base: Provider | None = None, secondary: Provider | None = None
+    base: Provider | None = None,
+    secondary: Provider | None = None,
+    now: Callable[[], datetime] = _utcnow,
 ) -> CompositeProvider:
     """Assemble the production provider stack: both sources, composed.
 
     ``base`` and ``secondary`` default to the real sources; tests pass stubs to run
-    the production stack without the network.
+    the production stack without the network. ``now`` stamps each fetch outcome.
     """
     from .open_meteo import OpenMeteoProvider
     from .seven_timer import SevenTimerProvider
@@ -153,4 +215,5 @@ def build_provider(
     return CompositeProvider(
         base=base if base is not None else OpenMeteoProvider(),
         secondary=secondary if secondary is not None else SevenTimerProvider(),
+        now=now,
     )

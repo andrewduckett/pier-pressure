@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, ClassVar
 
 import httpx
 
@@ -76,6 +76,9 @@ def parse_seven_timer(payload: dict[str, Any]) -> SourceForecast:
 @dataclass
 class SevenTimerProvider:
     """Fetches 3-hourly seeing and transparency from 7Timer! and resamples hourly."""
+
+    key: ClassVar[str] = "seven_timer"
+    name: ClassVar[str] = "7Timer!"
 
     client: httpx.Client | None = None
 

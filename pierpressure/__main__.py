@@ -62,11 +62,12 @@ def main(argv: list[str] | None = None) -> int:
         logger.error("Startup delivery failure: %s", exc)
         return 1
 
+    conditions = build_provider()
     service = Service(
         config,
         delivery,
         SystemClock(),
-        conditions_provider=build_provider().get,
+        conditions_provider=lambda pier: conditions.get(pier).conditions,
         explainer=explainer,
     )
     delivery.subscribe_refresh([pier.id for pier in config.piers], service.enqueue_refresh)

@@ -12,9 +12,9 @@ file.
 
 ## 2. Fetch outcomes from the conditions provider
 
-- [ ] 2.1 Give each source provider a provider key and display name (`open_meteo` / "Open-Meteo", `seven_timer` / "7Timer!") and add `key` and `name` to the conditions `Provider` protocol. Verify with a test that `build_provider()` exposes both providers' key, display name, and role (design D3).
-- [ ] 2.2 Write tests first in `tests/test_conditions_provider.py`: `CompositeProvider.get` returns a `FetchResult` holding the same `Conditions` as before and one `FetchOutcome` per provider; a raising source gives a failed outcome with `describe_error` text; an empty forecast gives a failed outcome with error `no readings returned`; readings with blank fields give a successful outcome. Inject a fixed `now` so fetch times are exact. Verify the tests fail (design D1; conditions spec scenarios).
-- [ ] 2.3 Change `_safe_fetch` to return the forecast and its `FetchOutcome`, and `get` to return `FetchResult`. Add an injectable `now` to `CompositeProvider` and `build_provider()`. Keep the full exception text in the existing warning log. Verify that the tests from 2.2 and every existing provider test pass.
+- [x] 2.1 Give each source provider a provider key and display name (`open_meteo` / "Open-Meteo", `seven_timer` / "7Timer!") and add `key` and `name` to the conditions `Provider` protocol. Verify with a test that `build_provider()` exposes both providers' key, display name, and role (design D3).
+- [x] 2.2 Write tests first in `tests/test_conditions_provider.py`: `CompositeProvider.get` returns a `FetchResult` holding the same `Conditions` as before and one `FetchOutcome` per provider; a raising source gives a failed outcome with `describe_error` text; an empty forecast gives a failed outcome with error `no readings returned`; readings with blank fields give a successful outcome. Inject a fixed `now` so fetch times are exact. Verify the tests fail (design D1; conditions spec scenarios).
+- [x] 2.3 Change `_safe_fetch` to return the forecast and its `FetchOutcome`, and `get` to return `FetchResult`. Add an injectable `now` to `CompositeProvider` and `build_provider()`. Keep the full exception text in the existing warning log. Verify that the tests from 2.2 and every existing provider test pass.
 
 ## 3. Delivery
 

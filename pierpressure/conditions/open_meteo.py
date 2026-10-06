@@ -12,7 +12,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, ClassVar
 
 import httpx
 
@@ -75,6 +75,9 @@ def parse_open_meteo(payload: dict[str, Any], issued_at: datetime) -> SourceFore
 @dataclass
 class OpenMeteoProvider:
     """Fetches hourly cloud and wind gust from Open-Meteo."""
+
+    key: ClassVar[str] = "open_meteo"
+    name: ClassVar[str] = "Open-Meteo"
 
     client: httpx.Client | None = None
     now: Callable[[], datetime] = _utcnow
