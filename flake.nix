@@ -15,7 +15,7 @@
       ];
       forAllSystems = f: lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
 
-      # "3.12" or "3.12.4" in .python-version both select python312.
+      # "3.14" or "3.14.7" in .python-version both select python314.
       pythonVersionString = lib.trim (builtins.readFile ./.python-version);
       pythonVersion = lib.splitString "." pythonVersionString;
       pythonAttr = "python${lib.elemAt pythonVersion 0}${lib.elemAt pythonVersion 1}";

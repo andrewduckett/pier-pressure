@@ -22,7 +22,7 @@ context: |
   say `Closes #<n>`. One story per change.
 
   Durable constraints (honor in every artifact):
-  - Core is pure Python 3.12+ with zero Home Assistant imports; it is
+  - Core is pure Python 3.14+ with zero Home Assistant imports; it is
     deterministic and testable off Home Assistant (same inputs, including a
     pinned evaluation instant, yield the same verdict document).
   - The core emits ONE JSON verdict document; that document plus the MQTT entity
@@ -54,7 +54,8 @@ context: |
   - Astronomy stack: Skyfield / Astroplan / Astropy.
   - Toolchain: uv (env/deps/lockfile), just (task runner), ruff (lint AND
     format - no black), mypy (types), pytest (tests), pre-commit, GitHub
-    Actions CI running `just check`. Python pinned to 3.12.
+    Actions CI running `just check`. Python 3.14, pinned only in
+    .python-version.
 # Plain-language guidance (ISO 24495) now lives in the schema's per-artifact
 # instructions and is enforced across all artifacts at review time, so it is not
 # duplicated here. Add a project-specific `rules:` map (keyed by artifact id)

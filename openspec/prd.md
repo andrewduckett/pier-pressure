@@ -137,7 +137,7 @@ presses the "show me now" refresh button.
 These rules hold for every change. The hard-to-reverse ones are recorded as
 decision records in [`docs/decisions/`](../docs/decisions/).
 
-- **Pure, deterministic core.** The decision core is Python 3.12+ with no Home
+- **Pure, deterministic core.** The decision core is Python 3.14+ with no Home
   Assistant or MQTT imports. The same inputs, including a pinned evaluation
   instant, give the same verdict document.
 - **One contract.** The core emits a single JSON verdict document. That document
@@ -156,7 +156,7 @@ decision records in [`docs/decisions/`](../docs/decisions/).
 
 ## 9. Tech stack and deployment
 
-- **Language:** Python 3.12.
+- **Language:** Python 3.14, set in `.python-version`.
 - **Astronomy:** Skyfield, Astroplan, Astropy.
 - **Conditions:** Open-Meteo as the base provider, with 7Timer! for seeing and
   transparency.
