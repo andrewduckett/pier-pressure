@@ -2,7 +2,7 @@
 
 Versions are monthly CalVer, ``YYYY.M.N``: the UTC year and month of the release,
 and a counter ``N`` that starts at 0 each month. Uses only the standard library,
-so the release workflow can run it with any Python 3.12.
+so the release workflow runs it without the project's dependencies.
 """
 
 from __future__ import annotations

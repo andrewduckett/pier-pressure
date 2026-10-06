@@ -4,7 +4,7 @@ The release workflow runs this after it publishes an image, to move
 ``ha-addon/config.yaml`` to the new release. Only the top-level ``version:`` line
 value changes; every other byte of the file, including a trailing comment on that
 line, stays as it was. Uses only the standard
-library, so the release workflow can run it with any Python 3.12.
+library, so the release workflow runs it without the project's dependencies.
 """
 
 from __future__ import annotations

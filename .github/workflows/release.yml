@@ -79,6 +79,13 @@ jobs:
             exit 1
           fi
 
+      # The helper scripts below need the project's Python, not the runner's own
+      # python3, which can be older than the syntax ruff allows (#46).
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+
       # Fails if HEAD already carries a release tag: each commit releases once.
       - name: Compute the next version
         id: version
