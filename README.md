@@ -421,6 +421,28 @@ just test-integration   # runs integration tests against a throwaway Mosquitto
 
 `docker compose --profile full up` runs PierPressure against a local broker.
 
+### Dependency updates
+
+Dependabot opens update pull requests every week. Its settings are in
+`.github/dependabot.yml`. It covers four ecosystems:
+
+| Ecosystem | What it updates |
+| --- | --- |
+| uv | Python packages in `pyproject.toml` and `uv.lock` |
+| GitHub Actions | The actions used in `.github/workflows/` |
+| Docker | The Python base image and the uv stage in the `Dockerfile` |
+| Nix | The inputs in `flake.lock`, which give the dev shell its tools |
+
+- **Minor and patch updates** arrive as one pull request per ecosystem.
+- **Each major update** arrives as its own pull request, so you can review it,
+  and revert it if needed, on its own.
+- **Python itself is never updated by Dependabot.** To change the Python
+  version, edit `.python-version` by hand.
+
+CI runs on every update pull request: `just check`, the integration tests, an
+image build, and CodeQL. Merge an update when its checks pass. Nothing merges
+automatically.
+
 ### Releasing
 
 Releases are for the maintainer. Each one publishes an image to
