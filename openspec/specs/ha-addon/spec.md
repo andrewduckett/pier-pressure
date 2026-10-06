@@ -3,9 +3,8 @@
 ## Purpose
 
 The ha-addon capability lets a Home Assistant OS user install and run PierPressure
-as a Home Assistant add-on (also called an app). The add-on runs the released
-image with the user's own config file. Its only behaviour of its own is to use the
-broker that Home Assistant's Supervisor provides when the file names none.
+as a Home Assistant add-on (also called an app). The add-on is packaging only: it
+runs the released image with the user's own config file and adds no behaviour.
 
 ## Requirements
 

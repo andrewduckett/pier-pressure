@@ -30,9 +30,10 @@ Story: #28 `ha-addon-mqtt-service`.
   bounded time before it gives up.
 - **Clear errors when no broker can be found.** If the file names no host and the
   Supervisor has no `mqtt` service after the wait, the service stops. Its error
-  says to install the Mosquitto add-on or to set `mqtt.host`. If the Supervisor's
-  broker requires TLS, the service stops with an error, because PierPressure does
-  not support TLS yet.
+  says to install the Mosquitto add-on or to set `mqtt.host`. If the Supervisor
+  refuses the add-on access, the service stops at once with an error that says
+  so. If the Supervisor's broker requires TLS, the service stops with an error,
+  because PierPressure does not support TLS yet.
 - **The log names the broker's source.** It logs where the broker settings came
   from, and the host and port. It never logs the password.
 - **Document it.** `ha-addon/DOCS.md` and the README's add-on section explain that
@@ -62,15 +63,16 @@ None.
 
 - **Changed files:**
   - `ha-addon/config.yaml`: declares the `mqtt` service.
-  - `pierpressure/core/config.py`: `load_config` accepts optional broker settings
-    to use when the file names no host, and `mqtt.host` stops being required
-    when they are given. The core does no network access.
-  - `pierpressure/__main__.py`: asks the Supervisor for the broker before it loads
-    the config, only when `SUPERVISOR_TOKEN` is set.
+  - `pierpressure/core/config.py`: config loading splits into two pure steps.
+    The first reads the file and says whether it names a broker host. The second
+    builds the config, and accepts broker settings to use when the file names
+    none. The core does no network access and calls no code that does.
+  - `pierpressure/__main__.py`: between the two steps, asks the Supervisor for
+    the broker, only when `SUPERVISOR_TOKEN` is set and the file names no host.
   - `ha-addon/DOCS.md` and `README.md`: the add-on setup.
 - **New code:** a small Supervisor client outside `pierpressure/core/`, using
   `httpx`, which is already a dependency.
-- **Tests:** the precedence rule, the wait and its time limit, the TLS and
-  "no broker" errors, the add-on config's `services` entry, and that Docker
+- **Tests:** the precedence rule, the wait and its time limit, the TLS, "access
+  refused" and "no broker" errors, the add-on config's `services` entry, and that Docker
   behaviour is unchanged.
 - **No change** to the verdict document, MQTT topics, entities, or entity mapping.

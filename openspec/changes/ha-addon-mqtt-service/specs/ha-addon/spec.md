@@ -105,15 +105,24 @@ before this change.
 ### Requirement: The add-on waits a bounded time for the Supervisor's broker
 
 When the service needs the Supervisor's broker and the Supervisor does not provide
-it yet, the service SHALL keep asking for up to 60 seconds. A Mosquitto add-on
-that is still starting withdraws its service details for a few seconds, so a
-short wait covers a reboot. If the broker's details arrive within that time, the
-service SHALL use them and start normally.
+it yet, the service SHALL keep asking. A Mosquitto add-on that is still starting
+withdraws its service details for a few seconds, so a short wait covers a reboot.
+The wait SHALL end no later than 60 seconds after the first request, including
+the time of any request still in progress. If the broker's details arrive within
+that time, the service SHALL use them and start normally.
 
-If they do not arrive, the add-on SHALL stop with an error. The error SHALL say
-that no MQTT broker was found. It SHALL tell the user to install the Mosquitto
-broker add-on, or to set `mqtt.host` in `config.yaml`. A failed request to the
-Supervisor SHALL count the same as a missing service.
+These count as "not provided yet": the Supervisor says the service is not enabled,
+the request cannot connect or times out, the Supervisor returns a server error, or
+the response has no usable host and port.
+
+If the details do not arrive in time, the add-on SHALL stop with an error. The
+error SHALL say that no MQTT broker was found. It SHALL tell the user to install
+the Mosquitto broker add-on, or to set `mqtt.host` in `config.yaml`.
+
+If the Supervisor refuses the add-on access to the service, the add-on SHALL stop
+at once, without waiting. Its error SHALL say that the Supervisor refused access
+to the `mqtt` service. It SHALL tell the user to set `mqtt.host` in `config.yaml`,
+and to report the problem.
 
 #### Scenario: Mosquitto is still starting
 
@@ -131,13 +140,28 @@ Supervisor SHALL count the same as a missing service.
 - **AND** its log says no MQTT broker was found, and tells the user to install the
   Mosquitto broker add-on or to set `mqtt.host`
 
+#### Scenario: The wait ends on time
+
+- **WHEN** the Supervisor provides no `mqtt` service
+- **AND** each request to the Supervisor takes as long as it is allowed
+- **THEN** the add-on stops no later than 60 seconds after the first request
+
+#### Scenario: The Supervisor refuses access
+
+- **WHEN** the user's `config.yaml` has no `mqtt.host`
+- **AND** the Supervisor refuses the add-on access to the `mqtt` service
+- **THEN** the add-on stops at once, without waiting
+- **AND** its log says the Supervisor refused access to the `mqtt` service, and
+  tells the user to set `mqtt.host` and to report the problem
+
 ### Requirement: The add-on refuses a Supervisor broker that requires TLS
 
 PierPressure does not support TLS connections. If the Supervisor's `mqtt` service
 says its broker requires TLS, the add-on SHALL stop with an error. The error SHALL
 say that the broker requires TLS, which PierPressure does not support. It SHALL tell
-the user to set the broker's settings in `config.yaml` instead. The service SHALL
-NOT connect to that broker without TLS.
+the user to set `mqtt.host` and `mqtt.port` in `config.yaml` to a broker listener
+that accepts connections without TLS. The service SHALL NOT connect to that broker
+without TLS.
 
 #### Scenario: The Supervisor's broker requires TLS
 
@@ -145,4 +169,5 @@ NOT connect to that broker without TLS.
 - **AND** the Supervisor's `mqtt` service says its broker requires TLS
 - **THEN** the add-on stops without connecting to the broker
 - **AND** its log says the broker requires TLS, which PierPressure does not
-  support
+  support, and tells the user to set a broker listener without TLS in
+  `config.yaml`

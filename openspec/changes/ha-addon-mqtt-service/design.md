@@ -54,8 +54,8 @@ Facts that shape the approach:
 ### D1. `SUPERVISOR_TOKEN` decides whether the service is inside an add-on
 
 `__main__` treats a set, non-empty `SUPERVISOR_TOKEN` as "running inside an
-add-on". Without it, the service passes no broker lookup to `load_config`, so
-behaviour is exactly as before.
+add-on". Without it, the service never asks the Supervisor, so behaviour is
+exactly as before.
 
 - *Why:* the Supervisor sets the token in every add-on, and nothing else sets it.
   Checking it needs no network access.
@@ -63,36 +63,50 @@ behaviour is exactly as before.
   add-on's `environment`. Rejected: it adds a setting that has to agree with the
   token anyway, because the request needs the token.
 
-### D2. The core takes an injected broker lookup, and calls it only when needed
+### D2. Config loading splits into two pure steps, and the edge looks up between them
 
-`load_config(path, broker_lookup=None)` gains one optional argument. It is a
-callable that takes no arguments and returns the broker's connection settings:
-host, port, username and password. The core calls it only when the file's `mqtt`
-block has no `host`.
+The core never calls code that reaches the network. ADR-0005 requires the core to
+receive data, not an interface that fetches it. So config loading splits in two:
 
-The core applies the precedence rule from the spec:
+1. `read_config(path)` reads the YAML file, expands `${VAR}`, and returns the raw
+   config. It also reports whether the file's `mqtt` block names a `host`. Both
+   are pure: the only input is the file and the environment, as today.
+2. `build_config(raw, broker=None)` validates the raw config and returns
+   `AppConfig`. `broker` is plain data: host, port, username and password.
 
-1. The file sets `mqtt.host`: build `MqttConfig` from the file alone. The lookup
-   is not called.
+`__main__` runs step 1. If `SUPERVISOR_TOKEN` is set and the file names no host,
+it asks the Supervisor for the broker (D3). Then it runs step 2 with the result.
+`load_config(path)` stays, as `build_config(read_config(path))`, so its current
+callers and tests keep working.
+
+`build_config` applies the precedence rule from the spec:
+
+1. The file sets `mqtt.host`: build `MqttConfig` from the file alone, and ignore
+   any `broker` argument.
 2. The file sets `mqtt.port`, `mqtt.username` or `mqtt.password` without
    `mqtt.host`: raise `ConfigError`, telling the user to set `mqtt.host` too.
-3. No host and no lookup: validate as today, so the missing-host error stays the
+   `read_config` checks this too, so the add-on stops before it asks the
+   Supervisor.
+3. No host and no `broker`: validate as today, so the missing-host error stays the
    same.
-4. No host and a lookup: call it, and merge its four settings into the file's
-   `mqtt` block. `discovery_prefix` and `base_topic` keep the file's values or
-   defaults. The `mqtt:` block itself may be missing.
+4. No host and a `broker`: merge its four settings into the file's `mqtt` block.
+   `discovery_prefix` and `base_topic` keep the file's values or defaults. The
+   `mqtt:` block itself may be missing.
 
-A lookup failure raises `ConfigError`, so `__main__` logs it as a
-"Configuration error" and exits with status 1, as it does for other config errors.
+A Supervisor failure raises an error that `__main__` logs as a
+"Configuration error", then exits with status 1, as it does for other config
+errors.
 
-- *Why:* only the core knows whether the file names a host, after it parses the
-  YAML and expands `${VAR}`. Injecting a callable keeps the I/O outside the core.
-  The service already injects its conditions provider the same way.
-- *Alternative:* `__main__` always fetches the broker first and passes plain
-  settings in. Rejected: it would ask the Supervisor, and wait up to 60 seconds,
-  even when the file names its own broker.
-- *Alternative:* `__main__` parses the YAML itself to check for `mqtt.host`.
-  Rejected: it would duplicate the parsing and the `${VAR}` expansion.
+- *Why:* the edge does all network access, and the core only receives data. The
+  service only asks the Supervisor when the file names no host. The core still
+  owns parsing and `${VAR}` expansion, so nothing is duplicated.
+- *Alternative:* `load_config(path, broker_lookup)` with an injected callable that
+  the core calls only when needed. Rejected: the core would then trigger network
+  access. ADR-0005 rejects exactly that, and the import-boundary test cannot catch
+  it.
+- *Alternative:* `__main__` always asks the Supervisor first and passes plain
+  settings in. Rejected: it would ask, and maybe wait up to 60 seconds, even when
+  the file names its own broker.
 
 ### D3. A small Supervisor client lives in `pierpressure/supervisor.py`
 
@@ -101,31 +115,43 @@ that returns the broker's connection settings or raises an error. It takes an
 `httpx.Client`, a sleep function and a monotonic clock as optional arguments, so
 tests inject an `httpx.MockTransport` and a fake clock.
 
-Each request has a 5-second timeout. The client reads `data.host`, `data.port`,
+Each request has a timeout of 5 seconds, or the time left before the deadline in
+D4 if that is shorter. The client reads `data.host`, `data.port`,
 `data.username`, `data.password` and `data.ssl`. `username` and `password` may be
 missing; the client passes them on as `None`.
 
 - *Why:* a module of its own keeps Supervisor knowledge in one place, and keeps
   `__main__` short. `httpx` is already a dependency.
 
-### D4. The client retries for up to 60 seconds, then fails with one message
+### D4. The client retries until a 60-second deadline, except when access is refused
 
-The client tries once, then every 2 seconds, until 60 seconds have passed since
-the first try. It treats all of these as "not available yet":
+The deadline is 60 seconds after the first request starts. It caps the total
+time, including requests and pauses. The client tries once, then pauses 2
+seconds between tries. It shortens each pause and each request timeout to the
+time left, and stops trying when no time is left.
 
-- an error result, such as "Service not enabled"
+The Supervisor answers "Service not enabled" with HTTP 400, a bad token with 401,
+and an undeclared service with 403. The client treats these as "not available
+yet", and retries:
+
+- HTTP 400, which is how the Supervisor says "Service not enabled"
+- HTTP 404, or any 5xx status
 - a connection error or timeout
-- any HTTP error status
-- a response without a usable `host` and `port`
+- a response that is not valid JSON, or has no usable `host` and `port`
 
-After the deadline, it raises an error that says no MQTT broker was found. The
-message tells the user to install the Mosquitto broker add-on, or to set
-`mqtt.host` in `config.yaml`. It logs one line at the first miss, so a user who
-watches the log sees why startup is slow.
+It treats HTTP 401 and 403 as "access refused", and fails at once. Waiting cannot
+fix a bad token or a missing service declaration, and installing Mosquitto will
+not either. That error says the Supervisor refused access to the `mqtt` service,
+and tells the user to set `mqtt.host` and to report the problem.
+
+After the deadline, the client raises an error that says no MQTT broker was found.
+The message tells the user to install the Mosquitto broker add-on, or to set
+`mqtt.host` in `config.yaml`. The client logs one line at the first miss, so a
+user who watches the log sees why startup is slow.
 
 - *Why:* the Mosquitto add-on withdraws its details for a few seconds on each
-  start, so a short wait covers a reboot. One rule for every failure keeps the
-  client simple. The spec treats a failed request the same as a missing service.
+  start, so a short wait covers a reboot. An access failure means the add-on
+  itself is wrong, so it gets its own message and no wait.
 - *Alternative:* fail at once, and leave all waiting at startup to #33. Rejected:
   this change would then add a new way to fail at boot for the very users it
   serves.
@@ -137,7 +163,8 @@ watches the log sees why startup is slow.
 
 If the details say `ssl: true`, the client raises an error at once. It does not
 retry. The message says the broker requires TLS, which PierPressure does not
-support, and tells the user to set the broker's settings in `config.yaml`.
+support. It tells the user to set `mqtt.host` and `mqtt.port` in `config.yaml` to a
+broker listener that accepts connections without TLS.
 
 - *Why:* the Mosquitto add-on never reports TLS, so this guards only against other
   providers. Connecting without TLS would quietly drop the encryption the provider
@@ -156,8 +183,9 @@ line and no error message includes the password or the token.
   file names no host.] → The first miss logs a line that explains the wait. The
   final error says how to fix it.
 - [The Supervisor's API could change shape.] → The client reads five fields from
-  a path that has been stable across API versions. Any surprise falls into D4's
-  "not available" rule, and then the clear error.
+  a path that has been stable across API versions. A response that is not JSON,
+  or lacks a host and port, counts as "not available yet" (D4). After the
+  deadline, the user gets the "no MQTT broker found" error.
 - [An existing add-on user whose file sets `host: core-mosquitto` gets nothing
   new.] → That file keeps working, unchanged. The add-on docs explain that leaving
   out `host` uses the Supervisor's broker.
