@@ -22,11 +22,14 @@ def test_pierpressure_imports() -> None:
 # "pierpressure.explain", "pydantic_ai", and "anthropic" are the explainer edge and
 # the LLM SDKs it may reach, which are non-deterministic and online and so must never
 # reach the pure core. ("pydantic_ai" does not match the core's own "pydantic" use.)
+# "pierpressure.supervisor" asks the Home Assistant Supervisor for the broker; the
+# core only receives its result as plain data (ha-addon-mqtt-service D2).
 _FORBIDDEN = (
     "delivery",
     "httpx",
     "pierpressure.conditions",
     "pierpressure.explain",
+    "pierpressure.supervisor",
     "pydantic_ai",
     "anthropic",
 )
