@@ -13,7 +13,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The dev shell gives the job the Python, uv and just that a developer gets:
       # Python from .python-version, uv and just from flake.lock (#45).
@@ -42,7 +42,7 @@ jobs:
   integration:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The dev shell gives the job the Python, uv and just that a developer gets:
       # Python from .python-version, uv and just from flake.lock (#45).
@@ -76,7 +76,7 @@ jobs:
   image:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Read the Python version
         id: python
