@@ -55,8 +55,10 @@ The first line the container logs is its version, for example
 To build the image from this repository instead:
 
 ```bash
-docker build -t pierpressure .
+docker build --build-arg PYTHON_VERSION="$(cat .python-version)" -t pierpressure .
 ```
+
+The build needs `PYTHON_VERSION` and stops with an error without it.
 
 Then run it as in step 2, with `pierpressure` as the image name. An image you
 build yourself reports the version `0.0.0+unreleased`.
@@ -406,7 +408,7 @@ openspec/        # product intent, discovery map, specs, and change history
 ## 🛠️ Development
 
 With [Nix](https://nixos.org) and [direnv](https://direnv.net), `cd` into the repo
-and run `direnv allow` once. The dev shell provides Python 3.12, uv, and just.
+and run `direnv allow` once. The dev shell provides uv, just, and the Python version set in `.python-version`.
 Without Nix, install uv and just yourself.
 
 ```bash
@@ -417,9 +419,29 @@ just typecheck   # mypy
 just test        # pytest (integration tests are skipped by default)
 just check       # lint + typecheck + test: the CI gate
 just test-integration   # runs integration tests against a throwaway Mosquitto
+just up          # runs PierPressure in its image against a local broker
 ```
 
-`docker compose --profile full up` runs PierPressure against a local broker.
+CI runs these same commands inside the Nix dev shell, so it tests the tools you
+use.
+
+### Where versions are set
+
+Each tool version is set in one place:
+
+| Tool | Set in |
+| --- | --- |
+| Python | `.python-version`. The dev shell, the project environment, mypy, CI, and the image all read it. |
+| uv, just | `flake.lock`, for the dev shell and CI |
+| uv in the image | The uv stage in the `Dockerfile` |
+
+`required-version` in `pyproject.toml` is a range, not a pin. uv stops with an
+error if the dev shell or the image falls outside it. `requires-python` is the
+oldest Python the package supports, and ruff takes its target from it.
+
+Compose needs `PYTHON_VERSION` even to start the broker alone. `just` and the
+dev shell set it from `.python-version`. Elsewhere, set it yourself:
+`PYTHON_VERSION="$(cat .python-version)" docker compose up -d mosquitto`.
 
 ### Dependency updates
 
@@ -430,14 +452,14 @@ Dependabot opens update pull requests every week. Its settings are in
 | --- | --- |
 | uv | Python packages in `pyproject.toml` and `uv.lock` |
 | GitHub Actions | The actions used in `.github/workflows/` |
-| Docker | The Python base image and the uv stage in the `Dockerfile` |
+| Docker | The uv stage in the `Dockerfile` |
 | Nix | The inputs in `flake.lock`, which give the dev shell its tools |
 
 - **Minor and patch updates** arrive as one pull request per ecosystem.
 - **Each major update** arrives as its own pull request, so you can review it,
   and revert it if needed, on its own.
 - **Python itself is never updated by Dependabot.** To change the Python
-  version, edit `.python-version` by hand.
+  version, edit `.python-version` by hand. The Python base image follows it.
 
 CI runs on every update pull request: `just check`, the integration tests, an
 image build, and CodeQL. Merge an update when its checks pass. Nothing merges

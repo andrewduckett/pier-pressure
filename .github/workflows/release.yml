@@ -23,20 +23,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
+      # The dev shell gives the job the Python, uv and just that a developer gets:
+      # Python from .python-version, uv and just from flake.lock (#45).
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
 
-      - name: Install just
-        uses: extractions/setup-just@v2
+      - name: Cache the Nix store
+        uses: nix-community/cache-nix-action@v7
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock', '.python-version') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
 
-      - name: Set up Python
-        run: uv python install 3.12
+      - name: Cache uv packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock', '.python-version') }}
+          restore-keys: uv-${{ runner.os }}-
 
       - name: Sync dependencies
-        run: uv sync --frozen
+        run: nix develop -c uv sync --frozen
 
       - name: Run checks
-        run: just check
+        run: nix develop -c just check
 
   release:
     needs: check
@@ -77,6 +86,10 @@ jobs:
           version="$(python3 scripts/next_version.py)"
           echo "Releasing $version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Read the Python version
+        id: python
+        run: echo "version=$(cat .python-version)" >> "$GITHUB_OUTPUT"
 
       # arm64 builds under QEMU emulation on the amd64 runner (design D4).
       - name: Set up QEMU
@@ -122,7 +135,9 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
-          build-args: PIERPRESSURE_VERSION=${{ steps.version.outputs.version }}
+          build-args: |
+            PIERPRESSURE_VERSION=${{ steps.version.outputs.version }}
+            PYTHON_VERSION=${{ steps.python.outputs.version }}
 
       # Last, and only once the push succeeds: a release never exists without its
       # image. `gh release create` also creates the tag on the released commit.

@@ -1,5 +1,8 @@
 # PierPressure task runner. Thin wrappers over uv (design D10).
 
+# The image's Python version, which compose.yaml needs (#45).
+export PYTHON_VERSION := `cat .python-version`
+
 # Show available recipes.
 default:
     @just --list
@@ -34,6 +37,10 @@ check: lint typecheck test
 # Start a local Mosquitto broker (dev only, anonymous on 1883).
 broker-up:
     docker compose up -d mosquitto
+
+# Run PierPressure in its image against a local broker. Needs ./config.yaml.
+up:
+    docker compose --profile full up --build
 
 # Stop the local dev stack.
 broker-down:

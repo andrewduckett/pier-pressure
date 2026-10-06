@@ -57,14 +57,15 @@ required-version = ">=0.12.17,<0.13"
 cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true, tags = true } }]
 
 [tool.ruff]
-target-version = "py312"
+# No target-version: ruff takes it from requires-python.
 line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.mypy]
-python_version = "3.12"
+# No python_version: mypy checks against the Python it runs on, which is the one
+# .python-version selects.
 files = ["pierpressure", "scripts"]
 strict = true
 warn_unused_ignores = true

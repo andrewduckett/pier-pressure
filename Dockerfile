@@ -1,11 +1,17 @@
 # uv-based build (design D10): install deps in a builder, then a slim runtime
 # layer that runs the module. This is a plain container, not a HAOS add-on.
 
+# The Python version comes from .python-version, its only pin (#45). The build has
+# no default, so a build that does not pass it fails at the first FROM. CI and the
+# release workflow read .python-version; the Justfile and the Nix dev shell export it
+# for Compose.
+ARG PYTHON_VERSION
+
 # Pinned to match [tool.uv] required-version in pyproject.toml (design D5). A named
 # stage, not `COPY --from=<image>`, because Dependabot reads only FROM lines (#26).
 FROM ghcr.io/astral-sh/uv:0.12.23 AS uv
 
-FROM python:3.12-slim AS builder
+FROM python:${PYTHON_VERSION}-slim AS builder
 
 COPY --from=uv /uv /usr/local/bin/uv
 
@@ -27,7 +33,7 @@ COPY pierpressure ./pierpressure
 RUN SETUPTOOLS_SCM_PRETEND_VERSION="$PIERPRESSURE_VERSION" uv sync --frozen --no-dev
 
 
-FROM python:3.12-slim
+FROM python:${PYTHON_VERSION}-slim
 
 WORKDIR /app
 COPY --from=builder /app /app

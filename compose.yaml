@@ -1,8 +1,12 @@
 # Local development stack.
 #
-#   docker compose up -d mosquitto     # just the broker (for integration tests)
-#   docker compose --profile full up   # broker + PierPressure against it
-#   docker compose down                # stop everything
+#   just broker-up     # just the broker (for integration tests)
+#   just up            # broker + PierPressure against it
+#   just broker-down   # stop everything
+#
+# Compose needs PYTHON_VERSION to read this file, even for the broker alone. The
+# Justfile and the Nix dev shell set it from .python-version; elsewhere, set it
+# yourself, e.g. `PYTHON_VERSION=$(cat .python-version) docker compose ...`.
 #
 # The broker allows anonymous access on 1883 — dev only (see mosquitto/mosquitto.conf).
 services:
@@ -19,12 +23,14 @@ services:
       timeout: 3s
       retries: 5
 
-  # Optional: run PierPressure against the local broker. Enable with:
-  #   docker compose --profile full up
+  # Optional: run PierPressure against the local broker. Enable with `just up`.
   # Needs a ./config.yaml pointing mqtt.host at "mosquitto".
   pierpressure:
     profiles: ["full"]
-    build: .
+    build:
+      context: .
+      args:
+        PYTHON_VERSION: ${PYTHON_VERSION:?set it from .python-version, or run through just}
     depends_on:
       mosquitto:
         condition: service_healthy
