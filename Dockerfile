@@ -1,9 +1,13 @@
 # uv-based build (design D10): install deps in a builder, then a slim runtime
 # layer that runs the module. This is a plain container, not a HAOS add-on.
+
+# Pinned to match [tool.uv] required-version in pyproject.toml (design D5). A named
+# stage, not `COPY --from=<image>`, because Dependabot reads only FROM lines (#26).
+FROM ghcr.io/astral-sh/uv:0.12.17 AS uv
+
 FROM python:3.12-slim AS builder
 
-# Pinned to match [tool.uv] required-version in pyproject.toml (design D5).
-COPY --from=ghcr.io/astral-sh/uv:0.12.17 /uv /usr/local/bin/uv
+COPY --from=uv /uv /usr/local/bin/uv
 
 WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 \
