@@ -25,8 +25,8 @@ ready. No golden verdict file changes, and the verdict document is untouched.
 
 ## 4. Entry point and docs
 
-- [ ] 4.1 Write a test first in `tests/test_main.py`: when `connect` raises `DeliveryError` for a rejected login and the broker came from the Supervisor, the logged error also tells the user to check the Mosquitto add-on. With a broker from the file, it does not. Verify it fails, then implement it in `pierpressure/__main__.py` (design D3).
-- [ ] 4.2 Update the `pierpressure/__main__.py` docstring and the `MqttDelivery.connect` docstring. They should say that the process waits for the broker, and stops only when the broker rejects its login (design D6). Verify by reading the diff.
+- [x] 4.1 Write a test first in `tests/test_main.py`: when `connect` raises `DeliveryError` for a rejected login and the broker came from the Supervisor, the logged error also tells the user to check the Mosquitto add-on. With a broker from the file, it does not. Verify it fails, then implement it in `pierpressure/__main__.py` (design D3).
+- [x] 4.2 Update the `pierpressure/__main__.py` docstring and the `MqttDelivery.connect` docstring. They should say that the process waits for the broker, and stops only when the broker rejects its login (design D6). Verify by reading the diff.
 - [ ] 4.3 Update `ha-addon/DOCS.md`. Say that PierPressure keeps trying to reach the broker and logs each attempt. Add a row for the "Could not connect to the MQTT broker" warning (check `mqtt.host` and `mqtt.port`), and one for the rejected-login error. Fix the line that says every startup error starts with `Configuration error`. Verify that `tests/test_docs.py` passes, and by reading the diff.
 
 ## 5. Verify and archive
