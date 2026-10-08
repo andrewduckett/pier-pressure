@@ -2,65 +2,80 @@
 
 ### Requirement: The process waits for the broker at startup
 
-When the process starts and cannot reach the MQTT broker, it SHALL keep trying
-until the broker accepts the connection. It SHALL NOT exit because the broker is
-unreachable. This lets the process start before its broker, for example when Home
-Assistant OS starts both at once.
+When the process starts, it SHALL keep trying to connect to the MQTT broker until
+the broker accepts the connection. It SHALL NOT exit because an attempt fails. This
+lets the process start before its broker, for example when Home Assistant OS
+starts both at once.
 
-The broker counts as unreachable when the connection cannot be opened, or when the
-broker refuses it for any reason other than a rejected login. A rejected login is a
-refusal because the username or password is wrong, or because the client is not
-authorized.
+This requirement starts once the process knows the broker's settings. Finding the
+Supervisor's broker inside the add-on has its own bounded wait, which the
+`ha-addon` capability describes.
 
-The process SHALL pause between attempts. The first pause SHALL be at least 1
-second. Each later pause SHALL double, up to a limit of 120 seconds.
+An attempt fails in one of three ways:
 
-The process SHALL log each failed attempt. The log SHALL name the broker's host and
-port, and SHALL NOT contain the broker password.
+- The process cannot open a network connection to the broker.
+- The broker closes the connection before it answers.
+- The broker answers with a refusal.
+
+A rejected login is a refusal that says the username or password is wrong, or that
+the client is not authorized. Every other failure is a temporary failure.
+
+After a temporary failure, the process SHALL pause, then try again. No pause SHALL
+be shorter than 1 second. The pauses SHALL grow after repeated failures, and no
+pause SHALL be longer than 120 seconds.
+
+The process SHALL log each failed attempt. The log line SHALL name the broker's
+host and port, and SHALL NOT contain the broker password.
 
 Until the broker accepts the connection, the process SHALL NOT publish anything.
-Once the broker accepts it, the process SHALL start as it does when the broker is
-ready at once: it publishes the startup health reset, then its online availability,
-then a verdict for each pier.
+Once the broker accepts it, the process SHALL start as it does when the broker
+accepts the first attempt. It publishes the startup health reset, then its online
+availability, then a verdict for each pier.
 
-When the broker rejects the login, the process SHALL stop with an error and SHALL
-NOT try again. The error SHALL say that the broker rejected the login, and SHALL
-tell the user to check the MQTT username and password. The process SHALL NOT publish
-its online availability.
+After a rejected login, the process SHALL stop with an error and SHALL NOT try
+again. The error SHALL say that the broker rejected the login. The process SHALL
+NOT publish its online availability.
 
 #### Scenario: The broker starts after the process
 
-- **WHEN** the process starts, and the broker cannot be reached for its first three attempts
+- **WHEN** the process starts, and its first three attempts fail because it cannot open a network connection
 - **AND** the broker accepts the fourth attempt
 - **THEN** the process publishes the startup health reset, then its online availability
 - **AND** it publishes a verdict for each pier
 - **AND** it does not exit
 
-#### Scenario: Nothing is published while the broker is unreachable
+#### Scenario: Nothing is published while attempts fail
 
-- **WHEN** the process has started and the broker cannot be reached
+- **WHEN** the process has started, and every attempt so far has failed
 - **THEN** the process has published no message
 - **AND** it has not exited
 
-#### Scenario: The pause between attempts grows to a limit
+#### Scenario: The pauses grow to a limit
 
-- **WHEN** the broker cannot be reached for many attempts in a row
-- **THEN** the first pause is at least 1 second
-- **AND** each later pause is double the one before, up to 120 seconds
+- **WHEN** many attempts in a row fail
+- **THEN** no pause between attempts is shorter than 1 second
+- **AND** later pauses are longer than the first
+- **AND** no pause is longer than 120 seconds
 
 #### Scenario: Each failed attempt is logged
 
-- **WHEN** an attempt to reach the broker fails
+- **WHEN** an attempt fails for any of the three reasons
 - **THEN** the log has a line for that attempt that names the broker's host and port
 - **AND** the log does not contain the broker password
 
-#### Scenario: A broker that refuses for another reason is tried again
+#### Scenario: A broker that is not ready is tried again
 
 - **WHEN** the broker refuses the connection because it is not ready to serve clients
 - **THEN** the process tries again after a pause
 - **AND** it does not exit
 
-#### Scenario: A rejected login stops the process
+#### Scenario: A broker that closes the connection is tried again
+
+- **WHEN** the broker closes the connection before it answers
+- **THEN** the process tries again after a pause
+- **AND** it does not exit
+
+#### Scenario: A wrong username or password stops the process
 
 - **WHEN** the broker refuses the connection because the username or password is wrong
 - **THEN** the process exits with an error
@@ -71,5 +86,5 @@ its online availability.
 
 - **WHEN** the broker refuses the connection because the client is not authorized
 - **THEN** the process exits with an error
-- **AND** its log says the broker rejected the login
+- **AND** its log says the broker rejected the login, and tells the user to check the MQTT user's permissions on the broker
 - **AND** it has not published its online availability

@@ -22,4 +22,4 @@ D6 are recoverable from the code and do not need one.
 
 ## New Durable ADRs Created
 
-- [ADR-0018: The MQTT library owns every broker connection retry](../../../docs/decisions/0018-mqtt-library-owns-broker-retries.md)
+- [ADR-0018: The MQTT library retries every connection to the broker](../../../docs/decisions/0018-mqtt-library-owns-broker-retries.md)

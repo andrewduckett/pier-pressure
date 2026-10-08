@@ -2,11 +2,11 @@
 id: adrs-adr0018
 date: 2026-10-07
 status: accepted
-title: 'ADR0018: The MQTT library owns every broker connection retry'
-description: Architecture Decision Record for letting the paho MQTT client retry the first broker connection and every reconnect, with PierPressure only listening to its connection callbacks, instead of wrapping the connection in a retry loop of its own.
+title: 'ADR0018: The MQTT library retries every connection to the broker'
+description: Architecture Decision Record for broker connection retries. The paho MQTT client retries the first connection and every reconnect. PierPressure only listens to its callbacks and has no retry loop of its own.
 ---
 
-# ADR-0018: The MQTT library owns every broker connection retry
+# ADR-0018: The MQTT library retries every connection to the broker
 
 ## Context
 
@@ -28,11 +28,15 @@ paho's blocking connect call returns before that answer arrives.
 
 ## Decision
 
-PierPressure lets paho retry every broker connection: the first one at startup,
-and every reconnect. PierPressure does not wrap the connection in a retry loop of
-its own. It sets the pauses paho uses, and it listens to paho's connection
+PierPressure lets paho retry every connection to the broker: the first one at
+startup, and every reconnect. PierPressure has no retry loop of its own around
+the connection. It sets the pauses paho uses, and it listens to paho's connection
 callbacks to learn each outcome. Those callbacks only record the outcome for the
 main thread, which does all publishing.
+
+This decision covers connecting to the broker only. Inside a Home Assistant
+add-on, PierPressure first asks the Supervisor which broker to use. That request
+has its own short, bounded wait, because it talks to a different service.
 
 ## Consequences
 
@@ -41,8 +45,9 @@ main thread, which does all publishing.
 - **Easier:** PierPressure sees the broker's reason for each refusal. So it can
   stop on a rejected login, which retrying cannot fix, and retry everything else.
 - **Harder:** the behaviour depends on paho's background thread, which its
-  documentation describes only briefly. A paho upgrade must be checked against
-  this behaviour.
+  documentation describes only briefly. In one rare case, paho's thread can end
+  without calling any callback, so PierPressure must also watch that the thread
+  is still running. A paho upgrade must be checked against this behaviour.
 - **Harder:** tests need a fake client that calls the callbacks, rather than one
   that simply raises an error.
 
