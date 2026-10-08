@@ -24,7 +24,8 @@ after each failure, up to a limit. The same thread reconnects after an outage.
 
 The broker's answer to a connection attempt arrives on paho's thread. That answer
 is the only place that says why the broker refused, for example a wrong password.
-paho's blocking connect call returns before that answer arrives.
+paho's blocking connect call returns before that answer arrives. So any design
+that stops on a wrong password must listen to paho's connection callbacks.
 
 ## Decision
 
@@ -46,8 +47,8 @@ has its own short, bounded wait, because it talks to a different service.
   stop on a rejected login, which retrying cannot fix, and retry everything else.
 - **Harder:** the behaviour depends on paho's background thread, which its
   documentation describes only briefly. In one rare case, paho's thread can end
-  without calling any callback, so PierPressure must also watch that the thread
-  is still running. A paho upgrade must be checked against this behaviour.
+  without calling any callback. So PierPressure must also watch that the thread
+  is still running, and start it again if it ends. A paho upgrade must be checked against this behaviour.
 - **Harder:** tests need a fake client that calls the callbacks, rather than one
   that simply raises an error.
 
@@ -57,9 +58,10 @@ has its own short, bounded wait, because it talks to a different service.
 - **Pros**: easy to read, and easy to test with a fake that fails a set number of
   times. PierPressure already waits this way for the Home Assistant Supervisor.
 - **Cons**: PierPressure would have two retry mechanisms, its own for startup and
-  paho's for reconnects. The loop could not see why the broker refused.
-- **Why not**: two mechanisms can drift apart, and a loop that cannot see a
-  rejected login would retry a wrong password forever.
+  paho's for reconnects. To stop on a wrong password, the loop would still need
+  paho's connection callbacks.
+- **Why not**: two mechanisms can drift apart, and the loop saves no code, because
+  it needs the same callbacks anyway.
 
 ### Alternative 2: Exit, and let a process supervisor restart PierPressure
 - **Pros**: no retry code in PierPressure at all. Docker's restart policy already

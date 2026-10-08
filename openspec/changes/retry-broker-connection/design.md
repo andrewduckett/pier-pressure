@@ -34,13 +34,23 @@ Facts that shape the approach:
   "Bad user name or password" and code 5 becomes "Not authorized". paho
   recommends comparing reason codes by name, because the numbers differ between
   MQTT versions.
-- **One paho path can end its thread without a callback.** For refusal code 1
-  ("unsupported protocol version"), paho downgrades to MQTT 3.1 and reconnects at
-  once, inside its CONNACK handler. If that reconnect raises, the exception ends
-  paho's thread, and no handler runs.
+- **paho answers two refusals with an immediate try.** Both happen inside its
+  CONNACK handler, before any `on_connect` call, and without a pause:
+  - For code 1, "unsupported protocol version", paho switches to MQTT 3.1 and
+    tries again. It does this only while its protocol is 3.1.1, so at most once.
+  - For code 2, "identifier rejected", paho generates a client ID and tries again.
+    It does this only while the client ID is empty, so at most once.
+  The spec counts each immediate try as part of the attempt it follows.
+- **An immediate try can end paho's thread.** If the immediate try cannot open a
+  socket, the `OSError` escapes paho's loop and ends its thread. No handler runs.
+  paho sets its `_thread` attribute back to `None`. A new `loop_start()` call then
+  starts a fresh thread. That thread waits, as after any lost connection, then
+  tries again with the same pauses.
 - **The Supervisor keeps the broker's settings across a reboot.** It stores the
-  `mqtt` service in `services.json` and removes it only when the providing add-on
-  is uninstalled (`supervisor/apps/app.py`). So the 60-second Supervisor wait
+  `mqtt` service in `services.json`. It removes it when the providing add-on is
+  uninstalled (`supervisor/apps/app.py`), or when an add-on calls its delete API.
+  The Mosquitto add-on calls that API as it starts, then registers again a few
+  seconds later. The existing 60-second wait covers that gap. So the 60-second Supervisor wait
   returns at once at boot, and the connection attempt is what fails.
 - **The main thread owns all publishing** (ADR-0012). paho callbacks only hand
   work to the main thread.
@@ -55,8 +65,7 @@ Facts that shape the approach:
 **Goals:**
 
 - `MqttDelivery.connect` returns only once the broker accepts the connection. It
-  raises `DeliveryError` only for a rejected login, or if paho's thread ends
-  unexpectedly.
+  raises `DeliveryError` only for a rejected login.
 - One retry mechanism serves the first connection now and reconnects later (#44).
 - Tests cover the wait, the refusals and the logging without real sleeping.
 
@@ -82,13 +91,16 @@ The code sets the delays explicitly, rather than relying on paho's defaults. The
 spec bounds the pauses at 1 and 120 seconds, so the code states both numbers.
 
 **Alternative: our own retry loop around the blocking `connect()`.** This would
-copy the shape of `_wait_for_broker` in `pierpressure/supervisor.py`. We rejected
-it for two reasons:
+copy the shape of `_wait_for_broker` in `pierpressure/supervisor.py`. The
+blocking `connect()` returns before the CONNACK. So to see a rejected login, the
+loop would still need an `on_connect` handler and a wait on paho's thread, as in
+D2. We rejected it because it adds a second retry mechanism and saves no code:
 
 - PierPressure would have two retry mechanisms: ours for the first connection,
-  and paho's for every reconnect after it.
-- The blocking `connect()` returns before the CONNACK. So our loop could never see
-  a rejected login, and could not stop on one.
+  and paho's for every reconnect after it. Their pauses and logging could drift
+  apart.
+- It would still need the handlers and the wait from D2. It would add a loop, a
+  back-off and a clock on top of them.
 
 **Alternative: run `loop_forever` on our own thread.** This would let us catch
 the thread ending. We rejected it because paho changes how `publish` writes when
@@ -111,12 +123,17 @@ handlers on its thread:
 
 Once the event is set, the handlers do nothing more. Later reconnects are #44's.
 
-`connect` waits on the event in 1-second slices. After each slice, it checks that
-paho's network thread is still running. On "accepted", `connect` returns, and
-`Service.run` carries on as today. On "rejected", `connect` calls `loop_stop()`,
-so paho stops trying, then raises `DeliveryError` with the message from D3. If
-paho's thread has ended with no outcome, `connect` raises `DeliveryError` that
-says the MQTT network thread stopped. This covers the protocol downgrade path.
+`connect` waits on the event in 1-second slices. On "accepted", `connect`
+returns, and `Service.run` carries on as today. On "rejected", `connect` calls
+`loop_stop()`, so paho stops trying, then raises `DeliveryError` with the message
+from D3.
+
+After each slice with no outcome, `connect` checks that paho's network thread is
+still running. If the thread has ended, an immediate try has failed (see
+Context). `connect` logs that attempt as a failed attempt, then calls
+`loop_start()` again. The new thread pauses, then tries again, so the process
+never exits on a failed attempt. `connect` restarts the thread at most once per
+slice, so a thread that keeps ending cannot spin.
 
 The handlers never publish, so ADR-0012 holds. `connect` returns before anything
 is published, so the startup order holds without change.
@@ -171,7 +188,13 @@ error", in all three cases, so the code cannot tell them apart. Instead,
 - `on_disconnect` logs the attempt only when the flag is clear, then sets it.
 
 So each failed attempt gets exactly one line, whatever order paho's callbacks
-come in.
+come in. An immediate try (see Context) calls `on_pre_connect` again, which
+clears the flag. That is correct, because the spec counts the immediate try as
+part of the same attempt. If the immediate try ends the thread, `connect` logs
+the attempt when it restarts the thread (D2).
+
+A rejected login gets no "trying again" line. The error from D3 is the log line
+for that attempt.
 
 At the 120-second limit, the log gets about 30 lines an hour. That is acceptable
 for a broker that is down.
@@ -188,12 +211,23 @@ failure, a refusal with a reason name, a closed connection, or an acceptance. It
 handlers as paho would. The event is then set before `connect` waits, so tests
 never block and never sleep. The fake records the delays passed to
 `reconnect_delay_set`, so a test can check the 1 and 120. One extra script
-outcome ends the fake's thread with no callback, to test D2's thread check.
+outcome ends the fake's thread with no callback. A test uses it to check that
+`connect` logs the attempt, starts the thread again, and then accepts.
+
+The fake cannot show that real paho behaves as Context describes. Two focused
+tests check that against the pinned paho source instead. Each drives a real paho
+client with no network access. The offline guard blocks every connection, even
+to the local machine. So each test replaces paho's private socket factory,
+`_create_socket`, with one that returns one end of a `socket.socketpair()`. The
+test plays the broker on the other end. One sends a code 1
+CONNACK and checks that paho tries MQTT 3.1 at once without calling `on_connect`.
+The other makes that immediate try fail and checks that the thread ends with
+`_thread` set to `None`.
 
 ### D6. The entry point keeps its shape
 
 `main` still catches `DeliveryError` from `connect` and returns 1. Only a rejected
-login or an ended paho thread reach that path now. The module docstring drops "or
+login reaches that path now. The module docstring drops "or
 the broker unreachable at boot". It says instead that the process waits for the
 broker and stops only when the broker rejects its login.
 

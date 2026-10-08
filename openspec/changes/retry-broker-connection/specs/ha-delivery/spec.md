@@ -20,6 +20,13 @@ An attempt fails in one of three ways:
 A rejected login is a refusal that says the username or password is wrong, or that
 the client is not authorized. Every other failure is a temporary failure.
 
+The process MAY answer two refusals by trying again at once with one detail
+changed. When the broker does not support the MQTT version, the process MAY try an
+older version. When the broker rejects an empty client identifier, the process MAY
+try a generated one. Each of these immediate tries SHALL happen at most once while
+the process runs. Each SHALL count as part of the attempt it follows, not as a new
+attempt, so it needs no pause and no log line of its own.
+
 After a temporary failure, the process SHALL pause, then try again. No pause SHALL
 be shorter than 1 second. The pauses SHALL grow after repeated failures, and no
 pause SHALL be longer than 120 seconds.
@@ -73,6 +80,14 @@ NOT publish its online availability.
 
 - **WHEN** the broker closes the connection before it answers
 - **THEN** the process tries again after a pause
+- **AND** it does not exit
+
+#### Scenario: A failure during an immediate try is tried again
+
+- **WHEN** the broker refuses the connection because it does not support the MQTT version
+- **AND** the immediate try with an older version cannot open a network connection
+- **THEN** the log has a line for that attempt that names the broker's host and port
+- **AND** the process tries again after a pause
 - **AND** it does not exit
 
 #### Scenario: A wrong username or password stops the process
