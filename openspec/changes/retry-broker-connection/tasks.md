@@ -18,10 +18,10 @@ ready. No golden verdict file changes, and the verdict document is untouched.
 
 ## 3. Pin paho's behaviour with a real client
 
-- [ ] 3.1 Write a test in a new `tests/test_paho_contract.py`: a real paho client, with `_create_socket` replaced by one end of a `socket.socketpair()`, has a live thread in `_thread` after `connect_async` and `loop_start`. Verify that it passes with the offline guard in place, and that `loop_stop` cleans up (design D2).
-- [ ] 3.2 Add a test in the same file: the test plays the broker and answers the first CONNECT with CONNACK code 1. paho then sends a second CONNECT for MQTT 3.1 at once, and does not call `on_connect`. Then add a test where that second socket cannot open: paho's thread ends, and `_thread` is `None`. Verify both pass (design Context, D5).
-- [ ] 3.3 Add a test in the same file: with an empty client ID, CONNACK code 2 makes paho send a second CONNECT at once with a generated client ID, and not call `on_connect`. Verify it passes (review round 3, suggestion 2).
-- [ ] 3.4 Write a test with a real paho client that its `on_connect` reason codes for MQTT 3.1.1 codes 4 and 5 equal the names `MqttDelivery` compares against. Verify it passes (design D3).
+- [x] 3.1 Write a test in a new `tests/test_paho_contract.py`: a real paho client, with `_create_socket` replaced by one end of a `socket.socketpair()`, has a live thread in `_thread` after `connect_async` and `loop_start`. Verify that it passes with the offline guard in place, and that `loop_stop` cleans up (design D2).
+- [x] 3.2 Add a test in the same file: the test plays the broker and answers the first CONNECT with CONNACK code 1. paho then sends a second CONNECT for MQTT 3.1 at once, and does not call `on_connect`. Then add a test where that second socket cannot open: paho's thread ends, and `_thread` is `None`. Verify both pass (design Context, D5).
+- [x] 3.3 Add a test in the same file: with an empty client ID, CONNACK code 2 makes paho send a second CONNECT at once with a generated client ID, and not call `on_connect`. Verify it passes (review round 3, suggestion 2).
+- [x] 3.4 Write a test with a real paho client that its `on_connect` reason codes for MQTT 3.1.1 codes 4 and 5 equal the names `MqttDelivery` compares against. Verify it passes (design D3).
 
 ## 4. Entry point and docs
 
