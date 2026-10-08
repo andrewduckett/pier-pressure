@@ -1,0 +1,64 @@
+---
+id: adrs-adr0018
+date: 2026-10-07
+status: accepted
+title: 'ADR0018: The MQTT library owns every broker connection retry'
+description: Architecture Decision Record for letting the paho MQTT client retry the first broker connection and every reconnect, with PierPressure only listening to its connection callbacks, instead of wrapping the connection in a retry loop of its own.
+---
+
+# ADR-0018: The MQTT library owns every broker connection retry
+
+## Context
+
+PierPressure publishes its verdicts to Home Assistant through an MQTT broker. It
+uses paho, the standard Python MQTT client. paho runs a background network thread
+that sends and receives messages.
+
+PierPressure must cope with a broker that is not there yet. After Home Assistant
+OS restarts, PierPressure can start before the broker accepts connections. It must
+also cope with a broker that goes away and comes back while PierPressure runs.
+
+paho can retry in both cases. When a program starts the connection in the
+background, paho's thread keeps trying until the broker accepts. It pauses longer
+after each failure, up to a limit. The same thread reconnects after an outage.
+
+The broker's answer to a connection attempt arrives on paho's thread. That answer
+is the only place that says why the broker refused, for example a wrong password.
+paho's blocking connect call returns before that answer arrives.
+
+## Decision
+
+PierPressure lets paho retry every broker connection: the first one at startup,
+and every reconnect. PierPressure does not wrap the connection in a retry loop of
+its own. It sets the pauses paho uses, and it listens to paho's connection
+callbacks to learn each outcome. Those callbacks only record the outcome for the
+main thread, which does all publishing.
+
+## Consequences
+
+- **Easier:** one mechanism handles a broker that starts late and a broker that
+  comes back. Work on reconnect behaviour extends the same callbacks.
+- **Easier:** PierPressure sees the broker's reason for each refusal. So it can
+  stop on a rejected login, which retrying cannot fix, and retry everything else.
+- **Harder:** the behaviour depends on paho's background thread, which its
+  documentation describes only briefly. A paho upgrade must be checked against
+  this behaviour.
+- **Harder:** tests need a fake client that calls the callbacks, rather than one
+  that simply raises an error.
+
+## Alternatives Considered
+
+### Alternative 1: PierPressure's own retry loop around the blocking connect
+- **Pros**: easy to read, and easy to test with a fake that fails a set number of
+  times. PierPressure already waits this way for the Home Assistant Supervisor.
+- **Cons**: PierPressure would have two retry mechanisms, its own for startup and
+  paho's for reconnects. The loop could not see why the broker refused.
+- **Why not**: two mechanisms can drift apart, and a loop that cannot see a
+  rejected login would retry a wrong password forever.
+
+### Alternative 2: Exit, and let a process supervisor restart PierPressure
+- **Pros**: no retry code in PierPressure at all. Docker's restart policy already
+  does this.
+- **Cons**: the Home Assistant add-on has no restart by default, so it stays
+  stopped. It also breaks the rule that PierPressure owns its own freshness.
+- **Why not**: it fails in the install most users run.
