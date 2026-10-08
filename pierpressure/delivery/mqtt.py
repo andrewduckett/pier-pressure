@@ -29,6 +29,8 @@ Availability (LWT)           ``B/status``                                       
 from __future__ import annotations
 
 import logging
+import sys
+import threading
 from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from typing import Any, Protocol
@@ -50,7 +52,14 @@ PAYLOAD_OFFLINE = "offline"
 
 
 class DeliveryError(Exception):
-    """The broker was unreachable or a publish failed. Never reported as success."""
+    """The broker rejected the login or a publish failed. Never reported as success."""
+
+
+class LoginRejected(DeliveryError):
+    """The broker refused the connection because of the login (retry-broker-connection D3).
+
+    Retrying cannot fix a wrong password or a missing permission, so the process stops.
+    """
 
 
 # --------------------------------------------------------------------------- #
@@ -436,12 +445,18 @@ class MqttClient(Protocol):
     """The subset of the paho client API this adapter uses."""
 
     on_message: Any
+    on_pre_connect: Any
+    on_connect: Any
+    on_connect_fail: Any
+    on_disconnect: Any
 
     def will_set(
         self, topic: str, payload: Any = ..., qos: int = ..., retain: bool = ...
     ) -> Any: ...
 
-    def connect(self, host: str, port: int = ..., keepalive: int = ...) -> Any: ...
+    def reconnect_delay_set(self, min_delay: int = ..., max_delay: int = ...) -> Any: ...
+
+    def connect_async(self, host: str, port: int = ..., keepalive: int = ...) -> Any: ...
 
     def loop_start(self) -> Any: ...
 
@@ -458,6 +473,33 @@ class MqttClient(Protocol):
 
 def _new_paho_client() -> MqttClient:
     return mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)  # type: ignore[attr-defined]
+
+
+def _network_thread_running(client: MqttClient) -> bool:
+    """Whether paho's network thread is running (retry-broker-connection D2).
+
+    paho exposes the thread only as the private ``_thread``, and sets it back to
+    ``None`` when the thread ends. ``tests/test_paho_contract.py`` pins this.
+    """
+    return getattr(client, "_thread", None) is not None
+
+
+# --------------------------------------------------------------------------- #
+# Waiting for the broker at startup (retry-broker-connection)
+# --------------------------------------------------------------------------- #
+
+# paho pauses between attempts, doubling from the first pause up to the limit.
+FIRST_PAUSE_SECONDS = 1
+PAUSE_LIMIT_SECONDS = 120
+
+# How often ``connect`` checks that paho's network thread is still running.
+_WAIT_SLICE_SECONDS = 1.0
+
+# paho's names for the refusals that retrying cannot fix, with the fix to suggest.
+_LOGIN_ADVICE = {
+    "Bad user name or password": "Check mqtt.username and mqtt.password.",
+    "Not authorized": "Check the MQTT user's permissions on the broker.",
+}
 
 
 # --------------------------------------------------------------------------- #
@@ -487,6 +529,12 @@ class MqttDelivery:
         # published, so a default deployment is byte-identical to the pre-feature
         # output and gains no entity.
         self._manage_narrative = manage_narrative
+        # Startup wait (retry-broker-connection D2): paho's handlers store one
+        # outcome, then set the event. ``None`` means the broker accepted.
+        self._outcome_ready = threading.Event()
+        self._rejection: str | None = None
+        # Whether the current attempt already has its warning (D4).
+        self._attempt_logged = False
 
     @property
     def base_topic(self) -> str:
@@ -497,25 +545,103 @@ class MqttDelivery:
         return self._config.discovery_prefix
 
     def connect(self) -> None:
-        """Register the retained offline LWT and connect; do not go online yet.
+        """Register the retained offline LWT, then wait until the broker accepts.
 
-        The service publishes its startup health reset first, then calls
-        :meth:`go_online` (provider-health-entities D4). Any failure to reach the
-        broker is raised as :class:`DeliveryError` — it is never reported as
-        success (design D9).
+        paho tries in the background, pausing between attempts, and this method
+        returns once the broker accepts (retry-broker-connection D1, D2). Nothing
+        is published before then. The service publishes its startup health reset
+        first, then calls :meth:`go_online` (provider-health-entities D4).
+
+        Raises :class:`LoginRejected` when the broker rejects the login, which
+        retrying cannot fix (D3).
         """
         status = availability_topic(self._config.base_topic)
+        if self._config.username is not None:
+            # paho accepts username/password before connect.
+            set_creds = getattr(self._client, "username_pw_set", None)
+            if callable(set_creds):
+                set_creds(self._config.username, self._config.password)
+        self._client.will_set(status, PAYLOAD_OFFLINE, qos=1, retain=True)
+        self._client.on_pre_connect = self._on_pre_connect
+        self._client.on_connect = self._on_connect
+        self._client.on_connect_fail = self._on_connect_fail
+        self._client.on_disconnect = self._on_disconnect
+        self._client.reconnect_delay_set(FIRST_PAUSE_SECONDS, PAUSE_LIMIT_SECONDS)
         try:
-            if self._config.username is not None:
-                # paho accepts username/password before connect.
-                set_creds = getattr(self._client, "username_pw_set", None)
-                if callable(set_creds):
-                    set_creds(self._config.username, self._config.password)
-            self._client.will_set(status, PAYLOAD_OFFLINE, qos=1, retain=True)
-            self._client.connect(self._config.host, self._config.port)
-            self._client.loop_start()
-        except (OSError, ValueError) as exc:
+            self._client.connect_async(self._config.host, self._config.port)
+        except ValueError as exc:
             raise DeliveryError(f"Could not connect to MQTT broker: {exc}") from exc
+        self._client.loop_start()
+        self._wait_for_outcome()
+
+        if self._rejection is not None:
+            self._client.loop_stop()
+            raise LoginRejected(
+                f"The MQTT broker at {self._broker} rejected the login: "
+                f"{self._rejection.lower()}. {_LOGIN_ADVICE[self._rejection]}"
+            )
+
+    def _wait_for_outcome(self) -> None:
+        """Wait for the broker's answer, restarting paho's thread if it ends (D2).
+
+        One of paho's immediate tries can end its thread with no callback. A new
+        thread pauses, then tries again. A restart happens at most once a slice.
+        """
+        while not self._outcome_ready.is_set():
+            if not _network_thread_running(self._client):
+                self._log_failed_attempt("network thread stopped")
+                self._client.loop_start()
+            self._outcome_ready.wait(_WAIT_SLICE_SECONDS)
+
+    @property
+    def _broker(self) -> str:
+        return f"{self._config.host}:{self._config.port}"
+
+    # paho calls these handlers on its network thread. They only log, store the
+    # outcome, and set the event: the main thread does all publishing (ADR-0012).
+    # Once the outcome is set they do nothing; later reconnects belong to #44.
+
+    def _on_pre_connect(self, _client: Any, _userdata: Any) -> None:
+        if not self._outcome_ready.is_set():
+            self._attempt_logged = False
+
+    def _on_connect(
+        self, _client: Any, _userdata: Any, _flags: Any, reason: Any, _properties: Any
+    ) -> None:
+        if self._outcome_ready.is_set():
+            return
+        if not reason.is_failure:
+            self._outcome_ready.set()
+            return
+        for name in _LOGIN_ADVICE:
+            if reason == name:  # paho compares reason codes by name
+                self._rejection = name
+                self._outcome_ready.set()
+                return
+        self._log_failed_attempt(str(reason))
+
+    def _on_connect_fail(self, _client: Any, _userdata: Any) -> None:
+        if self._outcome_ready.is_set():
+            return
+        # paho calls this inside its ``except OSError`` block, so the error is
+        # still being handled. Only its class name is logged.
+        error = sys.exc_info()[0]
+        self._log_failed_attempt(error.__name__ if error is not None else "connection failed")
+
+    def _on_disconnect(
+        self, _client: Any, _userdata: Any, _flags: Any, _reason: Any, _properties: Any
+    ) -> None:
+        if not self._outcome_ready.is_set():
+            self._log_failed_attempt("connection closed before the broker answered")
+
+    def _log_failed_attempt(self, reason: str) -> None:
+        """Log one warning per failed attempt, whichever handler sees it first (D4)."""
+        if self._attempt_logged:
+            return
+        self._attempt_logged = True
+        logger.warning(
+            "Could not connect to the MQTT broker at %s (%s); trying again", self._broker, reason
+        )
 
     def go_online(self) -> None:
         """Publish the retained ``online`` availability for every entity."""

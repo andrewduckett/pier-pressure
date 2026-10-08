@@ -83,7 +83,6 @@ class FakeMqttClient:
         self,
         *,
         script: Iterable[Attempt] = (ACCEPT,),
-        connect_error: Exception | None = None,
         publish_rc: int = 0,
     ) -> None:
         self.published: list[Published] = []
@@ -104,7 +103,6 @@ class FakeMqttClient:
         # paho's private network-thread attribute: set while its loop runs.
         self._thread: _LiveThread | None = None
         self._script = list(script)
-        self._connect_error = connect_error
         self._publish_rc = publish_rc
 
     def reconnect_delay_set(self, min_delay: int = 1, max_delay: int = 120) -> None:
@@ -120,11 +118,6 @@ class FakeMqttClient:
 
     def will_set(self, topic: str, payload: Any = None, qos: int = 0, retain: bool = False) -> None:
         self.will = Published(topic, payload, qos, retain)
-
-    def connect(self, host: str, port: int = 1883, keepalive: int = 60) -> None:
-        if self._connect_error is not None:
-            raise self._connect_error
-        self.connected = True
 
     def loop_start(self) -> None:
         self.calls.append("loop_start")
