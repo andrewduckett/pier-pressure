@@ -12,6 +12,10 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import paho.mqtt.client as mqtt
+from paho.mqtt.packettypes import PacketTypes
+from paho.mqtt.reasoncodes import ReasonCode
+
 from pierpressure.conditions import FetchResult
 from pierpressure.core.conditions import (
     BaseGroup,
@@ -33,6 +37,11 @@ from pierpressure.core.model import (
 )
 from pierpressure.health import ProviderHealth
 
+_CONNECT_FLAGS = mqtt.ConnectFlags(session_present=False)
+_NO_FLAGS = mqtt.DisconnectFlags(is_disconnect_packet_from_server=False)
+# paho passes this reason for every disconnect it did not receive from the broker.
+_UNSPECIFIED = ReasonCode(PacketTypes.DISCONNECT, "Unspecified error")
+
 
 @dataclass
 class Published:
@@ -42,19 +51,69 @@ class Published:
     retain: bool
 
 
-class FakeMqttClient:
-    """Records everything the delivery adapter asks of the paho client."""
+# Attempt outcomes a ``FakeMqttClient`` script can play (design D5). A refusal is
+# ``("refused", <reason name>)``, built with :func:`refused`.
+SOCKET_FAILURE = "socket failure"
+CLOSED_BEFORE_ANSWER = "closed before answer"
+THREAD_ENDS = "thread ends"
+ACCEPT = "accept"
 
-    def __init__(self, *, connect_error: Exception | None = None, publish_rc: int = 0) -> None:
+Attempt = str | tuple[str, str]
+
+
+def refused(reason: str) -> Attempt:
+    """A CONNACK refusal, named as paho names it (for example "Not authorized")."""
+    return ("refused", reason)
+
+
+class _LiveThread:
+    """Stands in for paho's network thread while the fake's loop runs."""
+
+
+class FakeMqttClient:
+    """Records everything the delivery adapter asks of the paho client.
+
+    ``script`` lists the outcome of each connection attempt. ``loop_start`` plays
+    it at once, on the calling thread, calling the handlers in paho's order. It
+    stops after an acceptance, or when the thread ends. With no script, the first
+    attempt is accepted.
+    """
+
+    def __init__(
+        self,
+        *,
+        script: Iterable[Attempt] = (ACCEPT,),
+        connect_error: Exception | None = None,
+        publish_rc: int = 0,
+    ) -> None:
         self.published: list[Published] = []
         self.will: Published | None = None
         self.subscriptions: list[str] = []
         self.on_message: Any = None
+        self.on_pre_connect: Any = None
+        self.on_connect: Any = None
+        self.on_connect_fail: Any = None
+        self.on_disconnect: Any = None
         self.connected = False
         self.loop_started = False
+        self.loop_start_calls = 0
         self.credentials: tuple[str, str | None] | None = None
+        self.connected_to: tuple[str, int] | None = None
+        self.reconnect_delays: tuple[int, int] | None = None
+        self.calls: list[str] = []
+        # paho's private network-thread attribute: set while its loop runs.
+        self._thread: _LiveThread | None = None
+        self._script = list(script)
         self._connect_error = connect_error
         self._publish_rc = publish_rc
+
+    def reconnect_delay_set(self, min_delay: int = 1, max_delay: int = 120) -> None:
+        self.calls.append("reconnect_delay_set")
+        self.reconnect_delays = (min_delay, max_delay)
+
+    def connect_async(self, host: str, port: int = 1883, keepalive: int = 60) -> None:
+        self.calls.append("connect_async")
+        self.connected_to = (host, port)
 
     def username_pw_set(self, username: str, password: str | None = None) -> None:
         self.credentials = (username, password)
@@ -68,10 +127,52 @@ class FakeMqttClient:
         self.connected = True
 
     def loop_start(self) -> None:
+        self.calls.append("loop_start")
+        self.loop_start_calls += 1
+        if not self._script:
+            raise AssertionError("loop_start called with no attempts left in the script")
         self.loop_started = True
+        self._thread = _LiveThread()
+        while self._script:
+            attempt = self._script.pop(0)
+            if attempt == THREAD_ENDS:
+                self._thread = None
+                return
+            self._play(attempt)
+            if attempt == ACCEPT:
+                return
 
     def loop_stop(self) -> None:
+        self.calls.append("loop_stop")
         self.loop_started = False
+        self._thread = None
+
+    def _play(self, attempt: Attempt) -> None:
+        """Call the handlers for one attempt, in the order paho 2.1 calls them."""
+        self._call(self.on_pre_connect, self, None)
+        if attempt == SOCKET_FAILURE:
+            try:
+                raise ConnectionRefusedError(111, "Connection refused")
+            except OSError:
+                # paho calls on_connect_fail inside its ``except OSError`` block.
+                self._call(self.on_connect_fail, self, None)
+            self._call(self.on_disconnect, self, None, _NO_FLAGS, _UNSPECIFIED, None)
+        elif attempt == CLOSED_BEFORE_ANSWER:
+            self._call(self.on_disconnect, self, None, _NO_FLAGS, _UNSPECIFIED, None)
+        elif attempt == ACCEPT:
+            self.connected = True
+            success = ReasonCode(PacketTypes.CONNACK, "Success")
+            self._call(self.on_connect, self, None, _CONNECT_FLAGS, success, None)
+        else:
+            assert isinstance(attempt, tuple)
+            reason = ReasonCode(PacketTypes.CONNACK, attempt[1])
+            self._call(self.on_connect, self, None, _CONNECT_FLAGS, reason, None)
+            self._call(self.on_disconnect, self, None, _NO_FLAGS, _UNSPECIFIED, None)
+
+    @staticmethod
+    def _call(handler: Any, *args: Any) -> None:
+        if handler is not None:
+            handler(*args)
 
     def subscribe(self, topic: str, qos: int = 0) -> None:
         self.subscriptions.append(topic)
