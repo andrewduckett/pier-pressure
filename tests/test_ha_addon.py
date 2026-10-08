@@ -92,3 +92,9 @@ def test_addon_image_matches_the_release_image(addon: dict[str, Any]) -> None:
     released = meta["with"]["images"].replace("${{ github.repository }}", repository)
 
     assert released == addon["image"]
+
+
+def test_addon_wants_the_mqtt_service(addon: dict[str, Any]) -> None:
+    # "want", not "need": the add-on still installs without a broker add-on
+    # (ha-addon-mqtt-service spec "Add-on config declares the service").
+    assert "mqtt:want" in addon.get("services", [])

@@ -3,6 +3,9 @@
 Loads config, connects to the broker, publishes on startup, and runs the loop.
 Exits non-zero on an unrecoverable startup failure (bad config, or the broker
 unreachable at boot) rather than idling as if healthy.
+
+Inside a Home Assistant add-on, a config file that names no broker host uses the
+broker from the Supervisor's ``mqtt`` service (ha-addon-mqtt-service D1, D2).
 """
 
 from __future__ import annotations
@@ -10,14 +13,22 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from pathlib import Path
 
 from pierpressure import __version__
 from pierpressure.conditions import build_provider
 from pierpressure.core.clock import SystemClock
-from pierpressure.core.config import AppConfig, ConfigError, load_config
+from pierpressure.core.config import (
+    AppConfig,
+    BrokerSettings,
+    ConfigError,
+    build_config,
+    read_config,
+)
 from pierpressure.delivery.mqtt import DeliveryError, MqttDelivery
 from pierpressure.explain import Explainer, build_explainer
 from pierpressure.service import Service
+from pierpressure.supervisor import SupervisorError, fetch_mqtt_broker
 
 logger = logging.getLogger("pierpressure")
 
@@ -39,6 +50,26 @@ def build_delivery_and_explainer(config: AppConfig) -> tuple[MqttDelivery, Expla
     return delivery, explainer
 
 
+def load_app_config(config_path: str) -> AppConfig:
+    """Load the config, asking the Supervisor for the broker only when needed (D1, D2).
+
+    The Supervisor is asked only inside an add-on (``SUPERVISOR_TOKEN`` is set) and
+    only when the file names no ``mqtt.host``. Logs where the broker came from,
+    never its password (D6). Raises :class:`ConfigError`, :class:`OSError` or
+    :class:`SupervisorError`.
+    """
+    read = read_config(config_path)
+    token = os.environ.get("SUPERVISOR_TOKEN")
+    broker: BrokerSettings | None = None
+    if token and not read.names_broker_host:
+        broker = fetch_mqtt_broker(token)
+    config = build_config(read, broker)
+
+    source = "the Supervisor's mqtt service" if broker is not None else Path(config_path).name
+    logger.info("MQTT broker from %s: %s:%d", source, config.mqtt.host, config.mqtt.port)
+    return config
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(
         level=logging.INFO,
@@ -50,8 +81,8 @@ def main(argv: list[str] | None = None) -> int:
     config_path = args[0] if args else os.environ.get("PIERPRESSURE_CONFIG", DEFAULT_CONFIG_PATH)
 
     try:
-        config = load_config(config_path)
-    except (ConfigError, OSError) as exc:
+        config = load_app_config(config_path)
+    except (ConfigError, OSError, SupervisorError) as exc:
         logger.error("Configuration error: %s", exc)
         return 1
 
