@@ -56,3 +56,11 @@ CHANGES_APPLIED: n/a
 - Critical 2 (startup reconnect scenario false under D1) — REBUTTED. In "A reconnect during startup keeps the startup order", the new connection is accepted *before* the process publishes the startup reset. The phase is then `CONNECTED`, so D1 holds nothing: the process hands the startup order, then the replay, to the client, exactly as the scenario says. D1 holds messages only while the phase is `RECONNECTING`.
 - Critical 3 (untestable "A message still being sent at the drop") — PARTLY CONCEDED, OUT OF SCOPE. The fake client does not model a missing acknowledgement. The scenario is #44's unchanged text, and #44's test accepted it. Rewriting #44's scenarios is not part of this story; a follow-up can make the fake client model in-flight messages.
 - Moderate 1 (passive voice in the spec) — FIXED for the sentence this change adds ("The MQTT client MAY send a message it received before then again after the reconnect"). The other three sentences are existing spec text that this change does not touch.
+
+### Human decision (2026-10-09)
+
+The schema escalated to the human after two consecutive REVISE verdicts. The human
+(Andrew) accepted the author's round-2 rebuttals and told the author to proceed to
+`tasks.md` without a third round. The verdict line above stays as Gemini issued it.
+A follow-up issue covers making the fake client model unacknowledged messages
+(round 2, Critical 3).
