@@ -23,13 +23,17 @@ back online and Refresh works".
 
 - **PierPressure subscribes again after each reconnect.** It subscribes to every
   pier's refresh command topic as soon as the broker accepts the new connection.
+  If the broker refuses a subscription, PierPressure logs a warning that names
+  the topic, at startup and after each reconnect.
 - **PierPressure publishes its last state again.** For each pier, it publishes
-  the last verdict, narrative and provider health it sent before the outage. It
-  does not compute a new verdict and does not call the weather services. The next
-  interval or a Refresh press brings new data, as today.
+  the last verdict, narrative and provider health it published before the
+  outage. It does not compute a new verdict and does not call the weather
+  services. The next interval or a Refresh press brings new data, as today.
 - **Then PierPressure goes online.** It publishes the retained `online`
-  availability after it has published the state. So no entity shows as available
-  while its state is missing.
+  availability after it has published the state. One narrow exception remains.
+  paho resends a message it was still sending when the connection dropped. If
+  that message was `online`, it can reach the broker before the replayed state.
+  The state follows within moments.
 - **A login rejected during a reconnect is logged, not fatal.** The log line says
   the broker rejected the login, with the same advice as at startup. paho keeps
   trying. The same login worked before, so the cause is more likely temporary. A
@@ -79,7 +83,7 @@ None.
   - `tests/conftest.py`: the fake client can drop the connection after startup
     and then accept it again.
 - **Tests** cover these cases:
-  - Refresh works again after a reconnect.
+  - Refresh works again after a reconnect, and a refused subscription is logged.
   - The last state, then `online`, is published after a reconnect.
   - No verdict is computed and no weather service is called because of a
     reconnect.

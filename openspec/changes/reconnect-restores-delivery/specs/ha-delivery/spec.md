@@ -20,9 +20,22 @@ After each reconnect, the process SHALL do three things:
    attributes, narrative and provider health, exactly as it last published them.
 3. Then publish its retained online availability.
 
+In this requirement, to publish a message means to hand it to the MQTT client for
+sending. A published message is not proof that the broker received it.
+
 The process SHALL publish the online availability only after it has published the
 state in step 2. A pier the process has not yet published has nothing to publish
 again in step 2.
+
+This order covers the messages the process publishes after the reconnect. The
+MQTT client MAY first send again a message it was still sending when the
+connection dropped, such as an earlier online availability. The process does not
+hold such a message back.
+
+This requirement assumes that the broker lets the process subscribe to the same
+topics after a reconnect as before. When the broker refuses a subscription, or the
+MQTT client cannot send it, the process SHALL log a warning that names the topic.
+This applies at startup and after each reconnect.
 
 A reconnect SHALL NOT trigger a new verdict. The process SHALL NOT compute a
 verdict or fetch conditions because of a reconnect. The configured interval and
@@ -63,6 +76,20 @@ What happens to a publish during an outage is outside this requirement.
 - **AND** it loses its connection, and the broker accepts a new connection
 - **THEN** for each pier, the process publishes the same discovery configs, verdict state, attributes, narrative and provider health it last published, each retained
 - **AND** it publishes its online availability only after all of them
+
+#### Scenario: A message still being sent at the drop does not change the order
+
+- **WHEN** the process publishes its online availability, and the connection drops before the broker acknowledges it
+- **AND** the broker accepts a new connection
+- **THEN** after the reconnect, the process publishes the state for each pier, then its online availability
+- **AND** it does not withhold or remove the message the MQTT client was still sending
+
+#### Scenario: A refused subscription is logged
+
+- **WHEN** the broker accepts a new connection
+- **AND** it refuses the subscription to a pier's refresh command topic
+- **THEN** the log has a warning that names that topic
+- **AND** the process keeps running
 
 #### Scenario: A broker that lost its retained messages gets them back
 

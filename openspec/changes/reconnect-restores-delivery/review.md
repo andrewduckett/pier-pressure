@@ -51,3 +51,20 @@ CHANGES_APPLIED: n/a
 - **Round 1 Moderate 4 — plain language:** accepted by reviewer for the cited passages. Those passages were revised; the remaining queued-versus-delivered wording is identified above.
 - **Round 1 Suggestion 1 — drain wording:** accepted by reviewer. The design now says only markers present in one drain are merged.
 - **Round 1 Suggestion 2 — post-startup thread-exit contract test:** accepted by reviewer as a planned test. D6 specifies the test against a real paho client.
+Author responses for round 2. You approved all three fixes after two REVISE
+rounds in a row. A new full review round in a fresh context re-checks them.
+
+- **Round 2 Critical 1 (an earlier `online` resent before the replay):** fixed
+  by narrowing the promise. The spec defines "publish" as handing a message to
+  the MQTT client. It limits the order to messages published after the
+  reconnect, and allows the client to resend a message that was in flight. A new
+  scenario covers it. The design's Risks section explains the accepted window,
+  and D6 adds a contract test that pins paho's resend.
+- **Round 2 Moderate 1 (a subscribe call does not prove Refresh works):** fixed.
+  The spec states the assumption that the broker grants the same topics, and
+  requires a warning that names a refused topic, at startup and after each
+  reconnect. D2 checks the return code and the broker's answer through
+  `on_subscribe`. A new scenario covers a refused subscription.
+- **Round 2 Moderate 2 (queued versus delivered wording):** fixed. D4 says
+  "accepted for sending", and the proposal says "published", not "sent".
+- **Round 2 Suggestion 1 (contract test for the resend):** applied in D6.

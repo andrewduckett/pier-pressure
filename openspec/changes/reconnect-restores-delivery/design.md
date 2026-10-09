@@ -91,8 +91,21 @@ On an accept in RECONNECTING, `on_connect` does two things on paho's thread:
 2. It calls a reconnect listener that the service registered.
 
 Subscribing does not publish, so it does not break ADR-0012's single-publisher
-rule. Subscribing straight away also means a Refresh press is never lost while
-the main thread is busy.
+rule. Subscribing straight away also keeps the time in which a Refresh press can
+be lost as short as possible. It does not depend on the main thread being free.
+
+A call to `subscribe()` does not prove that the broker accepted the subscription.
+So the adapter checks two things, at startup and after each reconnect:
+
+- **The call's return code.** If `subscribe()` returns anything but success, the
+  adapter logs a warning that names the topic.
+- **The broker's answer.** The adapter sets paho's `on_subscribe` handler. paho
+  2.1 calls it with the message ID and a list of reason codes. The adapter keeps
+  a map from message ID to topic. A failure reason code logs a warning that
+  names the topic and the reason.
+
+The adapter only logs. It does not retry a refused subscription. A refusal means
+the broker's access rules changed, and retrying cannot fix that.
 
 `subscribe_refresh` runs on the main thread and writes the topic map that
 `on_connect` reads. A lock guards that map, and `on_connect` subscribes from a
@@ -145,8 +158,9 @@ message again, retained, in the order the topics were first published. So
 discovery configs go out before states, as on a first publish. The availability
 topic is not recorded, because it belongs to no pier.
 
-The adapter records a message after `_publish` succeeds. If a publish fails, the
-process stops anyway (#43). Only the main thread publishes and replays, so the
+The adapter records a message once paho accepts it for sending, which means
+`_publish` saw a success return code. That is not proof that the broker received
+it. If paho does not accept a message, the process stops anyway (#43). Only the main thread publishes and replays, so the
 dictionaries need no lock.
 
 So the replay publishes what PierPressure last published to each topic. It needs
@@ -199,6 +213,12 @@ real paho client after it has connected once:
   `subscribe` works from inside that callback.
 - An immediate try that cannot open a socket during a reconnect ends paho's
   thread with no callback, and sets `_thread` back to `None`. D7 relies on this.
+- A QoS 1 message without an acknowledgement when the socket closes is sent again
+  after the reconnect, right after `on_connect` returns. The Risks entry on resends
+  relies on this.
+
+The fake client gains `on_subscribe`, and a way to refuse a subscription with a
+failure reason code. A test then checks the warning.
 
 ### D7. A watcher keeps paho's thread running after startup
 
@@ -237,6 +257,16 @@ process would stay disconnected until someone restarts it.
 
 ## Risks / Trade-offs
 
+- [paho can send an earlier `online` again before the replay.] → paho keeps each
+  QoS 1 message the broker has not acknowledged. After the reconnect, paho sends
+  those messages again on its own thread, right after `on_connect` returns. That
+  is usually before the main thread's replay. So if the connection drops just after `online` is published, and the
+  broker lost its retained messages, the broker can hold `online` before the
+  state. The replay follows as soon as the main thread runs, usually in well
+  under a second. We accept this window. Closing it would mean clearing paho's
+  private queue of unsent messages, which is fragile and would also drop verdict
+  messages paho would otherwise deliver. The spec limits its order promise to
+  messages published after the reconnect. A contract test pins paho's resend.
 - [The watcher is one more thread to start and stop.] → `close()` stops it
   first, and a test checks that `close()` leaves no thread running.
 - [A publish during the outage still stops the process.] → That is #43. Until it
