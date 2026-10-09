@@ -553,6 +553,9 @@ class MqttDelivery:
         # it and the topic map: the main thread and paho's thread both subscribe.
         self._unanswered: dict[int, str] = {}
         self._subscription_lock = threading.Lock()
+        # Each pier's retained messages, from topic to the last payload, in the
+        # order the topics were first published (reconnect-restores-delivery D4).
+        self._retained: dict[str, dict[str, str]] = {}
         # Told once, from config, whether this delivery owns the narrative entity
         # (design D2/D7). When false, no narrative discovery or state is ever
         # published, so a default deployment is byte-identical to the pre-feature
@@ -731,7 +734,28 @@ class MqttDelivery:
         """Publish the retained ``online`` availability for every entity."""
         self._publish(availability_topic(self._config.base_topic), PAYLOAD_ONLINE, retain=True)
 
-    def _publish(self, topic: str, payload: str, *, retain: bool) -> None:
+    def replay(self) -> None:
+        """Publish each pier's last retained messages again, after a reconnect (D4).
+
+        Each topic goes out with the payload it last had, in the order the topics
+        were first published, so discovery configs precede states. The availability
+        topic belongs to no pier and is not replayed; the service publishes it after.
+        """
+        for retained in list(self._retained.values()):
+            for topic, payload in list(retained.items()):
+                self._send(topic, payload, retain=True)
+
+    def _publish(self, topic: str, payload: str, *, retain: bool, pier: str | None = None) -> None:
+        """Publish, and record a pier's retained message for :meth:`replay` (D4).
+
+        The record is made once paho accepts the message for sending. Only the
+        main thread publishes and replays, so the record needs no lock.
+        """
+        self._send(topic, payload, retain=retain)
+        if retain and pier is not None:
+            self._retained.setdefault(pier, {})[topic] = payload
+
+    def _send(self, topic: str, payload: str, *, retain: bool) -> None:
         info = self._client.publish(topic, payload, qos=1, retain=retain)
         rc = getattr(info, "rc", mqtt.MQTT_ERR_SUCCESS)
         if rc != mqtt.MQTT_ERR_SUCCESS:
@@ -762,35 +786,45 @@ class MqttDelivery:
             discovery_topic(prefix, "sensor", pier, "verdict"),
             json.dumps(build_verdict_discovery(pier, base)),
             retain=True,
+            pier=pier,
         )
         self._publish(
             discovery_topic(prefix, "sensor", pier, "score"),
             json.dumps(build_score_discovery(pier, base)),
             retain=True,
+            pier=pier,
         )
         self._publish(
             discovery_topic(prefix, "button", pier, "refresh"),
             json.dumps(build_refresh_discovery(pier, base)),
             retain=True,
+            pier=pier,
         )
         self._publish(
             discovery_topic(prefix, "sensor", pier, "top_target"),
             json.dumps(build_top_target_discovery(pier, base)),
             retain=True,
+            pier=pier,
         )
         for rank in RANKS:
             self._publish(
                 discovery_topic(prefix, "sensor", pier, f"target_{rank}"),
                 json.dumps(build_rank_target_discovery(pier, base, rank)),
                 retain=True,
+                pier=pier,
             )
-        self._publish(verdict_state_topic(base, pier), document.verdict.value, retain=True)
-        self._publish(attributes_topic(base, pier), document.to_json(), retain=True)
-        self._publish(top_target_state_topic(base, pier), top_target_state(document), retain=True)
+        self._publish(
+            verdict_state_topic(base, pier), document.verdict.value, retain=True, pier=pier
+        )
+        self._publish(attributes_topic(base, pier), document.to_json(), retain=True, pier=pier)
+        self._publish(
+            top_target_state_topic(base, pier), top_target_state(document), retain=True, pier=pier
+        )
         self._publish(
             top_target_attributes_topic(base, pier),
             json.dumps(top_target_attributes(document)),
             retain=True,
+            pier=pier,
         )
         # Every rank is written on every publish, filled or not, so a shrinking list
         # never leaves an earlier target retained (design D3).
@@ -799,25 +833,32 @@ class MqttDelivery:
                 rank_target_state_topic(base, pier, rank),
                 rank_target_state(document, rank),
                 retain=True,
+                pier=pier,
             )
             self._publish(
                 rank_target_attributes_topic(base, pier, rank),
                 json.dumps(rank_target_attributes(document, rank)),
                 retain=True,
+                pier=pier,
             )
         if self._manage_narrative:
             self._publish(
                 discovery_topic(prefix, "sensor", pier, "narrative"),
                 json.dumps(build_narrative_discovery(pier, base)),
                 retain=True,
+                pier=pier,
             )
             self._publish(
-                narrative_state_topic(base, pier), narrative_state(narrative), retain=True
+                narrative_state_topic(base, pier),
+                narrative_state(narrative),
+                retain=True,
+                pier=pier,
             )
             self._publish(
                 narrative_attributes_topic(base, pier),
                 json.dumps(narrative_attributes(narrative)),
                 retain=True,
+                pier=pier,
             )
 
     def publish_health(self, pier_id: str, healths: Iterable[ProviderHealth]) -> None:
@@ -835,14 +876,19 @@ class MqttDelivery:
                 discovery_topic(prefix, "sensor", pier_id, f"{health.key}_health"),
                 json.dumps(build_health_discovery(pier_id, base, health.key, health.name)),
                 retain=True,
+                pier=pier_id,
             )
             self._publish(
-                health_state_topic(base, pier_id, health.key), health_state(health), retain=True
+                health_state_topic(base, pier_id, health.key),
+                health_state(health),
+                retain=True,
+                pier=pier_id,
             )
             self._publish(
                 health_attributes_topic(base, pier_id, health.key),
                 json.dumps(health_attributes(health)),
                 retain=True,
+                pier=pier_id,
             )
 
     def subscribe_refresh(self, pier_ids: Iterable[str], callback: Callable[[str], None]) -> None:
