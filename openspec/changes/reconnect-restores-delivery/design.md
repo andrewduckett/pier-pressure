@@ -181,7 +181,8 @@ topic is not recorded, because it belongs to no pier.
 
 The adapter records a message once paho accepts it for sending, which means
 `_publish` saw a success return code. That is not proof that the broker received
-it. If paho does not accept a message, the process stops anyway (#43). Only the main thread publishes and replays, so the
+it. If paho does not accept a message, `_publish` raises `DeliveryError` and the
+process stops, as today (#43). Only the main thread publishes and replays, so the
 dictionaries need no lock.
 
 So the replay publishes what PierPressure last published to each topic. It needs
@@ -295,9 +296,12 @@ process would stay disconnected until someone restarts it.
   messages published after the reconnect. A contract test pins paho's resend.
 - [The watcher is one more thread to start and stop.] → `close()` stops it
   first, and a test checks that `close()` leaves no thread running.
-- [A publish during the outage still stops the process.] → That is #43. Until it
-  lands, the replay helps only when the whole outage falls between two publishes.
-  The interval sets how often that is true.
+- [A publish during the outage keeps the adapter's existing behaviour.] → paho
+  usually reports it as not connected, and the process then stops. When paho's
+  limit of messages in flight is full, paho queues it instead, and the process
+  carries on. Both cases are #43's scope. Until #43 lands, the replay reliably
+  helps only when the whole outage falls between two publishes. The interval
+  sets how often that is true.
 - [The replayed verdict can be up to one interval old.] → It is the same verdict
   the broker held before the outage, with its original generation time. The next
   interval or a Refresh press brings new data.
