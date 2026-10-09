@@ -86,13 +86,6 @@ def test_last_will_is_registered_retained_offline() -> None:
     assert client.will.retain is True
 
 
-def test_unreachable_broker_is_reported_as_a_failure() -> None:
-    client = FakeMqttClient(connect_error=OSError("Connection refused"))
-    delivery = MqttDelivery(make_mqtt_config(), client=client)
-    with pytest.raises(DeliveryError):
-        delivery.connect()
-
-
 def test_publish_failure_rc_is_reported() -> None:
     client = FakeMqttClient(publish_rc=4)  # non-zero rc
     delivery = MqttDelivery(make_mqtt_config(), client=client)

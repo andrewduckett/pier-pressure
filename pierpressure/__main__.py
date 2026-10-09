@@ -1,8 +1,9 @@
 """Entry point: ``python -m pierpressure`` (design D9, D10).
 
 Loads config, connects to the broker, publishes on startup, and runs the loop.
-Exits non-zero on an unrecoverable startup failure (bad config, or the broker
-unreachable at boot) rather than idling as if healthy.
+When the broker cannot be reached, it waits and tries again rather than exiting
+(retry-broker-connection). It exits non-zero on a startup failure that retrying
+cannot fix: bad config, or a broker that rejects the login.
 
 Inside a Home Assistant add-on, a config file that names no broker host uses the
 broker from the Supervisor's ``mqtt`` service (ha-addon-mqtt-service D1, D2).
@@ -25,7 +26,7 @@ from pierpressure.core.config import (
     build_config,
     read_config,
 )
-from pierpressure.delivery.mqtt import DeliveryError, MqttDelivery
+from pierpressure.delivery.mqtt import DeliveryError, LoginRejected, MqttDelivery
 from pierpressure.explain import Explainer, build_explainer
 from pierpressure.service import Service
 from pierpressure.supervisor import SupervisorError, fetch_mqtt_broker
@@ -33,6 +34,13 @@ from pierpressure.supervisor import SupervisorError, fetch_mqtt_broker
 logger = logging.getLogger("pierpressure")
 
 DEFAULT_CONFIG_PATH = "config.yaml"
+
+# Replaces the advice for a rejected login the Supervisor supplied (retry-broker-connection
+# D3): the user never set mqtt.username or mqtt.password, and cannot set them alone.
+SUPERVISOR_LOGIN_ADVICE = (
+    "The username and password came from the Supervisor's mqtt service, so restart the "
+    "Mosquitto broker add-on, or set mqtt.host to use your own broker login."
+)
 
 
 def build_delivery_and_explainer(config: AppConfig) -> tuple[MqttDelivery, Explainer]:
@@ -50,12 +58,13 @@ def build_delivery_and_explainer(config: AppConfig) -> tuple[MqttDelivery, Expla
     return delivery, explainer
 
 
-def load_app_config(config_path: str) -> AppConfig:
+def load_app_config(config_path: str) -> tuple[AppConfig, bool]:
     """Load the config, asking the Supervisor for the broker only when needed (D1, D2).
 
     The Supervisor is asked only inside an add-on (``SUPERVISOR_TOKEN`` is set) and
     only when the file names no ``mqtt.host``. Logs where the broker came from,
-    never its password (D6). Raises :class:`ConfigError`, :class:`OSError` or
+    never its password (D6). Returns the config, and whether the broker came from
+    the Supervisor. Raises :class:`ConfigError`, :class:`OSError` or
     :class:`SupervisorError`.
     """
     read = read_config(config_path)
@@ -67,7 +76,7 @@ def load_app_config(config_path: str) -> AppConfig:
 
     source = "the Supervisor's mqtt service" if broker is not None else Path(config_path).name
     logger.info("MQTT broker from %s: %s:%d", source, config.mqtt.host, config.mqtt.port)
-    return config
+    return config, broker is not None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -81,7 +90,7 @@ def main(argv: list[str] | None = None) -> int:
     config_path = args[0] if args else os.environ.get("PIERPRESSURE_CONFIG", DEFAULT_CONFIG_PATH)
 
     try:
-        config = load_app_config(config_path)
+        config, broker_from_supervisor = load_app_config(config_path)
     except (ConfigError, OSError, SupervisorError) as exc:
         logger.error("Configuration error: %s", exc)
         return 1
@@ -90,8 +99,17 @@ def main(argv: list[str] | None = None) -> int:
     try:
         delivery.connect()
     except DeliveryError as exc:
-        logger.error("Startup delivery failure: %s", exc)
+        message = (
+            exc.with_advice(SUPERVISOR_LOGIN_ADVICE)
+            if isinstance(exc, LoginRejected) and broker_from_supervisor
+            else str(exc)
+        )
+        logger.error("Startup delivery failure: %s", message)
         return 1
+    except KeyboardInterrupt:
+        logger.info("Shutting down")
+        delivery.close()
+        return 0
 
     clock = SystemClock()
     conditions = build_provider(now=clock.now)

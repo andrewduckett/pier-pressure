@@ -60,7 +60,7 @@ broker you use. You can set them without setting `mqtt.host`.
 ## If the add-on stops at startup
 
 The add-on stops when it cannot start safely. Its log names the problem in a line
-that starts with `Configuration error`.
+that starts with `Configuration error` or `Startup delivery failure`.
 
 | The log says | What it means | What to do |
 | --- | --- | --- |
@@ -70,9 +70,24 @@ that starts with `Configuration error`.
 | The Supervisor refused access to the mqtt service | Home Assistant would not give this add-on the broker settings. | Set `mqtt.host`, and [report the problem](https://github.com/andrewduckett/pier-pressure/issues). |
 | The broker requires TLS | The Supervisor's broker accepts only encrypted connections, which PierPressure does not support yet. | Set `mqtt.host` and `mqtt.port` to a broker listener without TLS. |
 | The broker asks for another MQTT version | The Supervisor's broker needs an MQTT version other than 3.1.1. | Set `mqtt.host` and `mqtt.port` to a broker that accepts MQTT 3.1.1. |
+| The MQTT broker rejected the login | The broker refused the username and password, or the user is not allowed to connect. | With the Mosquitto add-on, check that add-on. With your own broker, check `mqtt.username`, `mqtt.password`, and the user's permissions on the broker. |
 
 When the Mosquitto add-on is still starting, PierPressure waits up to 60 seconds
 for it, and logs one line while it waits.
+
+## If the add-on waits for the broker
+
+PierPressure does not stop when it cannot connect to the broker. It tries again,
+and waits longer after each failed try, up to 2 minutes. It publishes nothing
+until the broker accepts. Each failed try logs a warning like this one:
+
+```text
+Could not connect to the MQTT broker at core-mosquitto:1883 (ConnectionRefusedError); trying again
+```
+
+After Home Assistant restarts, a few of these lines are normal while Mosquitto
+starts. If they go on, check that the broker is running. With your own broker,
+also check `mqtt.host` and `mqtt.port`.
 
 ## More settings
 
