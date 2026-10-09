@@ -94,6 +94,8 @@ class FakeMqttClient:
         self.published: list[Published] = []
         self.will: Published | None = None
         self.subscriptions: list[str] = []
+        # The topics the broker holds now. A clean session forgets them on a drop.
+        self.active_subscriptions: set[str] = set()
         self.on_message: Any = None
         self.on_pre_connect: Any = None
         self.on_connect: Any = None
@@ -153,6 +155,7 @@ class FakeMqttClient:
         attempts play on the calling thread, as with ``loop_start``.
         """
         self.connected = False
+        self.active_subscriptions.clear()
         self._script = list(script)
         self._call(self.on_disconnect, self, None, _NO_FLAGS, _UNSPECIFIED, None)
         self._play_script()
@@ -215,6 +218,8 @@ class FakeMqttClient:
         if topic in self._subscribe_failures:
             return self._subscribe_failures[topic], None
         self.subscriptions.append(topic)
+        if topic not in self._refusals:
+            self.active_subscriptions.add(topic)
         self._last_mid += 1
         mid = self._last_mid
         reason = self._refusals.get(topic, "Granted QoS 0")
@@ -226,6 +231,11 @@ class FakeMqttClient:
         else:
             self._pending_subacks.append((mid, reason))
         return mqtt.MQTT_ERR_SUCCESS, mid
+
+    def deliver(self, topic: str, payload: bytes = b"") -> None:
+        """Deliver a message to ``on_message``, if the broker holds a subscription."""
+        if topic in self.active_subscriptions:
+            self._call(self.on_message, self, None, FakeMessage(topic, payload))
 
     def ack_subscriptions(self) -> None:
         """Deliver the broker's queued answers to ``on_subscribe``."""

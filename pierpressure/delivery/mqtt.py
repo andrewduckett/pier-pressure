@@ -33,6 +33,7 @@ import sys
 import threading
 from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
+from enum import Enum
 from typing import Any, Protocol
 
 import paho.mqtt.client as mqtt
@@ -515,6 +516,14 @@ _LOGIN_REJECTIONS = ("Bad user name or password", "Not authorized")
 _LOGIN_ADVICE = "Check mqtt.username and mqtt.password, and the user's permissions on the broker."
 
 
+class _Phase(Enum):
+    """Where the connection is (reconnect-restores-delivery D1). Only paho's thread moves it."""
+
+    STARTING = "starting"
+    CONNECTED = "connected"
+    RECONNECTING = "reconnecting"
+
+
 # --------------------------------------------------------------------------- #
 # The delivery adapter
 # --------------------------------------------------------------------------- #
@@ -537,6 +546,7 @@ class MqttDelivery:
         self._client: MqttClient = client if client is not None else _new_paho_client()
         self._refresh_callback: Callable[[str], None] | None = None
         self._topic_to_pier: dict[str, str] = {}
+        self._reconnect_listener: Callable[[], None] | None = None
         # Told once, from config, whether this delivery owns the narrative entity
         # (design D2/D7). When false, no narrative discovery or state is ever
         # published, so a default deployment is byte-identical to the pre-feature
@@ -548,6 +558,7 @@ class MqttDelivery:
         self._rejection: str | None = None
         # Whether the current attempt already has its warning (D4).
         self._attempt_logged = False
+        self._phase = _Phase.STARTING
 
     @property
     def base_topic(self) -> str:
@@ -607,20 +618,29 @@ class MqttDelivery:
     def _broker(self) -> str:
         return f"{self._config.host}:{self._config.port}"
 
-    # paho calls these handlers on its network thread. They only log, store the
-    # outcome, and set the event: the main thread does all publishing (ADR-0012).
-    # Once the outcome is set they do nothing; later reconnects belong to #44.
+    # paho calls these handlers on its network thread, at startup and on every
+    # reconnect (reconnect-restores-delivery D1). They log, store the startup
+    # outcome, subscribe again and tell the service. They never publish: the main
+    # thread does all publishing (ADR-0012).
 
     def _on_pre_connect(self, _client: Any, _userdata: Any) -> None:
-        if not self._outcome_ready.is_set():
+        if self._phase is not _Phase.CONNECTED:
             self._attempt_logged = False
 
     def _on_connect(
         self, _client: Any, _userdata: Any, _flags: Any, reason: Any, _properties: Any
     ) -> None:
+        if self._phase is _Phase.STARTING:
+            self._on_first_answer(reason)
+        elif self._phase is _Phase.RECONNECTING:
+            self._on_reconnect_answer(reason)
+
+    def _on_first_answer(self, reason: Any) -> None:
+        """Store the startup outcome for ``connect`` (retry-broker-connection D2, D3)."""
         if self._outcome_ready.is_set():
             return
         if not reason.is_failure:
+            self._phase = _Phase.CONNECTED
             self._outcome_ready.set()
             return
         if reason.getName() in _LOGIN_REJECTIONS:
@@ -629,8 +649,25 @@ class MqttDelivery:
             return
         self._log_failed_attempt(str(reason))
 
+    def _on_reconnect_answer(self, reason: Any) -> None:
+        """Restore delivery on an accept; otherwise log and let paho try again (D1, D2)."""
+        if not reason.is_failure:
+            logger.info("Reconnected to the MQTT broker at %s", self._broker)
+            self._phase = _Phase.CONNECTED
+            self._subscribe_all()
+            if self._reconnect_listener is not None:
+                self._reconnect_listener()
+            return
+        if reason.getName() in _LOGIN_REJECTIONS:
+            # The same login worked before, so the cause may be temporary (D5).
+            self._attempt_logged = True
+            rejected = LoginRejected(self._broker, reason.getName())
+            logger.error("%s Trying again.", rejected)
+            return
+        self._log_failed_attempt(str(reason))
+
     def _on_connect_fail(self, _client: Any, _userdata: Any) -> None:
-        if self._outcome_ready.is_set():
+        if not self._awaiting_answer:
             return
         # paho calls this inside its ``except OSError`` block, so the error is
         # still being handled. Only its class name is logged.
@@ -640,8 +677,20 @@ class MqttDelivery:
     def _on_disconnect(
         self, _client: Any, _userdata: Any, _flags: Any, _reason: Any, _properties: Any
     ) -> None:
-        if not self._outcome_ready.is_set():
+        if self._phase is _Phase.CONNECTED:
+            logger.warning(
+                "Lost the connection to the MQTT broker at %s; trying again", self._broker
+            )
+            self._phase = _Phase.RECONNECTING
+        elif self._awaiting_answer:
             self._log_failed_attempt("connection closed before the broker answered")
+
+    @property
+    def _awaiting_answer(self) -> bool:
+        """Whether an attempt is under way whose failure needs a warning."""
+        if self._phase is _Phase.STARTING:
+            return not self._outcome_ready.is_set()
+        return self._phase is _Phase.RECONNECTING
 
     def _log_failed_attempt(self, reason: str) -> None:
         """Log one warning per failed attempt, whichever handler sees it first (D4)."""
@@ -778,12 +827,24 @@ class MqttDelivery:
         D7 it enqueues the pier id for the main thread.
         """
         self._refresh_callback = callback
+        self._client.on_message = self._on_message
         base = self._config.base_topic
         for pier_id in pier_ids:
             topic = refresh_command_topic(base, pier_id)
             self._topic_to_pier[topic] = pier_id
             self._client.subscribe(topic)
-        self._client.on_message = self._on_message
+
+    def _subscribe_all(self) -> None:
+        """Subscribe again to every refresh topic, from paho's thread (D2)."""
+        for topic in list(self._topic_to_pier):
+            self._client.subscribe(topic)
+
+    def on_reconnect(self, callback: Callable[[], None]) -> None:
+        """Call ``callback`` on paho's thread after each reconnect (design D2).
+
+        It must not publish; the service only queues a marker for the main thread.
+        """
+        self._reconnect_listener = callback
 
     def _on_message(self, client: Any, userdata: Any, message: Any) -> None:
         pier_id = self._topic_to_pier.get(message.topic)

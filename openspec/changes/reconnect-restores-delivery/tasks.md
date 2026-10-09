@@ -16,10 +16,10 @@ marked ready. The verdict document and the golden verdict files do not change.
 
 ## 3. Connection phases and re-subscribing in `MqttDelivery`
 
-- [ ] 3.1 Write tests first in `tests/test_reconnect.py`. After startup and a `drop` followed by an acceptance, every refresh topic is subscribed again, and a refresh message then reaches the refresh callback. Verify that the tests fail (spec "Refresh works again after a reconnect").
-- [ ] 3.2 Write tests first for logging with `caplog`. A drop, two failed attempts, then an acceptance give one warning for the lost connection, one warning per failed attempt, and one info line for the reconnect. Each line names the host and port, and none contains the password. Verify that the tests fail (spec "The outage is logged").
-- [ ] 3.3 Write tests first for a login rejected during a reconnect. "Not authorized" logs an error with the configured login advice, does not raise, and does not stop paho's loop. A later acceptance then reconnects. Verify that the tests fail (spec "A login rejected during a reconnect does not stop the process").
-- [ ] 3.4 Implement design D1 and D2 in `MqttDelivery`: the STARTING, CONNECTED and RECONNECTING phases, re-subscribing from a copy of the topic map, and `on_reconnect(callback)`. Keep #33's startup behaviour unchanged. Verify that 3.1 to 3.3 pass, and that every #33 test in `tests/test_broker_wait.py` still passes.
+- [x] 3.1 Write tests first in `tests/test_reconnect.py`. After startup and a `drop` followed by an acceptance, every refresh topic is subscribed again, and a refresh message then reaches the refresh callback. Verify that the tests fail (spec "Refresh works again after a reconnect").
+- [x] 3.2 Write tests first for logging with `caplog`. A drop, two failed attempts, then an acceptance give one warning for the lost connection, one warning per failed attempt, and one info line for the reconnect. Each line names the host and port, and none contains the password. Verify that the tests fail (spec "The outage is logged").
+- [x] 3.3 Write tests first for a login rejected during a reconnect. "Not authorized" logs an error with the configured login advice, does not raise, and does not stop paho's loop. A later acceptance then reconnects. Verify that the tests fail (spec "A login rejected during a reconnect does not stop the process").
+- [x] 3.4 Implement design D1 and D2 in `MqttDelivery`: the STARTING, CONNECTED and RECONNECTING phases, re-subscribing from a copy of the topic map, and `on_reconnect(callback)`. Keep #33's startup behaviour unchanged. Verify that 3.1 to 3.3 pass, and that every #33 test in `tests/test_broker_wait.py` still passes.
 
 ## 4. Subscription checks
 
