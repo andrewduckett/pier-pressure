@@ -57,3 +57,13 @@ CHANGES_APPLIED: n/a
   list adds a third focused test for the generated-client-ID path. This adds a test
   only, and changes no reviewed artifact.
 
+### Post-approval correction found during apply
+
+- **Design D3, login advice: changed with the human's approval.** The manual
+  check against Mosquitto 2.1.2 (task 5.2) showed that Mosquitto answers a wrong
+  password with "Not authorized", not "Bad user name or password". D3 gave each
+  reason its own advice, so a wrong password got "check the user's permissions".
+  Both reasons now get the same advice: check `mqtt.username`, `mqtt.password`,
+  and the user's permissions. The delta spec is unchanged, and both of its
+  rejected-login scenarios still hold. No other reviewed content changed.
+

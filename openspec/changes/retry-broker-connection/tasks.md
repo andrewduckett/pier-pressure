@@ -31,6 +31,6 @@ ready. No golden verdict file changes, and the verdict document is untouched.
 
 ## 5. Verify and archive
 
-- [ ] 5.1 Run `just check` and verify it is green.
-- [ ] 5.2 Do a manual check with a real broker. Start PierPressure from source while the broker is stopped. Verify that each attempt logs a warning, with growing gaps. Start the broker, and verify that PierPressure goes online and publishes a verdict for each pier. Then restart it with a wrong password, and verify that it exits with the rejected-login error. Record the result in the PR description.
+- [x] 5.1 Run `just check` and verify it is green.
+- [x] 5.2 Do a manual check with a real broker. Start PierPressure from source while the broker is stopped. Verify that each attempt logs a warning, with growing gaps. Start the broker, and verify that PierPressure goes online and publishes a verdict for each pier. Then restart it with a wrong password, and verify that it exits with the rejected-login error. Record the result in the PR description.
 - [ ] 5.3 Archive the change. Verify that `openspec/specs/ha-delivery/spec.md` holds the new requirement, then flip PR #61 to ready.

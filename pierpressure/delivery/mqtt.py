@@ -495,11 +495,10 @@ PAUSE_LIMIT_SECONDS = 120
 # How often ``connect`` checks that paho's network thread is still running.
 _WAIT_SLICE_SECONDS = 1.0
 
-# paho's names for the refusals that retrying cannot fix, with the fix to suggest.
-_LOGIN_ADVICE = {
-    "Bad user name or password": "Check mqtt.username and mqtt.password.",
-    "Not authorized": "Check the MQTT user's permissions on the broker.",
-}
+# paho's names for the refusals that retrying cannot fix. Both get the same advice,
+# because Mosquitto answers a wrong password with "Not authorized".
+_LOGIN_REJECTIONS = ("Bad user name or password", "Not authorized")
+_LOGIN_ADVICE = "Check mqtt.username and mqtt.password, and the user's permissions on the broker."
 
 
 # --------------------------------------------------------------------------- #
@@ -578,7 +577,7 @@ class MqttDelivery:
             self._client.loop_stop()
             raise LoginRejected(
                 f"The MQTT broker at {self._broker} rejected the login: "
-                f"{self._rejection.lower()}. {_LOGIN_ADVICE[self._rejection]}"
+                f"{self._rejection.lower()}. {_LOGIN_ADVICE}"
             )
 
     def _wait_for_outcome(self) -> None:
@@ -613,7 +612,7 @@ class MqttDelivery:
         if not reason.is_failure:
             self._outcome_ready.set()
             return
-        for name in _LOGIN_ADVICE:
+        for name in _LOGIN_REJECTIONS:
             if reason == name:  # paho compares reason codes by name
                 self._rejection = name
                 self._outcome_ready.set()

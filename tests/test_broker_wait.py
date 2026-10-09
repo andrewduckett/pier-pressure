@@ -122,17 +122,14 @@ def test_a_rejected_login_stops_the_network_loop(reason: str) -> None:
     assert client.calls[-1] == "loop_stop"
 
 
-@pytest.mark.parametrize(
-    ("reason", "advice"),
-    [
-        ("Bad user name or password", "Check mqtt.username and mqtt.password."),
-        ("Not authorized", "Check the MQTT user's permissions on the broker."),
-    ],
-)
-def test_a_rejected_login_names_the_broker_reason_and_fix(reason: str, advice: str) -> None:
+# Mosquitto answers a wrong password with "Not authorized", so both reasons get
+# the same advice (found in the manual check of task 5.2).
+@pytest.mark.parametrize("reason", ["Bad user name or password", "Not authorized"])
+def test_a_rejected_login_names_the_broker_reason_and_fix(reason: str) -> None:
     _, error = _rejection(reason)
     assert str(error) == (
-        f"The MQTT broker at {BROKER} rejected the login: {reason.lower()}. {advice}"
+        f"The MQTT broker at {BROKER} rejected the login: {reason.lower()}. "
+        "Check mqtt.username and mqtt.password, and the user's permissions on the broker."
     )
 
 

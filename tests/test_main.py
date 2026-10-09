@@ -224,7 +224,7 @@ def test_main_logs_the_broker_source(
 
 REJECTED = LoginRejected(
     "The MQTT broker at core-mosquitto:1883 rejected the login: not authorized. "
-    "Check the MQTT user's permissions on the broker."
+    "Check mqtt.username and mqtt.password, and the user's permissions on the broker."
 )
 
 

@@ -153,12 +153,13 @@ authorized" through paho's `ReasonCode` equality, which compares names. paho
 recommends this. It also keeps working if PierPressure moves to MQTT 5, where the
 numbers are 134 and 135.
 
-Each rejection gets its own advice:
+Both rejections get the same advice: "The MQTT broker at host:port rejected the
+login: <reason>. Check mqtt.username and mqtt.password, and the user's
+permissions on the broker." The message keeps the broker's own reason.
 
-- Bad user name or password: "The MQTT broker at host:port rejected the login:
-  bad user name or password. Check `mqtt.username` and `mqtt.password`."
-- Not authorized: "The MQTT broker at host:port rejected the login: not
-  authorized. Check the MQTT user's permissions on the broker."
+Separate advice for each reason would mislead. Mosquitto 2 answers a wrong
+password with "Not authorized", not "Bad user name or password". The manual
+check during apply (task 5.2) found this.
 
 Inside the add-on, the Supervisor may have supplied the credentials. Then the
 advice also says to check the Mosquitto add-on. `MqttDelivery` does not know
