@@ -103,6 +103,7 @@ class StartupStub:
         reject_login: bool = False,
     ):
         self.connected_to: list[MqttConfig] = []
+        self.calls: list[str] = []
         self.login_advice: list[str | None] = []
         self.closed = False
         self.supervisor_calls: list[str] = []
@@ -116,7 +117,11 @@ class StartupStub:
                 stub.login_advice.append(login_advice)
                 self._advice = login_advice
 
+            def on_reconnect(self, _callback: Any) -> None:
+                stub.calls.append("on_reconnect")
+
             def connect(self) -> None:
+                stub.calls.append("connect")
                 if reject_login:
                     # As MqttDelivery does: its own advice, or the default.
                     raise LoginRejected("core-mosquitto:1883", "Not authorized", self._advice)
@@ -282,6 +287,16 @@ def test_a_rejected_file_login_names_the_file_settings(
         "login: not authorized. Check mqtt.username and mqtt.password, and the user's "
         "permissions on the broker."
     ]
+
+
+def test_main_listens_for_reconnects_before_it_connects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A reconnect just after connect() returns must still reach the service.
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    stub = StartupStub(monkeypatch)
+    entry.main([_config(tmp_path, FILE_BROKER + PIERS)])
+    assert stub.calls == ["on_reconnect", "connect"]
 
 
 def test_ctrl_c_while_waiting_for_the_broker_shuts_down_cleanly(

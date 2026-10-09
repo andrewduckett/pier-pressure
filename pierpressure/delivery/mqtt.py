@@ -62,19 +62,26 @@ class DeliveryError(Exception):
 
 
 class LoginRejected(DeliveryError):
-    """The broker refused the connection because of the login (retry-broker-connection D3).
+    """The broker refused the first connection because of the login (retry-broker-connection D3).
 
-    Retrying cannot fix a wrong password or a missing permission, so the process stops.
-    The message names the broker and its reason, then gives ``advice``: by default,
-    check the file's login. The delivery adapter passes other advice when the login
-    came from somewhere else (reconnect-restores-delivery D5).
+    Retrying cannot fix a wrong password or a missing permission, so the process
+    stops. A login rejected during a later reconnect is only logged, with the same
+    message (reconnect-restores-delivery D5).
     """
 
     def __init__(self, broker: str, reason: str, advice: str | None = None) -> None:
         self.broker = broker
         self.reason = reason
-        rejected = f"The MQTT broker at {broker} rejected the login"
-        super().__init__(f"{rejected}: {reason.lower()}. {advice or _LOGIN_ADVICE}")
+        super().__init__(login_rejected_message(broker, reason, advice))
+
+
+def login_rejected_message(broker: str, reason: str, advice: str | None = None) -> str:
+    """Name the broker and its reason, then give ``advice``: by default, check the file's login.
+
+    The delivery adapter passes other advice when the login came from somewhere else.
+    """
+    rejected = f"The MQTT broker at {broker} rejected the login"
+    return f"{rejected}: {reason.lower()}. {advice or _LOGIN_ADVICE}"
 
 
 # --------------------------------------------------------------------------- #
@@ -580,6 +587,8 @@ class MqttDelivery:
         # Keeps paho's thread running after startup (reconnect-restores-delivery D7).
         self._watcher: threading.Thread | None = None
         self._stop_watching = threading.Event()
+        # Set by close(), so its own DISCONNECT is not logged as a lost connection.
+        self._closing = False
 
     @property
     def base_topic(self) -> str:
@@ -636,9 +645,7 @@ class MqttDelivery:
         thread pauses, then tries again. A restart happens at most once a slice.
         """
         while not self._outcome_ready.is_set():
-            if not _network_thread_running(self._client):
-                self._log_failed_attempt("network thread stopped")
-                self._client.loop_start()
+            self._restart_stopped_network_thread()
             self._outcome_ready.wait(_WAIT_SLICE_SECONDS)
 
     def _watch_network_thread(self) -> None:
@@ -649,9 +656,13 @@ class MqttDelivery:
         nothing, so a race between the check and the call is harmless.
         """
         while not self._stop_watching.wait(_WAIT_SLICE_SECONDS):
-            if not _network_thread_running(self._client):
-                self._log_failed_attempt("network thread stopped")
-                self._client.loop_start()
+            self._restart_stopped_network_thread()
+
+    def _restart_stopped_network_thread(self) -> None:
+        """Log the ended attempt and start paho's thread again, if it has ended."""
+        if not _network_thread_running(self._client):
+            self._log_failed_attempt("network thread stopped")
+            self._client.loop_start()
 
     @property
     def _broker(self) -> str:
@@ -669,9 +680,11 @@ class MqttDelivery:
     def _on_connect(
         self, _client: Any, _userdata: Any, _flags: Any, reason: Any, _properties: Any
     ) -> None:
+        # Every answer after the first is a reconnect, even when paho reconnected
+        # without first reporting the lost connection.
         if self._phase is _Phase.STARTING:
             self._on_first_answer(reason)
-        elif self._phase is _Phase.RECONNECTING:
+        else:
             self._on_reconnect_answer(reason)
 
     def _on_first_answer(self, reason: Any) -> None:
@@ -693,6 +706,9 @@ class MqttDelivery:
         if not reason.is_failure:
             logger.info("Reconnected to the MQTT broker at %s", self._broker)
             self._phase = _Phase.CONNECTED
+            with self._subscription_lock:
+                # The broker's answers to earlier subscriptions went with the old session.
+                self._unanswered.clear()
             self._subscribe_all()
             if self._reconnect_listener is not None:
                 self._reconnect_listener()
@@ -700,8 +716,8 @@ class MqttDelivery:
         if reason.getName() in _LOGIN_REJECTIONS:
             # The same login worked before, so the cause may be temporary (D5).
             self._attempt_logged = True
-            rejected = LoginRejected(self._broker, reason.getName(), self._login_advice)
-            logger.error("%s Trying again.", rejected)
+            message = login_rejected_message(self._broker, reason.getName(), self._login_advice)
+            logger.error("%s Trying again.", message)
             return
         self._log_failed_attempt(str(reason))
 
@@ -716,6 +732,8 @@ class MqttDelivery:
     def _on_disconnect(
         self, _client: Any, _userdata: Any, _flags: Any, _reason: Any, _properties: Any
     ) -> None:
+        if self._closing:
+            return
         if self._phase is _Phase.CONNECTED:
             logger.warning(
                 "Lost the connection to the MQTT broker at %s; trying again", self._broker
@@ -976,6 +994,7 @@ class MqttDelivery:
 
         The watcher stops first, or it would start the thread ``loop_stop`` ends.
         """
+        self._closing = True
         self._stop_watching.set()
         if self._watcher is not None:
             self._watcher.join()

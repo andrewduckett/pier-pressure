@@ -111,16 +111,6 @@ def main(argv: list[str] | None = None) -> int:
     delivery, explainer = build_delivery_and_explainer(
         config, broker_from_supervisor=broker_from_supervisor
     )
-    try:
-        delivery.connect()
-    except DeliveryError as exc:
-        logger.error("Startup delivery failure: %s", exc)
-        return 1
-    except KeyboardInterrupt:
-        logger.info("Shutting down")
-        delivery.close()
-        return 0
-
     clock = SystemClock()
     conditions = build_provider(now=clock.now)
     service = Service(
@@ -131,8 +121,20 @@ def main(argv: list[str] | None = None) -> int:
         explainer=explainer,
         providers=conditions.providers,
     )
-    delivery.subscribe_refresh([pier.id for pier in config.piers], service.enqueue_refresh)
+    # Before connect, so a reconnect just after the first accept reaches the
+    # service (reconnect-restores-delivery D3).
     delivery.on_reconnect(service.enqueue_reconnect)
+    try:
+        delivery.connect()
+    except DeliveryError as exc:
+        logger.error("Startup delivery failure: %s", exc)
+        return 1
+    except KeyboardInterrupt:
+        logger.info("Shutting down")
+        delivery.close()
+        return 0
+
+    delivery.subscribe_refresh([pier.id for pier in config.piers], service.enqueue_refresh)
 
     logger.info("PierPressure started for %d pier(s)", len(config.piers))
     try:

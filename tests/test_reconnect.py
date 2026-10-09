@@ -315,3 +315,33 @@ def test_close_leaves_no_watcher_running() -> None:
     assert set(_watchers()) - before
     fixture.delivery.close()
     assert set(_watchers()) - before == set()
+
+
+# --------------------------------------------------------------------------- #
+# Review fixes: shutdown, unreported drops, unanswered subscriptions
+# --------------------------------------------------------------------------- #
+
+
+def test_a_clean_shutdown_logs_no_lost_connection(caplog: pytest.LogCaptureFixture) -> None:
+    fixture = Started()
+    caplog.set_level(logging.WARNING)
+    fixture.delivery.close()
+    assert _messages(caplog, logging.WARNING) == []
+
+
+def test_an_accept_with_no_reported_drop_is_a_reconnect(started: Started) -> None:
+    started.client.active_subscriptions.clear()  # the broker forgot the old session
+    started.client.accept_again()
+    assert (started.reconnects, started.client.active_subscriptions) == (1, set(TOPICS))
+
+
+def test_a_lost_connection_forgets_unanswered_subscriptions() -> None:
+    # The answers to the startup subscriptions are lost with the old session.
+    client = FakeMqttClient()
+    delivery = MqttDelivery(make_mqtt_config(), client=client)
+    delivery.connect()
+    delivery.subscribe_refresh(PIERS, lambda _pier: None)
+    client.drop([SOCKET_FAILURE, ACCEPT])
+    delivery.close()
+    # The reconnect's subscriptions were answered; none of the lost ones linger.
+    assert delivery._unanswered == {}

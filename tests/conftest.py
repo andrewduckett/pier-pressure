@@ -156,6 +156,7 @@ class FakeMqttClient:
         """
         self.connected = False
         self.active_subscriptions.clear()
+        self._pending_subacks.clear()  # the broker's answers go with the old session
         self._script = list(script)
         self._call(self.on_disconnect, self, None, _NO_FLAGS, _UNSPECIFIED, None)
         self._play_script()
@@ -256,7 +257,19 @@ class FakeMqttClient:
         return _Info()
 
     def disconnect(self) -> None:
-        self.connected = False
+        """Send DISCONNECT. With no loop running, paho calls ``on_disconnect`` at once."""
+        was_connected, self.connected = self.connected, False
+        if was_connected:
+            normal = ReasonCode(PacketTypes.DISCONNECT, "Normal disconnection")
+            self._call(self.on_disconnect, self, None, _NO_FLAGS, normal, None)
+
+    def accept_again(self) -> None:
+        """Play an accepted attempt with no ``on_disconnect`` first.
+
+        paho can lose a connection without calling ``on_disconnect``, for example
+        when its socket select fails, and then reconnect.
+        """
+        self._play(ACCEPT)
 
     def publishes_to(self, topic: str) -> list[Published]:
         return [p for p in self.published if p.topic == topic]
