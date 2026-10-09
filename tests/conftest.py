@@ -134,6 +134,9 @@ class FakeMqttClient:
             self._play(attempt)
             if attempt == ACCEPT:
                 return
+        # The script ran out with no outcome: end the thread, so the next
+        # loop_start fails the test instead of the wait hanging forever.
+        self._thread = None
 
     def loop_stop(self) -> None:
         self.calls.append("loop_stop")

@@ -193,3 +193,9 @@ def test_callbacks_after_the_broker_accepts_are_ignored(
     client.on_pre_connect(client, None)
     client.on_disconnect(client, None, None, None, None)
     assert _warnings(caplog) == []
+
+
+def test_a_script_with_no_outcome_fails_instead_of_hanging() -> None:
+    # Guards the fake itself: a script that runs out must end the test, not hang it.
+    with pytest.raises(AssertionError, match="no attempts left"):
+        _connect(SOCKET_FAILURE)

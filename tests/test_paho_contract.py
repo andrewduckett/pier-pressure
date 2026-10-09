@@ -9,6 +9,7 @@ and hands paho the other end, so nothing reaches the network.
 from __future__ import annotations
 
 import socket
+import threading
 import time
 from collections.abc import Iterator
 from typing import Any
@@ -82,6 +83,26 @@ def _wait_until(condition: Any) -> bool:
             return True
         time.sleep(0.01)
     return False
+
+
+def _connect_within_timeout(delivery: MqttDelivery) -> None:
+    """Run ``delivery.connect`` on a worker, so a paho change fails the test, not hangs it."""
+    outcome: list[BaseException | None] = []
+
+    def run() -> None:
+        try:
+            delivery.connect()
+        except BaseException as exc:  # noqa: BLE001 - handed back to the test
+            outcome.append(exc)
+        else:
+            outcome.append(None)
+
+    worker = threading.Thread(target=run, daemon=True)
+    worker.start()
+    worker.join(_TIMEOUT_SECONDS * 2)
+    assert outcome, "connect() did not finish"
+    if outcome[0] is not None:
+        raise outcome[0]
 
 
 def _protocol_name(connect: bytes) -> bytes:
@@ -168,7 +189,7 @@ def test_delivery_stops_on_a_real_rejected_login(broker: Broker, code: int) -> N
     broker.expect(bytes([0x20, 0x02, 0x00, code]))
     delivery = MqttDelivery(make_mqtt_config(), client=_paho_client(broker))
     with pytest.raises(LoginRejected):
-        delivery.connect()
+        _connect_within_timeout(delivery)
 
 
 @pytest.mark.filterwarnings("ignore::pytest.PytestUnhandledThreadExceptionWarning")
@@ -181,7 +202,7 @@ def test_delivery_connects_after_a_failed_version_retry_ends_the_thread(
     client = _paho_client(broker)
     delivery = MqttDelivery(make_mqtt_config(), client=client)
     try:
-        delivery.connect()
+        _connect_within_timeout(delivery)
         assert client.is_connected()
     finally:
         client.loop_stop()
