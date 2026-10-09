@@ -50,7 +50,7 @@ marked ready. The verdict document and the golden verdict files do not change.
 
 ## 8. Docs
 
-- [ ] 8.1 Update `ha-addon/DOCS.md`. Say that PierPressure reconnects after a broker outage, and restores its entities and the Refresh button. Add rows for the lost-connection warning, a login rejected during a reconnect, and a refused subscription. Verify that `tests/test_docs.py` passes, and by reading the diff.
+- [x] 8.1 Update `ha-addon/DOCS.md`. Say that PierPressure reconnects after a broker outage, and restores its entities and the Refresh button. Add rows for the lost-connection warning, a login rejected during a reconnect, and a refused subscription. Verify that `tests/test_docs.py` passes, and by reading the diff.
 
 ## 9. Verify and archive
 
