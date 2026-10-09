@@ -69,3 +69,13 @@ has its own short, bounded wait, because it talks to a different service.
 - **Cons**: the Home Assistant add-on has no restart by default, so it stays
   stopped. It also breaks the rule that PierPressure owns its own freshness.
 - **Why not**: it fails in the install most users run.
+
+## Amendments
+
+- **2026-10-08, change `reconnect-restores-delivery` (issue #44):** the
+  connection callbacks now do more than record an outcome. After a reconnect,
+  `on_connect` subscribes again to the refresh commands and tells the main thread,
+  and it logs a rejected login. The callbacks still never publish: the main
+  thread publishes the restored state and the online availability. PierPressure
+  also watches paho's thread for as long as it runs, not only while it waits at
+  startup, and starts the thread again if it ends.

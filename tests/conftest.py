@@ -7,6 +7,7 @@ verification strategy in design D11.
 from __future__ import annotations
 
 import queue
+import threading
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -76,7 +77,12 @@ class FakeMqttClient:
     ``script`` lists the outcome of each connection attempt. ``loop_start`` plays
     it at once, on the calling thread, calling the handlers in paho's order. It
     stops after an acceptance, or when the thread ends. With no script, the first
-    attempt is accepted.
+    attempt is accepted. :meth:`drop` loses the connection after startup and plays
+    a new script, as paho's thread does when it reconnects.
+
+    Each ``subscribe`` queues the broker's answer (SUBACK). An acceptance delivers
+    the queued answers after ``on_connect`` returns, as paho does;
+    :meth:`ack_subscriptions` delivers them at any other time.
     """
 
     def __init__(
@@ -88,11 +94,14 @@ class FakeMqttClient:
         self.published: list[Published] = []
         self.will: Published | None = None
         self.subscriptions: list[str] = []
+        # The topics the broker holds now. A clean session forgets them on a drop.
+        self.active_subscriptions: set[str] = set()
         self.on_message: Any = None
         self.on_pre_connect: Any = None
         self.on_connect: Any = None
         self.on_connect_fail: Any = None
         self.on_disconnect: Any = None
+        self.on_subscribe: Any = None
         self.connected = False
         self.loop_started = False
         self.loop_start_calls = 0
@@ -104,6 +113,17 @@ class FakeMqttClient:
         self._thread: _LiveThread | None = None
         self._script = list(script)
         self._publish_rc = publish_rc
+        # Subscriptions: the last message ID, the answers not yet delivered, the
+        # topics the broker refuses (with paho's reason name), and the topics
+        # whose ``subscribe`` call itself fails (with its result code).
+        self._last_mid = 0
+        self._pending_subacks: list[tuple[int, str]] = []
+        self._refusals: dict[str, str] = {}
+        self._subscribe_failures: dict[str, int] = {}
+        # When set, ``subscribe`` answers a refusal from a second thread before it
+        # returns its message ID (design D6's race). The threads are kept to join.
+        self.answer_before_return = False
+        self.answer_threads: list[threading.Thread] = []
 
     def reconnect_delay_set(self, min_delay: int = 1, max_delay: int = 120) -> None:
         self.calls.append("reconnect_delay_set")
@@ -126,6 +146,22 @@ class FakeMqttClient:
             raise AssertionError("loop_start called with no attempts left in the script")
         self.loop_started = True
         self._thread = _LiveThread()
+        self._play_script()
+
+    def drop(self, script: Iterable[Attempt]) -> None:
+        """Lose the connection, then play ``script`` as paho's thread reconnects.
+
+        paho reports a lost connection with the "Unspecified error" reason. The
+        attempts play on the calling thread, as with ``loop_start``.
+        """
+        self.connected = False
+        self.active_subscriptions.clear()
+        self._pending_subacks.clear()  # the broker's answers go with the old session
+        self._script = list(script)
+        self._call(self.on_disconnect, self, None, _NO_FLAGS, _UNSPECIFIED, None)
+        self._play_script()
+
+    def _play_script(self) -> None:
         while self._script:
             attempt = self._script.pop(0)
             if attempt == THREAD_ENDS:
@@ -159,6 +195,7 @@ class FakeMqttClient:
             self.connected = True
             success = ReasonCode(PacketTypes.CONNACK, "Success")
             self._call(self.on_connect, self, None, _CONNECT_FLAGS, success, None)
+            self.ack_subscriptions()
         else:
             assert isinstance(attempt, tuple)
             reason = ReasonCode(PacketTypes.CONNACK, attempt[1])
@@ -170,8 +207,46 @@ class FakeMqttClient:
         if handler is not None:
             handler(*args)
 
-    def subscribe(self, topic: str, qos: int = 0) -> None:
+    def refuse_subscription(self, topic: str, reason: str = "Not authorized") -> None:
+        """Make the broker refuse ``topic`` with a SUBACK failure reason."""
+        self._refusals[topic] = reason
+
+    def fail_subscribe(self, topic: str, rc: int = mqtt.MQTT_ERR_NO_CONN) -> None:
+        """Make ``subscribe(topic)`` return a failure code and send nothing."""
+        self._subscribe_failures[topic] = rc
+
+    def subscribe(self, topic: str, qos: int = 0) -> tuple[int, int | None]:
+        if topic in self._subscribe_failures:
+            return self._subscribe_failures[topic], None
         self.subscriptions.append(topic)
+        if topic not in self._refusals:
+            self.active_subscriptions.add(topic)
+        self._last_mid += 1
+        mid = self._last_mid
+        reason = self._refusals.get(topic, "Granted QoS 0")
+        if self.answer_before_return:
+            answer = threading.Thread(target=self._answer, args=(mid, reason), daemon=True)
+            self.answer_threads.append(answer)
+            answer.start()
+            answer.join(0.1)
+        else:
+            self._pending_subacks.append((mid, reason))
+        return mqtt.MQTT_ERR_SUCCESS, mid
+
+    def deliver(self, topic: str, payload: bytes = b"") -> None:
+        """Deliver a message to ``on_message``, if the broker holds a subscription."""
+        if topic in self.active_subscriptions:
+            self._call(self.on_message, self, None, FakeMessage(topic, payload))
+
+    def ack_subscriptions(self) -> None:
+        """Deliver the broker's queued answers to ``on_subscribe``."""
+        pending, self._pending_subacks = self._pending_subacks, []
+        for mid, reason in pending:
+            self._answer(mid, reason)
+
+    def _answer(self, mid: int, reason: str) -> None:
+        codes = [ReasonCode(PacketTypes.SUBACK, reason)]
+        self._call(self.on_subscribe, self, None, mid, codes, None)
 
     def publish(self, topic: str, payload: Any = None, qos: int = 0, retain: bool = False) -> Any:
         self.published.append(Published(topic, payload, qos, retain))
@@ -182,7 +257,19 @@ class FakeMqttClient:
         return _Info()
 
     def disconnect(self) -> None:
-        self.connected = False
+        """Send DISCONNECT. With no loop running, paho calls ``on_disconnect`` at once."""
+        was_connected, self.connected = self.connected, False
+        if was_connected:
+            normal = ReasonCode(PacketTypes.DISCONNECT, "Normal disconnection")
+            self._call(self.on_disconnect, self, None, _NO_FLAGS, normal, None)
+
+    def accept_again(self) -> None:
+        """Play an accepted attempt with no ``on_disconnect`` first.
+
+        paho can lose a connection without calling ``on_disconnect``, for example
+        when its socket select fails, and then reconnect.
+        """
+        self._play(ACCEPT)
 
     def publishes_to(self, topic: str) -> list[Published]:
         return [p for p in self.published if p.topic == topic]
@@ -199,7 +286,7 @@ class RecordingDelivery:
     to publish, the provider health it publishes, and the order of every call.
 
     ``events`` holds one entry per call: ``("verdict", pier)``,
-    ``("health", pier)``, or ``("online",)``. ``health_error`` makes every
+    ``("health", pier)``, ``("replay",)``, or ``("online",)``. ``health_error`` makes every
     ``publish_health`` call raise it.
     """
 
@@ -220,6 +307,9 @@ class RecordingDelivery:
             raise self._health_error
         self.events.append(("health", pier_id))
         self.healths.append((pier_id, tuple(healths)))
+
+    def replay(self) -> None:
+        self.events.append(("replay",))
 
     def go_online(self) -> None:
         self.events.append(("online",))
@@ -249,20 +339,19 @@ class ScriptedQueue:
 
     _EMPTY = object()
 
-    def __init__(self, script: list[str | None]) -> None:
+    def __init__(self, script: list[Any]) -> None:
         self._script = [self._EMPTY if item is None else item for item in script]
         self.extra: list[str] = []
 
-    def get(self, timeout: float | None = None) -> str:
+    def get(self, timeout: float | None = None) -> Any:
         if not self._script:
             raise queue.Empty
         item = self._script.pop(0)
         if item is self._EMPTY:
             raise queue.Empty
-        assert isinstance(item, str)
         return item
 
-    def get_nowait(self) -> str:
+    def get_nowait(self) -> Any:
         raise queue.Empty
 
     def put(self, item: str) -> None:

@@ -205,4 +205,122 @@ def test_delivery_connects_after_a_failed_version_retry_ends_the_thread(
         _connect_within_timeout(delivery)
         assert client.is_connected()
     finally:
+        # close() stops the watcher first; a bare loop_stop would let it restart paho.
+        delivery.close()
+
+
+# --------------------------------------------------------------------------- #
+# Reconnects after the first connection (reconnect-restores-delivery D6)
+# --------------------------------------------------------------------------- #
+
+_SUBSCRIBE = 0x82
+# A QoS 1 PUBLISH with the DUP and retain flags: a resent retained message.
+_PUBLISH_QOS1_DUP_RETAIN = 0x3B
+
+
+def _split_packets(data: bytes) -> list[tuple[int, bytes]]:
+    """Split a byte stream into (first byte, body) packets; drops a partial tail."""
+    packets: list[tuple[int, bytes]] = []
+    index = 0
+    while index + 2 <= len(data):
+        first = data[index]
+        length, multiplier, cursor = 0, 1, index + 1
+        while True:
+            if cursor >= len(data):
+                return packets
+            byte = data[cursor]
+            length += (byte & 0x7F) * multiplier
+            multiplier *= 128
+            cursor += 1
+            if not byte & 0x80:
+                break
+        if cursor + length > len(data):
+            return packets
+        packets.append((first, data[cursor : cursor + length]))
+        index = cursor + length
+    return packets
+
+
+def _read_packets(end: socket.socket, count: int) -> list[tuple[int, bytes]]:
+    """Read from the broker's end until ``count`` whole packets have arrived."""
+    end.settimeout(_TIMEOUT_SECONDS)
+    data = b""
+    while len(_split_packets(data)) < count:
+        chunk = end.recv(4096)
+        if not chunk:
+            break
+        data += chunk
+    return _split_packets(data)
+
+
+def _connected_client(broker: Broker, on_connect: Any = None) -> mqtt.Client:
+    """A real paho client that has connected once, with its loop running."""
+    broker.expect(_CONNACK_ACCEPTED)
+    client = _paho_client(broker)
+    if on_connect is not None:
+        client.on_connect = on_connect
+    client.connect_async("broker.test", 1883)
+    client.loop_start()
+    assert _wait_until(client.is_connected)
+    return client
+
+
+def test_paho_calls_on_connect_again_after_a_reconnect(broker: Broker) -> None:
+    accepts: list[Any] = []
+
+    def on_connect(client: mqtt.Client, *_args: Any) -> None:
+        accepts.append(None)
+        if len(accepts) == 2:
+            client.subscribe("pp/refresh")
+
+    client = _connected_client(broker, on_connect)
+    try:
+        broker.expect(_CONNACK_ACCEPTED)
+        broker.ends[0].close()
+        assert _wait_until(lambda: len(accepts) == 2)
+        packets = _read_packets(broker.ends[1], 2)
+        assert [first for first, _ in packets] == [0x10, _SUBSCRIBE]
+    finally:
+        client.loop_stop()
+
+
+@pytest.mark.filterwarnings("ignore::pytest.PytestUnhandledThreadExceptionWarning")
+def test_a_failed_version_retry_during_a_reconnect_ends_the_network_thread(
+    broker: Broker,
+) -> None:
+    calls: list[str] = []
+    client = _connected_client(broker)
+    client.on_connect_fail = lambda *_args: calls.append("on_connect_fail")
+    client.on_disconnect = lambda *_args: calls.append("on_disconnect")
+    broker.expect(_CONNACK_UNSUPPORTED_VERSION)
+    broker.expect(None)
+    broker.ends[0].close()
+    assert _wait_until(lambda: client._thread is None)
+    # The lost connection is reported, but the failed immediate try is not.
+    assert calls == ["on_disconnect"]
+
+
+def test_paho_resends_an_unacknowledged_message_after_on_connect(broker: Broker) -> None:
+    order: list[str] = []
+
+    def on_connect(client: mqtt.Client, *_args: Any) -> None:
+        order.append("on_connect")
+        if len(order) == 2:
+            client.subscribe("pp/refresh")
+
+    client = _connected_client(broker, on_connect)
+    try:
+        client.publish("pp/status", "online", qos=1, retain=True)
+        sent = _read_packets(broker.ends[0], 2)
+        assert sent[1][0] & 0xF0 == 0x30  # the PUBLISH, which the broker never acks
+        broker.expect(_CONNACK_ACCEPTED)
+        broker.ends[0].close()
+        assert _wait_until(lambda: len(broker.ends) == 2)
+        packets = _read_packets(broker.ends[1], 3)
+        # CONNECT, then the SUBSCRIBE made inside on_connect, then the resend.
+        assert [first for first, _ in packets] == [0x10, _SUBSCRIBE, _PUBLISH_QOS1_DUP_RETAIN]
+    finally:
+        # paho's thread does not end while a QoS 1 message waits for its
+        # acknowledgement, so disconnect first, or loop_stop waits for keep-alive.
+        client.disconnect()
         client.loop_stop()
