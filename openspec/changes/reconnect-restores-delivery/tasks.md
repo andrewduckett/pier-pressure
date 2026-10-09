@@ -54,8 +54,8 @@ marked ready. The verdict document and the golden verdict files do not change.
 
 ## 9. Verify and archive
 
-- [ ] 9.1 Run `just check` and verify that it is green.
-- [ ] 9.2 Do a manual check with a real Mosquitto broker. Start PierPressure from source and let it go online. Then stop the broker, start it again, and verify each of these:
+- [x] 9.1 Run `just check` and verify that it is green.
+- [x] 9.2 Do a manual check with a real Mosquitto broker. Start PierPressure from source and let it go online. Then stop the broker, start it again, and verify each of these:
   - PierPressure logs the lost connection, its attempts, and the reconnect.
   - The availability topic reads `online` again.
   - Pressing Refresh, or publishing to a refresh topic, recomputes that pier.
