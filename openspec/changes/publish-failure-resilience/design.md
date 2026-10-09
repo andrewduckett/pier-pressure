@@ -20,8 +20,8 @@ The change builds on what #44 left in `pierpressure/delivery/mqtt.py` and
 
 Four facts about paho 2.1 shape the design. Each was checked in the pinned source:
 
-- **A QoS 1 publish while disconnected is queued.** `publish()` stores the message
-  and returns `MQTT_ERR_NO_CONN`. paho sends it after the reconnect.
+- **paho queues a QoS 1 publish made while disconnected.** `publish()` stores the
+  message and returns `MQTT_ERR_NO_CONN`. paho sends it after the reconnect.
 - **paho resends queued messages in the order they were published.**
   `_messages_reconnect_reset_out` walks its outgoing messages in insertion order.
 - **paho's outgoing queue has no limit by default.** `max_queued_messages` is 0.
@@ -42,7 +42,8 @@ narrative, and two providers' health.
 - No publish result code stops the process.
 - paho's queue stays small, however long an outage lasts.
 - The replay after a reconnect sends the latest payload of every topic.
-- The startup order still holds: reset health, then `online`, then verdicts.
+- Reset health always reaches the broker before `online`. With no drop, the
+  startup order is unchanged: reset health, then `online`, then verdicts.
 
 **Non-Goals:**
 
@@ -67,6 +68,11 @@ The ordering works because of the order in `_on_reconnect_answer`. It sets the
 phase to `CONNECTED` first, and only then tells the service. So every message
 held before the switch is in `_retained` before the replay reads it. Every
 message after the switch goes straight to paho.
+
+The connection can drop again during the replay. Then `_send` holds the rest of
+the replay and `online`. The held `online` is not recorded, but the next
+reconnect puts a new marker on the queue. Its replay then sends the state, then
+`online`.
 
 The main thread reads `_phase` without a lock. A single attribute read is atomic
 in Python, also in the free-threaded build. A stale read costs at most one
@@ -134,8 +140,11 @@ A drop at any point in that order is repaired without a retry loop:
                                            then replay, then online
 ```
 
-In both paths, reset health reaches the broker before `online`. The service
-keeps no new state, and `run()` does not change.
+In both paths, reset health reaches the broker before `online`. That is the rule
+the startup reset exists for. In the first path, the broker receives the replay
+order (health, verdicts, then `online`), not the startup order. This is the order
+every reconnect already uses. The service keeps no new state, and `run()` does
+not change.
 
 Alternative considered: **retry the reset with a back-off before going online.**
 That adds a second retry loop beside paho's own (ADR-0018). It would also need a

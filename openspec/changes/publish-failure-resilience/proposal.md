@@ -18,16 +18,16 @@ PierPressure".
 ## What Changes
 
 - **A publish never stops the process.** The delivery adapter no longer raises
-  `DeliveryError` for a publish result code. A code other than success or "not
-  connected" is logged as a warning that names the topic. The process keeps
-  running.
+  `DeliveryError` for a publish result code. For a code other than success or
+  "not connected", the adapter logs a warning that names the topic. The process
+  keeps running.
 - **The adapter holds publishes while it knows it is disconnected.** It records
   each retained message for the replay, but does not hand it to paho. After the
   reconnect, the replay sends the latest payload of every topic, then `online`.
   This keeps paho's queue small during a long outage. So a cap on that queue is
   not needed, and the replay is never rejected because the queue is full.
-- **Every retained message is recorded for the replay, whatever paho says.**
-  Today the adapter records a message only when paho accepts it. Then a later
+- **The adapter records every retained message for the replay, whatever paho
+  says.** Today it records a message only when paho accepts it. Then a later
   replay could send an older payload.
 - **The startup health reset needs no retry.** The process still publishes the
   reset before `online`. If the connection drops in between, the replay after the

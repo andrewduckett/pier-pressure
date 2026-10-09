@@ -43,9 +43,9 @@ logs a warning and keeps running. The next replay or interval repairs the topic.
   replay. paho's queue stays small, and its message IDs cannot run out.
 - **Easier:** no message needs a retry loop of its own, including the health
   reset that must reach the broker before PierPressure goes online.
-- **Harder:** the replay is now load-bearing. A message type that is not
-  retained, or that is not recorded for the replay, would be lost in an outage.
-  Any new published topic must be recorded too.
+- **Harder:** the replay is now load-bearing. An outage would lose any message
+  that PierPressure does not retain or does not record for the replay. So
+  PierPressure must record every new topic it publishes.
 - **Harder:** PierPressure can learn of a drop after paho does. A few messages
   can still reach paho's queue, and then reach the broker twice. Because each is
   a whole retained state, a duplicate is harmless.
