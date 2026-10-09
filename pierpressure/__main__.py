@@ -3,7 +3,9 @@
 Loads config, connects to the broker, publishes on startup, and runs the loop.
 When the broker cannot be reached, it waits and tries again rather than exiting
 (retry-broker-connection). It exits non-zero on a startup failure that retrying
-cannot fix: bad config, or a broker that rejects the login.
+cannot fix: bad config, or a broker that rejects the login. After a later outage
+it reconnects and restores its delivery without a restart; a login rejected then
+is logged, and it keeps trying (reconnect-restores-delivery).
 
 Inside a Home Assistant add-on, a config file that names no broker host uses the
 broker from the Supervisor's ``mqtt`` service (ha-addon-mqtt-service D1, D2).

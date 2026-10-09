@@ -5,6 +5,11 @@ button), publishes verdict state/attributes/availability, and subscribes to each
 pier's refresh command topic. The MQTT client is injectable so tests can drive a
 fake client with no broker.
 
+After a broker outage, paho reconnects in the background. The adapter then
+subscribes to the refresh topics again and tells the service, which publishes
+each pier's last retained messages again (:meth:`MqttDelivery.replay`), then
+``online`` (reconnect-restores-delivery).
+
 Topic scheme (design D5), for base topic ``B`` and discovery prefix ``P``:
 
 ===========================  ====================================================  ======
@@ -531,7 +536,9 @@ class _Phase(Enum):
 class MqttDelivery:
     """Publishes verdict documents to Home Assistant over MQTT discovery.
 
-    Delivery consumes an already-produced document; it never computes one.
+    Delivery consumes an already-produced document; it never computes one. It
+    remembers each pier's last retained messages, so it can publish them again
+    after a reconnect without a new verdict (reconnect-restores-delivery D4).
     """
 
     def __init__(
@@ -591,7 +598,8 @@ class MqttDelivery:
         first, then calls :meth:`go_online` (provider-health-entities D4).
 
         Raises :class:`LoginRejected` when the broker rejects the login, which
-        retrying cannot fix (D3).
+        retrying cannot fix (D3). Once the broker accepts, a watcher thread keeps
+        paho's thread running until :meth:`close` (reconnect-restores-delivery D7).
         """
         status = availability_topic(self._config.base_topic)
         if self._config.username is not None:

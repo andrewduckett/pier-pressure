@@ -4,9 +4,14 @@ Wires the pure core to the delivery adapter and owns freshness: publish on
 startup, on a configurable interval, and on demand via a refresh command.
 
 Threading model: paho's network thread runs the refresh callback, which only
-*enqueues* the pier id on a thread-safe queue — it never publishes. The main
+*enqueues* the pier id on a thread-safe queue — it never publishes. After a
+broker reconnect it enqueues a ``Reconnected`` marker the same way. The main
 thread owns all publishing (no concurrent writes) and waits on the queue against
 an **absolute monotonic deadline** for the next periodic all-pier recompute.
+
+A reconnect makes the main thread publish each pier's last state again, then
+``online``, before any refresh drained with it. It fetches nothing, computes no
+verdict, and leaves the deadline alone (reconnect-restores-delivery D3).
 
 The absolute deadline is what prevents starvation: a fresh per-call timeout
 would reset on every dequeued refresh, so frequent refreshes could starve the

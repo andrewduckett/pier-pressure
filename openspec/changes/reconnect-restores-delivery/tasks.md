@@ -46,7 +46,7 @@ marked ready. The verdict document and the golden verdict files do not change.
 
 - [x] 7.1 Write tests first. `MqttDelivery(login_advice=...)` puts that advice in a startup `LoginRejected` message and in a reconnect's rejection log. Without the argument, the advice is today's advice for the config file's login. In `tests/test_main.py`, a broker from the Supervisor still gets the Mosquitto advice at startup. Verify that the tests fail (design D5).
 - [x] 7.2 Implement design D5. `MqttDelivery` takes `login_advice`, and `__main__.py` passes `SUPERVISOR_LOGIN_ADVICE` for a Supervisor broker and drops its own advice swap. `__main__.py` also registers `service.enqueue_reconnect` with `delivery.on_reconnect`, next to `subscribe_refresh`. Verify that 7.1 passes, and that every existing `tests/test_main.py` test still passes.
-- [ ] 7.3 Update the docstrings in `pierpressure/delivery/mqtt.py`, `pierpressure/service.py` and `pierpressure/__main__.py`. Remove the "later reconnects belong to #44" comment. Verify by reading the diff.
+- [x] 7.3 Update the docstrings in `pierpressure/delivery/mqtt.py`, `pierpressure/service.py` and `pierpressure/__main__.py`. Remove the "later reconnects belong to #44" comment. Verify by reading the diff.
 
 ## 8. Docs
 
