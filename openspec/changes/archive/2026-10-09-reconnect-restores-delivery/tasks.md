@@ -61,4 +61,4 @@ marked ready. The verdict document and the golden verdict files do not change.
   - Pressing Refresh, or publishing to a refresh topic, recomputes that pier.
 
   Repeat with broker persistence turned off, and check that the discovery configs and states are retained again. Record the results in the PR description.
-- [ ] 9.3 Archive the change. Verify that `openspec/specs/ha-delivery/spec.md` holds the new requirement, then flip PR #62 to ready.
+- [x] 9.3 Archive the change. Verify that `openspec/specs/ha-delivery/spec.md` holds the new requirement, then flip PR #62 to ready.
