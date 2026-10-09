@@ -460,6 +460,7 @@ class MqttClient(Protocol):
     on_connect: Any
     on_connect_fail: Any
     on_disconnect: Any
+    on_subscribe: Any
 
     def will_set(
         self, topic: str, payload: Any = ..., qos: int = ..., retain: bool = ...
@@ -473,7 +474,9 @@ class MqttClient(Protocol):
 
     def loop_stop(self) -> Any: ...
 
-    def subscribe(self, topic: str, qos: int = ...) -> Any: ...
+    def subscribe(self, topic: str, qos: int = ...) -> tuple[int, int | None]:
+        """Return the result code and the message ID (``None`` when nothing was sent)."""
+        ...
 
     def publish(
         self, topic: str, payload: Any = ..., qos: int = ..., retain: bool = ...

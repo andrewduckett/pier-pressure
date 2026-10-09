@@ -4,9 +4,9 @@ marked ready. The verdict document and the golden verdict files do not change.
 
 ## 1. Fake client and client protocol
 
-- [ ] 1.1 Extend `FakeMqttClient` in `tests/conftest.py` with `drop(script)` (design D6). It calls `on_disconnect` with paho's "Unspecified error" reason, then plays the script of attempts on the calling thread, as `loop_start` does. The script can end the thread with no callback (`THREAD_ENDS`). Verify that every existing test still passes.
-- [ ] 1.2 Give the fake an `on_subscribe` attribute, and make `subscribe()` return a result code and a message ID. Add a way to refuse a topic's subscription with a failure reason code, and a way to make `subscribe()` return a failure code. Verify that every existing test still passes.
-- [ ] 1.3 Add `on_subscribe` and the `subscribe()` return value to the `MqttClient` protocol in `pierpressure/delivery/mqtt.py`. Verify that mypy passes.
+- [x] 1.1 Extend `FakeMqttClient` in `tests/conftest.py` with `drop(script)` (design D6). It calls `on_disconnect` with paho's "Unspecified error" reason, then plays the script of attempts on the calling thread, as `loop_start` does. The script can end the thread with no callback (`THREAD_ENDS`). Verify that every existing test still passes.
+- [x] 1.2 Give the fake an `on_subscribe` attribute, and make `subscribe()` return a result code and a message ID. Add a way to refuse a topic's subscription with a failure reason code, and a way to make `subscribe()` return a failure code. Verify that every existing test still passes.
+- [x] 1.3 Add `on_subscribe` and the `subscribe()` return value to the `MqttClient` protocol in `pierpressure/delivery/mqtt.py`. Verify that mypy passes.
 
 ## 2. Pin paho's behaviour with a real client
 

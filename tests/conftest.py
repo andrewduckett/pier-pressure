@@ -7,6 +7,7 @@ verification strategy in design D11.
 from __future__ import annotations
 
 import queue
+import threading
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -76,7 +77,12 @@ class FakeMqttClient:
     ``script`` lists the outcome of each connection attempt. ``loop_start`` plays
     it at once, on the calling thread, calling the handlers in paho's order. It
     stops after an acceptance, or when the thread ends. With no script, the first
-    attempt is accepted.
+    attempt is accepted. :meth:`drop` loses the connection after startup and plays
+    a new script, as paho's thread does when it reconnects.
+
+    Each ``subscribe`` queues the broker's answer (SUBACK). An acceptance delivers
+    the queued answers after ``on_connect`` returns, as paho does;
+    :meth:`ack_subscriptions` delivers them at any other time.
     """
 
     def __init__(
@@ -93,6 +99,7 @@ class FakeMqttClient:
         self.on_connect: Any = None
         self.on_connect_fail: Any = None
         self.on_disconnect: Any = None
+        self.on_subscribe: Any = None
         self.connected = False
         self.loop_started = False
         self.loop_start_calls = 0
@@ -104,6 +111,17 @@ class FakeMqttClient:
         self._thread: _LiveThread | None = None
         self._script = list(script)
         self._publish_rc = publish_rc
+        # Subscriptions: the last message ID, the answers not yet delivered, the
+        # topics the broker refuses (with paho's reason name), and the topics
+        # whose ``subscribe`` call itself fails (with its result code).
+        self._last_mid = 0
+        self._pending_subacks: list[tuple[int, str]] = []
+        self._refusals: dict[str, str] = {}
+        self._subscribe_failures: dict[str, int] = {}
+        # When set, ``subscribe`` answers a refusal from a second thread before it
+        # returns its message ID (design D6's race). The threads are kept to join.
+        self.answer_before_return = False
+        self.answer_threads: list[threading.Thread] = []
 
     def reconnect_delay_set(self, min_delay: int = 1, max_delay: int = 120) -> None:
         self.calls.append("reconnect_delay_set")
@@ -126,6 +144,20 @@ class FakeMqttClient:
             raise AssertionError("loop_start called with no attempts left in the script")
         self.loop_started = True
         self._thread = _LiveThread()
+        self._play_script()
+
+    def drop(self, script: Iterable[Attempt]) -> None:
+        """Lose the connection, then play ``script`` as paho's thread reconnects.
+
+        paho reports a lost connection with the "Unspecified error" reason. The
+        attempts play on the calling thread, as with ``loop_start``.
+        """
+        self.connected = False
+        self._script = list(script)
+        self._call(self.on_disconnect, self, None, _NO_FLAGS, _UNSPECIFIED, None)
+        self._play_script()
+
+    def _play_script(self) -> None:
         while self._script:
             attempt = self._script.pop(0)
             if attempt == THREAD_ENDS:
@@ -159,6 +191,7 @@ class FakeMqttClient:
             self.connected = True
             success = ReasonCode(PacketTypes.CONNACK, "Success")
             self._call(self.on_connect, self, None, _CONNECT_FLAGS, success, None)
+            self.ack_subscriptions()
         else:
             assert isinstance(attempt, tuple)
             reason = ReasonCode(PacketTypes.CONNACK, attempt[1])
@@ -170,8 +203,39 @@ class FakeMqttClient:
         if handler is not None:
             handler(*args)
 
-    def subscribe(self, topic: str, qos: int = 0) -> None:
+    def refuse_subscription(self, topic: str, reason: str = "Not authorized") -> None:
+        """Make the broker refuse ``topic`` with a SUBACK failure reason."""
+        self._refusals[topic] = reason
+
+    def fail_subscribe(self, topic: str, rc: int = mqtt.MQTT_ERR_NO_CONN) -> None:
+        """Make ``subscribe(topic)`` return a failure code and send nothing."""
+        self._subscribe_failures[topic] = rc
+
+    def subscribe(self, topic: str, qos: int = 0) -> tuple[int, int | None]:
+        if topic in self._subscribe_failures:
+            return self._subscribe_failures[topic], None
         self.subscriptions.append(topic)
+        self._last_mid += 1
+        mid = self._last_mid
+        reason = self._refusals.get(topic, "Granted QoS 0")
+        if self.answer_before_return:
+            answer = threading.Thread(target=self._answer, args=(mid, reason), daemon=True)
+            self.answer_threads.append(answer)
+            answer.start()
+            answer.join(0.1)
+        else:
+            self._pending_subacks.append((mid, reason))
+        return mqtt.MQTT_ERR_SUCCESS, mid
+
+    def ack_subscriptions(self) -> None:
+        """Deliver the broker's queued answers to ``on_subscribe``."""
+        pending, self._pending_subacks = self._pending_subacks, []
+        for mid, reason in pending:
+            self._answer(mid, reason)
+
+    def _answer(self, mid: int, reason: str) -> None:
+        codes = [ReasonCode(PacketTypes.SUBACK, reason)]
+        self._call(self.on_subscribe, self, None, mid, codes, None)
 
     def publish(self, topic: str, payload: Any = None, qos: int = 0, retain: bool = False) -> Any:
         self.published.append(Published(topic, payload, qos, retain))
