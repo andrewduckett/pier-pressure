@@ -10,9 +10,9 @@ marked ready. The verdict document and the golden verdict files do not change.
 
 ## 2. Pin paho's behaviour with a real client
 
-- [ ] 2.1 Add a test to `tests/test_paho_contract.py`. After a real paho client has connected once, close its socket and accept a new one. Check that paho calls `on_connect` again, and that `subscribe` from inside that callback sends a SUBSCRIBE packet. Verify that it passes (design D6).
-- [ ] 2.2 Add a test that, during a reconnect, an immediate try that cannot open a socket ends paho's thread with no callback and sets `_thread` to `None`. Verify that it passes (design D6, D7).
-- [ ] 2.3 Add a test that a QoS 1 message with no acknowledgement when the socket closes is sent again after the reconnect, right after `on_connect` returns. Verify that it passes (design Risks, D6).
+- [x] 2.1 Add a test to `tests/test_paho_contract.py`. After a real paho client has connected once, close its socket and accept a new one. Check that paho calls `on_connect` again, and that `subscribe` from inside that callback sends a SUBSCRIBE packet. Verify that it passes (design D6).
+- [x] 2.2 Add a test that, during a reconnect, an immediate try that cannot open a socket ends paho's thread with no callback and sets `_thread` to `None`. Verify that it passes (design D6, D7).
+- [x] 2.3 Add a test that a QoS 1 message with no acknowledgement when the socket closes is sent again after the reconnect, right after `on_connect` returns. Verify that it passes (design Risks, D6).
 
 ## 3. Connection phases and re-subscribing in `MqttDelivery`
 
