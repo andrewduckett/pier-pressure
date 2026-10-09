@@ -23,9 +23,9 @@ marked ready. The verdict document and the golden verdict files do not change.
 
 ## 4. Subscription checks
 
-- [ ] 4.1 Write tests first. A refused SUBACK logs a warning that names the topic and the reason, both at startup and after a reconnect. A failure code from `subscribe()` logs a warning that names the topic. The process keeps running in both cases. Verify that the tests fail (spec "A refused subscription is logged").
-- [ ] 4.2 Write a test first for the race in design D6. The fake's `subscribe()` starts a second thread that calls `on_subscribe` with a refusal, gives it a short time to run, then returns the message ID. The warning must name the topic. Verify that the test fails.
-- [ ] 4.3 Implement the subscription lock and the map from message ID to topic (design D2). Verify that 4.1 and 4.2 pass.
+- [x] 4.1 Write tests first. A refused SUBACK logs a warning that names the topic and the reason, both at startup and after a reconnect. A failure code from `subscribe()` logs a warning that names the topic. The process keeps running in both cases. Verify that the tests fail (spec "A refused subscription is logged").
+- [x] 4.2 Write a test first for the race in design D6. The fake's `subscribe()` starts a second thread that calls `on_subscribe` with a refusal, gives it a short time to run, then returns the message ID. The warning must name the topic. Verify that the test fails.
+- [x] 4.3 Implement the subscription lock and the map from message ID to topic (design D2). Verify that 4.1 and 4.2 pass.
 
 ## 5. Keep paho's thread running after startup
 

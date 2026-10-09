@@ -9,8 +9,9 @@ connection and the attempts that follow (D6).
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 
+import paho.mqtt.client as mqtt
 import pytest
 
 from pierpressure.delivery.mqtt import MqttDelivery, refresh_command_topic
@@ -25,12 +26,18 @@ TOPICS = [refresh_command_topic(BASE, pier) for pier in PIERS]
 
 
 class Started:
-    """A delivery that has connected once and subscribed to the refresh topics."""
+    """A delivery that has connected once and subscribed to the refresh topics.
 
-    def __init__(self) -> None:
+    ``prepare`` runs on the client before the first subscriptions, for example to
+    make the broker refuse one.
+    """
+
+    def __init__(self, prepare: Callable[[FakeMqttClient], None] | None = None) -> None:
         self.client = FakeMqttClient()
         self.delivery = MqttDelivery(make_mqtt_config(), client=self.client)
         self.delivery.connect()
+        if prepare is not None:
+            prepare(self.client)
         self.refreshed: list[str] = []
         self.reconnects = 0
         self.delivery.subscribe_refresh(PIERS, self.refreshed.append)
@@ -148,3 +155,65 @@ def test_a_rejected_login_during_a_reconnect_keeps_the_loop_running(started: Sta
 def test_a_rejected_login_during_a_reconnect_is_tried_again(started: Started) -> None:
     started.client.drop([refused("Bad user name or password"), ACCEPT])
     assert started.reconnects == 1
+
+
+# --------------------------------------------------------------------------- #
+# Checking each subscription (spec "A refused subscription is logged"; D2)
+# --------------------------------------------------------------------------- #
+
+
+def _refused_warning(topic: str, reason: str = "Not authorized") -> str:
+    return f"The MQTT broker at {BROKER} refused the subscription to {topic} ({reason})"
+
+
+def test_a_subscription_refused_at_startup_logs_a_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.WARNING)
+    fixture = Started(lambda client: client.refuse_subscription(TOPICS[1]))
+    fixture.delivery.close()
+    assert _messages(caplog, logging.WARNING) == [_refused_warning(TOPICS[1])]
+
+
+def test_a_subscription_refused_after_a_reconnect_logs_a_warning(
+    started: Started, caplog: pytest.LogCaptureFixture
+) -> None:
+    started.client.refuse_subscription(TOPICS[0], "Unspecified error")
+    caplog.set_level(logging.WARNING)
+    started.client.drop([ACCEPT])
+    assert _messages(caplog, logging.WARNING)[1:] == [
+        _refused_warning(TOPICS[0], "Unspecified error")
+    ]
+
+
+def test_a_failed_subscribe_call_logs_a_warning(caplog: pytest.LogCaptureFixture) -> None:
+    caplog.set_level(logging.WARNING)
+    fixture = Started(lambda client: client.fail_subscribe(TOPICS[0]))
+    fixture.delivery.close()
+    assert _messages(caplog, logging.WARNING) == [
+        f"Could not subscribe to {TOPICS[0]} on the MQTT broker at {BROKER} "
+        f"({mqtt.error_string(mqtt.MQTT_ERR_NO_CONN)})"
+    ]
+
+
+def test_a_refused_subscription_still_subscribes_to_the_other_topics() -> None:
+    fixture = Started(lambda client: client.refuse_subscription(TOPICS[0]))
+    fixture.delivery.close()
+    assert fixture.client.subscriptions == TOPICS
+
+
+def test_a_refusal_answered_before_subscribe_returns_names_its_topic(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # paho queues SUBSCRIBE before it returns the message ID, so the broker's
+    # answer can reach paho's thread first (design D6).
+    def race(client: FakeMqttClient) -> None:
+        client.answer_before_return = True
+        client.refuse_subscription(TOPICS[0])
+
+    caplog.set_level(logging.WARNING)
+    fixture = Started(race)
+    for answer in fixture.client.answer_threads:
+        answer.join(5)
+    fixture.delivery.close()
+    assert _messages(caplog, logging.WARNING) == [_refused_warning(TOPICS[0])]

@@ -547,6 +547,11 @@ class MqttDelivery:
         self._refresh_callback: Callable[[str], None] | None = None
         self._topic_to_pier: dict[str, str] = {}
         self._reconnect_listener: Callable[[], None] | None = None
+        # The topic of each subscription the broker has not yet answered, by
+        # message ID (reconnect-restores-delivery D2). The subscription lock guards
+        # it and the topic map: the main thread and paho's thread both subscribe.
+        self._unanswered: dict[int, str] = {}
+        self._subscription_lock = threading.Lock()
         # Told once, from config, whether this delivery owns the narrative entity
         # (design D2/D7). When false, no narrative discovery or state is ever
         # published, so a default deployment is byte-identical to the pre-feature
@@ -590,6 +595,7 @@ class MqttDelivery:
         self._client.on_connect = self._on_connect
         self._client.on_connect_fail = self._on_connect_fail
         self._client.on_disconnect = self._on_disconnect
+        self._client.on_subscribe = self._on_subscribe
         self._client.reconnect_delay_set(FIRST_PAUSE_SECONDS, PAUSE_LIMIT_SECONDS)
         try:
             self._client.connect_async(self._config.host, self._config.port)
@@ -831,13 +837,50 @@ class MqttDelivery:
         base = self._config.base_topic
         for pier_id in pier_ids:
             topic = refresh_command_topic(base, pier_id)
-            self._topic_to_pier[topic] = pier_id
-            self._client.subscribe(topic)
+            with self._subscription_lock:
+                self._topic_to_pier[topic] = pier_id
+            self._subscribe(topic)
 
     def _subscribe_all(self) -> None:
         """Subscribe again to every refresh topic, from paho's thread (D2)."""
-        for topic in list(self._topic_to_pier):
-            self._client.subscribe(topic)
+        with self._subscription_lock:
+            topics = list(self._topic_to_pier)
+        for topic in topics:
+            self._subscribe(topic)
+
+    def _subscribe(self, topic: str) -> None:
+        """Subscribe, logging a failed call, and note the topic for the broker's answer.
+
+        paho queues the request before ``subscribe`` returns, so the answer can
+        reach paho's thread first. Holding the lock until the message ID is noted
+        makes :meth:`_on_subscribe` wait for it (D2).
+        """
+        with self._subscription_lock:
+            rc, mid = self._client.subscribe(topic)
+            if rc == mqtt.MQTT_ERR_SUCCESS and mid is not None:
+                self._unanswered[mid] = topic
+        if rc != mqtt.MQTT_ERR_SUCCESS:
+            logger.warning(
+                "Could not subscribe to %s on the MQTT broker at %s (%s)",
+                topic,
+                self._broker,
+                mqtt.error_string(rc),
+            )
+
+    def _on_subscribe(
+        self, _client: Any, _userdata: Any, mid: int, reason_codes: Any, _properties: Any
+    ) -> None:
+        """Log each subscription the broker refuses; retrying cannot fix one (D2)."""
+        with self._subscription_lock:
+            topic = self._unanswered.pop(mid, "a refresh topic")
+        for reason in reason_codes:
+            if reason.is_failure:
+                logger.warning(
+                    "The MQTT broker at %s refused the subscription to %s (%s)",
+                    self._broker,
+                    topic,
+                    reason,
+                )
 
     def on_reconnect(self, callback: Callable[[], None]) -> None:
         """Call ``callback`` on paho's thread after each reconnect (design D2).
@@ -847,7 +890,8 @@ class MqttDelivery:
         self._reconnect_listener = callback
 
     def _on_message(self, client: Any, userdata: Any, message: Any) -> None:
-        pier_id = self._topic_to_pier.get(message.topic)
+        with self._subscription_lock:
+            pier_id = self._topic_to_pier.get(message.topic)
         if pier_id is not None and self._refresh_callback is not None:
             self._refresh_callback(pier_id)
 
