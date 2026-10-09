@@ -26,7 +26,7 @@ from pierpressure.core.config import (
     build_config,
     read_config,
 )
-from pierpressure.delivery.mqtt import DeliveryError, LoginRejected, MqttDelivery
+from pierpressure.delivery.mqtt import DeliveryError, MqttDelivery
 from pierpressure.explain import Explainer, build_explainer
 from pierpressure.service import Service
 from pierpressure.supervisor import SupervisorError, fetch_mqtt_broker
@@ -35,15 +35,19 @@ logger = logging.getLogger("pierpressure")
 
 DEFAULT_CONFIG_PATH = "config.yaml"
 
-# Replaces the advice for a rejected login the Supervisor supplied (retry-broker-connection
-# D3): the user never set mqtt.username or mqtt.password, and cannot set them alone.
+# The advice for a rejected login the Supervisor supplied (retry-broker-connection D3):
+# the user never set mqtt.username or mqtt.password, and cannot set them alone. The
+# delivery adapter gives it at startup and during a reconnect
+# (reconnect-restores-delivery D5).
 SUPERVISOR_LOGIN_ADVICE = (
     "The username and password came from the Supervisor's mqtt service, so restart the "
     "Mosquitto broker add-on, or set mqtt.host to use your own broker login."
 )
 
 
-def build_delivery_and_explainer(config: AppConfig) -> tuple[MqttDelivery, Explainer]:
+def build_delivery_and_explainer(
+    config: AppConfig, *, broker_from_supervisor: bool = False
+) -> tuple[MqttDelivery, Explainer]:
     """Construct the delivery adapter and explainer from config (design D7).
 
     The single ``explainer.enabled`` flag drives both edges: when enabled, the real
@@ -51,9 +55,16 @@ def build_delivery_and_explainer(config: AppConfig) -> tuple[MqttDelivery, Expla
     when disabled (or the block is absent), the no-op explainer is wired and delivery
     does not manage the entity — so no provider is constructed and no narrative entity
     appears.
+
+    A broker from the Supervisor gets the Supervisor's login advice; a broker from
+    the file gets the adapter's default (reconnect-restores-delivery D5).
     """
     manage_narrative = config.explainer is not None and config.explainer.enabled
-    delivery = MqttDelivery(config.mqtt, manage_narrative=manage_narrative)
+    delivery = MqttDelivery(
+        config.mqtt,
+        manage_narrative=manage_narrative,
+        login_advice=SUPERVISOR_LOGIN_ADVICE if broker_from_supervisor else None,
+    )
     explainer = build_explainer(config.explainer)
     return delivery, explainer
 
@@ -95,16 +106,13 @@ def main(argv: list[str] | None = None) -> int:
         logger.error("Configuration error: %s", exc)
         return 1
 
-    delivery, explainer = build_delivery_and_explainer(config)
+    delivery, explainer = build_delivery_and_explainer(
+        config, broker_from_supervisor=broker_from_supervisor
+    )
     try:
         delivery.connect()
     except DeliveryError as exc:
-        message = (
-            exc.with_advice(SUPERVISOR_LOGIN_ADVICE)
-            if isinstance(exc, LoginRejected) and broker_from_supervisor
-            else str(exc)
-        )
-        logger.error("Startup delivery failure: %s", message)
+        logger.error("Startup delivery failure: %s", exc)
         return 1
     except KeyboardInterrupt:
         logger.info("Shutting down")
@@ -122,6 +130,7 @@ def main(argv: list[str] | None = None) -> int:
         providers=conditions.providers,
     )
     delivery.subscribe_refresh([pier.id for pier in config.piers], service.enqueue_refresh)
+    delivery.on_reconnect(service.enqueue_reconnect)
 
     logger.info("PierPressure started for %d pier(s)", len(config.piers))
     try:

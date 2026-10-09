@@ -125,7 +125,7 @@ def test_a_reconnect_does_not_move_the_interval_deadline() -> None:
         refresh_queue=ScriptedQueue([RECONNECTED, "a"]),  # type: ignore[arg-type]
     )
     service.publish_all = lambda: calls.append("all")  # type: ignore[method-assign]
-    service.publish_pier = lambda pier: calls.append(pier)  # type: ignore[method-assign]
+    service.publish_pier = lambda pier_id: calls.append(pier_id)  # type: ignore[method-assign]
     # deadline 10; iter1 now(1) takes the marker; iter2 now(10.5) is past the
     # deadline, so the interval recompute runs and the refresh still waits.
     service.run(monotonic=ScriptedMonotonic([0.0, 1.0, 10.5, 11.0]), max_iterations=2)

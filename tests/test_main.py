@@ -100,17 +100,26 @@ class StartupStub:
         monkeypatch: pytest.MonkeyPatch,
         supervisor: Any = SUPERVISOR_BROKER,
         connect_error: BaseException | None = None,
+        reject_login: bool = False,
     ):
         self.connected_to: list[MqttConfig] = []
+        self.login_advice: list[str | None] = []
         self.closed = False
         self.supervisor_calls: list[str] = []
         stub = self
 
         class FakeDelivery:
-            def __init__(self, mqtt: MqttConfig, **_kwargs: Any) -> None:
+            def __init__(
+                self, mqtt: MqttConfig, *, login_advice: str | None = None, **_kwargs: Any
+            ) -> None:
                 stub.connected_to.append(mqtt)
+                stub.login_advice.append(login_advice)
+                self._advice = login_advice
 
             def connect(self) -> None:
+                if reject_login:
+                    # As MqttDelivery does: its own advice, or the default.
+                    raise LoginRejected("core-mosquitto:1883", "Not authorized", self._advice)
                 raise connect_error or DeliveryError("stopped by test")
 
             def close(self) -> None:
@@ -226,14 +235,29 @@ def test_main_logs_the_broker_source(
     assert "file-secret" not in caplog.text
 
 
-REJECTED = LoginRejected("core-mosquitto:1883", "Not authorized")
+def test_a_supervisor_broker_gets_the_mosquitto_login_advice(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    stub = StartupStub(monkeypatch)
+    entry.main([_config(tmp_path, PIERS)])
+    assert stub.login_advice == [entry.SUPERVISOR_LOGIN_ADVICE]
+
+
+def test_a_file_broker_gets_the_default_login_advice(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    stub = StartupStub(monkeypatch)
+    entry.main([_config(tmp_path, FILE_BROKER + PIERS)])
+    assert stub.login_advice == [None]
 
 
 def test_a_rejected_supervisor_login_points_to_the_mosquitto_addon(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
-    StartupStub(monkeypatch, connect_error=REJECTED)
+    StartupStub(monkeypatch, reject_login=True)
     with caplog.at_level(logging.ERROR, logger="pierpressure"):
         assert entry.main([_config(tmp_path, PIERS)]) == 1
     errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
@@ -249,7 +273,7 @@ def test_a_rejected_file_login_names_the_file_settings(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
-    StartupStub(monkeypatch, connect_error=REJECTED)
+    StartupStub(monkeypatch, reject_login=True)
     with caplog.at_level(logging.ERROR, logger="pierpressure"):
         assert entry.main([_config(tmp_path, FILE_BROKER + PIERS)]) == 1
     errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]

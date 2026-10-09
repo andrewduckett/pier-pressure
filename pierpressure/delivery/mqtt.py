@@ -60,18 +60,16 @@ class LoginRejected(DeliveryError):
     """The broker refused the connection because of the login (retry-broker-connection D3).
 
     Retrying cannot fix a wrong password or a missing permission, so the process stops.
-    The message advises checking the file's login; :meth:`with_advice` swaps the advice
-    when the login came from somewhere else.
+    The message names the broker and its reason, then gives ``advice``: by default,
+    check the file's login. The delivery adapter passes other advice when the login
+    came from somewhere else (reconnect-restores-delivery D5).
     """
 
-    def __init__(self, broker: str, reason: str) -> None:
+    def __init__(self, broker: str, reason: str, advice: str | None = None) -> None:
         self.broker = broker
         self.reason = reason
-        super().__init__(self.with_advice(_LOGIN_ADVICE))
-
-    def with_advice(self, advice: str) -> str:
-        rejected = f"The MQTT broker at {self.broker} rejected the login"
-        return f"{rejected}: {self.reason.lower()}. {advice}"
+        rejected = f"The MQTT broker at {broker} rejected the login"
+        super().__init__(f"{rejected}: {reason.lower()}. {advice or _LOGIN_ADVICE}")
 
 
 # --------------------------------------------------------------------------- #
@@ -542,8 +540,12 @@ class MqttDelivery:
         client: MqttClient | None = None,
         *,
         manage_narrative: bool = False,
+        login_advice: str | None = None,
     ) -> None:
         self._config = config
+        # What to check when the broker rejects the login, at startup or during a
+        # reconnect (reconnect-restores-delivery D5). ``None`` gives the default.
+        self._login_advice = login_advice
         self._client: MqttClient = client if client is not None else _new_paho_client()
         self._refresh_callback: Callable[[str], None] | None = None
         self._topic_to_pier: dict[str, str] = {}
@@ -613,7 +615,7 @@ class MqttDelivery:
 
         if self._rejection is not None:
             self._client.loop_stop()
-            raise LoginRejected(self._broker, self._rejection)
+            raise LoginRejected(self._broker, self._rejection, self._login_advice)
         self._watcher = threading.Thread(
             target=self._watch_network_thread, name="pierpressure-mqtt-watcher", daemon=True
         )
@@ -690,7 +692,7 @@ class MqttDelivery:
         if reason.getName() in _LOGIN_REJECTIONS:
             # The same login worked before, so the cause may be temporary (D5).
             self._attempt_logged = True
-            rejected = LoginRejected(self._broker, reason.getName())
+            rejected = LoginRejected(self._broker, reason.getName(), self._login_advice)
             logger.error("%s Trying again.", rejected)
             return
         self._log_failed_attempt(str(reason))

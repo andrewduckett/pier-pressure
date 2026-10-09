@@ -166,6 +166,21 @@ def test_a_rejected_login_during_a_reconnect_logs_an_error_with_the_advice(
     ]
 
 
+def test_a_rejected_login_during_a_reconnect_gives_the_configured_advice(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    client = FakeMqttClient()
+    delivery = MqttDelivery(make_mqtt_config(), client=client, login_advice="Ask the admin.")
+    delivery.connect()
+    caplog.set_level(logging.ERROR)
+    client.drop([refused("Not authorized"), ACCEPT])
+    delivery.close()
+    assert _messages(caplog, logging.ERROR) == [
+        f"The MQTT broker at {BROKER} rejected the login: not authorized. Ask the admin. "
+        "Trying again."
+    ]
+
+
 def test_a_rejected_login_during_a_reconnect_logs_no_retry_warning(
     started: Started, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -278,21 +293,25 @@ def test_a_restarted_thread_restores_refresh(started: Started) -> None:
     assert started.refreshed == ["backyard"]
 
 
-def test_close_stops_the_watcher_before_the_loop(started: Started) -> None:
+def test_close_stops_the_watcher_before_the_loop() -> None:
+    # Count only this delivery's watcher: other tests may leave theirs running.
+    before = set(_watchers())
+    fixture = Started()
     watchers_at_loop_stop: list[int] = []
-    loop_stop = started.client.loop_stop
+    loop_stop = fixture.client.loop_stop
 
     def record_then_stop() -> None:
-        watchers_at_loop_stop.append(len(_watchers()))
+        watchers_at_loop_stop.append(len(set(_watchers()) - before))
         loop_stop()
 
-    started.client.loop_stop = record_then_stop  # type: ignore[method-assign]
-    started.delivery.close()
+    fixture.client.loop_stop = record_then_stop  # type: ignore[method-assign]
+    fixture.delivery.close()
     assert watchers_at_loop_stop == [0]
 
 
 def test_close_leaves_no_watcher_running() -> None:
+    before = set(_watchers())
     fixture = Started()
-    assert _watchers()
+    assert set(_watchers()) - before
     fixture.delivery.close()
-    assert _watchers() == []
+    assert set(_watchers()) - before == set()

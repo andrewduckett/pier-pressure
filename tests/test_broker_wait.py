@@ -133,6 +133,16 @@ def test_a_rejected_login_names_the_broker_reason_and_fix(reason: str) -> None:
     )
 
 
+def test_a_rejected_login_gives_the_configured_advice() -> None:
+    client = FakeMqttClient(script=[refused("Not authorized")])
+    delivery = MqttDelivery(make_mqtt_config(), client=client, login_advice="Ask the admin.")
+    with pytest.raises(LoginRejected) as raised:
+        delivery.connect()
+    assert str(raised.value) == (
+        f"The MQTT broker at {BROKER} rejected the login: not authorized. Ask the admin."
+    )
+
+
 @pytest.mark.parametrize("reason", ["Bad user name or password", "Not authorized"])
 def test_a_rejected_login_message_leaves_out_the_password(reason: str) -> None:
     _, error = _rejection(reason)

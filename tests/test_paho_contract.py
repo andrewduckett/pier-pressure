@@ -205,7 +205,8 @@ def test_delivery_connects_after_a_failed_version_retry_ends_the_thread(
         _connect_within_timeout(delivery)
         assert client.is_connected()
     finally:
-        client.loop_stop()
+        # close() stops the watcher first; a bare loop_stop would let it restart paho.
+        delivery.close()
 
 
 # --------------------------------------------------------------------------- #
