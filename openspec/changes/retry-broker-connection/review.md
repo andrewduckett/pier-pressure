@@ -66,4 +66,8 @@ CHANGES_APPLIED: n/a
   Both reasons now get the same advice: check `mqtt.username`, `mqtt.password`,
   and the user's permissions. The delta spec is unchanged, and both of its
   rejected-login scenarios still hold. No other reviewed content changed.
+- **Design D3, Supervisor advice: changed after the code review.** The code
+  review found that appending "check the Mosquitto add-on" to "check
+  mqtt.username and mqtt.password" contradicted itself for a Supervisor login.
+  `main` now replaces the advice instead. The delta spec is unchanged.
 

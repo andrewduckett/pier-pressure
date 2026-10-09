@@ -59,7 +59,18 @@ class LoginRejected(DeliveryError):
     """The broker refused the connection because of the login (retry-broker-connection D3).
 
     Retrying cannot fix a wrong password or a missing permission, so the process stops.
+    The message advises checking the file's login; :meth:`with_advice` swaps the advice
+    when the login came from somewhere else.
     """
+
+    def __init__(self, broker: str, reason: str) -> None:
+        self.broker = broker
+        self.reason = reason
+        super().__init__(self.with_advice(_LOGIN_ADVICE))
+
+    def with_advice(self, advice: str) -> str:
+        rejected = f"The MQTT broker at {self.broker} rejected the login"
+        return f"{rejected}: {self.reason.lower()}. {advice}"
 
 
 # --------------------------------------------------------------------------- #
@@ -575,10 +586,7 @@ class MqttDelivery:
 
         if self._rejection is not None:
             self._client.loop_stop()
-            raise LoginRejected(
-                f"The MQTT broker at {self._broker} rejected the login: "
-                f"{self._rejection.lower()}. {_LOGIN_ADVICE}"
-            )
+            raise LoginRejected(self._broker, self._rejection)
 
     def _wait_for_outcome(self) -> None:
         """Wait for the broker's answer, restarting paho's thread if it ends (D2).
@@ -612,11 +620,10 @@ class MqttDelivery:
         if not reason.is_failure:
             self._outcome_ready.set()
             return
-        for name in _LOGIN_REJECTIONS:
-            if reason == name:  # paho compares reason codes by name
-                self._rejection = name
-                self._outcome_ready.set()
-                return
+        if reason.getName() in _LOGIN_REJECTIONS:
+            self._rejection = reason.getName()
+            self._outcome_ready.set()
+            return
         self._log_failed_attempt(str(reason))
 
     def _on_connect_fail(self, _client: Any, _userdata: Any) -> None:

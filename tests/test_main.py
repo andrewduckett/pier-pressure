@@ -99,9 +99,10 @@ class StartupStub:
         self,
         monkeypatch: pytest.MonkeyPatch,
         supervisor: Any = SUPERVISOR_BROKER,
-        connect_error: DeliveryError | None = None,
+        connect_error: BaseException | None = None,
     ):
         self.connected_to: list[MqttConfig] = []
+        self.closed = False
         self.supervisor_calls: list[str] = []
         stub = self
 
@@ -111,6 +112,9 @@ class StartupStub:
 
             def connect(self) -> None:
                 raise connect_error or DeliveryError("stopped by test")
+
+            def close(self) -> None:
+                stub.closed = True
 
         def fake_fetch(token: str) -> BrokerSettings:
             stub.supervisor_calls.append(token)
@@ -222,10 +226,7 @@ def test_main_logs_the_broker_source(
     assert "file-secret" not in caplog.text
 
 
-REJECTED = LoginRejected(
-    "The MQTT broker at core-mosquitto:1883 rejected the login: not authorized. "
-    "Check mqtt.username and mqtt.password, and the user's permissions on the broker."
-)
+REJECTED = LoginRejected("core-mosquitto:1883", "Not authorized")
 
 
 def test_a_rejected_supervisor_login_points_to_the_mosquitto_addon(
@@ -237,12 +238,14 @@ def test_a_rejected_supervisor_login_points_to_the_mosquitto_addon(
         assert entry.main([_config(tmp_path, PIERS)]) == 1
     errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
     assert errors == [
-        f"Startup delivery failure: {REJECTED} The login came from the Supervisor's "
-        "mqtt service, so check the Mosquitto broker add-on."
+        "Startup delivery failure: The MQTT broker at core-mosquitto:1883 rejected the "
+        "login: not authorized. The username and password came from the Supervisor's "
+        "mqtt service, so restart the Mosquitto broker add-on, or set mqtt.host to use "
+        "your own broker login."
     ]
 
 
-def test_a_rejected_file_login_names_no_addon(
+def test_a_rejected_file_login_names_the_file_settings(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
@@ -250,4 +253,16 @@ def test_a_rejected_file_login_names_no_addon(
     with caplog.at_level(logging.ERROR, logger="pierpressure"):
         assert entry.main([_config(tmp_path, FILE_BROKER + PIERS)]) == 1
     errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
-    assert errors == [f"Startup delivery failure: {REJECTED}"]
+    assert errors == [
+        "Startup delivery failure: The MQTT broker at core-mosquitto:1883 rejected the "
+        "login: not authorized. Check mqtt.username and mqtt.password, and the user's "
+        "permissions on the broker."
+    ]
+
+
+def test_ctrl_c_while_waiting_for_the_broker_shuts_down_cleanly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stub = StartupStub(monkeypatch, connect_error=KeyboardInterrupt())
+    assert entry.main([_config(tmp_path, FILE_BROKER + PIERS)]) == 0
+    assert stub.closed

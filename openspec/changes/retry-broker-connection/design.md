@@ -162,9 +162,11 @@ password with "Not authorized", not "Bad user name or password". The manual
 check during apply (task 5.2) found this.
 
 Inside the add-on, the Supervisor may have supplied the credentials. Then the
-advice also says to check the Mosquitto add-on. `MqttDelivery` does not know
-where the settings came from, so `main` adds that sentence when it logs the
-error.
+user never set `mqtt.username` or `mqtt.password`, and cannot set them without
+`mqtt.host`. So `main` replaces the advice: restart the Mosquitto broker add-on,
+or set `mqtt.host` to use your own broker login. `MqttDelivery` does not know
+where the settings came from, so `LoginRejected` keeps the broker and the reason,
+and `main` builds the message.
 
 ### D4. One log line per failed attempt
 

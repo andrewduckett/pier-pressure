@@ -35,9 +35,11 @@ logger = logging.getLogger("pierpressure")
 
 DEFAULT_CONFIG_PATH = "config.yaml"
 
-# Added to a rejected login when the Supervisor supplied it (retry-broker-connection D3).
+# Replaces the advice for a rejected login the Supervisor supplied (retry-broker-connection
+# D3): the user never set mqtt.username or mqtt.password, and cannot set them alone.
 SUPERVISOR_LOGIN_ADVICE = (
-    "The login came from the Supervisor's mqtt service, so check the Mosquitto broker add-on."
+    "The username and password came from the Supervisor's mqtt service, so restart the "
+    "Mosquitto broker add-on, or set mqtt.host to use your own broker login."
 )
 
 
@@ -97,13 +99,17 @@ def main(argv: list[str] | None = None) -> int:
     try:
         delivery.connect()
     except DeliveryError as exc:
-        advice = (
-            f" {SUPERVISOR_LOGIN_ADVICE}"
+        message = (
+            exc.with_advice(SUPERVISOR_LOGIN_ADVICE)
             if isinstance(exc, LoginRejected) and broker_from_supervisor
-            else ""
+            else str(exc)
         )
-        logger.error("Startup delivery failure: %s%s", exc, advice)
+        logger.error("Startup delivery failure: %s", message)
         return 1
+    except KeyboardInterrupt:
+        logger.info("Shutting down")
+        delivery.close()
+        return 0
 
     clock = SystemClock()
     conditions = build_provider(now=clock.now)
