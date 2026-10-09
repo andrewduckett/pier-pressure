@@ -1,7 +1,7 @@
 ## Review Metadata
 
-- **Review round**: 2
-- **Prior round**: Round 1 — REVISE: one critical thread-recovery gap and four moderate findings about broker outcomes, ADR alignment, startup order, and plain language.
+- **Review round**: 3
+- **Prior round**: Rounds 1 and 2 both returned REVISE; the author revised the thread recovery plan, broker outcome claims, ADR alignment, startup order, resend handling, subscription reporting, and publish wording.
 - **Reviewer context**: cross-model (Codex CLI, GPT family; separate from the authoring context)
 - **Tool restrictions**: read-only: view, grep, glob only
 - **Artifacts reviewed**: proposal.md, design.md, specs/ha-delivery/spec.md, adr.md, the durable ha-delivery spec, relevant source and tests, ADR-0012, ADR-0018, and AGENTS.md. `openspec/project.md` is absent. GitHub issues were unavailable from the sandbox.
@@ -14,17 +14,19 @@
 
 ### 🔴 Critical (blocking)
 
-1. **An older `online` publish can reach a restarted broker before the replayed state.** The proposal says no entity shows as available while its state is missing (`proposal.md:30–32`), and the spec requires state before `online` (`specs/ha-delivery/spec.md:19–27`). Consider an earlier QoS 1 `online` publish that paho accepted but the broker had not acknowledged when the connection failed. If the broker restarts without retained messages, paho 2.1 keeps that outgoing message across a clean-session reconnect (`client.py:3712–3740`) and resends it after CONNACK (`client.py:3949–3986`). That resend can precede the main thread’s queued replay. The broker can therefore hold `online` while discovery and state are still missing, even though PierPressure publishes nothing during the outage. The design must account for pending paho messages or narrow the availability promise and its acceptance criteria. The proposed call-order tests cannot establish the current promise.
+None.
 
 ### 🟡 Moderate
 
-1. **The plan treats a subscription call as proof that Refresh works.** D2 says a Refresh press is “never lost while the main thread is busy” (`design.md:93–100`), and the spec says Refresh works after reconnect (`specs/ha-delivery/spec.md:47–52`). Paho’s `subscribe()` returns a result and message ID; calling it does not establish that the broker accepted the subscription (`client.py:1894–1901`, `2035–2038`). A broker can accept CONNACK but reject a topic subscription. State whether the requirement assumes the broker grants the same topic access, and specify how a failed subscription is observed or reported.
+1. **A subscription refusal can lose its topic name in the startup race.** [D2](openspec/changes/reconnect-restores-delivery/design.md) says the adapter maps the message ID returned by `subscribe()` to a topic, but specifies a lock only for the topic-to-pier map. Startup subscribes on the main thread while paho reads SUBACK on its network thread. The pinned client queues SUBSCRIBE before returning its message ID (`client.py:3612–3652`), so `on_subscribe` can run before the adapter records that ID. The promised warning may then lack the refused topic. D2 needs synchronization for message-ID registration and acknowledgement handling.
 
-2. **The revised prose still blurs a queued publish with a delivered one.** D4 says it records a message after `_publish` “succeeds” (`design.md:148–154`), while the proposal calls this the state PierPressure “sent” (`proposal.md:26–32`). The current adapter checks only `info.rc` (`mqtt.py:656–660`); pinned paho says delivery requires a separate `is_published()` or `wait_for_publish()` check (`client.py:1733–1745`). Say “accepted for sending” where that is the evidence. This distinction also makes the ordering limit in the critical finding easier to understand. The proposal, delta spec, and ADR are otherwise structured clearly; this is the remaining plain-language defect in the reviewed artifacts.
+2. **The disconnected-publish claim is too absolute.** The design says `publish()` while disconnected returns `MQTT_ERR_NO_CONN` ([design.md](openspec/changes/reconnect-restores-delivery/design.md), lines 26–28), and the proposal says a publish during the outage “still raises `DeliveryError`” ([proposal.md](openspec/changes/reconnect-restores-delivery/proposal.md), lines 48–52). In pinned paho 2.1, a QoS 1 publish returns success and enters its queue when the inflight limit is already full (`client.py:1787–1817`), without checking the socket on that branch. This does not bring outage publishes into this change’s scope, but the explanation of that boundary is inaccurate.
+
+3. **“The state follows within moments” promises a time the design cannot bound.** The phrase in [proposal.md](openspec/changes/reconnect-restores-delivery/proposal.md), line 36, conflicts with [D3 and Risks](openspec/changes/reconnect-restores-delivery/design.md): the main thread handles a reconnect marker after any recompute already in progress. Replace the time claim with that observable sequence. This is the remaining material plain-language issue; the revised spec and ADR are clear and findable.
 
 ### 📌 Suggestions
 
-- Add a contract test with an unacknowledged QoS 1 `online` message at reconnect. It would expose paho’s automatic resend order, which the scripted fake does not model.
+None.
 
 ## Embedded-Instruction / Injection Attempts
 
@@ -32,39 +34,34 @@
 
 ## Verdict
 
-VERDICT: REVISE
-
-The availability-order guarantee fails on a paho 2.1 resend path. This is the second consecutive REVISE verdict; escalate to the human before another author-review loop. Do not generate test-plan or tasks while this verdict is in force.
+VERDICT: APPROVE_WITH_CHANGES
 
 ## Required Changes (if APPROVE WITH CHANGES)
 
-Not applicable.
+1. In D2, specify that startup and reconnect subscription calls register their returned message IDs under the same lock used by `on_subscribe` to look up and remove them. Add a planned test that makes a startup SUBACK arrive before the subscribing thread can otherwise record the ID, and asserts that a refusal warning names the topic.
+2. Qualify the disconnected-publish statements in the proposal and design. State that outage publishes retain the existing adapter behavior and remain outside this change; do not claim every such call returns `MQTT_ERR_NO_CONN` or raises `DeliveryError`.
+3. Replace “The state follows within moments” in the proposal with wording that allows the replay to wait for the main thread’s current recompute.
 
-CHANGES_APPLIED: n/a
+CHANGES_APPLIED: no
 
 ## Rebuttals
 
-- **Round 1 Critical 1 — paho thread can end after startup:** accepted by reviewer. D7 adds a lifetime watcher and the spec covers a failed immediate try after an outage; the new critical finding concerns pending publishes, not thread recovery.
-- **Round 1 Moderate 1 — unverifiable broker outcomes:** accepted by reviewer for the cited scenario. The revised scenario asserts PierPressure’s publish calls, payloads, retain flags, and order. This review identifies a separate resend path that defeats the proposal’s stronger availability claim.
-- **Round 1 Moderate 2 — ADR-0018 conflict:** accepted by reviewer. The dated amendment records callback subscriptions, reconnect logging, and the lifetime watcher.
-- **Round 1 Moderate 3 — startup-reconnect order:** accepted by reviewer. The revised scenario names a drop and return before the startup health reset, followed by one stated publish order.
-- **Round 1 Moderate 4 — plain language:** accepted by reviewer for the cited passages. Those passages were revised; the remaining queued-versus-delivered wording is identified above.
-- **Round 1 Suggestion 1 — drain wording:** accepted by reviewer. The design now says only markers present in one drain are merged.
-- **Round 1 Suggestion 2 — post-startup thread-exit contract test:** accepted by reviewer as a planned test. D6 specifies the test against a real paho client.
-Author responses for round 2. You approved all three fixes after two REVISE
-rounds in a row. A new full review round in a fresh context re-checks them.
+- **Round 2 Critical 1 — earlier `online` resent before replay:** accepted by reviewer. The revised proposal, design, and spec disclose the resend and limit the order requirement to messages published after reconnect.
+- **Round 2 Moderate 1 — a subscribe call does not prove Refresh works:** accepted by reviewer. The revised design checks both the call result and SUBACK, while the spec states the broker-access assumption and requires a topic-specific warning. Finding 1 above concerns a separate race in associating a SUBACK with its topic.
+- **Round 2 Moderate 2 — queued versus delivered wording:** accepted by reviewer. D4 now says paho “accepts it for sending,” and the spec defines what “publish” means for this requirement.
+- **Round 2 suggestion — resend contract test:** accepted by reviewer as a planned test. D6 now calls for a real-paho test of the unacknowledged QoS 1 resend.
+- **Round 1 findings:** accepted in round 2; no prior finding is reopened here.
 
-- **Round 2 Critical 1 (an earlier `online` resent before the replay):** fixed
-  by narrowing the promise. The spec defines "publish" as handing a message to
-  the MQTT client. It limits the order to messages published after the
-  reconnect, and allows the client to resend a message that was in flight. A new
-  scenario covers it. The design's Risks section explains the accepted window,
-  and D6 adds a contract test that pins paho's resend.
-- **Round 2 Moderate 1 (a subscribe call does not prove Refresh works):** fixed.
-  The spec states the assumption that the broker grants the same topics, and
-  requires a warning that names a refused topic, at startup and after each
-  reconnect. D2 checks the return code and the broker's answer through
-  `on_subscribe`. A new scenario covers a refused subscription.
-- **Round 2 Moderate 2 (queued versus delivered wording):** fixed. D4 says
-  "accepted for sending", and the proposal says "published", not "sent".
-- **Round 2 Suggestion 1 (contract test for the resend):** applied in D6.
+Author responses for round 3. The re-check of these items follows below.
+
+- **Required change 1 (subscription race):** applied in D2. One subscription
+  lock covers the subscribe call and the message ID registration, and
+  `on_subscribe` takes it too. D2 explains why the lock cannot deadlock with
+  paho's locks. D6 adds a test that makes the broker's answer race the
+  registration.
+- **Required change 2 (disconnected-publish claim):** applied in the design's
+  Context and the proposal's Out of scope. Both now say that a publish during
+  the outage keeps the adapter's existing behaviour, and that paho usually, not
+  always, reports it as not connected.
+- **Required change 3 ("within moments"):** applied in the proposal. The replay
+  follows once the main thread is free, after any recompute in progress.

@@ -33,7 +33,8 @@ back online and Refresh works".
   availability after it has published the state. One narrow exception remains.
   paho resends a message it was still sending when the connection dropped. If
   that message was `online`, it can reach the broker before the replayed state.
-  The state follows within moments.
+  The replayed state follows once the main thread is free. If a recompute is
+  running when the connection returns, the replay waits until it ends.
 - **A login rejected during a reconnect is logged, not fatal.** The log line says
   the broker rejected the login, with the same advice as at startup. paho keeps
   trying. The same login worked before, so the cause is more likely temporary. A
@@ -47,9 +48,10 @@ back online and Refresh works".
 
 Out of scope:
 
-- **A publish during the outage.** It still raises `DeliveryError`, which stops
-  the process. That is #43. Until #43 lands, this change helps only when the whole
-  outage falls between two publishes.
+- **A publish during the outage.** It keeps the adapter's existing behaviour.
+  Usually paho reports it as not connected, and the process stops. That is #43.
+  Until #43 lands, this change helps only when the whole outage falls between two
+  publishes.
 - **A stopped process that stays `online`, and publishes the broker never
   confirms.** That is #41.
 - **A persistent session** (`clean_session=False`). It needs a fixed client ID,

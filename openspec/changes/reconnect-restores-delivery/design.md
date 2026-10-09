@@ -23,9 +23,12 @@ source:
 - **paho calls `on_connect` on its network thread.** paho's documentation
   recommends subscribing inside `on_connect`, so that a reconnect restores the
   subscriptions.
-- **`publish()` while disconnected returns `MQTT_ERR_NO_CONN`.** `_publish`
-  raises `DeliveryError` for it, and the process stops. That is #43. This design
-  does not change it.
+- **`publish()` while disconnected usually returns `MQTT_ERR_NO_CONN`.**
+  `_publish` raises `DeliveryError` for it, and the process stops. paho can also
+  queue a QoS 1 message and return success, when its limit of messages in flight
+  is already full. A publish during the outage keeps the adapter's existing
+  behaviour in both cases. That is #43's scope, and this design does not change
+  it.
 
 The service (`pierpressure/service.py`) follows ADR-0012. paho's thread only puts
 items on a `queue.Queue[str]` of pier IDs. The main thread does all computing and
@@ -108,9 +111,27 @@ The adapter only logs. It does not retry a refused subscription. A refusal means
 the broker's access rules changed, and retrying cannot fix that.
 
 `subscribe_refresh` runs on the main thread and writes the topic map that
-`on_connect` reads. A lock guards that map, and `on_connect` subscribes from a
-copy. If both threads subscribe to the same topic, the broker keeps a single
-subscription, so a race is harmless.
+`on_connect` reads. If both threads subscribe to the same topic, the broker keeps
+a single subscription, so that overlap is harmless.
+
+One lock, the subscription lock, guards both the topic map and the map from
+message ID to topic:
+
+- Each subscribe, at startup or after a reconnect, holds the lock across the
+  `subscribe()` call and the registration of the message ID it returns.
+- `on_subscribe` takes the same lock to look up and remove the message ID.
+- `on_connect` subscribes from a copy of the topic map, taken under the lock.
+
+paho queues the request before `subscribe()` returns. So the broker's answer can
+reach paho's thread before the subscribing thread has recorded the message ID.
+Holding the lock across the call makes `on_subscribe` wait until the ID is
+recorded, so a refusal warning always names its topic.
+
+The lock cannot deadlock with paho's own locks. While paho's thread runs,
+`subscribe()` only queues the packet and wakes that thread. It never takes the
+lock paho holds while it calls a handler. When `on_connect` subscribes, it holds
+the subscription lock on paho's thread. `on_subscribe` runs on the same thread,
+only after `on_connect` returns.
 
 The listener is set with a new method, `MqttDelivery.on_reconnect(callback)`.
 `__main__.py` registers `service.enqueue_reconnect` there, next to
@@ -218,7 +239,12 @@ real paho client after it has connected once:
   relies on this.
 
 The fake client gains `on_subscribe`, and a way to refuse a subscription with a
-failure reason code. A test then checks the warning.
+failure reason code. A test then checks the warning. A second test checks the race. The
+fake's `subscribe()` starts a second thread that calls `on_subscribe` with a
+refusal. It gives that thread a short time to run, then returns the message ID.
+Without the lock, `on_subscribe` runs before the ID is recorded, and the warning
+lacks the topic. With the lock, `on_subscribe` waits, and the warning names the
+topic.
 
 ### D7. A watcher keeps paho's thread running after startup
 
