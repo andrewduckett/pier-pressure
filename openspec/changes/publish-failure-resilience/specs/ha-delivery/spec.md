@@ -193,8 +193,8 @@ The process MAY publish during an outage: on the interval, after a refresh
 command, or for the startup health reset. While the process knows it is
 disconnected, it SHALL hold each such message for step 2 instead of handing it to
 the MQTT client. It SHALL also hold its online availability, which step 3 then
-publishes. The process learns of a drop only after the MQTT client detects it. A
-message handed to the client before then MAY be sent again by the client after the
+publishes. The process learns of a drop only after the MQTT client detects it.
+The MQTT client MAY send a message it received before then again after the
 reconnect, before step 2.
 
 #### Scenario: Refresh works again after a reconnect
