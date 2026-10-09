@@ -273,7 +273,7 @@ class RecordingDelivery:
     to publish, the provider health it publishes, and the order of every call.
 
     ``events`` holds one entry per call: ``("verdict", pier)``,
-    ``("health", pier)``, or ``("online",)``. ``health_error`` makes every
+    ``("health", pier)``, ``("replay",)``, or ``("online",)``. ``health_error`` makes every
     ``publish_health`` call raise it.
     """
 
@@ -294,6 +294,9 @@ class RecordingDelivery:
             raise self._health_error
         self.events.append(("health", pier_id))
         self.healths.append((pier_id, tuple(healths)))
+
+    def replay(self) -> None:
+        self.events.append(("replay",))
 
     def go_online(self) -> None:
         self.events.append(("online",))
@@ -323,20 +326,19 @@ class ScriptedQueue:
 
     _EMPTY = object()
 
-    def __init__(self, script: list[str | None]) -> None:
+    def __init__(self, script: list[Any]) -> None:
         self._script = [self._EMPTY if item is None else item for item in script]
         self.extra: list[str] = []
 
-    def get(self, timeout: float | None = None) -> str:
+    def get(self, timeout: float | None = None) -> Any:
         if not self._script:
             raise queue.Empty
         item = self._script.pop(0)
         if item is self._EMPTY:
             raise queue.Empty
-        assert isinstance(item, str)
         return item
 
-    def get_nowait(self) -> str:
+    def get_nowait(self) -> Any:
         raise queue.Empty
 
     def put(self, item: str) -> None:

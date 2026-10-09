@@ -28,6 +28,8 @@ import logging
 import queue
 import time
 from collections.abc import Callable, Sequence
+from enum import Enum
+from typing import Final
 
 from pierpressure.conditions import FetchResult
 from pierpressure.core.clock import Clock
@@ -49,6 +51,18 @@ MonotonicFn = Callable[[], float]
 ConditionsProvider = Callable[[PierConfig], FetchResult]
 
 
+class Reconnected(Enum):
+    """The work-queue marker for a reconnect (reconnect-restores-delivery D3)."""
+
+    MARKER = "reconnected"
+
+
+RECONNECTED: Final = Reconnected.MARKER
+
+# The work queue: a pier ID for each refresh, or the marker for each reconnect.
+WorkItem = str | Reconnected
+
+
 def _no_conditions(_pier: PierConfig) -> FetchResult:
     """Fallback provider: the canonical empty value (astronomy-only verdicts)."""
     return FetchResult(Conditions(None, None))
@@ -62,7 +76,7 @@ class Service:
         config: AppConfig,
         delivery: MqttDelivery,
         clock: Clock,
-        refresh_queue: queue.Queue[str] | None = None,
+        refresh_queue: queue.Queue[WorkItem] | None = None,
         conditions_provider: ConditionsProvider | None = None,
         explainer: Explainer | None = None,
         providers: Sequence[ProviderInfo] = (),
@@ -70,7 +84,7 @@ class Service:
         self._config = config
         self._delivery = delivery
         self._clock = clock
-        self._queue: queue.Queue[str] = (
+        self._queue: queue.Queue[WorkItem] = (
             refresh_queue if refresh_queue is not None else queue.Queue()
         )
         self._piers = {pier.id: pier for pier in config.piers}
@@ -93,6 +107,10 @@ class Service:
     def enqueue_refresh(self, pier_id: str) -> None:
         """Callback for the network thread: record an on-demand refresh request."""
         self._queue.put(pier_id)
+
+    def enqueue_reconnect(self) -> None:
+        """Callback for the network thread: record a reconnect (D3)."""
+        self._queue.put(RECONNECTED)
 
     def publish_pier(self, pier_id: str) -> None:
         """Recompute and publish a single pier."""
@@ -149,20 +167,36 @@ class Service:
             if self._providers:
                 self._delivery.publish_health(pier.id, self._health[pier.id].values())
 
-    def _drain_refreshes(self, first: str) -> set[str]:
-        """Collapse duplicate queued refreshes into one recompute per pier (D7).
+    def _drain(self, first: WorkItem) -> tuple[set[str], bool]:
+        """Collapse the pending work into one recompute per pier and one replay (D7).
 
-        Includes the already-dequeued ``first`` id, then drains everything
-        currently pending so N identical spammed refreshes become a single
-        recompute for that pier.
+        Includes the already-dequeued ``first`` item, then drains everything
+        currently pending, so N identical spammed refreshes become a single
+        recompute for that pier, and several reconnects one replay
+        (reconnect-restores-delivery D3). Returns the pier IDs to recompute, and
+        whether any reconnect was drained.
         """
-        pier_ids = {first}
-        while True:
+        pier_ids: set[str] = set()
+        reconnected = False
+        item: WorkItem | None = first
+        while item is not None:
+            if item is RECONNECTED:
+                reconnected = True
+            else:
+                pier_ids.add(item)
             try:
-                pier_ids.add(self._queue.get_nowait())
+                item = self._queue.get_nowait()
             except queue.Empty:
-                break
-        return pier_ids
+                item = None
+        return pier_ids, reconnected
+
+    def _restore_delivery(self) -> None:
+        """Publish each pier's last state again, then ``online`` (D3).
+
+        It computes no verdict and fetches no conditions.
+        """
+        self._delivery.replay()
+        self._delivery.go_online()
 
     def run(
         self,
@@ -196,13 +230,17 @@ class Service:
 
             timeout = max(0.0, deadline - now)
             try:
-                pier_id = self._queue.get(timeout=timeout)
+                item = self._queue.get(timeout=timeout)
             except queue.Empty:
                 # Interval elapsed with no refresh: recompute all, reset deadline.
                 self.publish_all()
                 deadline = monotonic() + interval
             else:
-                # On-demand refresh: recompute the target pier(s) only; the
-                # deadline is left untouched so it cannot be starved.
-                for target in self._drain_refreshes(pier_id):
+                # A reconnect first, then on-demand refreshes of the target
+                # pier(s) only. The deadline is left untouched so it cannot be
+                # starved.
+                pier_ids, reconnected = self._drain(item)
+                if reconnected:
+                    self._restore_delivery()
+                for target in pier_ids:
                     self.publish_pier(target)
