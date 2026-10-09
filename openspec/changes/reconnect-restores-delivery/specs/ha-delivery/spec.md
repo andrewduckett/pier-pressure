@@ -8,7 +8,10 @@ SHALL restore its delivery without a restart. A reconnect is any accepted
 connection after the first one.
 
 The process SHALL try to reconnect with the same pauses as at startup. No pause
-SHALL be shorter than 1 second or longer than 120 seconds.
+SHALL be shorter than 1 second or longer than 120 seconds. The process SHALL keep
+trying for as long as it runs, whichever way an attempt fails. This includes a
+failure during an immediate try with one detail changed, as the startup
+requirement describes.
 
 After each reconnect, the process SHALL do three things:
 
@@ -65,8 +68,8 @@ What happens to a publish during an outage is outside this requirement.
 
 - **WHEN** the broker restarts without keeping its retained messages
 - **AND** the process reconnects
-- **THEN** every entity's discovery config and state is retained on the broker again
-- **AND** no entity waits for the next interval to reappear
+- **THEN** before the next interval, the process publishes every discovery config and state topic it had published for each pier
+- **AND** each of those publishes has the payload it last had and the retain flag set
 
 #### Scenario: A reconnect computes no new verdict
 
@@ -82,9 +85,19 @@ What happens to a publish during an outage is outside this requirement.
 
 #### Scenario: A reconnect during startup keeps the startup order
 
-- **WHEN** the connection drops and comes back after the first connection, but before the process has published a verdict for each pier
-- **THEN** the process still publishes the startup health reset before its online availability
-- **AND** after the reconnect it publishes again only what it had already published
+- **WHEN** the broker accepts the first connection
+- **AND** the connection drops and the broker accepts a new one, before the process publishes the startup health reset
+- **THEN** the process publishes the startup health reset, then its online availability, then a verdict for each pier
+- **AND** it then publishes that same health and those verdicts again, then its online availability again
+
+#### Scenario: A failed immediate try during a reconnect is tried again
+
+- **WHEN** the process loses its connection while it runs
+- **AND** the broker refuses the next attempt because it does not support the MQTT version
+- **AND** the immediate try with an older version cannot open a network connection
+- **THEN** the log has a line for that attempt that names the broker's host and port
+- **AND** the process tries again after a pause
+- **AND** it restores its delivery once the broker accepts a connection
 
 #### Scenario: The outage is logged
 

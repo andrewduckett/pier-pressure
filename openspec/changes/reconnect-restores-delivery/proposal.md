@@ -34,6 +34,10 @@ back online and Refresh works".
   the broker rejected the login, with the same advice as at startup. paho keeps
   trying. The same login worked before, so the cause is more likely temporary. A
   rejected login at startup still stops the process, as #33 decided.
+- **PierPressure never stops trying to reconnect.** paho's network thread can
+  end without notice after one rare kind of failed attempt. At startup,
+  PierPressure already starts it again. It now keeps watching for this for as
+  long as it runs.
 - **The log shows the outage.** PierPressure logs when it loses the connection,
   each failed attempt to reconnect, and when it reconnects.
 

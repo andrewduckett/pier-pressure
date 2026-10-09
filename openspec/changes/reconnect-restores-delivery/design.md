@@ -40,14 +40,15 @@ publishing. It waits on the queue until an absolute deadline.
   reconnect.
 - A reconnect costs only MQTT messages: no conditions fetch, no verdict, no
   explainer call.
+- paho's network thread keeps running for as long as the process runs, so a
+  reconnect always follows an outage.
 - The tests drive a drop and a reconnect with the fake client, without sleeping.
 
 **Non-Goals:**
 
-- Watching paho's network thread after startup. See Risks.
 - Changing the startup wait, its logging, or a login rejected at startup.
-- Capping how often reconnects can happen. The drain in D3 already merges
-  reconnects that arrive close together.
+- Capping how often reconnects can happen. The drain in D3 merges only the
+  markers already on the queue, so each later reconnect still causes a replay.
 
 ## Decisions
 
@@ -148,8 +149,8 @@ The adapter records a message after `_publish` succeeds. If a publish fails, the
 process stops anyway (#43). Only the main thread publishes and replays, so the
 dictionaries need no lock.
 
-This replays exactly what the broker last received for each topic. It needs no
-knowledge of verdict documents, narratives or health. A topic published only once,
+So the replay publishes what PierPressure last published to each topic. It needs
+no knowledge of verdict documents, narratives or health. A topic published only once,
 such as a discovery config, is still replayed.
 
 **Alternative: the service keeps the last document, narrative and health, and
@@ -187,18 +188,57 @@ script of attempts on the calling thread, as `loop_start` does. A test can then
 check the log, the subscriptions, and what the service published after it drains
 the queue.
 
+The fake's `drop` script can also end the thread with no callback, as
+`THREAD_ENDS` does at startup. A test then checks that D7 starts it again.
+
 The existing contract tests in `tests/test_paho_contract.py` check paho's startup
-behaviour against a real client with a socket pair. One more contract test checks
-that real paho calls `on_connect` again after the socket closes, and that
-`subscribe` works from inside that callback.
+behaviour against a real client with a socket pair. Two more contract tests use a
+real paho client after it has connected once:
+
+- paho calls `on_connect` again after the socket closes and a new one opens, and
+  `subscribe` works from inside that callback.
+- An immediate try that cannot open a socket during a reconnect ends paho's
+  thread with no callback, and sets `_thread` back to `None`. D7 relies on this.
+
+### D7. A watcher keeps paho's thread running after startup
+
+paho's thread can end with no callback when an immediate try fails (ADR-0018).
+paho makes an immediate try when the broker refuses the MQTT version or the client
+ID. A replacement broker can do that during a reconnect, not only at startup.
+Once the thread ends, nothing reconnects.
+
+The startup wait in `connect` already checks the thread once a second and starts
+it again. D7 keeps that check running after startup:
+
+- When `connect` returns, it starts a watcher: a daemon thread owned by
+  `MqttDelivery`.
+- Once a second, the watcher checks `_network_thread_running`. If the thread has
+  ended, the watcher logs the failed attempt, as at startup, and calls
+  `loop_start()`. The new paho thread pauses, then tries again.
+- The watcher waits on a stop event, not a sleep. `close()` sets that event and
+  joins the watcher before it calls `loop_stop()`. Otherwise the watcher would
+  restart the thread that `loop_stop()` just ended.
+- If the thread is running when the watcher calls `loop_start()`, paho returns an
+  error code and starts nothing. So a race between the check and the call is
+  harmless.
+
+The watcher publishes nothing and puts nothing on the work queue. So ADR-0012's
+rule that only the main thread publishes still holds.
+
+**Alternative: check the thread from the main loop.** The main thread waits on
+the queue until the next interval, which can be many minutes. A check there would
+need a shorter wait, which would change ADR-0012's single absolute-deadline wait.
+We rejected it.
+
+**Alternative: accept the risk.** An earlier draft did this, because each
+immediate try happens at most once per process. We rejected it in review: a
+broker replaced or reconfigured after startup can still trigger one. Then the
+process would stay disconnected until someone restarts it.
 
 ## Risks / Trade-offs
 
-- [After startup, nothing restarts paho's thread if it ends without a callback.]
-  → That can happen only in one of paho's two immediate tries. Each happens at
-  most once per process, and in practice at the first connection, while the
-  startup wait still watches the thread. We accept the small remaining risk. A
-  later change can add a thread check to the main loop if it ever shows up.
+- [The watcher is one more thread to start and stop.] → `close()` stops it
+  first, and a test checks that `close()` leaves no thread running.
 - [A publish during the outage still stops the process.] → That is #43. Until it
   lands, the replay helps only when the whole outage falls between two publishes.
   The interval sets how often that is true.
@@ -206,8 +246,8 @@ that real paho calls `on_connect` again after the socket closes, and that
   the broker held before the outage, with its original generation time. The next
   interval or a Refresh press brings new data.
 - [A connection that drops often causes many replays.] → Each replay is about
-  thirty small messages per pier, with no network calls. The drain merges
-  reconnects that arrive before the main thread runs.
+  thirty small messages per pier, with no network calls. The drain merges only
+  the reconnect markers already on the queue when the main thread drains it.
 - [A reconnect during a long recompute delays `online`.] → The main thread
   handles the marker after the recompute. The entities show as unavailable until
   then, which is accurate while state is stale.
