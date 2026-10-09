@@ -4,7 +4,7 @@ marked ready. The verdict document and the golden verdict files do not change.
 
 ## 1. Pin paho's behaviour with a real client
 
-- [ ] 1.1 Add a test to `tests/test_paho_contract.py`. A real paho client that has lost its connection returns `MQTT_ERR_NO_CONN` for a QoS 1 `publish()`, keeps the message, and sends it after the reconnect. Verify that it passes (design Context, D3).
+- [x] 1.1 Add a test to `tests/test_paho_contract.py`. A real paho client that has lost its connection returns `MQTT_ERR_NO_CONN` for a QoS 1 `publish()`, keeps the message, and sends it after the reconnect. Verify that it passes (design Context, D3).
 
 ## 2. The fake client
 

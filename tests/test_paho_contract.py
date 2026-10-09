@@ -216,6 +216,8 @@ def test_delivery_connects_after_a_failed_version_retry_ends_the_thread(
 _SUBSCRIBE = 0x82
 # A QoS 1 PUBLISH with the DUP and retain flags: a resent retained message.
 _PUBLISH_QOS1_DUP_RETAIN = 0x3B
+# The same without DUP: a message paho kept but never sent.
+_PUBLISH_QOS1_RETAIN = 0x33
 
 
 def _split_packets(data: bytes) -> list[tuple[int, bytes]]:
@@ -322,5 +324,24 @@ def test_paho_resends_an_unacknowledged_message_after_on_connect(broker: Broker)
     finally:
         # paho's thread does not end while a QoS 1 message waits for its
         # acknowledgement, so disconnect first, or loop_stop waits for keep-alive.
+        client.disconnect()
+        client.loop_stop()
+
+
+def test_paho_keeps_a_message_published_while_disconnected(broker: Broker) -> None:
+    """publish-failure-resilience: ``NO_CONN`` means queued, and sent after the reconnect."""
+    client = _connected_client(broker)
+    try:
+        broker.ends[0].close()
+        assert _wait_until(lambda: not client.is_connected())
+        info = client.publish("pp/status", "online", qos=1, retain=True)
+        assert info.rc == mqtt.MQTT_ERR_NO_CONN
+        broker.expect(_CONNACK_ACCEPTED)
+        assert _wait_until(lambda: len(broker.ends) == 2)
+        packets = _read_packets(broker.ends[1], 2)
+        # CONNECT, then the message paho kept. It was never sent, so it is no duplicate.
+        assert [first for first, _ in packets] == [0x10, _PUBLISH_QOS1_RETAIN]
+        assert packets[1][1].endswith(b"online")
+    finally:
         client.disconnect()
         client.loop_stop()
