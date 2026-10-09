@@ -507,7 +507,8 @@ def _network_thread_running(client: MqttClient) -> bool:
 FIRST_PAUSE_SECONDS = 1
 PAUSE_LIMIT_SECONDS = 120
 
-# How often ``connect`` checks that paho's network thread is still running.
+# How often ``connect``, then the watcher, checks that paho's network thread is
+# still running.
 _WAIT_SLICE_SECONDS = 1.0
 
 # paho's names for the refusals that retrying cannot fix. Both get the same advice,
@@ -564,6 +565,9 @@ class MqttDelivery:
         # Whether the current attempt already has its warning (D4).
         self._attempt_logged = False
         self._phase = _Phase.STARTING
+        # Keeps paho's thread running after startup (reconnect-restores-delivery D7).
+        self._watcher: threading.Thread | None = None
+        self._stop_watching = threading.Event()
 
     @property
     def base_topic(self) -> str:
@@ -607,6 +611,10 @@ class MqttDelivery:
         if self._rejection is not None:
             self._client.loop_stop()
             raise LoginRejected(self._broker, self._rejection)
+        self._watcher = threading.Thread(
+            target=self._watch_network_thread, name="pierpressure-mqtt-watcher", daemon=True
+        )
+        self._watcher.start()
 
     def _wait_for_outcome(self) -> None:
         """Wait for the broker's answer, restarting paho's thread if it ends (D2).
@@ -619,6 +627,18 @@ class MqttDelivery:
                 self._log_failed_attempt("network thread stopped")
                 self._client.loop_start()
             self._outcome_ready.wait(_WAIT_SLICE_SECONDS)
+
+    def _watch_network_thread(self) -> None:
+        """Start paho's thread again whenever it ends, until :meth:`close` (D7).
+
+        One of paho's immediate tries can end its thread with no callback during a
+        reconnect, as at startup. If the thread is running, ``loop_start`` starts
+        nothing, so a race between the check and the call is harmless.
+        """
+        while not self._stop_watching.wait(_WAIT_SLICE_SECONDS):
+            if not _network_thread_running(self._client):
+                self._log_failed_attempt("network thread stopped")
+                self._client.loop_start()
 
     @property
     def _broker(self) -> str:
@@ -896,6 +916,13 @@ class MqttDelivery:
             self._refresh_callback(pier_id)
 
     def close(self) -> None:
+        """Stop the watcher, then paho's thread, then disconnect.
+
+        The watcher stops first, or it would start the thread ``loop_stop`` ends.
+        """
+        self._stop_watching.set()
+        if self._watcher is not None:
+            self._watcher.join()
         try:
             self._client.loop_stop()
             self._client.disconnect()

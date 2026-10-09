@@ -9,14 +9,24 @@ connection and the attempts that follow (D6).
 from __future__ import annotations
 
 import logging
+import threading
+import time
 from collections.abc import Callable, Iterator
 
 import paho.mqtt.client as mqtt
 import pytest
 
+from pierpressure.delivery import mqtt as delivery_mqtt
 from pierpressure.delivery.mqtt import MqttDelivery, refresh_command_topic
 
-from .conftest import ACCEPT, SOCKET_FAILURE, FakeMqttClient, make_mqtt_config, refused
+from .conftest import (
+    ACCEPT,
+    SOCKET_FAILURE,
+    THREAD_ENDS,
+    FakeMqttClient,
+    make_mqtt_config,
+    refused,
+)
 
 BROKER = "192.168.1.10:1883"
 PASSWORD = "secret"
@@ -48,11 +58,30 @@ class Started:
         self.reconnects += 1
 
 
+@pytest.fixture(autouse=True)
+def fast_watcher(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Check paho's thread every 10 ms, so no test waits a full second (design D7)."""
+    monkeypatch.setattr(delivery_mqtt, "_WAIT_SLICE_SECONDS", 0.01)
+
+
 @pytest.fixture
 def started() -> Iterator[Started]:
     fixture = Started()
     yield fixture
     fixture.delivery.close()
+
+
+def _wait_until(condition: Callable[[], bool]) -> bool:
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        if condition():
+            return True
+        time.sleep(0.005)
+    return False
+
+
+def _watchers() -> list[threading.Thread]:
+    return [t for t in threading.enumerate() if t.name == "pierpressure-mqtt-watcher"]
 
 
 def _messages(caplog: pytest.LogCaptureFixture, level: int) -> list[str]:
@@ -217,3 +246,53 @@ def test_a_refusal_answered_before_subscribe_returns_names_its_topic(
         answer.join(5)
     fixture.delivery.close()
     assert _messages(caplog, logging.WARNING) == [_refused_warning(TOPICS[0])]
+
+
+# --------------------------------------------------------------------------- #
+# Keeping paho's thread running (spec "A failed immediate try during a
+# reconnect is tried again"; design D7)
+# --------------------------------------------------------------------------- #
+
+
+def test_an_ended_thread_after_startup_is_started_again(started: Started) -> None:
+    started.client.drop([THREAD_ENDS, ACCEPT])
+    assert _wait_until(lambda: started.client.loop_start_calls == 2)
+
+
+def test_an_ended_thread_after_startup_logs_one_failed_attempt(
+    started: Started, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.WARNING)
+    started.client.drop([THREAD_ENDS, ACCEPT])
+    assert _wait_until(lambda: started.reconnects == 1)
+    assert _messages(caplog, logging.WARNING) == [
+        f"Lost the connection to the MQTT broker at {BROKER}; trying again",
+        f"Could not connect to the MQTT broker at {BROKER} (network thread stopped); trying again",
+    ]
+
+
+def test_a_restarted_thread_restores_refresh(started: Started) -> None:
+    started.client.drop([THREAD_ENDS, ACCEPT])
+    assert _wait_until(lambda: started.reconnects == 1)
+    started.client.deliver(TOPICS[0])
+    assert started.refreshed == ["backyard"]
+
+
+def test_close_stops_the_watcher_before_the_loop(started: Started) -> None:
+    watchers_at_loop_stop: list[int] = []
+    loop_stop = started.client.loop_stop
+
+    def record_then_stop() -> None:
+        watchers_at_loop_stop.append(len(_watchers()))
+        loop_stop()
+
+    started.client.loop_stop = record_then_stop  # type: ignore[method-assign]
+    started.delivery.close()
+    assert watchers_at_loop_stop == [0]
+
+
+def test_close_leaves_no_watcher_running() -> None:
+    fixture = Started()
+    assert _watchers()
+    fixture.delivery.close()
+    assert _watchers() == []

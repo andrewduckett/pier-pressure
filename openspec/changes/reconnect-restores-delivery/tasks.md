@@ -29,9 +29,9 @@ marked ready. The verdict document and the golden verdict files do not change.
 
 ## 5. Keep paho's thread running after startup
 
-- [ ] 5.1 Write tests first. After startup, a `drop` whose script ends the thread with no callback makes the watcher log one failed attempt and call `loop_start` again. A later acceptance restores delivery. Use a short watcher interval or an injected wait, so the test does not sleep for a full second. Verify that the tests fail (spec "A failed immediate try during a reconnect is tried again").
-- [ ] 5.2 Write a test first that `close()` stops the watcher before `loop_stop()`, and that no watcher thread is left running afterwards. Verify that the test fails.
-- [ ] 5.3 Implement the watcher in design D7: a daemon thread started when `connect` returns, a stop event, and `close()` joining it first. Verify that 5.1 and 5.2 pass.
+- [x] 5.1 Write tests first. After startup, a `drop` whose script ends the thread with no callback makes the watcher log one failed attempt and call `loop_start` again. A later acceptance restores delivery. Use a short watcher interval or an injected wait, so the test does not sleep for a full second. Verify that the tests fail (spec "A failed immediate try during a reconnect is tried again").
+- [x] 5.2 Write a test first that `close()` stops the watcher before `loop_stop()`, and that no watcher thread is left running afterwards. Verify that the test fails.
+- [x] 5.3 Implement the watcher in design D7: a daemon thread started when `connect` returns, a stop event, and `close()` joining it first. Verify that 5.1 and 5.2 pass.
 
 ## 6. Replay the last state from the main thread
 
