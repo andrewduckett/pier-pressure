@@ -42,7 +42,7 @@ VERDICT: APPROVE_WITH_CHANGES
 2. Qualify the disconnected-publish statements in the proposal and design. State that outage publishes retain the existing adapter behavior and remain outside this change; do not claim every such call returns `MQTT_ERR_NO_CONN` or raises `DeliveryError`.
 3. Replace “The state follows within moments” in the proposal with wording that allows the replay to wait for the main thread’s current recompute.
 
-CHANGES_APPLIED: no
+CHANGES_APPLIED: yes
 
 ## Rebuttals
 
@@ -65,3 +65,20 @@ Author responses for round 3. The re-check of these items follows below.
   always, reports it as not connected.
 - **Required change 3 ("within moments"):** applied in the proposal. The replay
   follows once the main thread is free, after any recompute in progress.
+
+## Round 3 Re-check
+
+Codex re-checked only the listed Required Changes, in a fresh context.
+
+- **Required change 1:** accepted by reviewer. D2 synchronizes message ID
+  registration and SUBACK handling, and D6 plans the race test.
+- **Required change 2:** at first not accepted, because a Risks entry still said
+  a publish during the outage stops the process. The author qualified that
+  entry. On a second re-check: accepted by reviewer. The design and proposal
+  keep the existing adapter behaviour and qualify the outcomes of a publish
+  during the outage.
+- **Required change 3:** accepted by reviewer. The proposal now says the replay
+  waits for any recompute in progress.
+
+All Required Changes are applied and re-checked, so the author set
+`CHANGES_APPLIED: yes`.
