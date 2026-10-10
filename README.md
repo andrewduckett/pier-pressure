@@ -176,7 +176,9 @@ Each pier becomes one device, `PierPressure <pier>`, with these entities:
 | **Narrative** (sensor) | `ready` or unavailable | Only when the explainer is on. The text is in its attributes. |
 | **Open-Meteo health**, **7Timer! health** (diagnostic sensors) | When that weather source last succeeded, or unknown | One per weather source. See [Watching provider health](#watching-provider-health). |
 
-If the container stops, its last-will message marks every entity unavailable.
+If PierPressure stops, every entity shows as unavailable. A planned stop, such as
+`docker stop`, publishes `offline` before it disconnects. After a crash or a lost
+connection, the broker sends PierPressure's last-will message instead.
 
 <details>
 <summary>MQTT topics</summary>

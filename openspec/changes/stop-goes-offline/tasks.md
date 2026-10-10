@@ -23,7 +23,7 @@ marked ready. The verdict document and the golden verdict files do not change.
 
 ## 5. Docs
 
-- [ ] 5.1 In `README.md`, replace "If the container stops, its last-will message marks every entity unavailable." Say that a stop marks every entity unavailable: a planned stop publishes `offline`, and a crash or lost connection triggers the last-will. Verify that `tests/test_docs.py` passes.
+- [x] 5.1 In `README.md`, replace "If the container stops, its last-will message marks every entity unavailable." Say that a stop marks every entity unavailable: a planned stop publishes `offline`, and a crash or lost connection triggers the last-will. Verify that `tests/test_docs.py` passes.
 
 ## 6. Verify
 
