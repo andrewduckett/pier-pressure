@@ -345,3 +345,31 @@ def test_paho_keeps_a_message_published_while_disconnected(broker: Broker) -> No
     finally:
         client.disconnect()
         client.loop_stop()
+
+
+def test_an_unconfirmed_wait_for_publish_returns_without_raising(broker: Broker) -> None:
+    """stop-goes-offline D2: the wait ends at its timeout, and the message is unconfirmed."""
+    client = _connected_client(broker)
+    try:
+        info = client.publish("pp/status", "offline", qos=1, retain=True)
+        started = time.monotonic()
+        info.wait_for_publish(timeout=0.2)  # the broker never sends a PUBACK
+        assert time.monotonic() - started < _TIMEOUT_SECONDS
+        assert not info.is_published()
+    finally:
+        client.disconnect()
+        client.loop_stop()
+
+
+def test_a_confirmed_wait_for_publish_reports_the_message_published(broker: Broker) -> None:
+    """stop-goes-offline D2: a PUBACK ends the wait, and the message is confirmed."""
+    client = _connected_client(broker)
+    try:
+        info = client.publish("pp/status", "offline", qos=1, retain=True)
+        _read_packets(broker.ends[0], 2)  # CONNECT, then the PUBLISH
+        broker.ends[0].sendall(b"\x40\x02" + info.mid.to_bytes(2, "big"))  # PUBACK
+        info.wait_for_publish(timeout=_TIMEOUT_SECONDS)
+        assert info.is_published()
+    finally:
+        client.disconnect()
+        client.loop_stop()

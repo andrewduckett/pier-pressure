@@ -192,14 +192,16 @@ def test_a_drop_after_online_still_ends_with_state_then_online() -> None:
     try:
         service.run(monotonic=ScriptedMonotonic([0.0, 1.0]), max_iterations=1)
     finally:
+        # What the service published, without the offline that close() adds.
+        published = list(client.published)
         delivery.close()
 
-    before_drop = client.published[: drops[0]]
+    before_drop = published[: drops[0]]
     assert before_drop[-1].topic == status  # online went out before the drop
-    last = client.published[-1]
+    last = published[-1]
     assert (last.topic, last.payload, last.retain) == (status, PAYLOAD_ONLINE, True)
-    replayed_topics = {m.topic for m in client.published[drops[0] : -1]}
-    assert replayed_topics >= {m.topic for m in client.published if m.topic != status}
+    replayed_topics = {m.topic for m in published[drops[0] : -1]}
+    assert replayed_topics >= {m.topic for m in published if m.topic != status}
 
 
 # --------------------------------------------------------------------------- #
@@ -249,11 +251,13 @@ def test_an_interval_during_an_outage_is_published_after_the_reconnect() -> None
         # Startup at 0; the interval is due at 11; the main thread waits at 12.
         service.run(monotonic=ScriptedMonotonic([0.0, 11.0, 11.0, 12.0]), max_iterations=2)
     finally:
+        # What the service published, without the offline that close() adds.
+        published = list(client.published)
         delivery.close()
 
     dropped_at = calls[len(PIERS)]
-    startup = client.published[:dropped_at]
-    after = client.published[dropped_at:]
+    startup = published[:dropped_at]
+    after = published[dropped_at:]
     status = availability_topic("pierpressure")
     assert (after[-1].topic, after[-1].payload, after[-1].retain) == (status, PAYLOAD_ONLINE, True)
     for pier in PIERS:

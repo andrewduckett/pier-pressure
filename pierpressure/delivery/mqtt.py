@@ -14,6 +14,9 @@ A publish never raises. While the connection is down, the adapter records each
 retained message but holds it from paho; the replay sends it after the reconnect.
 A message paho refuses is logged (publish-failure-resilience).
 
+A clean disconnect skips the last-will, so :meth:`MqttDelivery.close` publishes
+the retained ``offline`` itself while connected (stop-goes-offline).
+
 Topic scheme (design D5), for base topic ``B`` and discovery prefix ``P``:
 
 ===========================  ====================================================  ======
@@ -59,6 +62,9 @@ RANKS = range(1, TOP_N + 1)
 
 PAYLOAD_ONLINE = "online"
 PAYLOAD_OFFLINE = "offline"
+
+# How long a stop waits for the broker to confirm ``offline`` (stop-goes-offline D2).
+OFFLINE_WAIT_SECONDS = 2.0
 
 
 class DeliveryError(Exception):
@@ -641,10 +647,12 @@ class MqttDelivery:
         if self._rejection is not None:
             self._client.loop_stop()
             raise LoginRejected(self._broker, self._rejection, self._login_advice)
-        self._watcher = threading.Thread(
+        watcher = threading.Thread(
             target=self._watch_network_thread, name="pierpressure-mqtt-watcher", daemon=True
         )
-        self._watcher.start()
+        watcher.start()
+        # Only a started thread, so close() can always join it.
+        self._watcher = watcher
 
     def _wait_for_outcome(self) -> None:
         """Wait for the broker's answer, restarting paho's thread if it ends (D2).
@@ -1037,16 +1045,39 @@ class MqttDelivery:
             self._refresh_callback(pier_id)
 
     def close(self) -> None:
-        """Stop the watcher, then paho's thread, then disconnect.
+        """Stop the watcher, publish ``offline`` if connected, disconnect, then stop paho.
 
         The watcher stops first, or it would start the thread ``loop_stop`` ends.
+        A clean disconnect skips the last-will, so ``offline`` goes out first, while
+        paho's thread still runs to send it (stop-goes-offline D1). While the
+        connection is down, the broker sends the last-will instead. Never raises.
+        A second call does nothing.
         """
+        if self._closing:
+            return
         self._closing = True
         self._stop_watching.set()
         if self._watcher is not None:
             self._watcher.join()
+        if self._phase is _Phase.CONNECTED:
+            self._publish_offline()
         try:
-            self._client.loop_stop()
             self._client.disconnect()
+            self._client.loop_stop()
         except OSError, ValueError:  # pragma: no cover - best-effort shutdown
             logger.warning("Error during MQTT shutdown", exc_info=True)
+
+    def _publish_offline(self) -> None:
+        """Publish the retained ``offline`` and wait briefly for the broker (D2).
+
+        A refused or unconfirmed message is logged, and the stop goes on.
+        """
+        status = availability_topic(self._config.base_topic)
+        info = self._client.publish(status, PAYLOAD_OFFLINE, qos=1, retain=True)
+        try:
+            info.wait_for_publish(timeout=OFFLINE_WAIT_SECONDS)
+            confirmed = info.is_published()
+        except RuntimeError, ValueError:
+            confirmed = False
+        if not confirmed:
+            logger.warning("The MQTT broker did not confirm the offline availability")

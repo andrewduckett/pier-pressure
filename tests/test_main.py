@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import logging
+import os
+import signal
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -24,6 +27,14 @@ from pierpressure.service import Service
 from pierpressure.supervisor import SupervisorError
 
 from .conftest import FakeMqttClient, make_mqtt_config, make_pier
+
+
+@pytest.fixture(autouse=True)
+def restore_sigterm() -> Iterator[None]:
+    """``main`` installs a SIGTERM handler; put the test process's own back after."""
+    previous = signal.getsignal(signal.SIGTERM)
+    yield
+    signal.signal(signal.SIGTERM, previous)
 
 
 def test_startup_publishes_a_verdict_against_a_fake_broker() -> None:
@@ -305,3 +316,105 @@ def test_ctrl_c_while_waiting_for_the_broker_shuts_down_cleanly(
     stub = StartupStub(monkeypatch, connect_error=KeyboardInterrupt())
     assert entry.main([_config(tmp_path, FILE_BROKER + PIERS)]) == 0
     assert stub.closed
+
+
+# --------------------------------------------------------------------------- #
+# stop-goes-offline D3: SIGTERM stops the process the same way as Ctrl-C
+# --------------------------------------------------------------------------- #
+
+
+class _UnhandledSigterm(Exception):
+    """Raised by the guard handler: ``main`` left SIGTERM to its default action."""
+
+
+@pytest.fixture
+def sigterm_guard() -> None:
+    """Fail the test, instead of killing pytest, if ``main`` handles no SIGTERM.
+
+    ``restore_sigterm`` puts the test process's own handler back after.
+    """
+
+    def guard(_signum: int, _frame: Any) -> None:
+        raise _UnhandledSigterm
+
+    signal.signal(signal.SIGTERM, guard)
+
+
+class RunningStub:
+    """A delivery that connects, and a service whose ``run`` the test controls.
+
+    ``events`` records ``subscribe_refresh``, ``run`` and ``close`` in order.
+    """
+
+    def __init__(self, monkeypatch: pytest.MonkeyPatch, terminate_in: str) -> None:
+        self.events: list[str] = []
+        stub = self
+
+        def step(name: str) -> None:
+            stub.events.append(name)
+            if name == terminate_in:
+                os.kill(os.getpid(), signal.SIGTERM)
+
+        class FakeDelivery:
+            def __init__(self, _mqtt: MqttConfig, **_kwargs: Any) -> None:
+                pass
+
+            def on_reconnect(self, _callback: Any) -> None:
+                pass
+
+            def connect(self) -> None:
+                pass
+
+            def subscribe_refresh(self, _pier_ids: Any, _callback: Any) -> None:
+                step("subscribe_refresh")
+
+            def close(self) -> None:
+                stub.events.append("close")
+
+        class FakeService:
+            def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+                pass
+
+            def enqueue_reconnect(self) -> None:
+                pass
+
+            def enqueue_refresh(self, _pier_id: str) -> None:
+                pass
+
+            def run(self) -> None:
+                step("run")
+
+        monkeypatch.setattr(entry, "MqttDelivery", FakeDelivery)
+        monkeypatch.setattr(entry, "Service", FakeService)
+
+
+@pytest.mark.usefixtures("sigterm_guard")
+def test_sigterm_while_running_closes_the_delivery_and_exits_0(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    stub = RunningStub(monkeypatch, terminate_in="run")
+    assert entry.main([_config(tmp_path, FILE_BROKER + PIERS)]) == 0
+    assert stub.events == ["subscribe_refresh", "run", "close"]
+
+
+@pytest.mark.usefixtures("sigterm_guard")
+def test_sigterm_before_the_service_runs_still_closes_the_delivery(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    stub = RunningStub(monkeypatch, terminate_in="subscribe_refresh")
+    assert entry.main([_config(tmp_path, FILE_BROKER + PIERS)]) == 0
+    assert stub.events == ["subscribe_refresh", "close"]
+
+
+@pytest.mark.usefixtures("sigterm_guard")
+def test_sigterm_while_loading_the_config_exits_0(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Inside an add-on, loading the config can wait on the Supervisor.
+    def terminate(_path: str) -> Any:
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    monkeypatch.setattr(entry, "load_app_config", terminate)
+    assert entry.main([_config(tmp_path, FILE_BROKER + PIERS)]) == 0
