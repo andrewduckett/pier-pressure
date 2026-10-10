@@ -11,7 +11,6 @@ import threading
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from types import SimpleNamespace
 from typing import Any
 
 import paho.mqtt.client as mqtt
@@ -51,6 +50,29 @@ class Published:
     payload: Any
     qos: int
     retain: bool
+
+
+class FakePublishInfo:
+    """paho's ``MQTTMessageInfo``: the result code, and whether the broker confirmed it.
+
+    The wait returns at once and records its timeout. An unconfirmed message stays
+    unconfirmed, as paho reports one after its wait times out (stop-goes-offline D4).
+    """
+
+    def __init__(self, client: FakeMqttClient, rc: int, confirmed: bool) -> None:
+        self._client = client
+        self.rc = rc
+        self._confirmed = confirmed
+
+    def wait_for_publish(self, timeout: float | None = None) -> None:
+        self._client.wait_timeouts.append(timeout)
+        if self.rc == mqtt.MQTT_ERR_QUEUE_SIZE:
+            raise ValueError("Message is not queued due to ERR_QUEUE_SIZE")
+        if self.rc != mqtt.MQTT_ERR_SUCCESS:
+            raise RuntimeError(f"Message publish failed: {mqtt.error_string(self.rc)}")
+
+    def is_published(self) -> bool:
+        return self.rc == mqtt.MQTT_ERR_SUCCESS and self._confirmed
 
 
 # Attempt outcomes a ``FakeMqttClient`` script can play (design D5). A refusal is
@@ -123,6 +145,9 @@ class FakeMqttClient:
         self._subscribe_failures: dict[str, int] = {}
         # The topics whose ``publish`` call returns a failure code, with that code.
         self._publish_failures: dict[str, int] = {}
+        # The topics the broker never confirms, and each ``wait_for_publish`` timeout.
+        self._unconfirmed: set[str] = set()
+        self.wait_timeouts: list[float | None] = []
         # When set, ``subscribe`` answers a refusal from a second thread before it
         # returns its message ID (design D6's race). The threads are kept to join.
         self.answer_before_return = False
@@ -226,6 +251,10 @@ class FakeMqttClient:
         """Undo :meth:`fail_publish` for ``topic``."""
         self._publish_failures.pop(topic, None)
 
+    def leave_unconfirmed(self, topic: str) -> None:
+        """Make the broker never confirm a publish to ``topic``."""
+        self._unconfirmed.add(topic)
+
     def set_publish_rc(self, rc: int) -> None:
         """Change the code every publish returns while connected."""
         self._publish_rc = rc
@@ -264,15 +293,17 @@ class FakeMqttClient:
         self._call(self.on_subscribe, self, None, mid, codes, None)
 
     def publish(self, topic: str, payload: Any = None, qos: int = 0, retain: bool = False) -> Any:
+        self.calls.append(f"publish {topic}")
         self.published.append(Published(topic, payload, qos, retain))
 
         # paho keeps a QoS 1 message published while disconnected and says so.
         rc = self._publish_rc if self.connected else mqtt.MQTT_ERR_NO_CONN
         rc = self._publish_failures.get(topic, rc)
-        return SimpleNamespace(rc=rc)
+        return FakePublishInfo(self, rc, confirmed=topic not in self._unconfirmed)
 
     def disconnect(self) -> None:
         """Send DISCONNECT. With no loop running, paho calls ``on_disconnect`` at once."""
+        self.calls.append("disconnect")
         was_connected, self.connected = self.connected, False
         if was_connected:
             normal = ReasonCode(PacketTypes.DISCONNECT, "Normal disconnection")

@@ -8,7 +8,7 @@ marked ready. The verdict document and the golden verdict files do not change.
 
 ## 2. The fake client
 
-- [ ] 2.1 Make `FakeMqttClient.publish` in `tests/conftest.py` return an info object with `rc`, `wait_for_publish(timeout)` and `is_published()`. A publish is confirmed at once by default. A test can mark one topic as unconfirmed. Record each `wait_for_publish` timeout, and record `publish`, `disconnect` and `loop_stop` in `calls`. Verify that every existing test still passes (design D4).
+- [x] 2.1 Make `FakeMqttClient.publish` in `tests/conftest.py` return an info object with `rc`, `wait_for_publish(timeout)` and `is_published()`. A publish is confirmed at once by default. A test can mark one topic as unconfirmed. Record each `wait_for_publish` timeout, and record `publish`, `disconnect` and `loop_stop` in `calls`. Verify that every existing test still passes (design D4).
 
 ## 3. `close()` publishes `offline`
 
