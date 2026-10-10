@@ -2,67 +2,84 @@
 
 ## Purpose
 
-The pier-equipment capability gives each pier an optional description of one
-imaging rig — telescope and camera — and derives the field of view that rig sees,
-offline and deterministically, so target ranking can judge how well an object
-frames.
+The pier-equipment capability gives each pier an optional description of its
+imaging equipment: one telescope and one camera. It derives the field of view that
+equipment sees, offline and deterministically, so target ranking can judge how
+well an object frames.
 
 ## Requirements
 
-### Requirement: Equipment is an optional per-pier imaging rig
+### Requirement: Equipment is optional on each pier
 
-Each pier MAY carry a description of one imaging rig. When present, the rig SHALL
-provide a telescope focal length in millimetres, a camera sensor width and height
-in millimetres, and MAY provide a focal reducer or barlow factor (default 1.0).
-Equipment SHALL be optional: a pier with no rig configured SHALL still produce a
-verdict and a ranked target list, without a field-of-view term. A rig SHALL NOT
-change any existing configuration field or its meaning.
+Each pier MAY carry a description of its imaging equipment: one telescope and
+one camera. The pier's configuration SHALL give the equipment under the key
+`equipment`. The equipment SHALL provide:
+
+- a telescope focal length in millimetres
+- a camera sensor width and height in millimetres
+- optionally, a focal reducer or barlow factor (default 1.0)
+
+Equipment SHALL be optional. A pier with no equipment configured SHALL still
+produce a verdict and a ranked target list, without a field-of-view term. Apart
+from the `equipment` key itself, equipment SHALL NOT change any other
+configuration field or its meaning.
 
 The focal length, both sensor dimensions, and the reducer factor SHALL each be
-strictly positive. A rig with a zero or negative value in any of these SHALL make
-the pier's configuration invalid — reported as a configuration error, with no
-verdict produced — mirroring the pier configuration validation already applied to
-other fields. This keeps the derived field of view well defined, so the derivation
-never divides by zero.
+strictly positive. Equipment with a zero or negative value in any of these SHALL
+make the pier's configuration invalid. The system SHALL report this as a
+configuration error and produce no verdict for that pier, as it does for other
+invalid pier fields. This keeps the derived field of view well defined, so the
+derivation never divides by zero.
 
-#### Scenario: A pier without a rig still ranks targets
+#### Scenario: A pier without equipment still ranks targets
 
-- **WHEN** a verdict is produced for a pier that has no rig configured
+- **WHEN** a verdict is produced for a pier that has no equipment configured
 - **THEN** the verdict and its ranked target list are produced without error
 - **AND** no field-of-view term contributes to any target's score
 
-#### Scenario: A rig with a non-positive value is rejected
+#### Scenario: Equipment with a non-positive value is rejected
 
-- **WHEN** a pier configures a rig whose focal length, a sensor dimension, or reducer is zero or negative
+- **WHEN** a pier configures equipment whose focal length, a sensor dimension, or reducer is zero or negative
 - **THEN** loading that configuration fails with a configuration error
 - **AND** no verdict is produced for that pier
 
-#### Scenario: A rig is described by optics, not a pre-computed field of view
+#### Scenario: Equipment is described by optics, not a pre-computed field of view
 
-- **WHEN** a pier configures a rig
-- **THEN** the rig is given as a focal length, a sensor width, and a sensor height, with an optional reducer factor
+- **WHEN** a pier configures equipment
+- **THEN** the equipment is given as a focal length, a sensor width, and a sensor height, with an optional reducer factor
 - **AND** the configuration does not require the field of view to be supplied directly
 
-### Requirement: Field of view is derived offline from the rig
+#### Scenario: Equipment is configured under the `equipment` key
 
-The system SHALL derive the rig's field of view from its optics, with no runtime
-network access, as a width and a height angle. The derivation SHALL apply the
-reducer or barlow factor to the focal length before computing the field of view,
-so a reducer below 1.0 widens the field and a barlow above 1.0 narrows it. The
-same rig SHALL always yield the same field of view, so ranking stays
+- **WHEN** a pier's configuration gives its focal length and sensor size under the key `equipment`
+- **THEN** the configuration loads and the pier ranks targets with a field-of-view term
+
+#### Scenario: The `rig` key is not accepted
+
+- **WHEN** a pier's configuration gives its focal length and sensor size under the key `rig`
+- **THEN** that pier is skipped with a logged configuration error, as for any other unknown key
+- **AND** no verdict is produced for that pier, while the other valid piers still produce verdicts
+
+### Requirement: Field of view is derived offline from the equipment
+
+The system SHALL derive the equipment's field of view from its optics, with no
+runtime network access, as a width and a height angle. The derivation SHALL apply
+the reducer or barlow factor to the focal length before computing the field of
+view, so a reducer below 1.0 widens the field and a barlow above 1.0 narrows it.
+The same equipment SHALL always yield the same field of view, so ranking stays
 deterministic.
 
 #### Scenario: Field of view follows from focal length and sensor size
 
-- **WHEN** a rig's field of view is derived
+- **WHEN** the equipment's field of view is derived
 - **THEN** each axis angle grows as the sensor dimension grows and shrinks as the focal length grows
 
 #### Scenario: The reducer widens the field
 
-- **WHEN** two rigs are identical except that one has a reducer factor below 1.0
-- **THEN** the rig with the reducer has the wider field of view
+- **WHEN** two sets of equipment are identical except that one has a reducer factor below 1.0
+- **THEN** the equipment with the reducer has the wider field of view
 
 #### Scenario: Field-of-view derivation is deterministic and offline
 
-- **WHEN** the field of view is derived twice for the same rig, with no network available
+- **WHEN** the field of view is derived twice for the same equipment, with no network available
 - **THEN** the two results are identical
