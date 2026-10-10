@@ -52,6 +52,10 @@ the pinned source or the Python documentation:
   entities unavailable anyway.
 - Handling a second signal during `close()`. The wait is short, and the
   container runtime sends SIGKILL after its grace period.
+- Guarding paho against a `KeyboardInterrupt` inside one of its calls. paho
+  takes its outgoing-message locks in `with` blocks, which release them as the
+  exception unwinds. paho's state after such an interrupt only matters to
+  `close()`, which waits at most two seconds.
 
 ## Decisions
 
@@ -102,16 +106,17 @@ stays at its last value until the next start.
 
 ### D3. SIGTERM raises `KeyboardInterrupt` in the main thread
 
-`main()` installs `signal.default_int_handler` for SIGTERM before it connects.
-That handler raises `KeyboardInterrupt`, which `main()` already handles: it logs
-"Shutting down", calls `close()`, and returns 0. The same code path then serves
-Ctrl-C, SIGTERM, and an unexpected error in the loop.
+`main()` installs `signal.default_int_handler` for SIGTERM first, before it
+loads the config. That handler raises `KeyboardInterrupt`, which `main()`
+already handles: it logs "Shutting down", calls `close()`, and returns 0. The
+same code path then serves Ctrl-C, SIGTERM, and an unexpected error in the loop.
+A stop while the config loads, which can wait on the Supervisor, returns 0 with
+nothing to close.
 
-Today `subscribe_refresh()` and the "started" log sit between the `connect()`
-block and the `try` around `service.run()`. A signal there would skip
-`close()`. So the `try`/`finally` that calls `close()` starts right after
-`connect()` returns, and covers `subscribe_refresh()`, the log and
-`service.run()`.
+One `try`/`finally` that calls `close()` covers `connect()`,
+`subscribe_refresh()`, the "started" log and `service.run()`. So no signal can
+land between two blocks and skip `close()`. Before the connection is accepted,
+`close()` publishes nothing, and it does nothing on a second call.
 
 The handler goes in `main()`, not in the delivery adapter or the service. Only
 the entry point owns the process, and tests that build a `Service` directly
