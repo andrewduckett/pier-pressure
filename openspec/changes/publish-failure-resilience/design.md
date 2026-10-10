@@ -112,7 +112,13 @@ produced. That is what the replay should restore.
 | Any other code | paho did not take the message | Log a warning naming the topic and `mqtt.error_string(rc)` |
 
 `MQTT_ERR_NO_CONN` needs no warning. `_on_disconnect` logs the lost connection,
-and the message is queued. Any other code is rare. With no cap, it means a
+and the message is queued. Any other code is rare. Only the first refusal since
+the last successful publish is a warning; later ones are at debug level, so a
+lasting refusal does not add about 47 warnings per pier on every interval.
+
+`online` has no replay record. So when paho refuses it, the adapter remembers
+that, and the next `publish_verdict` publishes `online` again. Without this, the
+broker would keep the last-will `offline` until the next reconnect. With no cap, it means a
 message ID clash. The replay after the next reconnect repairs it, and so does
 the next interval.
 
@@ -174,6 +180,17 @@ error, and stopping is the right response.
   messages waiting. D1 keeps the queue far smaller.
 - [`_retained` keeps every topic's latest payload] → It already does after #44.
   Its size depends on the number of piers, not on the length of an outage.
+
+- [paho resends its queued messages after `on_connect` returns, but the main
+  thread can start the replay first] → paho's `_handle_connack` calls
+  `on_connect`, which queues the reconnect marker, and only then resends its
+  queued messages. If the main thread wins that race, a message paho queued
+  during its detection lag reaches the broker after the newer replayed payload.
+  That topic then shows the older payload until the next interval. It needs
+  both a message queued in the detection lag and the race lost, and it heals
+  within one interval. A fix would need either to remove messages from paho's
+  private queue or to delay the reconnect marker until a later callback, which
+  changes #44's mechanism. This change accepts the risk.
 
 ## Migration Plan
 

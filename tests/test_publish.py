@@ -149,3 +149,38 @@ def test_go_online_publishes_retained_online() -> None:
     assert [(p.topic, p.payload, p.retain) for p in client.published] == [
         (availability_topic("pierpressure"), PAYLOAD_ONLINE, True)
     ]
+
+
+def test_a_refused_online_is_published_again_with_the_next_verdict() -> None:
+    """A refused ``online`` has no replay record, so the next update repairs it."""
+    client = FakeMqttClient()
+    status = availability_topic("pierpressure")
+    client.fail_publish(status)
+    delivery = MqttDelivery(make_mqtt_config(), client=client)
+    delivery.connect()
+    delivery.go_online()
+    client.allow_publish(status)
+
+    delivery.publish_verdict(make_document())
+    delivery.publish_verdict(make_document())
+
+    assert [p.payload for p in client.publishes_to(status)] == [PAYLOAD_ONLINE, PAYLOAD_ONLINE]
+    assert client.published[-1].topic != status  # repaired once, not on every update
+
+
+def test_refusals_in_a_row_log_one_warning_until_a_publish_succeeds(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    client = FakeMqttClient(publish_rc=mqtt.MQTT_ERR_QUEUE_SIZE)
+    delivery = MqttDelivery(make_mqtt_config(), client=client)
+    delivery.connect()
+    with caplog.at_level(logging.WARNING, logger="pierpressure"):
+        delivery.publish_verdict(make_document())
+        delivery.publish_verdict(make_document())
+        client.set_publish_rc(mqtt.MQTT_ERR_SUCCESS)
+        delivery.go_online()
+        client.set_publish_rc(mqtt.MQTT_ERR_QUEUE_SIZE)
+        delivery.publish_verdict(make_document())
+
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 2

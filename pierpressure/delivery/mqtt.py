@@ -593,6 +593,10 @@ class MqttDelivery:
         self._stop_watching = threading.Event()
         # Set by close(), so its own DISCONNECT is not logged as a lost connection.
         self._closing = False
+        # Main thread only. Whether paho refused the last ``online``, which has no
+        # replay record; and whether a refusal is logged since the last success.
+        self._online_refused = False
+        self._refusal_logged = False
 
     @property
     def base_topic(self) -> str:
@@ -763,8 +767,12 @@ class MqttDelivery:
         )
 
     def go_online(self) -> None:
-        """Publish the retained ``online`` availability for every entity."""
-        self._publish(availability_topic(self._config.base_topic), PAYLOAD_ONLINE, retain=True)
+        """Publish the retained ``online`` availability for every entity.
+
+        If paho refuses it, the next :meth:`publish_verdict` publishes it again.
+        """
+        sent = self._send(availability_topic(self._config.base_topic), PAYLOAD_ONLINE, retain=True)
+        self._online_refused = not sent
 
     def replay(self) -> None:
         """Publish each pier's last retained messages again, after a reconnect (D4).
@@ -788,8 +796,10 @@ class MqttDelivery:
             self._retained.setdefault(pier, {})[topic] = payload
         self._send(topic, payload, retain=retain)
 
-    def _send(self, topic: str, payload: str, *, retain: bool) -> None:
+    def _send(self, topic: str, payload: str, *, retain: bool) -> bool:
         """Hand one message to paho, unless the connection is down. Never raises.
+
+        Returns ``False`` only when paho refused the message.
 
         While the connection is down, the message is held: the replay after the
         reconnect sends the latest payload of each pier's topics, then the service
@@ -799,21 +809,29 @@ class MqttDelivery:
         paho returns ``MQTT_ERR_NO_CONN`` when it saw the drop first. It keeps the
         message and sends it after the reconnect, and the drop is logged already.
         Any other failure is logged, and the next replay or interval repairs the
-        topic (publish-failure-resilience D3).
+        topic (publish-failure-resilience D3). Only the first refusal since the last
+        success is a warning, so a lasting refusal does not flood the log.
         """
         if self._phase is _Phase.RECONNECTING:
-            return
+            return True
         info = self._client.publish(topic, payload, qos=1, retain=retain)
         rc = getattr(info, "rc", mqtt.MQTT_ERR_SUCCESS)
+        if rc == mqtt.MQTT_ERR_SUCCESS:
+            self._refusal_logged = False
+            return True
         if rc == mqtt.MQTT_ERR_NO_CONN:
             logger.debug("paho queued the publish to %r until it reconnects", topic)
-        elif rc != mqtt.MQTT_ERR_SUCCESS:
-            logger.warning(
-                "The MQTT client did not send the publish to %r (%s); "
-                "the next update publishes it again",
-                topic,
-                mqtt.error_string(rc),
-            )
+            return True
+        level = logging.DEBUG if self._refusal_logged else logging.WARNING
+        self._refusal_logged = True
+        logger.log(
+            level,
+            "The MQTT client did not send the publish to %r (%s); "
+            "the next update publishes it again",
+            topic,
+            mqtt.error_string(rc),
+        )
+        return False
 
     def publish_verdict(self, document: VerdictDocument, narrative: str | None = None) -> None:
         """Publish discovery, state, and attributes for the document's pier.
@@ -914,6 +932,9 @@ class MqttDelivery:
                 retain=True,
                 pier=pier,
             )
+        if self._online_refused:
+            # ``online`` has no replay record, so this update repairs it.
+            self.go_online()
 
     def publish_health(self, pier_id: str, healths: Iterable[ProviderHealth]) -> None:
         """Publish discovery, state, and attributes for each provider's health.

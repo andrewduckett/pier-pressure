@@ -8,7 +8,15 @@ A failed publish SHALL NOT stop the process. The process SHALL keep running, and
 
 While the process is disconnected from the broker, its entities show as unavailable through the offline last-will. A publish during that time is held for the replay after the reconnect, as the reconnect requirement describes. The disconnect is already logged, so the process SHALL NOT log each held publish.
 
-When the MQTT client refuses a publish for any other reason, the process SHALL log a warning that names the topic. The log line SHALL NOT contain the broker password.
+When the MQTT client refuses a publish for any other reason, the process SHALL log a warning that names the topic. While refusals continue, the process SHALL log only the first as a warning, until a publish succeeds. The log line SHALL NOT contain the broker password.
+
+When the MQTT client refuses the online availability, the process SHALL publish it again with the next verdict it publishes.
+
+#### Scenario: A refused online availability is published again
+
+- **WHEN** the MQTT client refuses the online availability
+- **AND** the process then publishes a verdict for a pier
+- **THEN** the process publishes its online availability again, with the retain flag set
 
 #### Scenario: Unreachable broker is reported as a failure
 
@@ -195,7 +203,8 @@ disconnected, it SHALL hold each such message for step 2 instead of handing it t
 the MQTT client. It SHALL also hold its online availability, which step 3 then
 publishes. The process learns of a drop only after the MQTT client detects it.
 The MQTT client MAY send a message it received before then again after the
-reconnect, before step 2.
+reconnect, before or after step 2. When it comes after, that topic shows the
+older payload until the process next publishes it.
 
 #### Scenario: Refresh works again after a reconnect
 

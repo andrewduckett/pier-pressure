@@ -222,6 +222,14 @@ class FakeMqttClient:
         """Make ``publish(topic)`` return a failure code. The call is still recorded."""
         self._publish_failures[topic] = rc
 
+    def allow_publish(self, topic: str) -> None:
+        """Undo :meth:`fail_publish` for ``topic``."""
+        self._publish_failures.pop(topic, None)
+
+    def set_publish_rc(self, rc: int) -> None:
+        """Change the code every publish returns while connected."""
+        self._publish_rc = rc
+
     def subscribe(self, topic: str, qos: int = 0) -> tuple[int, int | None]:
         if topic in self._subscribe_failures:
             return self._subscribe_failures[topic], None
