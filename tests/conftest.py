@@ -120,6 +120,8 @@ class FakeMqttClient:
         self._pending_subacks: list[tuple[int, str]] = []
         self._refusals: dict[str, str] = {}
         self._subscribe_failures: dict[str, int] = {}
+        # The topics whose ``publish`` call returns a failure code, with that code.
+        self._publish_failures: dict[str, int] = {}
         # When set, ``subscribe`` answers a refusal from a second thread before it
         # returns its message ID (design D6's race). The threads are kept to join.
         self.answer_before_return = False
@@ -215,6 +217,10 @@ class FakeMqttClient:
         """Make ``subscribe(topic)`` return a failure code and send nothing."""
         self._subscribe_failures[topic] = rc
 
+    def fail_publish(self, topic: str, rc: int = mqtt.MQTT_ERR_QUEUE_SIZE) -> None:
+        """Make ``publish(topic)`` return a failure code. The call is still recorded."""
+        self._publish_failures[topic] = rc
+
     def subscribe(self, topic: str, qos: int = 0) -> tuple[int, int | None]:
         if topic in self._subscribe_failures:
             return self._subscribe_failures[topic], None
@@ -252,7 +258,7 @@ class FakeMqttClient:
         self.published.append(Published(topic, payload, qos, retain))
 
         class _Info:
-            rc = self._publish_rc
+            rc = self._publish_failures.get(topic, self._publish_rc)
 
         return _Info()
 

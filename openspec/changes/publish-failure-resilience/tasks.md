@@ -8,7 +8,7 @@ marked ready. The verdict document and the golden verdict files do not change.
 
 ## 2. The fake client
 
-- [ ] 2.1 Let `FakeMqttClient` in `tests/conftest.py` return a chosen result code for publishes to one topic, as `fail_subscribe` does for subscriptions. Keep `publish_rc` for every topic. Verify that every existing test still passes.
+- [x] 2.1 Let `FakeMqttClient` in `tests/conftest.py` return a chosen result code for publishes to one topic, as `fail_subscribe` does for subscriptions. Keep `publish_rc` for every topic. Verify that every existing test still passes.
 
 ## 3. `MqttDelivery` never raises for a publish
 
