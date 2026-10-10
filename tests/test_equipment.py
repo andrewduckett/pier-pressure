@@ -9,8 +9,12 @@ user pre-computing anything.
 from __future__ import annotations
 
 import math
+import re
+import shutil
+from pathlib import Path
 
 import pytest
+import yaml
 from pydantic import ValidationError
 
 from pierpressure.core.config import Equipment, PierConfig, validate_piers
@@ -154,3 +158,31 @@ def test_field_of_view_is_deterministic_and_offline() -> None:
         first = equipment.field_of_view_deg()
         second = equipment.field_of_view_deg()
     assert first == second
+
+
+# --------------------------------------------------------------------------- #
+# The README's fuller pier example uses the `equipment` key (#68)
+# --------------------------------------------------------------------------- #
+
+_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _readme_fuller_pier_example() -> list[object]:
+    readme = (_ROOT / "README.md").read_text(encoding="utf-8")
+    match = re.search(
+        r"A fuller pier uses the optional settings:\s*```yaml\n(.*?)```", readme, re.S
+    )
+    assert match, "README lost its fuller pier example"
+    piers: list[object] = yaml.safe_load(match.group(1))["piers"]
+    return piers
+
+
+def test_the_readme_fuller_pier_example_loads_with_equipment(tmp_path: Path) -> None:
+    # The example's horizon file is relative to the config file, so give it one.
+    (tmp_path / "horizons").mkdir()
+    shutil.copy(
+        _ROOT / "tests" / "fixtures" / "nina_horizon.hrz", tmp_path / "horizons" / "backyard.hrz"
+    )
+    valid = validate_piers(_readme_fuller_pier_example(), base_dir=tmp_path)
+    assert len(valid) == 1
+    assert valid[0].equipment is not None
