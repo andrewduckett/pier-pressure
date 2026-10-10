@@ -4,7 +4,7 @@ marked ready. The verdict document and the golden verdict files do not change.
 
 ## 1. Pin paho's behaviour with a real client
 
-- [ ] 1.1 Add a test to `tests/test_paho_contract.py`. A real paho client's `publish()` returns an info object whose `wait_for_publish(timeout=...)` returns, without raising, when the message is not confirmed in time, and whose `is_published()` then returns `False`. Verify that it passes (design Context, D2).
+- [x] 1.1 Add a test to `tests/test_paho_contract.py`. A real paho client's `publish()` returns an info object whose `wait_for_publish(timeout=...)` returns, without raising, when the message is not confirmed in time, and whose `is_published()` then returns `False`. Verify that it passes (design Context, D2).
 
 ## 2. The fake client
 
