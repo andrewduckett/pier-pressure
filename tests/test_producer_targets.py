@@ -56,8 +56,14 @@ def test_an_equipped_pier_emits_an_equipment_reason_for_the_top_pick() -> None:
     top = document.targets[0]
     assert top.size_arcmin is not None  # the top pick has a framed size
     name = top.name or top.id
-    framing = [r for r in document.reasons if name in r and "rig" in r.lower()]
-    assert framing, document.reasons
+    framing_sentences = {
+        f"Top pick {name} frames well in your field of view.",
+        f"Top pick {name} is larger than your field of view.",
+        f"Top pick {name} is small in your field of view.",
+        f"Top pick {name} fills most of your field of view.",
+    }
+    framing = [r for r in document.reasons if r in framing_sentences]
+    assert len(framing) == 1, document.reasons
 
 
 def test_a_gated_no_go_carries_no_equipment_reason() -> None:

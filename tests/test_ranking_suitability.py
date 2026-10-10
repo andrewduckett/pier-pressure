@@ -159,12 +159,12 @@ def test_framing_reason_names_each_region_truthfully() -> None:
     # A very wide field makes the galaxy small; a moderate field frames it well; a
     # field just under the galaxy's size has it nearly filling the frame; a narrow
     # field leaves it larger than the field of view. Crucially, the near-filling
-    # case must NOT be described as "small".
-    assert "small" in _framing_reason(8.0)
-    assert "frames well" in _framing_reason(60.0)
-    fills = _framing_reason(270.0)
-    assert "fills most" in fills and "small" not in fills
-    assert "larger than" in _framing_reason(600.0)
+    # case must NOT be described as "small". Each sentence names the field of
+    # view, not the equipment (#68).
+    assert _framing_reason(8.0) == "Top pick Andromeda Galaxy is small in your field of view."
+    assert _framing_reason(60.0) == "Top pick Andromeda Galaxy frames well in your field of view."
+    assert _framing_reason(270.0) == "Top pick Andromeda Galaxy fills most of your field of view."
+    assert _framing_reason(600.0) == "Top pick Andromeda Galaxy is larger than your field of view."
 
 
 def test_no_equipment_emits_no_framing_reason() -> None:

@@ -5,8 +5,8 @@
 
 ## 2. Verdict: the four framing sentences
 
-- [ ] 2.1 Write failing tests that pin each sentence exactly (design D3). In `tests/test_ranking_suitability.py`, assert that M31 (catalog name "Andromeda Galaxy") at 8, 60, 270, and 600 mm yields exactly "Top pick Andromeda Galaxy is small in your field of view.", "… frames well in your field of view.", "… fills most of your field of view.", and "… is larger than your field of view.". In `tests/test_producer_targets.py`, replace the `"rig" in r.lower()` check with an exact match on one of the four sentences for the top pick. Verify the tests fail on the current wording.
-- [ ] 2.2 Change the four sentences in `equipment_reasons` in `pierpressure/core/ranking.py`. Verify the 2.1 tests pass, `tests/test_golden_verdict.py` passes, and `git diff --stat tests/fixtures` shows no change.
+- [x] 2.1 Write failing tests that pin each sentence exactly (design D3). In `tests/test_ranking_suitability.py`, assert that M31 (catalog name "Andromeda Galaxy") at 8, 60, 270, and 600 mm yields exactly "Top pick Andromeda Galaxy is small in your field of view.", "… frames well in your field of view.", "… fills most of your field of view.", and "… is larger than your field of view.". In `tests/test_producer_targets.py`, replace the `"rig" in r.lower()` check with an exact match on one of the four sentences for the top pick. Verify the tests fail on the current wording.
+- [x] 2.2 Change the four sentences in `equipment_reasons` in `pierpressure/core/ranking.py`. Verify the 2.1 tests pass, `tests/test_golden_verdict.py` passes, and `git diff --stat tests/fixtures` shows no change.
 
 ## 3. Docs
 

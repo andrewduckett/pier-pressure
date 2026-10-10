@@ -338,13 +338,13 @@ def equipment_reasons(equipment: Equipment | None, target: Target) -> list[str]:
     if fov_short_arcmin is not None and obj.size_arcmin is not None:
         ratio = obj.size_arcmin / fov_short_arcmin
         if fov_fit_subscore(ratio) >= _WELL_FRAMED_THRESHOLD:
-            reasons.append(f"Top pick {name} frames well in your rig.")
+            reasons.append(f"Top pick {name} frames well in your field of view.")
         elif ratio > 1.0:
-            reasons.append(f"Top pick {name} is larger than your rig's field of view.")
+            reasons.append(f"Top pick {name} is larger than your field of view.")
         elif ratio <= _FOV_SWEET_LOW:
-            reasons.append(f"Top pick {name} is small in your rig's field of view.")
+            reasons.append(f"Top pick {name} is small in your field of view.")
         else:
-            reasons.append(f"Top pick {name} fills most of your rig's field of view.")
+            reasons.append(f"Top pick {name} fills most of your field of view.")
     brightness = brightness_subscore(obj.surface_brightness, obj.magnitude)
     if brightness is not None and brightness >= _BRIGHT_THRESHOLD:
         reasons.append(f"Top pick {name} is a bright target.")
