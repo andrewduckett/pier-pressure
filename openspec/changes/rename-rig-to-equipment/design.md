@@ -49,8 +49,8 @@ gain in clarity.
 
 ### D2 — The framing sentences name the field of view
 
-All four sentences end in "your field of view", for example "Top pick M31 frames
-well in your field of view." The story suggested "frames well in your
+All four sentences end in "your field of view", for example "Top pick
+Andromeda Galaxy frames well in your field of view." The story suggested "frames well in your
 equipment". That phrasing reads awkwardly, because "equipment" is a mass noun.
 The field of view is also what the sentence is actually about.
 

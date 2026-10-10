@@ -136,10 +136,20 @@ SHALL NOT change any other reason.
 - **WHEN** a gate-passing verdict is produced for a pier with equipment, and the top pick NGC0224 (catalog name "Andromeda Galaxy") frames well in that equipment
 - **THEN** `reasons[]` contains exactly "Top pick Andromeda Galaxy frames well in your field of view."
 
-#### Scenario: Each framing region has its own sentence
+#### Scenario: A small top pick gets the small sentence
 
-- **WHEN** the same top pick is judged against equipment that makes it small, equipment that frames it well, equipment it nearly fills, and equipment it exceeds
-- **THEN** the sentences are, in order, "is small in your field of view", "frames well in your field of view", "fills most of your field of view", and "is larger than your field of view"
+- **WHEN** a gate-passing verdict's top pick, Andromeda Galaxy, is at or below the lower edge of the best-scoring band in the pier's field of view, and does not frame well
+- **THEN** `reasons[]` contains exactly "Top pick Andromeda Galaxy is small in your field of view."
+
+#### Scenario: A top pick that nearly fills the frame gets the fills-most sentence
+
+- **WHEN** a gate-passing verdict's top pick, Andromeda Galaxy, nearly fills the pier's field of view without exceeding it, and does not frame well
+- **THEN** `reasons[]` contains exactly "Top pick Andromeda Galaxy fills most of your field of view."
+
+#### Scenario: An oversize top pick gets the larger-than sentence
+
+- **WHEN** a gate-passing verdict's top pick, Andromeda Galaxy, is larger than the short edge of the pier's field of view, and does not frame well
+- **THEN** `reasons[]` contains exactly "Top pick Andromeda Galaxy is larger than your field of view."
 
 #### Scenario: A pier without equipment gets no framing sentence
 

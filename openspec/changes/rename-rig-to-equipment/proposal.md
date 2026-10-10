@@ -23,10 +23,10 @@ not 'rig'".
 
   | Today | After |
   |---|---|
-  | Top pick M31 frames well in your rig. | Top pick M31 frames well in your field of view. |
-  | Top pick M31 is larger than your rig's field of view. | Top pick M31 is larger than your field of view. |
-  | Top pick M31 is small in your rig's field of view. | Top pick M31 is small in your field of view. |
-  | Top pick M31 fills most of your rig's field of view. | Top pick M31 fills most of your field of view. |
+  | Top pick Andromeda Galaxy frames well in your rig. | Top pick Andromeda Galaxy frames well in your field of view. |
+  | Top pick Andromeda Galaxy is larger than your rig's field of view. | Top pick Andromeda Galaxy is larger than your field of view. |
+  | Top pick Andromeda Galaxy is small in your rig's field of view. | Top pick Andromeda Galaxy is small in your field of view. |
+  | Top pick Andromeda Galaxy fills most of your rig's field of view. | Top pick Andromeda Galaxy fills most of your field of view. |
 
   This changes wording only. When each sentence appears, and what it means, stay
   the same.
