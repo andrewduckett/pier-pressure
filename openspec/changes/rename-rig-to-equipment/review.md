@@ -48,7 +48,9 @@ VERDICT: APPROVE_WITH_CHANGES
 
 CHANGES_APPLIED: yes
 
-## Rebuttals- **Moderate 1 — fixed.** proposal.md (What Changes, first bullet) and design.md (Context, first bullet) now say a `rig:` pier is logged and skipped, other piers keep running, and startup fails only with no valid pier. The pier-equipment scenario "The `rig` key is not accepted" now says the pier is skipped with a logged configuration error and other valid piers still produce verdicts.
+## Rebuttals
+
+- **Moderate 1 — fixed.** proposal.md (What Changes, first bullet) and design.md (Context, first bullet) now say a `rig:` pier is logged and skipped, other piers keep running, and startup fails only with no valid pier. The pier-equipment scenario "The `rig` key is not accepted" now says the pier is skipped with a logged configuration error and other valid piers still produce verdicts. *Accepted by reviewer in the round-1 re-check.*
 - **Moderate 2 — fixed.** design.md D4 and its matching risk now put the direct main-spec edits (two target-ranking scenario titles, pier-equipment Purpose) inside the archive commit, which stays the last commit. *Accepted by reviewer in the round-1 re-check.*
 - **Moderate 3 — fixed.** The pier-equipment ADDED requirement now says "Apart from the `equipment` key itself, equipment SHALL NOT change any other configuration field or its meaning." *Accepted by reviewer in the round-1 re-check.*
 - **Moderate 4 — fixed.** target-ranking delta adds "Requirement: The verdict says how the top pick frames", with the four exact sentences, their emission conditions (gate-passing verdict, non-empty list, equipment configured, catalog object with known size), and four scenarios. proposal.md Capabilities notes it. *Accepted by reviewer in the round-1 re-check.*
