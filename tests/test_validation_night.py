@@ -54,8 +54,12 @@ _LONG_EQUIPMENT = {"focal_length_mm": 1500.0, "sensor_width_mm": 23.5, "sensor_h
 
 def _pier(equipment: dict[str, float]) -> PierConfig:
     return PierConfig(
-        id="london", latitude=51.5, longitude=-0.12, elevation_m=30.0, equipment=equipment
-    )  # type: ignore[arg-type]
+        id="london",
+        latitude=51.5,
+        longitude=-0.12,
+        elevation_m=30.0,
+        equipment=equipment,  # type: ignore[arg-type]
+    )
 
 
 def _score_on_validation_night(pier: PierConfig, object_id: str) -> int:

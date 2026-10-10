@@ -42,12 +42,16 @@ def test_filling_targets_leaves_other_fields_byte_identical(case: str) -> None:
 
 def _equipped_pier() -> PierConfig:
     return PierConfig(
-        id="backyard", latitude=51.5, longitude=-0.12, elevation_m=30.0, equipment=_EQUIPMENT
-    )  # type: ignore[arg-type]
+        id="backyard",
+        latitude=51.5,
+        longitude=-0.12,
+        elevation_m=30.0,
+        equipment=_EQUIPMENT,  # type: ignore[arg-type]
+    )
 
 
 def test_an_equipped_pier_emits_an_equipment_reason_for_the_top_pick() -> None:
-    # Task 5.4: with a rig and a top pick that has a known size, the reasons carry
+    # Task 5.4: with equipment and a top pick that has a known size, the reasons carry
     # an additive framing entry naming that top pick, alongside the score terms.
     conditions = assemble_snapshot(_base_full(), _secondary_full())
     with no_network():

@@ -124,7 +124,7 @@ def test_far_southern_object_that_never_rises_is_absent() -> None:
 
 
 def test_piers_with_and_without_equipment_both_rank_without_error() -> None:
-    # A pier with a rig and a pier without one both produce a bounded, scored list.
+    # A pier with equipment and a pier without it both produce a bounded, scored list.
     with_equipment = _rank(_london(equipment=_WIDEFIELD_EQUIPMENT))
     without_equipment = _rank(_london())
     for targets in (with_equipment, without_equipment):

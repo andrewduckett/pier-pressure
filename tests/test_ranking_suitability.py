@@ -150,7 +150,7 @@ def _equipment(focal_length_mm: float) -> Equipment:
 
 def _framing_reason(focal_length_mm: float) -> str:
     reasons = equipment_reasons(_equipment(focal_length_mm), _m31_target())
-    framing = [r for r in reasons if "field of view" in r or "frames well" in r]
+    framing = [r for r in reasons if "field of view" in r]
     assert framing, reasons
     return framing[0]
 
