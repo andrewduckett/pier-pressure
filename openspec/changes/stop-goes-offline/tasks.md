@@ -12,9 +12,9 @@ marked ready. The verdict document and the golden verdict files do not change.
 
 ## 3. `close()` publishes `offline`
 
-- [ ] 3.1 Write tests first in `tests/test_reconnect.py`. While connected, `close()` publishes a retained `offline` at QoS 1 to the availability topic, waits for it with a two-second timeout, then disconnects, then stops the loop. Verify that the tests fail (spec "A planned stop publishes a retained offline before disconnecting", design D1).
-- [ ] 3.2 Write tests first: after a `drop` with no acceptance, `close()` publishes nothing and still disconnects and stops the loop. With `offline` unconfirmed, `close()` logs one warning, disconnects and returns without raising. Verify that the tests fail (spec "A stop while disconnected publishes nothing", "An unconfirmed offline message does not block the stop", design D2).
-- [ ] 3.3 Implement design D1 and D2 in `MqttDelivery.close()` in `pierpressure/delivery/mqtt.py`, with the two-second wait as a module constant. Update the `close()` and module docstrings. Verify that 3.1 and 3.2 pass, and that `test_close_stops_the_watcher_before_the_loop` and the rest of `tests/test_reconnect.py` still pass.
+- [x] 3.1 Write tests first in `tests/test_reconnect.py`. While connected, `close()` publishes a retained `offline` at QoS 1 to the availability topic, waits for it with a two-second timeout, then disconnects, then stops the loop. Verify that the tests fail (spec "A planned stop publishes a retained offline before disconnecting", design D1).
+- [x] 3.2 Write tests first: after a `drop` with no acceptance, `close()` publishes nothing and still disconnects and stops the loop. With `offline` unconfirmed, `close()` logs one warning, disconnects and returns without raising. Verify that the tests fail (spec "A stop while disconnected publishes nothing", "An unconfirmed offline message does not block the stop", design D2).
+- [x] 3.3 Implement design D1 and D2 in `MqttDelivery.close()` in `pierpressure/delivery/mqtt.py`, with the two-second wait as a module constant. Update the `close()` and module docstrings. Verify that 3.1 and 3.2 pass, and that `test_close_stops_the_watcher_before_the_loop` and the rest of `tests/test_reconnect.py` still pass.
 
 ## 4. The entry point
 
