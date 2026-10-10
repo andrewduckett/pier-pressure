@@ -133,8 +133,8 @@ SHALL NOT change any other reason.
 
 #### Scenario: A well-framed top pick gets the exact framing sentence
 
-- **WHEN** a gate-passing verdict is produced for a pier with equipment, and the top pick M31 frames well in that equipment
-- **THEN** `reasons[]` contains exactly "Top pick M31 frames well in your field of view."
+- **WHEN** a gate-passing verdict is produced for a pier with equipment, and the top pick NGC0224 (catalog name "Andromeda Galaxy") frames well in that equipment
+- **THEN** `reasons[]` contains exactly "Top pick Andromeda Galaxy frames well in your field of view."
 
 #### Scenario: Each framing region has its own sentence
 
