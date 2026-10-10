@@ -12,7 +12,7 @@
 
 - [x] 3.1 Write a failing test that loads the README's pier config example (the fenced YAML block under the config section) through `validate_piers` and checks that the pier has equipment. Verify it fails while the example still says `rig:`.
 - [x] 3.2 Update `README.md`: the config example uses `equipment:`, and the settings table row becomes `equipment`, with "With equipment, targets are also ranked…". Verify the 3.1 test passes.
-- [ ] 3.3 Update `openspec/prd.md` (lines 105 and 130) and `openspec/discovery.md` (lines 16, 31, and 78) to say "equipment" where they name the entity. Verify by reading each changed line in the diff.
+- [x] 3.3 Update `openspec/prd.md` (lines 105 and 130) and `openspec/discovery.md` (lines 16, 31, and 78) to say "equipment" where they name the entity. Verify by reading each changed line in the diff.
 
 ## 4. Sweep
 

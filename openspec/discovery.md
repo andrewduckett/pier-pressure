@@ -13,7 +13,7 @@
 - **Who**: an amateur astrophotographer who runs long imaging sessions from a fixed
   pier at home, and whose house already runs on Home Assistant.
 - **Goal**: know early in the evening whether tonight is worth a full imaging setup,
-  and what to point at from this pier with this rig.
+  and what to point at from this pier with this equipment.
 - **Pain today**: answering means checking several weather sites, a moon calendar, a
   planetarium app, and his own memory of which trees block which part of the sky.
   Good nights get missed, and poor nights waste an hour of setup.
@@ -28,7 +28,7 @@
   without reading the source.
 - **Pain today**: the same scattered checking Andrew does. Every existing tool also
   expects them to open an app, instead of bringing the answer to them.
-- **Success looks like**: they install it, describe their site, horizon, and rig in
+- **Success looks like**: they install it, describe their site, horizon, and equipment in
   one file, and see a verdict in Home Assistant the same evening.
 
 > **Implication**: Andrew and the adopter walk one journey. The adopter has extra
@@ -75,7 +75,7 @@ Stage status checked against the code on 2026-10-10.
 3. **Connect to Home Assistant** — MQTT discovery creates one device per pier with
    its entities. The entities go unavailable when PierPressure stops or loses the
    broker, and come back after a reconnect — supported
-4. **Describe my site** — location, gates, rig, and the optional explainer are all
+4. **Describe my site** — location, gates, equipment, and the optional explainer are all
    configurable in one file. A horizon can be inline points, a flat floor, or a NINA
    `.hrz` file; Stellarium and Telescopius exports are rejected as not yet
    supported. On Home Assistant OS, writing the file needs a second add-on (Samba
