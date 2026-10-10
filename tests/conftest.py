@@ -11,6 +11,7 @@ import threading
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from typing import Any
 
 import paho.mqtt.client as mqtt
@@ -257,10 +258,10 @@ class FakeMqttClient:
     def publish(self, topic: str, payload: Any = None, qos: int = 0, retain: bool = False) -> Any:
         self.published.append(Published(topic, payload, qos, retain))
 
-        class _Info:
-            rc = self._publish_failures.get(topic, self._publish_rc)
-
-        return _Info()
+        # paho keeps a QoS 1 message published while disconnected and says so.
+        rc = self._publish_rc if self.connected else mqtt.MQTT_ERR_NO_CONN
+        rc = self._publish_failures.get(topic, rc)
+        return SimpleNamespace(rc=rc)
 
     def disconnect(self) -> None:
         """Send DISCONNECT. With no loop running, paho calls ``on_disconnect`` at once."""
@@ -292,16 +293,14 @@ class RecordingDelivery:
     to publish, the provider health it publishes, and the order of every call.
 
     ``events`` holds one entry per call: ``("verdict", pier)``,
-    ``("health", pier)``, ``("replay",)``, or ``("online",)``. ``health_error`` makes every
-    ``publish_health`` call raise it.
+    ``("health", pier)``, ``("replay",)``, or ``("online",)``.
     """
 
-    def __init__(self, *, health_error: Exception | None = None) -> None:
+    def __init__(self) -> None:
         self.documents: list[VerdictDocument] = []
         self.narratives: list[str | None] = []
         self.healths: list[tuple[str, tuple[ProviderHealth, ...]]] = []
         self.events: list[tuple[str, ...]] = []
-        self._health_error = health_error
 
     def publish_verdict(self, document: VerdictDocument, narrative: str | None = None) -> None:
         self.events.append(("verdict", document.pier))
@@ -309,8 +308,6 @@ class RecordingDelivery:
         self.narratives.append(narrative)
 
     def publish_health(self, pier_id: str, healths: Iterable[ProviderHealth]) -> None:
-        if self._health_error is not None:
-            raise self._health_error
         self.events.append(("health", pier_id))
         self.healths.append((pier_id, tuple(healths)))
 

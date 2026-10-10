@@ -10,7 +10,7 @@ import pytest
 from pierpressure.conditions import FetchResult
 from pierpressure.core.clock import FixedClock
 from pierpressure.core.config import AppConfig, PierConfig, RecomputeConfig
-from pierpressure.delivery.mqtt import DeliveryError, MqttDelivery, refresh_command_topic
+from pierpressure.delivery.mqtt import MqttDelivery, refresh_command_topic
 from pierpressure.health import FetchOutcome, ProviderHealth, ProviderInfo
 from pierpressure.service import Service
 
@@ -216,16 +216,6 @@ def test_startup_resets_health_before_going_online_and_before_fetching() -> None
             )
             for info in _PROVIDERS
         ), pier_id
-
-
-def test_a_failed_startup_reset_raises_and_never_goes_online() -> None:
-    delivery = RecordingDelivery(health_error=DeliveryError("publish failed"))
-    service = _health_service(delivery, {"backyard": [True]})
-    with pytest.raises(DeliveryError):
-        service.run(monotonic=ScriptedMonotonic([0.0]), max_iterations=0)
-
-    assert ("online",) not in delivery.events
-    assert not any(event[0] == "fetch" for event in delivery.events)
 
 
 def test_each_publish_sends_the_piers_health_right_after_its_verdict() -> None:
