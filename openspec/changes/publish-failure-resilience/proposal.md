@@ -20,7 +20,9 @@ PierPressure".
 - **A publish never stops the process.** The delivery adapter no longer raises
   `DeliveryError` for a publish result code. For a code other than success or
   "not connected", the adapter logs a warning that names the topic. The process
-  keeps running.
+  keeps running. While refusals continue, only the first is a warning. A refused
+  `online` is published again with the next verdict, because the replay has no
+  record of it.
 - **The adapter holds publishes while it knows it is disconnected.** It records
   each retained message for the replay, but does not hand it to paho. After the
   reconnect, the replay sends the latest payload of every topic, then `online`.
