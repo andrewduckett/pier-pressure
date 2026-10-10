@@ -32,6 +32,7 @@ from .conftest import (
     SOCKET_FAILURE,
     THREAD_ENDS,
     FakeMqttClient,
+    Published,
     make_document,
     make_mqtt_config,
     refused,
@@ -409,3 +410,61 @@ def test_a_publish_after_the_reconnect_goes_to_the_client(started: Started) -> N
     assert [p.topic for p in started.client.published[before:]] == [
         delivery_mqtt.availability_topic(BASE)
     ]
+
+
+# --------------------------------------------------------------------------- #
+# stop-goes-offline: a planned stop publishes a retained offline first
+# --------------------------------------------------------------------------- #
+
+STATUS = delivery_mqtt.availability_topic(BASE)
+
+
+def test_close_publishes_a_retained_offline_before_it_disconnects() -> None:
+    fixture = Started()
+    fixture.delivery.close()
+
+    assert fixture.client.publishes_to(STATUS)[-1] == Published(STATUS, "offline", 1, True)
+    calls = fixture.client.calls
+    assert calls[-3:] == [f"publish {STATUS}", "disconnect", "loop_stop"]
+
+
+def test_close_waits_two_seconds_at_most_for_the_offline() -> None:
+    fixture = Started()
+    fixture.delivery.close()
+    assert fixture.client.wait_timeouts == [2.0]
+
+
+def test_close_while_disconnected_publishes_nothing(started: Started) -> None:
+    started.client.drop([SOCKET_FAILURE])
+    before = len(started.client.published)
+
+    started.delivery.close()
+
+    assert started.client.published[before:] == []
+    assert started.client.calls[-2:] == ["disconnect", "loop_stop"]
+
+
+def test_an_unconfirmed_offline_still_lets_close_finish(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    fixture = Started()
+    fixture.client.leave_unconfirmed(STATUS)
+
+    with caplog.at_level(logging.WARNING):
+        fixture.delivery.close()
+
+    assert fixture.client.calls[-2:] == ["disconnect", "loop_stop"]
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    assert "offline" in warnings[0].getMessage()
+
+
+def test_a_refused_offline_still_lets_close_finish(caplog: pytest.LogCaptureFixture) -> None:
+    fixture = Started()
+    fixture.client.fail_publish(STATUS, mqtt.MQTT_ERR_QUEUE_SIZE)
+
+    with caplog.at_level(logging.WARNING):
+        fixture.delivery.close()
+
+    assert fixture.client.calls[-2:] == ["disconnect", "loop_stop"]
+    assert len([r for r in caplog.records if r.levelno == logging.WARNING]) == 1
