@@ -21,19 +21,23 @@ equipment".
 
 Each pier MAY carry a description of its imaging equipment: one telescope and
 one camera. The pier's configuration SHALL give the equipment under the key
-`equipment`. When present, the equipment SHALL provide a telescope focal length
-in millimetres, a camera sensor width and height in millimetres, and MAY provide
-a focal reducer or barlow factor (default 1.0). Equipment SHALL be optional: a
-pier with no equipment configured SHALL still produce a verdict and a ranked
-target list, without a field-of-view term. Equipment SHALL NOT change any
-existing configuration field or its meaning.
+`equipment`. The equipment SHALL provide:
+
+- a telescope focal length in millimetres
+- a camera sensor width and height in millimetres
+- optionally, a focal reducer or barlow factor (default 1.0)
+
+Equipment SHALL be optional. A pier with no equipment configured SHALL still
+produce a verdict and a ranked target list, without a field-of-view term. Apart
+from the `equipment` key itself, equipment SHALL NOT change any other
+configuration field or its meaning.
 
 The focal length, both sensor dimensions, and the reducer factor SHALL each be
 strictly positive. Equipment with a zero or negative value in any of these SHALL
 make the pier's configuration invalid. The system SHALL report this as a
-configuration error and produce no verdict, as it does for other invalid pier
-fields. This keeps the derived field of view well defined, so the derivation
-never divides by zero.
+configuration error and produce no verdict for that pier, as it does for other
+invalid pier fields. This keeps the derived field of view well defined, so the
+derivation never divides by zero.
 
 #### Scenario: A pier without equipment still ranks targets
 
@@ -61,7 +65,8 @@ never divides by zero.
 #### Scenario: The `rig` key is not accepted
 
 - **WHEN** a pier's configuration gives its focal length and sensor size under the key `rig`
-- **THEN** loading that configuration fails with the same configuration error as any other unknown key
+- **THEN** that pier is skipped with a logged configuration error, as for any other unknown key
+- **AND** no verdict is produced for that pier, while the other valid piers still produce verdicts
 
 ### Requirement: Field of view is derived offline from the equipment
 

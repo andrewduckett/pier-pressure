@@ -9,8 +9,9 @@ ADR review completed for this change.
 
 This change renames one entity and rewords four reason sentences. It makes no
 choice among viable architectures, and reversing it would cost a second rename,
-not a redesign. Its decisions (D1-D4 in design.md) are naming and spec-mechanics
-calls, which the code and specs record well enough.
+not a redesign. Its decisions (D1-D4 in design.md) choose names, sentence wording,
+and how the spec files carry the rename. The code and specs record these well
+enough.
 
 Two in-force ADRs touch the area:
 

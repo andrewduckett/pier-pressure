@@ -3,9 +3,12 @@
 See proposal.md for why the rename happens now. Three facts shape how to do it:
 
 - `PierConfig` sets `extra="forbid"`. A leftover `rig:` key therefore already
-  fails at startup with Pydantic's "Extra inputs are not permitted" error. No new
-  code is needed to reject it.
-- No spec states the four framing sentences word for word. Only two tests check
+  makes that pier invalid, with Pydantic's "Extra inputs are not permitted"
+  error. `validate_piers` logs and skips the pier, and the other piers keep
+  running. Startup fails only when no valid pier remains. No new code is needed
+  to reject the old key.
+- Before this change, no spec stated the four framing sentences word for word.
+  The target-ranking delta now adds them as a requirement. Only two tests check
   their wording: `tests/test_producer_targets.py` looks for "rig" in a reason,
   and `tests/test_ranking_suitability.py` looks for "frames well", "small",
   "fills most", and "larger than".
@@ -72,9 +75,11 @@ current wording (test-driven development).
   deterministically" and keeps its two scenario titles that say "rig". Removing
   and re-adding the core ranking requirement just to rename two titles would
   bury a wording change in a large delta.
-- **After the archive:** one follow-up commit edits the main specs directly. It
-  renames those two target-ranking scenario titles, and it rewords the
-  pier-equipment Purpose, which a delta cannot change.
+- **In the archive commit:** after the archive syncs the deltas, the same commit
+  edits the main specs directly. It renames those two target-ranking scenario
+  titles, and it rewords the pier-equipment Purpose, which a delta cannot change.
+  The archive commit stays the last commit on the branch, as the workflow
+  requires.
 
 *Alternative: RENAMED plus MODIFIED for pier-equipment.* Rejected. Validation
 still compares the renamed requirement's scenario titles against the old ones,
@@ -85,8 +90,8 @@ so it fails.
 - [A Home Assistant automation matches on the old reason wording] → Nobody uses
   PierPressure yet, and the README documents no automation that reads
   `reasons[]` text.
-- [The main specs briefly keep two "rig" scenario titles after the archive sync]
-  → A task lands the direct edit in the same PR, right after the archive commit.
+- [The archive sync leaves two "rig" scenario titles in the main specs] → The
+  archive commit includes the direct edit, so no commit on the branch has them.
 - [A missed identifier keeps the old name] → A final task searches the live tree
   for `\brigs?\b` and reviews each remaining hit against D1.
 

@@ -8,15 +8,16 @@ file from day one, and no form field has to be renamed later.
 
 Nobody uses PierPressure yet, so this is a plain rename with no migration.
 
-Story: #68 "rename-rig-to-equipment — the config and verdict say "equipment",
-not "rig"".
+Story: #68 "rename-rig-to-equipment — the config and verdict say 'equipment',
+not 'rig'".
 
 ## What Changes
 
 - **BREAKING** — The per-pier config key `rig:` becomes `equipment:`. There is no
-  alias and no special error for the old key. A config that still says `rig:`
-  fails at startup with the same "extra inputs are not permitted" error as any
-  unknown key.
+  alias and no special error for the old key. A pier that still says `rig:` is
+  skipped, with the same logged "extra inputs are not permitted" error as any
+  unknown key. The other piers keep running. Startup fails only when no valid pier
+  remains.
 - The four framing sentences in the verdict's `reasons[]` stop naming the
   equipment and name the field of view instead:
 
@@ -58,8 +59,9 @@ None.
 
 - `pier-equipment`: the requirements name the entity "equipment" and the config
   key `equipment`. Two requirement titles that say "rig" are renamed.
-- `target-ranking`: the field-of-view requirement and its scenarios say
-  "equipment" in place of "rig".
+- `target-ranking`: the scoring requirement says "equipment" in place of "rig".
+  A new requirement states the four framing sentences and when they appear. No
+  spec stated them before.
 
 ## Impact
 

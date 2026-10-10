@@ -2,28 +2,40 @@
 
 ### Requirement: Targets are scored and ordered deterministically
 
-The system SHALL score each gated target from 0 to 100 by combining these
-factors: maximum altitude (higher is better), observable window length (longer is
-better), moon separation (farther is better, and neutral when the moon is below
-the horizon at the target's peak or unilluminated), transit timing (a transit
-nearer the middle of the observable window is better), brightness (a brighter
-object is better, judged by surface brightness where the catalog records it and by
-integrated magnitude otherwise — and because surface brightness and integrated
-magnitude are different physical scales, each SHALL be mapped through its own
-anchors, never a single shared curve), and field-of-view fit (an object that
-frames well in the pier's equipment is better, judged by the object's size against the
-**short edge** of the derived field of view: an object too small to see and one too
-large to fit are both penalised, an object that fills a comfortable mid-size band
-of the frame scores best, and an object larger than the field of view SHALL be
-penalised progressively rather than dropped to zero at a hard cliff).
+The system SHALL score each gated target from 0 to 100 by combining six factors.
+The four geometry factors are:
 
-Each factor SHALL contribute only when its inputs are known for that target: the
-four geometry factors always contribute; brightness contributes only when the
-object has a known brightness; field-of-view fit contributes only when the pier
-has equipment configured and the object has a known size. The factor weights SHALL be
-renormalised over the contributing factors for each target, so missing equipment, an
-unknown size, or an unknown brightness drops only its own factor rather than
-substituting a guessed value, and the score stays within 0 to 100.
+- **Maximum altitude:** higher is better.
+- **Observable window length:** longer is better.
+- **Moon separation:** farther is better. This factor SHALL be neutral when the
+  moon is below the horizon at the target's peak, or is unilluminated.
+- **Transit timing:** a transit nearer the middle of the observable window is
+  better.
+
+The two suitability factors are:
+
+- **Brightness:** a brighter object is better. The system SHALL judge it by
+  surface brightness where the catalog records one, and by integrated magnitude
+  otherwise. Surface brightness and integrated magnitude are different physical
+  scales, so each SHALL be mapped through its own anchors, never one shared curve.
+- **Field-of-view fit:** an object that frames well in the pier's equipment is
+  better. The system SHALL judge it by the object's size against the **short
+  edge** of the derived field of view. An object too small to see and an object
+  too large to fit SHALL both be penalised. An object that fills a comfortable
+  mid-size band of the frame SHALL score best. An object larger than the field of
+  view SHALL be penalised progressively, not dropped to zero at a hard cliff.
+
+Each factor SHALL contribute only when its inputs are known for that target:
+
+- The four geometry factors always contribute.
+- Brightness contributes only when the object has a known brightness.
+- Field-of-view fit contributes only when the pier has equipment configured and
+  the object has a known size.
+
+The system SHALL renormalise the factor weights over the contributing factors
+for each target. Missing equipment, an unknown size, or an unknown brightness
+then drops only its own factor, instead of substituting a guessed value. The
+score stays within 0 to 100.
 
 The list SHALL be ordered by score, highest first, with ties broken by the object
 designation so ordering is stable. The list SHALL contain at most the top 10
@@ -90,3 +102,51 @@ target list.
 
 - **WHEN** ranking runs for the same pier and evaluation instant, once with one set of equipment and once with different equipment that frames the candidates differently
 - **THEN** the two runs differ in target scores or ordering
+
+## ADDED Requirements
+
+### Requirement: The verdict says how the top pick frames
+
+When the pier has equipment, the system SHALL add one framing sentence about the
+top pick to the verdict's `reasons[]`. It SHALL add the sentence only when all of
+these hold:
+
+- The verdict passes its gates, so it has a score.
+- The target list is not empty.
+- The pier has equipment configured.
+- The top pick is a catalog object with a known size.
+
+The sentence SHALL be the first of these that applies, where `<name>` is the
+target's name, or its designation when it has no name:
+
+1. "Top pick `<name>` frames well in your field of view." The object frames well
+   by the same field-of-view fit the ranking uses.
+2. "Top pick `<name>` is larger than your field of view." The object's size
+   exceeds the short edge of the field of view.
+3. "Top pick `<name>` is small in your field of view." The object's size is at or
+   below the lower edge of the band that scores best.
+4. "Top pick `<name>` fills most of your field of view." None of the above
+   applies.
+
+The framing sentence SHALL follow the verdict's gate and score terms. Adding it
+SHALL NOT change any other reason.
+
+#### Scenario: A well-framed top pick gets the exact framing sentence
+
+- **WHEN** a gate-passing verdict is produced for a pier with equipment, and the top pick M31 frames well in that equipment
+- **THEN** `reasons[]` contains exactly "Top pick M31 frames well in your field of view."
+
+#### Scenario: Each framing region has its own sentence
+
+- **WHEN** the same top pick is judged against equipment that makes it small, equipment that frames it well, equipment it nearly fills, and equipment it exceeds
+- **THEN** the sentences are, in order, "is small in your field of view", "frames well in your field of view", "fills most of your field of view", and "is larger than your field of view"
+
+#### Scenario: A pier without equipment gets no framing sentence
+
+- **WHEN** a verdict is produced for a pier with no equipment configured
+- **THEN** `reasons[]` contains no framing sentence
+
+#### Scenario: A NO-GO verdict gets no framing sentence
+
+- **WHEN** a verdict fails a gate, so its score is null, and targets are still ranked for the night
+- **THEN** `reasons[]` contains no sentence that starts "Top pick"
