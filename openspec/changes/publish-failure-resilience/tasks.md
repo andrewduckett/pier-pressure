@@ -26,7 +26,7 @@ marked ready. The verdict document and the golden verdict files do not change.
 
 ## 5. Docs
 
-- [ ] 5.1 Update "If the broker stops while the add-on runs" in `ha-addon/DOCS.md`. Remove the sentence that says the add-on can stop if the broker is still away when an update is due. Say that PierPressure keeps running, and that each pier's latest verdict appears once the broker is back. Verify that `tests/test_docs.py` and `tests/test_ha_addon.py` pass.
+- [x] 5.1 Update "If the broker stops while the add-on runs" in `ha-addon/DOCS.md`. Remove the sentence that says the add-on can stop if the broker is still away when an update is due. Say that PierPressure keeps running, and that each pier's latest verdict appears once the broker is back. Verify that `tests/test_docs.py` and `tests/test_ha_addon.py` pass.
 
 ## 6. Verify
 
