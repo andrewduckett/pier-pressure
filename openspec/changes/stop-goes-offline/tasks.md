@@ -18,8 +18,8 @@ marked ready. The verdict document and the golden verdict files do not change.
 
 ## 4. The entry point
 
-- [ ] 4.1 Write tests first in `tests/test_main.py`, with `StartupStub`. A SIGTERM during `service.run()` makes `main()` call `close()` and return 0. A SIGTERM raised from `subscribe_refresh()` does the same. Restore the SIGTERM handler after each test. Verify that the tests fail (spec "A termination signal stops the process cleanly", design D3).
-- [ ] 4.2 Implement design D3 in `pierpressure/__main__.py`. Install `signal.default_int_handler` for SIGTERM before `connect()`. Start the `try`/`finally` that calls `close()` right after `connect()` returns, so it covers `subscribe_refresh()`, the "started" log and `service.run()`. Remove the `pragma: no cover` from that `except KeyboardInterrupt`, and update the module docstring. Verify that 4.1 passes and every test in `tests/test_main.py` still passes.
+- [x] 4.1 Write tests first in `tests/test_main.py`, with `StartupStub`. A SIGTERM during `service.run()` makes `main()` call `close()` and return 0. A SIGTERM raised from `subscribe_refresh()` does the same. Restore the SIGTERM handler after each test. Verify that the tests fail (spec "A termination signal stops the process cleanly", design D3).
+- [x] 4.2 Implement design D3 in `pierpressure/__main__.py`. Install `signal.default_int_handler` for SIGTERM before `connect()`. Start the `try`/`finally` that calls `close()` right after `connect()` returns, so it covers `subscribe_refresh()`, the "started" log and `service.run()`. Remove the `pragma: no cover` from that `except KeyboardInterrupt`, and update the module docstring. Verify that 4.1 passes and every test in `tests/test_main.py` still passes.
 
 ## 5. Docs
 

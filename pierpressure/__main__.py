@@ -9,6 +9,9 @@ is logged, and it keeps trying (reconnect-restores-delivery). A publish during a
 outage is held for that restore, so it never stops the process
 (publish-failure-resilience).
 
+SIGTERM stops it the same way as Ctrl-C: it closes the delivery, which publishes
+the retained ``offline`` first, and exits 0 (stop-goes-offline).
+
 Inside a Home Assistant add-on, a config file that names no broker host uses the
 broker from the Supervisor's ``mqtt`` service (ha-addon-mqtt-service D1, D2).
 """
@@ -17,6 +20,7 @@ from __future__ import annotations
 
 import logging
 import os
+import signal
 import sys
 from pathlib import Path
 
@@ -126,6 +130,9 @@ def main(argv: list[str] | None = None) -> int:
     # Before connect, so a reconnect just after the first accept reaches the
     # service (reconnect-restores-delivery D3).
     delivery.on_reconnect(service.enqueue_reconnect)
+    # A container stop sends SIGTERM; raise KeyboardInterrupt, as Ctrl-C does
+    # (stop-goes-offline D3).
+    signal.signal(signal.SIGTERM, signal.default_int_handler)
     try:
         delivery.connect()
     except DeliveryError as exc:
@@ -136,14 +143,14 @@ def main(argv: list[str] | None = None) -> int:
         delivery.close()
         return 0
 
-    delivery.subscribe_refresh([pier.id for pier in config.piers], service.enqueue_refresh)
-
-    logger.info("PierPressure started for %d pier(s)", len(config.piers))
+    # From here on, every stop closes the delivery, which publishes ``offline``.
     try:
+        delivery.subscribe_refresh([pier.id for pier in config.piers], service.enqueue_refresh)
+        logger.info("PierPressure started for %d pier(s)", len(config.piers))
         # A failed publish never ends the loop; the delivery adapter logs it
         # (publish-failure-resilience D5).
         service.run()
-    except KeyboardInterrupt:  # pragma: no cover - interactive shutdown
+    except KeyboardInterrupt:
         logger.info("Shutting down")
     finally:
         delivery.close()
