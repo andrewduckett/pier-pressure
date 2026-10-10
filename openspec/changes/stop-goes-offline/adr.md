@@ -25,5 +25,5 @@ support. The design and the `ha-delivery` spec explain the why of each.
 
 ## New Durable ADRs Created
 
-- None. No major durable architectural decisions were introduced, and no new
+- No major durable architectural decisions were introduced, and no new
   repository-level ADR files were created.

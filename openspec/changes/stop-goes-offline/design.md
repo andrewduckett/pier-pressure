@@ -37,8 +37,9 @@ the pinned source or the Python documentation:
 
 **Goals:**
 
-- Every planned stop while connected leaves the retained availability at
-  `offline`.
+- Every planned stop while connected publishes a retained `offline` before it
+  disconnects. This is a best effort: a broker that never receives it keeps
+  `online`.
 - A stop never hangs on the broker, and never raises from `close()`.
 - An add-on stop finishes in a few seconds, not after the SIGKILL grace period.
 
@@ -106,6 +107,12 @@ That handler raises `KeyboardInterrupt`, which `main()` already handles: it logs
 "Shutting down", calls `close()`, and returns 0. The same code path then serves
 Ctrl-C, SIGTERM, and an unexpected error in the loop.
 
+Today `subscribe_refresh()` and the "started" log sit between the `connect()`
+block and the `try` around `service.run()`. A signal there would skip
+`close()`. So the `try`/`finally` that calls `close()` starts right after
+`connect()` returns, and covers `subscribe_refresh()`, the log and
+`service.run()`.
+
 The handler goes in `main()`, not in the delivery adapter or the service. Only
 the entry point owns the process, and tests that build a `Service` directly
 keep their default signal handling.
@@ -135,8 +142,15 @@ can check that `offline` comes before `disconnect`, and `disconnect` before
   `close()`. The fetch result is not needed after a stop.
 - **A drop that paho has not detected yet.** `_phase` can read `CONNECTED` just
   after the link died. → The wait ends after two seconds, and the broker sends
-  the last-will when it notices the dead link. The availability ends at
-  `offline` either way.
+  the last-will when it notices the dead link.
+- **The broker never receives `offline`.** The DISCONNECT that follows then
+  suppresses the last-will, and the broker keeps `online`. → Accepted. This
+  needs a broker that confirms nothing for two seconds yet stays connected, and
+  the outcome is no worse than today.
+- **A reconnect between the phase check and `disconnect()`.** `close()` then
+  skips `offline` and disconnects cleanly, so the broker keeps `online`. →
+  Accepted. The window is a few microseconds, and a lock for it is out of
+  proportion to the risk.
 - **The `except KeyboardInterrupt` in `main()` is no longer interactive-only.**
   → Its `pragma: no cover` comes off, and a SIGTERM test covers it.
 - **A new ADR is not needed.** The choice is small and easy to reverse, and the
