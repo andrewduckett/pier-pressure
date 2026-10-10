@@ -1,13 +1,21 @@
-# pier-equipment Specification
+## REMOVED Requirements
 
-## Purpose
+### Requirement: Equipment is an optional per-pier imaging rig
 
-The pier-equipment capability gives each pier an optional description of its
-imaging equipment: one telescope and one camera. It derives the field of view that
-equipment sees, offline and deterministically, so target ranking can judge how
-well an object frames.
+**Reason**: The entity is renamed from "rig" to "equipment". OpenSpec cannot rename
+a scenario, so this requirement is removed and added back as "Equipment is
+optional on each pier", with the same behavior and the config key named.
+**Migration**: Rename the per-pier config key `rig:` to `equipment:`. The fields
+inside it do not change.
 
-## Requirements
+### Requirement: Field of view is derived offline from the rig
+
+**Reason**: The entity is renamed from "rig" to "equipment". This requirement is
+added back unchanged in meaning as "Field of view is derived offline from the
+equipment".
+**Migration**: None. The field of view is derived the same way.
+
+## ADDED Requirements
 
 ### Requirement: Equipment is optional on each pier
 

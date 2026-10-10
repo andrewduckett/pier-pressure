@@ -127,8 +127,8 @@ def _resolve_horizon(spec: HorizonConfig | None, base_dir: Path | None) -> Horiz
     return parse_horizon_text(spec.format, text)
 
 
-class Rig(BaseModel):
-    """One imaging rig on a pier: raw optics, not a pre-computed field of view (design D1).
+class Equipment(BaseModel):
+    """A pier's imaging equipment: raw optics, not a pre-computed field of view (design D1).
 
     A telescope focal length and a camera sensor's width and height (millimetres),
     with an optional focal ``reducer``/barlow factor. Each is strictly positive
@@ -146,12 +146,12 @@ class Rig(BaseModel):
     reducer: float = Field(default=1.0, gt=0.0)
 
     def field_of_view_deg(self) -> tuple[float, float]:
-        """The rig's field of view as ``(width, height)`` angles in degrees (design D2).
+        """The equipment's field of view as ``(width, height)`` angles in degrees (design D2).
 
         The reducer/barlow scales the focal length first —
         ``f_eff = focal_length_mm * reducer`` — so a reducer below 1.0 widens the
         field and a barlow above 1.0 narrows it. Each axis is
-        ``2·atan(sensor_axis / (2·f_eff))``. Pure and offline: the same rig always
+        ``2·atan(sensor_axis / (2·f_eff))``. Pure and offline: the same equipment always
         yields the same field of view, so ranking stays deterministic.
         """
         f_eff = self.focal_length_mm * self.reducer
@@ -187,9 +187,9 @@ class PierConfig(BaseModel):
     # resolved to canonical samples during validation and exposed as
     # ``horizon_mask``; the raw block is not consumed by the verdict path.
     horizon: HorizonConfig | None = None
-    # The optional imaging rig (design D1). Absent -> the field-of-view ranking
+    # The optional imaging equipment (design D1). Absent -> the field-of-view ranking
     # term does not contribute; the pier still ranks on placement and brightness.
-    rig: Rig | None = None
+    equipment: Equipment | None = None
 
     _horizon_mask: Horizon = PrivateAttr()
 

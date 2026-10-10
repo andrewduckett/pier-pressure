@@ -47,13 +47,19 @@ from .offline_guard import no_network
 
 _VALIDATION_INSTANT = datetime(2026, 9, 8, 18, 0, tzinfo=UTC)
 # A modest imaging rig: a 600 mm refractor on an APS-C-sized sensor.
-_REFERENCE_RIG = {"focal_length_mm": 600.0, "sensor_width_mm": 23.5, "sensor_height_mm": 15.7}
-_WIDEFIELD_RIG = {"focal_length_mm": 250.0, "sensor_width_mm": 23.5, "sensor_height_mm": 15.7}
-_LONG_RIG = {"focal_length_mm": 1500.0, "sensor_width_mm": 23.5, "sensor_height_mm": 15.7}
+_REFERENCE_EQUIPMENT = {"focal_length_mm": 600.0, "sensor_width_mm": 23.5, "sensor_height_mm": 15.7}
+_WIDEFIELD_EQUIPMENT = {"focal_length_mm": 250.0, "sensor_width_mm": 23.5, "sensor_height_mm": 15.7}
+_LONG_EQUIPMENT = {"focal_length_mm": 1500.0, "sensor_width_mm": 23.5, "sensor_height_mm": 15.7}
 
 
-def _pier(rig: dict[str, float]) -> PierConfig:
-    return PierConfig(id="london", latitude=51.5, longitude=-0.12, elevation_m=30.0, rig=rig)  # type: ignore[arg-type]
+def _pier(equipment: dict[str, float]) -> PierConfig:
+    return PierConfig(
+        id="london",
+        latitude=51.5,
+        longitude=-0.12,
+        elevation_m=30.0,
+        equipment=equipment,  # type: ignore[arg-type]
+    )
 
 
 def _score_on_validation_night(pier: PierConfig, object_id: str) -> int:
@@ -64,7 +70,7 @@ def _score_on_validation_night(pier: PierConfig, object_id: str) -> int:
         geo = geometry_for(pier, obj, window, _VALIDATION_INSTANT)
     assert geo is not None
     dark = window[1] - window[0]  # type: ignore[operator]
-    fov_short_arcmin = _fov_short_arcmin(pier.rig)
+    fov_short_arcmin = _fov_short_arcmin(pier.equipment)
     assert fov_short_arcmin is not None and obj.size_arcmin is not None
     return combined_score(
         altitude_subscore(geo.max_altitude),
@@ -89,22 +95,22 @@ def test_base_weights_are_the_locked_validated_values() -> None:
 def test_a_well_framed_bright_target_scores_at_the_top() -> None:
     # The North America Nebula (bright, mag 4) frames well in a widefield rig and
     # ranks near the ceiling on the validation night.
-    score = _score_on_validation_night(_pier(_WIDEFIELD_RIG), "NGC7000")
+    score = _score_on_validation_night(_pier(_WIDEFIELD_EQUIPMENT), "NGC7000")
     assert score >= 90
 
 
-def test_a_rig_that_frames_a_target_better_scores_it_higher() -> None:
+def test_equipment_that_frames_a_target_better_scores_it_higher() -> None:
     # Same bright target, three rigs: the widefield frames the large nebula in the
     # sweet band, the reference makes it oversize, the long rig worse still — so the
     # field-of-view term does correctly signed work.
-    widefield = _score_on_validation_night(_pier(_WIDEFIELD_RIG), "NGC7000")
-    reference = _score_on_validation_night(_pier(_REFERENCE_RIG), "NGC7000")
-    long = _score_on_validation_night(_pier(_LONG_RIG), "NGC7000")
+    widefield = _score_on_validation_night(_pier(_WIDEFIELD_EQUIPMENT), "NGC7000")
+    reference = _score_on_validation_night(_pier(_REFERENCE_EQUIPMENT), "NGC7000")
+    long = _score_on_validation_night(_pier(_LONG_EQUIPMENT), "NGC7000")
     assert widefield > reference > long
 
 
 def test_validation_night_top_ten_is_bounded_and_scored() -> None:
-    pier = _pier(_REFERENCE_RIG)
+    pier = _pier(_REFERENCE_EQUIPMENT)
     with no_network():
         window = dark_window(pier, _VALIDATION_INSTANT)
         moon = moon_info(pier, window, _VALIDATION_INSTANT)

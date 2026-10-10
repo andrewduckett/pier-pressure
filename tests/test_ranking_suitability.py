@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 import pytest
 
 from pierpressure.core.catalog import load_catalog
-from pierpressure.core.config import Rig
+from pierpressure.core.config import Equipment
 from pierpressure.core.model import Target, TargetWindow
 from pierpressure.core.ranking import (
     brightness_subscore,
@@ -142,15 +142,15 @@ def _m31_target() -> Target:
     )
 
 
-def _rig(focal_length_mm: float) -> Rig:
+def _equipment(focal_length_mm: float) -> Equipment:
     # Short edge is the 15.7 mm sensor height; a shorter focal length widens the
     # field, so focal length is the knob that moves M31's size/fov ratio.
-    return Rig(focal_length_mm=focal_length_mm, sensor_width_mm=23.5, sensor_height_mm=15.7)
+    return Equipment(focal_length_mm=focal_length_mm, sensor_width_mm=23.5, sensor_height_mm=15.7)
 
 
 def _framing_reason(focal_length_mm: float) -> str:
-    reasons = equipment_reasons(_rig(focal_length_mm), _m31_target())
-    framing = [r for r in reasons if "field of view" in r or "frames well" in r]
+    reasons = equipment_reasons(_equipment(focal_length_mm), _m31_target())
+    framing = [r for r in reasons if "field of view" in r]
     assert framing, reasons
     return framing[0]
 
@@ -159,13 +159,13 @@ def test_framing_reason_names_each_region_truthfully() -> None:
     # A very wide field makes the galaxy small; a moderate field frames it well; a
     # field just under the galaxy's size has it nearly filling the frame; a narrow
     # field leaves it larger than the field of view. Crucially, the near-filling
-    # case must NOT be described as "small".
-    assert "small" in _framing_reason(8.0)
-    assert "frames well" in _framing_reason(60.0)
-    fills = _framing_reason(270.0)
-    assert "fills most" in fills and "small" not in fills
-    assert "larger than" in _framing_reason(600.0)
+    # case must NOT be described as "small". Each sentence names the field of
+    # view, not the equipment (#68).
+    assert _framing_reason(8.0) == "Top pick Andromeda Galaxy is small in your field of view."
+    assert _framing_reason(60.0) == "Top pick Andromeda Galaxy frames well in your field of view."
+    assert _framing_reason(270.0) == "Top pick Andromeda Galaxy fills most of your field of view."
+    assert _framing_reason(600.0) == "Top pick Andromeda Galaxy is larger than your field of view."
 
 
-def test_no_rig_emits_no_framing_reason() -> None:
+def test_no_equipment_emits_no_framing_reason() -> None:
     assert equipment_reasons(None, _m31_target()) == []

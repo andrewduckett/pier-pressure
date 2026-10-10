@@ -27,7 +27,7 @@ The pipeline (design D3):
 
 The ranking's curve and weight parameters are fixed module constants (design
 D5/D6), so the ranking depends only on ``(pier, selected night)`` — including the
-pier's optional rig, which shapes the field-of-view term — and is cached on that
+pier's optional equipment, which shapes the field-of-view term — and is cached on that
 key.
 """
 
@@ -44,7 +44,7 @@ from skyfield import almanac
 from skyfield.api import Star, wgs84
 
 from .catalog import CatalogObject, load_catalog
-from .config import PierConfig, Rig
+from .config import Equipment, PierConfig
 from .horizon import Horizon
 from .model import Moon, Target, TargetWindow
 from .sky import _ephemeris, _timescale, _to_datetime
@@ -65,14 +65,14 @@ TOP_N = 10
 # Base sub-score weights (design D5/D6; validated in task 6.1). SIX factors now:
 # the four geometry terms plus brightness and field-of-view fit. The base weights
 # sum to 1, but the score renormalises over the LIVE factors for each
-# (pier, target) — so a rig-less pier, an unknown size, or an unknown brightness
+# (pier, target) — so a pier without equipment, an unknown size, or an unknown brightness
 # drops only that factor and the remaining weights are rescaled to sum to 1
 # (ADR-0010). Geometry stays dominant (0.80 of the base) and the two new terms are
 # deliberately modest (0.20 combined) so neither dominates placement.
 #
 # Re-validated on the M5 London autumn night (2026-09-08). With brightness now a
 # factor, a bright, well-placed showpiece rises where M5 ranked fainter but
-# better-centred objects above it; a well-framed bright target (given a rig) ranks
+# better-centred objects above it; a well-framed bright target (given equipment) ranks
 # as expected. The geometry proportions keep M5's ordering-within-geometry
 # (altitude > window > moon > transit); brightness enters just below transit's
 # neighbourhood and FOV a touch below brightness, so the ranking still answers
@@ -256,7 +256,7 @@ def combined_score(
 
     The four geometry factors always contribute; ``brightness`` and ``fov_fit``
     contribute only when known (not ``None``). The base weights of the live factors
-    are renormalised to sum to 1 before the weighted mean, so a missing rig, an
+    are renormalised to sum to 1 before the weighted mean, so missing equipment, an
     unknown size, or an unknown brightness drops only its own factor rather than
     substituting a guessed value (ADR-0010). The pre-scaled weighted mean is
     rounded to a fixed decimal precision before the final integer scaling (design
@@ -280,23 +280,23 @@ def combined_score(
     return max(0, min(100, round(100.0 * weighted)))
 
 
-def _fov_short_arcmin(rig: Rig | None) -> float | None:
-    """The rig's short-edge field of view in arcminutes, or ``None`` with no rig.
+def _fov_short_arcmin(equipment: Equipment | None) -> float | None:
+    """The equipment's short-edge field of view in arcminutes, or ``None`` without it.
 
     The derived field of view (degrees) is rounded to the fixed score precision
     before conversion to arcminutes (design D9), so the ``r = size / fov_short``
     that drives the framing curve inherits the same stable-precision posture as
     the score itself.
     """
-    if rig is None:
+    if equipment is None:
         return None
-    return round(rig.fov_short_deg, _SCORE_DECIMALS) * 60.0
+    return round(equipment.fov_short_deg, _SCORE_DECIMALS) * 60.0
 
 
 def _fov_fit_for(obj: CatalogObject, fov_short_arcmin: float | None) -> float | None:
     """The framing sub-score for ``obj``, or ``None`` when it does not contribute.
 
-    Contributes only when a rig is configured (``fov_short_arcmin`` is known) and
+    Contributes only when equipment is configured (``fov_short_arcmin`` is known) and
     the object has a recorded size — otherwise the term drops rather than guessing
     (design D5).
     """
@@ -318,10 +318,10 @@ def _catalog_by_id() -> dict[str, CatalogObject]:
     return {obj.id: obj for obj in load_catalog()}
 
 
-def equipment_reasons(rig: Rig | None, target: Target) -> list[str]:
+def equipment_reasons(equipment: Equipment | None, target: Target) -> list[str]:
     """Additive equipment-aware ``reasons[]`` entries for the top pick (design D8).
 
-    A framing entry is emitted whenever a rig is configured and the pick has a
+    A framing entry is emitted whenever equipment is configured and the pick has a
     known size, describing how it frames — well framed, small, nearly filling the
     frame, or larger than the field of view. A brightness entry is emitted when the
     pick reads as bright. The classification uses the pick's raw catalog facts (the
@@ -334,17 +334,17 @@ def equipment_reasons(rig: Rig | None, target: Target) -> list[str]:
         return []
     reasons: list[str] = []
     name = target.name or target.id
-    fov_short_arcmin = _fov_short_arcmin(rig)
+    fov_short_arcmin = _fov_short_arcmin(equipment)
     if fov_short_arcmin is not None and obj.size_arcmin is not None:
         ratio = obj.size_arcmin / fov_short_arcmin
         if fov_fit_subscore(ratio) >= _WELL_FRAMED_THRESHOLD:
-            reasons.append(f"Top pick {name} frames well in your rig.")
+            reasons.append(f"Top pick {name} frames well in your field of view.")
         elif ratio > 1.0:
-            reasons.append(f"Top pick {name} is larger than your rig's field of view.")
+            reasons.append(f"Top pick {name} is larger than your field of view.")
         elif ratio <= _FOV_SWEET_LOW:
-            reasons.append(f"Top pick {name} is small in your rig's field of view.")
+            reasons.append(f"Top pick {name} is small in your field of view.")
         else:
-            reasons.append(f"Top pick {name} fills most of your rig's field of view.")
+            reasons.append(f"Top pick {name} fills most of your field of view.")
     brightness = brightness_subscore(obj.surface_brightness, obj.magnitude)
     if brightness is not None and brightness >= _BRIGHT_THRESHOLD:
         reasons.append(f"Top pick {name} is a bright target.")
@@ -616,10 +616,10 @@ class _Scored:
     end_index: int
 
 
-# Per-night ranking cache keyed by (pier identity + horizon + rig + dark window).
+# Per-night ranking cache keyed by (pier identity + horizon + equipment + dark window).
 # The ranking's curve/weight parameters are fixed constants, so they do not enter
 # the key; design D5/D7 requires adding any that becomes per-pier configuration —
-# the rig now does, because framing depends on it (a rig change must change the
+# the equipment now does, because framing depends on it (an equipment change must change the
 # ranking, not serve a stale one). The cache is a bounded
 # LRU so a persistent container recomputing night after night keeps only the most
 # recent few rankings rather than retaining one entry per night forever. It is a
@@ -628,11 +628,16 @@ _CACHE_MAXSIZE = 16
 _rank_cache: OrderedDict[tuple[Any, ...], tuple[Target, ...]] = OrderedDict()
 
 
-def _rig_key(rig: Rig | None) -> tuple[Any, ...] | None:
-    """The rig's identity for the cache key, or ``None`` when no rig is configured."""
-    if rig is None:
+def _equipment_key(equipment: Equipment | None) -> tuple[Any, ...] | None:
+    """The equipment's identity for the cache key, or ``None`` when none is configured."""
+    if equipment is None:
         return None
-    return (rig.focal_length_mm, rig.sensor_width_mm, rig.sensor_height_mm, rig.reducer)
+    return (
+        equipment.focal_length_mm,
+        equipment.sensor_width_mm,
+        equipment.sensor_height_mm,
+        equipment.reducer,
+    )
 
 
 def _cache_key(pier: PierConfig, window: tuple[datetime, datetime]) -> tuple[Any, ...]:
@@ -642,7 +647,7 @@ def _cache_key(pier: PierConfig, window: tuple[datetime, datetime]) -> tuple[Any
         pier.longitude,
         pier.elevation_m,
         pier.horizon_mask.samples,
-        _rig_key(pier.rig),
+        _equipment_key(pier.equipment),
         window[0],
         window[1],
     )
@@ -691,8 +696,8 @@ def _rank(pier: PierConfig, window: tuple[datetime, datetime], moon: Moon) -> li
     moon_alt, moon_az, _ = positions.observe(eph["moon"]).apparent().altaz()
     moon_alt_deg, moon_az_deg = moon_alt.degrees, moon_az.degrees
 
-    # The rig's short-edge field of view (arcmin) once per pier; None with no rig.
-    fov_short_arcmin = _fov_short_arcmin(pier.rig)
+    # The equipment's short-edge field of view (arcmin) once per pier; None without it.
+    fov_short_arcmin = _fov_short_arcmin(pier.equipment)
 
     scored: list[_Scored] = []
     for obj in load_catalog():

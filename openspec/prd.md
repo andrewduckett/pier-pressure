@@ -102,7 +102,7 @@ presses the "show me now" refresh button.
 
 - Candidates come from the full OpenNGC catalogue, vendored as pinned in-repo data.
 - Ranking factors: time visible in the dark window, altitude above the horizon
-  mask, separation from the moon, transit time, brightness, and — when a rig is
+  mask, separation from the moon, transit time, brightness, and — when equipment is
   configured — how well the object fits the field of view.
 - The top ten fill the structured `targets` list. A top-target sensor is also
   published.
@@ -127,7 +127,7 @@ presses the "show me now" refresh button.
 ## 7. Configuration
 
 - One YAML file lists the MQTT broker, the recompute interval, and the piers.
-- Each pier has a location, a horizon mask, and optionally an equipment rig
+- Each pier has a location, a horizon mask, and optionally its equipment
   (telescope and camera) and gate limits.
 - Any `${VAR}` in a value is replaced from the environment at load time, so the
   broker password need not sit in the file.
