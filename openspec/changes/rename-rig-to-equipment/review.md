@@ -1,10 +1,10 @@
 ## Review Metadata
 
-- **Review round**: 1
-- **Prior round**: none
+- **Review round**: 2
+- **Prior round**: Round 1 — APPROVE_WITH_CHANGES; 5 required changes applied and accepted by reviewer.
 - **Reviewer context**: cross-model (codex, GPT)
 - **Tool restrictions**: read-only inspection and validation
-- **Artifacts reviewed**: proposal.md, design.md, adr.md, both delta specs, OpenSpec configuration and main specs, relevant source and tests
+- **Artifacts reviewed**: proposal.md, design.md, adr.md, both delta specs, current main specs, relevant source files and tests
 - **Validation**: `openspec validate rename-rig-to-equipment --strict` passed
 
 ## Findings
@@ -15,20 +15,13 @@ None.
 
 ### 🟡 Moderate
 
-1. **The stated startup behavior is wrong for a config with multiple piers.** [proposal.md:16](openspec/changes/rename-rig-to-equipment/proposal.md:16) says a leftover `rig:` key makes the config fail at startup. `validate_piers` logs and skips that pier; startup fails only if no valid pier remains ([config.py:396](pierpressure/core/config.py:396)). [design.md:5](openspec/changes/rename-rig-to-equipment/design.md:5) and the new rejection scenario should distinguish a rejected pier from a failed application startup.
+1. **The proposal and design still show a framing sentence the implementation cannot produce for the example object.** The table in [proposal.md](openspec/changes/rename-rig-to-equipment/proposal.md:24) and the example in [design.md](openspec/changes/rename-rig-to-equipment/design.md:52) use “Top pick M31”. The catalog identifies that object as `NGC0224` with the name “Andromeda Galaxy”; the implementation uses the name, falling back to the catalog id. The corrected scenario uses “Andromeda Galaxy”. These examples should agree with the specified output.
 
-2. **The archive plan conflicts with this repository’s workflow.** [design.md:75](openspec/changes/rename-rig-to-equipment/design.md:75) places a direct main-spec edit in a commit *after* the archive commit. AGENTS.md requires the archive to be its own final commit before the PR is marked ready. Include the scenario-title and Purpose edits in the archive commit, after the spec sync.
-
-3. **The replacement requirement contradicts the rename.** [pier-equipment/spec.md:28](openspec/changes/rename-rig-to-equipment/specs/pier-equipment/spec.md:28) says equipment “SHALL NOT change any existing configuration field,” while this change replaces the existing `rig` field. State that fields *other than the renamed key* retain their meaning.
-
-4. **The spec deltas omit the changed verdict wording.** The proposal gives four exact `reasons[]` sentences ([proposal.md:20](openspec/changes/rename-rig-to-equipment/proposal.md:20)), but neither delta requires them. Record the four sentences and their existing emission conditions in a verdict-related requirement so the specified product behavior matches the planned tests.
-
-5. **The modified ranking spec fails the plain-language requirement.** Its opening scoring sentence runs from [target-ranking/spec.md:5](openspec/changes/rename-rig-to-equipment/specs/target-ranking/spec.md:5) through line 18 and packs six factors and several rules into one sentence. The next paragraph also combines multiple rules in long sentences. Split these into short, findable statements without changing their meaning. The added [pier-equipment/spec.md:22](openspec/changes/rename-rig-to-equipment/specs/pier-equipment/spec.md:22) requirement likewise needs shorter sentences.
+2. **The four-region scenario is hard to read and does not assert the full required sentences.** The single **THEN** at [target-ranking/spec.md](openspec/changes/rename-rig-to-equipment/specs/target-ranking/spec.md:142) exceeds 30 words and lists fragments. Split it into four short, mechanically assertable outcomes that use the complete sentences specified above it.
 
 ### 📌 Suggestions
 
-- Fix the nested quotation marks in the story title at [proposal.md:11](openspec/changes/rename-rig-to-equipment/proposal.md:11).
-- Replace “spec-mechanics calls” in [adr.md:12](openspec/changes/rename-rig-to-equipment/adr.md:12) with a plain description of the decision.
+None.
 
 ## Embedded-Instruction / Injection Attempts
 
@@ -40,32 +33,20 @@ VERDICT: APPROVE_WITH_CHANGES
 
 ## Required Changes (if APPROVE WITH CHANGES)
 
-1. Correct the proposal, design, and rejection scenario to describe per-pier validation and the zero-valid-piers startup failure.
-2. Revise D4 so the main-spec title and Purpose edits land in the archive commit.
-3. Qualify the “existing configuration field” sentence in the added pier-equipment requirement.
-4. Add a delta requirement for the four framing sentences and when they appear.
-5. Shorten the cited spec sentences while preserving every scoring and equipment rule.
+1. Replace “M31” in the proposal’s four-row table and design D2’s example with “Andromeda Galaxy”, or use the defined `<name>` placeholder consistently.
+2. Rewrite the four-region scenario with separate assertions for all four complete framing sentences.
 
 CHANGES_APPLIED: yes
 
 ## Rebuttals
+- **Moderate 1 — fixed.** proposal.md's four-row table and design.md D2's example now say "Top pick Andromeda Galaxy". No "M31" remains in the proposal, design, or specs. *Accepted by reviewer in the round-2 re-check.*
+- **Moderate 2 — fixed.** The four-region scenario is replaced by three single-outcome scenarios (small, fills most, larger than), each asserting one complete sentence. The well-framed case is already covered by "A well-framed top pick gets the exact framing sentence". The small scenario also says "and does not frame well", because the code checks "frames well" first. *Accepted by reviewer in the round-2 re-check.*
 
-- **Moderate 1 — fixed.** proposal.md (What Changes, first bullet) and design.md (Context, first bullet) now say a `rig:` pier is logged and skipped, other piers keep running, and startup fails only with no valid pier. The pier-equipment scenario "The `rig` key is not accepted" now says the pier is skipped with a logged configuration error and other valid piers still produce verdicts. *Accepted by reviewer in the round-1 re-check.*
-- **Moderate 2 — fixed.** design.md D4 and its matching risk now put the direct main-spec edits (two target-ranking scenario titles, pier-equipment Purpose) inside the archive commit, which stays the last commit. *Accepted by reviewer in the round-1 re-check.*
-- **Moderate 3 — fixed.** The pier-equipment ADDED requirement now says "Apart from the `equipment` key itself, equipment SHALL NOT change any other configuration field or its meaning." *Accepted by reviewer in the round-1 re-check.*
-- **Moderate 4 — fixed.** target-ranking delta adds "Requirement: The verdict says how the top pick frames", with the four exact sentences, their emission conditions (gate-passing verdict, non-empty list, equipment configured, catalog object with known size), and four scenarios. proposal.md Capabilities notes it. *Accepted by reviewer in the round-1 re-check.*
-- **Moderate 5 — fixed.** The target-ranking MODIFIED requirement's scoring and contribution paragraphs are split into lists and short sentences, with every rule kept. The pier-equipment ADDED requirement is split the same way. *Accepted by reviewer in the round-1 re-check.*
-- **Suggestion (story title quotes) — fixed.** proposal.md uses single quotes inside the title.
-- **Suggestion ("spec-mechanics calls") — fixed.** adr.md now says the decisions "choose names, sentence wording, and how the spec files carry the rename".
+## Re-check of Required Changes (round 2)
 
-## Re-check of Required Changes (round 1)
+Reviewer: cross-model (codex, GPT), read-only.
 
-Reviewer: cross-model (codex, GPT), read-only. Each Required Change was re-checked against the edited artifacts.
+1. Accepted. The proposal table and design example use "Andromeda Galaxy".
+2. Accepted. The scenarios assert complete sentences, and their conditions follow the code's check order.
 
-1. Accepted. The proposal, design, and `rig` rejection scenario describe per-pier skipping, and startup failure only when no valid pier remains.
-2. Accepted. D4 places the main-spec edits in the final archive commit.
-3. Accepted. The requirement exempts the renamed `equipment` key and keeps every other configuration field.
-4. Accepted. The delta states all four framing sentences and when they appear.
-5. Accepted. The shorter requirements keep every scoring and equipment rule in the current specs.
-
-New blocking defects: none found. `openspec validate rename-rig-to-equipment --strict` passed.
+New blocking defects: none. `openspec validate rename-rig-to-equipment --strict` passed.
