@@ -16,7 +16,7 @@
 
 ## 4. Sweep
 
-- [ ] 4.1 Search the live tree with `grep -rnwi -e rig -e rigs pierpressure tests README.md openspec --exclude-dir=archive`, excluding `docs/decisions/`. Check each remaining hit against design D1: only informal prose may keep "rig". The two target-ranking scenario titles are left for the archive commit. Verify `just check` is green.
+- [x] 4.1 Search the live tree with `grep -rnwi -e rig -e rigs pierpressure tests README.md openspec --exclude-dir=archive`, excluding `docs/decisions/`. Check each remaining hit against design D1: only informal prose may keep "rig". The two target-ranking scenario titles are left for the archive commit. Verify `just check` is green.
 
 ## Archive note
 

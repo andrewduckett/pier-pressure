@@ -39,7 +39,7 @@ def _london(**overrides: object) -> PierConfig:
 
 # A widefield rig (short focal length, so a large field frames big objects) and a
 # long rig (narrow field, so only small objects frame well) — they frame the
-# candidates differently, which is what a rig-change test needs.
+# candidates differently, which is what an equipment-change test needs.
 _WIDEFIELD_EQUIPMENT = {"focal_length_mm": 250.0, "sensor_width_mm": 23.5, "sensor_height_mm": 15.7}
 _LONG_EQUIPMENT = {"focal_length_mm": 2000.0, "sensor_width_mm": 23.5, "sensor_height_mm": 15.7}
 
@@ -79,7 +79,7 @@ def test_top_target_is_genuinely_well_placed() -> None:
     # The pipeline surfaces objectively well-placed targets: the top one reaches a
     # high altitude, stays up for most of the night, and transits inside its
     # window. (Which object wins now also depends on brightness and framing, but a
-    # rig-less pier still ranks on placement and brightness, so the test checks
+    # pier without equipment still ranks on placement and brightness, so the test checks
     # placement, not identity.)
     targets = _rank(_london())
     top = targets[0]

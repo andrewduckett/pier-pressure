@@ -619,7 +619,7 @@ class _Scored:
 # Per-night ranking cache keyed by (pier identity + horizon + equipment + dark window).
 # The ranking's curve/weight parameters are fixed constants, so they do not enter
 # the key; design D5/D7 requires adding any that becomes per-pier configuration —
-# the rig now does, because framing depends on it (a rig change must change the
+# the equipment now does, because framing depends on it (an equipment change must change the
 # ranking, not serve a stale one). The cache is a bounded
 # LRU so a persistent container recomputing night after night keeps only the most
 # recent few rankings rather than retaining one entry per night forever. It is a
