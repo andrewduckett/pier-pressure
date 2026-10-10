@@ -10,6 +10,10 @@ subscribes to the refresh topics again and tells the service, which publishes
 each pier's last retained messages again (:meth:`MqttDelivery.replay`), then
 ``online`` (reconnect-restores-delivery).
 
+A publish never raises. While the connection is down, the adapter records each
+retained message but holds it from paho; the replay sends it after the reconnect.
+A message paho refuses is logged (publish-failure-resilience).
+
 Topic scheme (design D5), for base topic ``B`` and discovery prefix ``P``:
 
 ===========================  ====================================================  ======
@@ -58,7 +62,7 @@ PAYLOAD_OFFLINE = "offline"
 
 
 class DeliveryError(Exception):
-    """The broker rejected the login or a publish failed. Never reported as success."""
+    """The delivery adapter could not start: a bad broker address, or a rejected login."""
 
 
 class LoginRejected(DeliveryError):
@@ -774,20 +778,42 @@ class MqttDelivery:
                 self._send(topic, payload, retain=True)
 
     def _publish(self, topic: str, payload: str, *, retain: bool, pier: str | None = None) -> None:
-        """Publish, and record a pier's retained message for :meth:`replay` (D4).
+        """Record a pier's retained message for :meth:`replay` (D4), then send it.
 
-        The record is made once paho accepts the message for sending. Only the
-        main thread publishes and replays, so the record needs no lock.
+        The record comes first, whatever paho then says, so the replay always has
+        the latest payload (publish-failure-resilience D2). Only the main thread
+        publishes and replays, so the record needs no lock.
         """
-        self._send(topic, payload, retain=retain)
         if retain and pier is not None:
             self._retained.setdefault(pier, {})[topic] = payload
+        self._send(topic, payload, retain=retain)
 
     def _send(self, topic: str, payload: str, *, retain: bool) -> None:
+        """Hand one message to paho, unless the connection is down. Never raises.
+
+        While the connection is down, the message is held: the replay after the
+        reconnect sends the latest payload of each pier's topics, then the service
+        publishes ``online`` (publish-failure-resilience D1). ``_phase`` is read
+        without a lock; a stale read only hands paho a message it queues.
+
+        paho returns ``MQTT_ERR_NO_CONN`` when it saw the drop first. It keeps the
+        message and sends it after the reconnect, and the drop is logged already.
+        Any other failure is logged, and the next replay or interval repairs the
+        topic (publish-failure-resilience D3).
+        """
+        if self._phase is _Phase.RECONNECTING:
+            return
         info = self._client.publish(topic, payload, qos=1, retain=retain)
         rc = getattr(info, "rc", mqtt.MQTT_ERR_SUCCESS)
-        if rc != mqtt.MQTT_ERR_SUCCESS:
-            raise DeliveryError(f"Publish to {topic!r} failed with rc={rc}")
+        if rc == mqtt.MQTT_ERR_NO_CONN:
+            logger.debug("paho queued the publish to %r until it reconnects", topic)
+        elif rc != mqtt.MQTT_ERR_SUCCESS:
+            logger.warning(
+                "The MQTT client did not send the publish to %r (%s); "
+                "the next update publishes it again",
+                topic,
+                mqtt.error_string(rc),
+            )
 
     def publish_verdict(self, document: VerdictDocument, narrative: str | None = None) -> None:
         """Publish discovery, state, and attributes for the document's pier.
