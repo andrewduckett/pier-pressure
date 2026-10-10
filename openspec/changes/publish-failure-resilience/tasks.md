@@ -30,5 +30,14 @@ marked ready. The verdict document and the golden verdict files do not change.
 
 ## 6. Verify
 
-- [ ] 6.1 Run `just check`, and verify that ruff, mypy and pytest are all green.
-- [ ] 6.2 Run PierPressure against a local Mosquitto broker with a short interval. Stop the broker for longer than one interval, then start it again. Verify that the process does not exit, that the log shows the lost connection and the reconnect, and that the retained verdict state on the broker carries the generation time of the recompute made during the outage. Record the result in this task.
+- [x] 6.1 Run `just check`, and verify that ruff, mypy and pytest are all green.
+- [x] 6.2 Run PierPressure against a local Mosquitto broker with a short interval. Stop the broker for longer than one interval, then start it again. Verify that the process does not exit, that the log shows the lost connection and the reconnect, and that the retained verdict state on the broker carries the generation time of the recompute made during the outage. Record the result in this task.
+
+  Result (2026-10-09, Mosquitto 2.1.2, persistence off, interval 15 s): the
+  broker was stopped for about 63 s, across four intervals. PierPressure kept
+  running. It logged the lost connection, five failed attempts, and the
+  reconnect, and the status topic read `online` again. Before the outage, the
+  retained verdict attributes had `generated_at` 00:10:19Z. After the reconnect
+  they had 00:11:27Z, from a recompute during the outage, 2 s before the
+  reconnect. The fresh broker kept no messages, so only the replay could have
+  delivered it. PierPressure logged no other warnings.
