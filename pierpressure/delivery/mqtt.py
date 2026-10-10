@@ -647,10 +647,12 @@ class MqttDelivery:
         if self._rejection is not None:
             self._client.loop_stop()
             raise LoginRejected(self._broker, self._rejection, self._login_advice)
-        self._watcher = threading.Thread(
+        watcher = threading.Thread(
             target=self._watch_network_thread, name="pierpressure-mqtt-watcher", daemon=True
         )
-        self._watcher.start()
+        watcher.start()
+        # Only a started thread, so close() can always join it.
+        self._watcher = watcher
 
     def _wait_for_outcome(self) -> None:
         """Wait for the broker's answer, restarting paho's thread if it ends (D2).
@@ -1049,7 +1051,10 @@ class MqttDelivery:
         A clean disconnect skips the last-will, so ``offline`` goes out first, while
         paho's thread still runs to send it (stop-goes-offline D1). While the
         connection is down, the broker sends the last-will instead. Never raises.
+        A second call does nothing.
         """
+        if self._closing:
+            return
         self._closing = True
         self._stop_watching.set()
         if self._watcher is not None:

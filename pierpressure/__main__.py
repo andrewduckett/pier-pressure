@@ -107,12 +107,18 @@ def main(argv: list[str] | None = None) -> int:
     logger.info("PierPressure %s", __version__)
     args = sys.argv[1:] if argv is None else argv
     config_path = args[0] if args else os.environ.get("PIERPRESSURE_CONFIG", DEFAULT_CONFIG_PATH)
+    # A container stop sends SIGTERM; raise KeyboardInterrupt, as Ctrl-C does
+    # (stop-goes-offline D3). First, so a stop during startup is handled too.
+    signal.signal(signal.SIGTERM, signal.default_int_handler)
 
     try:
         config, broker_from_supervisor = load_app_config(config_path)
     except (ConfigError, OSError, SupervisorError) as exc:
         logger.error("Configuration error: %s", exc)
         return 1
+    except KeyboardInterrupt:
+        logger.info("Shutting down")
+        return 0
 
     delivery, explainer = build_delivery_and_explainer(
         config, broker_from_supervisor=broker_from_supervisor
@@ -130,26 +136,18 @@ def main(argv: list[str] | None = None) -> int:
     # Before connect, so a reconnect just after the first accept reaches the
     # service (reconnect-restores-delivery D3).
     delivery.on_reconnect(service.enqueue_reconnect)
-    # A container stop sends SIGTERM; raise KeyboardInterrupt, as Ctrl-C does
-    # (stop-goes-offline D3).
-    signal.signal(signal.SIGTERM, signal.default_int_handler)
+    # Every stop from here on closes the delivery, which publishes ``offline``
+    # once connected (stop-goes-offline D1, D3).
     try:
         delivery.connect()
-    except DeliveryError as exc:
-        logger.error("Startup delivery failure: %s", exc)
-        return 1
-    except KeyboardInterrupt:
-        logger.info("Shutting down")
-        delivery.close()
-        return 0
-
-    # From here on, every stop closes the delivery, which publishes ``offline``.
-    try:
         delivery.subscribe_refresh([pier.id for pier in config.piers], service.enqueue_refresh)
         logger.info("PierPressure started for %d pier(s)", len(config.piers))
         # A failed publish never ends the loop; the delivery adapter logs it
         # (publish-failure-resilience D5).
         service.run()
+    except DeliveryError as exc:
+        logger.error("Startup delivery failure: %s", exc)
+        return 1
     except KeyboardInterrupt:
         logger.info("Shutting down")
     finally:
