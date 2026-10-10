@@ -27,5 +27,10 @@ marked ready. The verdict document and the golden verdict files do not change.
 
 ## 6. Verify
 
-- [ ] 6.1 Run `just check`, and verify that ruff, mypy and pytest are all green.
-- [ ] 6.2 Run PierPressure in a container against a local Mosquitto broker. Run `docker stop` on it. Verify that it stops within a few seconds, that its log shows "Shutting down", and that the retained availability on the broker reads `offline`. Record the result in this task.
+- [x] 6.1 Run `just check`, and verify that ruff, mypy and pytest are all green.
+- [x] 6.2 Run PierPressure in a container against a local Mosquitto broker. Run `docker stop` on it. Verify that it stops within a few seconds, that its log shows "Shutting down", and that the retained availability on the broker reads `offline`. Record the result in this task.
+
+  Result (2026-10-10, Mosquitto 2, the image built from this branch): before the
+  stop, the retained `pierpressure/status` read `online`. `docker stop` returned
+  in 0.2 s, and the container exited with code 0. Its log ended with "Shutting
+  down". After the stop, the retained `pierpressure/status` read `offline`.
