@@ -1,7 +1,7 @@
 ---
 id: adrs-adr0019
 date: 2026-10-09
-status: proposed
+status: accepted
 title: 'ADR0019: The replay after a reconnect repairs what an outage missed, not the MQTT client queue'
 description: Architecture Decision Record for publishes during a broker outage. PierPressure holds messages while it knows it is disconnected and records them, and its replay after the reconnect sends the latest state. It never stops because a publish failed.
 ---
