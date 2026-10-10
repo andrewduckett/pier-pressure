@@ -52,7 +52,7 @@
 
 ## Journey Map
 
-Stage status checked against the code on 2026-10-03.
+Stage status checked against the code on 2026-10-10.
 
 ### People who use PierPressure
 
@@ -63,33 +63,35 @@ Stage status checked against the code on 2026-10-03.
  project      & run       to HA      my site     tonight's    told in     a target    through the
  (adopter)                (MQTT)                 verdict      time                    night
     │           │           │           │           │            │           │            │
- supported   partial     supported   partial    supported    supported   partial    supported
+ supported   supported   supported   partial    supported    supported   supported  supported
 ```
 
 1. **Find the project** (adopter) — the README explains what it does, how to set it
    up, and every config setting and entity — supported
-2. **Install and run** — *off Home Assistant*: the user builds the Docker image
-   from the repository, because no image is published. *On Home Assistant*: there is
-   no add-on yet — partial ([#21](https://github.com/andrewduckett/pier-pressure/issues/21), [#23](https://github.com/andrewduckett/pier-pressure/issues/23), [#28](https://github.com/andrewduckett/pier-pressure/issues/28))
+2. **Install and run** — *off Home Assistant*: pull a versioned multi-arch image from
+   GHCR. *On Home Assistant OS*: install the add-on from this repository; it runs the
+   same image and finds the Mosquitto add-on's broker through the Supervisor —
+   supported
 3. **Connect to Home Assistant** — MQTT discovery creates one device per pier with
-   its entities, and a last-will message marks them unavailable if the container
-   stops — supported
+   its entities. The entities go unavailable when PierPressure stops or loses the
+   broker, and come back after a reconnect — supported
 4. **Describe my site** — location, gates, rig, and the optional explainer are all
-   configurable. A horizon can be inline points, a flat floor, or a NINA `.hrz`
-   file; Stellarium and Telescopius exports are rejected as not yet supported —
+   configurable in one file. A horizon can be inline points, a flat floor, or a NINA
+   `.hrz` file; Stellarium and Telescopius exports are rejected as not yet
+   supported. On Home Assistant OS, writing the file needs a second add-on (Samba
+   share or Studio Code Server), because the add-on has no Configuration tab —
    partial
 5. **See tonight's verdict** — verdict, score, confidence, and reasons; a refresh
    button; an optional plain-language narrative — supported
 6. **Get told in time** — the README gives a Home Assistant automation that
    notifies at a chosen time — supported
-7. **Choose a target** — the Top target sensor shows the best target. The full
-   ranked list is only in JSON attributes, with no dashboard card to show it —
-   partial ([#24](https://github.com/andrewduckett/pier-pressure/issues/24))
+7. **Choose a target** — the Top target sensor and one sensor per rank, Target 1
+   to Target 10, so any dashboard card can list the ranking — supported
 8. **Stay current through the night** — the container recomputes on its interval
    and keeps the verdict fresh when Home Assistant restarts — supported
 
-> **Implication**: running on or off Home Assistant differs only at stage 2.
-> Everything after it travels over MQTT, so an add-on is a packaging job, not a
+> **Implication**: running on or off Home Assistant differs only at stages 2 and 4.
+> Everything after them travels over MQTT, so the add-on is a packaging job, not a
 > second product.
 
 ### People who build PierPressure
@@ -101,7 +103,7 @@ Stage status checked against the code on 2026-10-03.
  dev shell   story        → archive    change      against     & pins      provider     & deploy
                                                    real HA     current     breaking
     │           │            │            │           │            │           │            │
- supported  supported    supported    supported    partial     partial     partial        gap
+ supported  supported    supported    supported    partial     supported   supported    partial
 ```
 
 1. **Open the dev shell** — `flake.nix` and `.envrc` give Python, uv, and just;
@@ -112,17 +114,19 @@ Stage status checked against the code on 2026-10-03.
 4. **Gate the change** — `just check` and integration tests in CI, CodeQL, and a
    `main` ruleset that requires both — supported
 5. **Prove against real Home Assistant** — integration tests run against a real
-   Mosquitto broker, but the manual Home Assistant checklist covers only the first
-   delivery surface, not the top-target or narrative entities — partial
-   ([#22](https://github.com/andrewduckett/pier-pressure/issues/22))
-6. **Keep data and pins current** — the ephemeris and the OpenNGC catalogue are
-   pinned, but there is no documented way to update them and no automated
-   dependency updates — partial ([#26](https://github.com/andrewduckett/pier-pressure/issues/26), [#27](https://github.com/andrewduckett/pier-pressure/issues/27))
-7. **Notice a provider breaking** — fallback keeps the verdict going and
-   failures are logged, but nothing tells the maintainer that a provider has been
-   failing for days — partial ([#25](https://github.com/andrewduckett/pier-pressure/issues/25))
-8. **Release and deploy** — no version tags, release notes, or published image;
-   deploying means building the image on the host — gap ([#21](https://github.com/andrewduckett/pier-pressure/issues/21))
+   Mosquitto broker, but nothing checks a change in a real Home Assistant. The
+   manual acceptance checklist was removed because it was too long to run on every
+   change, and no lighter way has replaced it — partial
+6. **Keep data and pins current** — `docs/data-updates.md` explains how to update
+   the pinned ephemeris and catalogue, and Dependabot opens grouped weekly updates
+   for uv, Actions, and Docker — supported
+7. **Notice a provider breaking** — a diagnostic health sensor per weather
+   provider shows when it last succeeded, so a Home Assistant automation can alert
+   on a long failure — supported
+8. **Release and deploy** — a manual release workflow tags a CalVer version,
+   publishes the image and release notes, and opens a pull request that moves the
+   add-on to the new version. That pull request can fail after a workflow file
+   changes — partial ([#34](https://github.com/andrewduckett/pier-pressure/issues/34))
 
 ## Backlog
 
