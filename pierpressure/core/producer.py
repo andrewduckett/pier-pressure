@@ -44,14 +44,14 @@ def produce_verdict(pier: PierConfig, clock: Clock, conditions: Conditions) -> V
     targets = rank_targets(pier, instant, window, moon)
 
     # The verdict's own itemised terms, then additive equipment-aware notes about
-    # the top pick where the rig and its facts are known (design D8). Appending
+    # the top pick where the equipment and its facts are known (design D8). Appending
     # never changes an existing reason, and the notes are a pure function of the
     # pick's facts, so the reasons stay deterministic. The notes are added only on a
     # gate-passing verdict (a non-null score): a NO-GO night has been ruled out, so
     # its reasons name the failing gate and do not advertise a target.
     reasons = list(decision.reasons)
     if targets and decision.score is not None:
-        reasons.extend(equipment_reasons(pier.rig, targets[0]))
+        reasons.extend(equipment_reasons(pier.equipment, targets[0]))
 
     start, end = window
     return VerdictDocument(

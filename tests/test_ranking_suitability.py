@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 import pytest
 
 from pierpressure.core.catalog import load_catalog
-from pierpressure.core.config import Rig
+from pierpressure.core.config import Equipment
 from pierpressure.core.model import Target, TargetWindow
 from pierpressure.core.ranking import (
     brightness_subscore,
@@ -142,14 +142,14 @@ def _m31_target() -> Target:
     )
 
 
-def _rig(focal_length_mm: float) -> Rig:
+def _equipment(focal_length_mm: float) -> Equipment:
     # Short edge is the 15.7 mm sensor height; a shorter focal length widens the
     # field, so focal length is the knob that moves M31's size/fov ratio.
-    return Rig(focal_length_mm=focal_length_mm, sensor_width_mm=23.5, sensor_height_mm=15.7)
+    return Equipment(focal_length_mm=focal_length_mm, sensor_width_mm=23.5, sensor_height_mm=15.7)
 
 
 def _framing_reason(focal_length_mm: float) -> str:
-    reasons = equipment_reasons(_rig(focal_length_mm), _m31_target())
+    reasons = equipment_reasons(_equipment(focal_length_mm), _m31_target())
     framing = [r for r in reasons if "field of view" in r or "frames well" in r]
     assert framing, reasons
     return framing[0]
@@ -167,5 +167,5 @@ def test_framing_reason_names_each_region_truthfully() -> None:
     assert "larger than" in _framing_reason(600.0)
 
 
-def test_no_rig_emits_no_framing_reason() -> None:
+def test_no_equipment_emits_no_framing_reason() -> None:
     assert equipment_reasons(None, _m31_target()) == []

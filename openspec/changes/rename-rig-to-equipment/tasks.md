@@ -1,7 +1,7 @@
 ## 1. Config: the `equipment` key and the `Equipment` class
 
-- [ ] 1.1 Write failing tests in `tests/test_equipment.py`: a pier loads with an `equipment:` block and exposes it as `pier.equipment`; `Equipment` validates as `Rig` does today; a pier with a `rig:` block fails validation; and `validate_piers` skips that pier while a second valid pier survives. Verify the tests fail because `Equipment` and `PierConfig.equipment` do not exist yet.
-- [ ] 1.2 Rename `Rig` to `Equipment` and `PierConfig.rig` to `PierConfig.equipment` in `pierpressure/core/config.py`, and follow the rename through `ranking.py`, `producer.py`, and every test that builds or reads one. Rename identifiers per design D1: for example `_rig_key` becomes `_equipment_key`, the `rig` parameter becomes `equipment`, and `_WIDEFIELD_RIG` becomes `_WIDEFIELD_EQUIPMENT`. Verify the 1.1 tests pass and `just check` is green.
+- [x] 1.1 Write failing tests in `tests/test_equipment.py`: a pier loads with an `equipment:` block and exposes it as `pier.equipment`; `Equipment` validates as `Rig` does today; a pier with a `rig:` block fails validation; and `validate_piers` skips that pier while a second valid pier survives. Verify the tests fail because `Equipment` and `PierConfig.equipment` do not exist yet.
+- [x] 1.2 Rename `Rig` to `Equipment` and `PierConfig.rig` to `PierConfig.equipment` in `pierpressure/core/config.py`, and follow the rename through `ranking.py`, `producer.py`, and every test that builds or reads one. Rename identifiers per design D1: for example `_rig_key` becomes `_equipment_key`, the `rig` parameter becomes `equipment`, and `_WIDEFIELD_RIG` becomes `_WIDEFIELD_EQUIPMENT`. Verify the 1.1 tests pass and `just check` is green.
 
 ## 2. Verdict: the four framing sentences
 

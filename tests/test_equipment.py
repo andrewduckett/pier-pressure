@@ -1,6 +1,6 @@
-"""Tasks 1.1-1.4: the optional per-pier ``Rig`` and its derived field of view.
+"""Tasks 1.1-1.4: the optional per-pier ``Equipment`` and its derived field of view.
 
-The ``Rig`` is raw optics (design D1): a focal length, a sensor size, and an
+The ``Equipment`` is raw optics (design D1): a focal length, a sensor size, and an
 optional reducer, each strictly positive. The field of view is derived offline
 from those (design D2), so ranking can judge how well a target frames without the
 user pre-computing anything.
@@ -13,7 +13,7 @@ import math
 import pytest
 from pydantic import ValidationError
 
-from pierpressure.core.config import PierConfig, Rig
+from pierpressure.core.config import Equipment, PierConfig, validate_piers
 
 from .offline_guard import no_network
 
@@ -30,32 +30,34 @@ def _pier(**overrides: object) -> PierConfig:
 
 
 # --------------------------------------------------------------------------- #
-# Task 1.1 / 1.2 — the Rig config model and its validation
+# Task 1.1 / 1.2 — the Equipment config model and its validation
 # --------------------------------------------------------------------------- #
 
 
-def test_valid_rig_loads_on_a_pier() -> None:
+def test_valid_equipment_loads_on_a_pier() -> None:
     pier = _pier(
-        rig={
+        equipment={
             "focal_length_mm": 600.0,
             "sensor_width_mm": 23.5,
             "sensor_height_mm": 15.7,
         }
     )
-    assert pier.rig is not None
-    assert pier.rig.focal_length_mm == 600.0
-    assert pier.rig.sensor_width_mm == 23.5
-    assert pier.rig.sensor_height_mm == 15.7
-    assert pier.rig.reducer == 1.0  # defaulted
+    assert pier.equipment is not None
+    assert pier.equipment.focal_length_mm == 600.0
+    assert pier.equipment.sensor_width_mm == 23.5
+    assert pier.equipment.sensor_height_mm == 15.7
+    assert pier.equipment.reducer == 1.0  # defaulted
 
 
-def test_pier_without_a_rig_is_none() -> None:
-    assert _pier().rig is None
+def test_pier_without_equipment_is_none() -> None:
+    assert _pier().equipment is None
 
 
-def test_rig_reducer_can_be_set() -> None:
-    rig = Rig(focal_length_mm=600.0, sensor_width_mm=23.5, sensor_height_mm=15.7, reducer=0.8)
-    assert rig.reducer == 0.8
+def test_equipment_reducer_can_be_set() -> None:
+    equipment = Equipment(
+        focal_length_mm=600.0, sensor_width_mm=23.5, sensor_height_mm=15.7, reducer=0.8
+    )
+    assert equipment.reducer == 0.8
 
 
 @pytest.mark.parametrize(
@@ -63,7 +65,7 @@ def test_rig_reducer_can_be_set() -> None:
     ["focal_length_mm", "sensor_width_mm", "sensor_height_mm", "reducer"],
 )
 @pytest.mark.parametrize("bad", [0.0, -5.0])
-def test_non_positive_rig_value_is_rejected(field: str, bad: float) -> None:
+def test_non_positive_equipment_value_is_rejected(field: str, bad: float) -> None:
     values: dict[str, float] = {
         "focal_length_mm": 600.0,
         "sensor_width_mm": 23.5,
@@ -72,18 +74,38 @@ def test_non_positive_rig_value_is_rejected(field: str, bad: float) -> None:
     }
     values[field] = bad
     with pytest.raises(ValidationError):
-        Rig(**values)  # type: ignore[arg-type]
+        Equipment(**values)  # type: ignore[arg-type]
 
 
-def test_a_pier_with_a_non_positive_rig_value_is_invalid() -> None:
+def test_a_pier_with_a_non_positive_equipment_value_is_invalid() -> None:
     with pytest.raises(ValidationError):
         _pier(
-            rig={
+            equipment={
                 "focal_length_mm": 0.0,
                 "sensor_width_mm": 23.5,
                 "sensor_height_mm": 15.7,
             }
         )
+
+
+_OPTICS = {"focal_length_mm": 600.0, "sensor_width_mm": 23.5, "sensor_height_mm": 15.7}
+
+
+def test_the_old_rig_key_is_rejected() -> None:
+    # A plain rename (#68): ``rig`` is not an alias, so it fails like any unknown key.
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        _pier(rig=_OPTICS)
+
+
+def test_a_pier_with_the_old_rig_key_is_skipped_and_the_others_run() -> None:
+    base = {"latitude": 51.5, "longitude": -0.12, "elevation_m": 30.0}
+    raw = [
+        {"id": "old", **base, "rig": _OPTICS},
+        {"id": "new", **base, "equipment": _OPTICS},
+    ]
+    valid = validate_piers(raw)
+    assert [pier.id for pier in valid] == ["new"]
+    assert valid[0].equipment is not None
 
 
 # --------------------------------------------------------------------------- #
@@ -95,19 +117,21 @@ def _fov_axis(sensor_mm: float, f_eff_mm: float) -> float:
     return math.degrees(2.0 * math.atan(sensor_mm / (2.0 * f_eff_mm)))
 
 
-def test_field_of_view_matches_the_known_rig() -> None:
-    rig = Rig(focal_length_mm=600.0, sensor_width_mm=23.5, sensor_height_mm=15.7)
-    width, height = rig.field_of_view_deg()
+def test_field_of_view_matches_the_known_equipment() -> None:
+    equipment = Equipment(focal_length_mm=600.0, sensor_width_mm=23.5, sensor_height_mm=15.7)
+    width, height = equipment.field_of_view_deg()
     assert width == pytest.approx(_fov_axis(23.5, 600.0), abs=1e-9)
     assert height == pytest.approx(_fov_axis(15.7, 600.0), abs=1e-9)
     # The short edge is the smaller axis (here the height).
-    assert rig.fov_short_deg == pytest.approx(height, abs=1e-9)
-    assert rig.fov_short_deg <= width
+    assert equipment.fov_short_deg == pytest.approx(height, abs=1e-9)
+    assert equipment.fov_short_deg <= width
 
 
 def test_reducer_below_one_widens_the_field() -> None:
-    plain = Rig(focal_length_mm=600.0, sensor_width_mm=23.5, sensor_height_mm=15.7)
-    reduced = Rig(focal_length_mm=600.0, sensor_width_mm=23.5, sensor_height_mm=15.7, reducer=0.8)
+    plain = Equipment(focal_length_mm=600.0, sensor_width_mm=23.5, sensor_height_mm=15.7)
+    reduced = Equipment(
+        focal_length_mm=600.0, sensor_width_mm=23.5, sensor_height_mm=15.7, reducer=0.8
+    )
     plain_w, plain_h = plain.field_of_view_deg()
     reduced_w, reduced_h = reduced.field_of_view_deg()
     assert reduced_w > plain_w
@@ -115,14 +139,18 @@ def test_reducer_below_one_widens_the_field() -> None:
 
 
 def test_barlow_above_one_narrows_the_field() -> None:
-    plain = Rig(focal_length_mm=600.0, sensor_width_mm=23.5, sensor_height_mm=15.7)
-    barlow = Rig(focal_length_mm=600.0, sensor_width_mm=23.5, sensor_height_mm=15.7, reducer=2.0)
+    plain = Equipment(focal_length_mm=600.0, sensor_width_mm=23.5, sensor_height_mm=15.7)
+    barlow = Equipment(
+        focal_length_mm=600.0, sensor_width_mm=23.5, sensor_height_mm=15.7, reducer=2.0
+    )
     assert barlow.fov_short_deg < plain.fov_short_deg
 
 
 def test_field_of_view_is_deterministic_and_offline() -> None:
-    rig = Rig(focal_length_mm=800.0, sensor_width_mm=36.0, sensor_height_mm=24.0, reducer=0.8)
+    equipment = Equipment(
+        focal_length_mm=800.0, sensor_width_mm=36.0, sensor_height_mm=24.0, reducer=0.8
+    )
     with no_network():
-        first = rig.field_of_view_deg()
-        second = rig.field_of_view_deg()
+        first = equipment.field_of_view_deg()
+        second = equipment.field_of_view_deg()
     assert first == second
