@@ -72,7 +72,12 @@ class FakePublishInfo:
             raise RuntimeError(f"Message publish failed: {mqtt.error_string(self.rc)}")
 
     def is_published(self) -> bool:
-        return self.rc == mqtt.MQTT_ERR_SUCCESS and self._confirmed
+        # paho raises here too for a message it did not queue.
+        if self.rc == mqtt.MQTT_ERR_QUEUE_SIZE:
+            raise ValueError("Message is not queued due to ERR_QUEUE_SIZE")
+        if self.rc != mqtt.MQTT_ERR_SUCCESS:
+            raise RuntimeError(f"Message publish failed: {mqtt.error_string(self.rc)}")
+        return self._confirmed
 
 
 # Attempt outcomes a ``FakeMqttClient`` script can play (design D5). A refusal is

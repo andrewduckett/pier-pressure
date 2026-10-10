@@ -468,3 +468,13 @@ def test_a_refused_offline_still_lets_close_finish(caplog: pytest.LogCaptureFixt
 
     assert fixture.client.calls[-2:] == ["disconnect", "loop_stop"]
     assert len([r for r in caplog.records if r.levelno == logging.WARNING]) == 1
+
+
+def test_a_second_close_publishes_nothing() -> None:
+    fixture = Started()
+    fixture.delivery.close()
+    before = len(fixture.client.published)
+
+    fixture.delivery.close()
+
+    assert fixture.client.published[before:] == []
