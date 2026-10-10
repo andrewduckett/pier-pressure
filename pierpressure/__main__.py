@@ -5,7 +5,9 @@ When the broker cannot be reached, it waits and tries again rather than exiting
 (retry-broker-connection). It exits non-zero on a startup failure that retrying
 cannot fix: bad config, or a broker that rejects the login. After a later outage
 it reconnects and restores its delivery without a restart; a login rejected then
-is logged, and it keeps trying (reconnect-restores-delivery).
+is logged, and it keeps trying (reconnect-restores-delivery). A publish during an
+outage is held for that restore, so it never stops the process
+(publish-failure-resilience).
 
 Inside a Home Assistant add-on, a config file that names no broker host uses the
 broker from the Supervisor's ``mqtt`` service (ha-addon-mqtt-service D1, D2).
@@ -138,12 +140,9 @@ def main(argv: list[str] | None = None) -> int:
 
     logger.info("PierPressure started for %d pier(s)", len(config.piers))
     try:
+        # A failed publish never ends the loop; the delivery adapter logs it
+        # (publish-failure-resilience D5).
         service.run()
-    except DeliveryError as exc:
-        # Includes a failed startup health reset, which happens before the
-        # process reports itself online (provider-health-entities D4).
-        logger.error("Delivery failure: %s", exc)
-        return 1
     except KeyboardInterrupt:  # pragma: no cover - interactive shutdown
         logger.info("Shutting down")
     finally:

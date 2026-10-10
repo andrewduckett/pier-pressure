@@ -12,18 +12,27 @@ import logging
 import threading
 import time
 from collections.abc import Callable, Iterator
+from datetime import UTC, datetime
 
 import paho.mqtt.client as mqtt
 import pytest
 
+from pierpressure.core.model import Verdict
 from pierpressure.delivery import mqtt as delivery_mqtt
-from pierpressure.delivery.mqtt import MqttDelivery, refresh_command_topic
+from pierpressure.delivery.mqtt import (
+    MqttDelivery,
+    health_state_topic,
+    refresh_command_topic,
+    verdict_state_topic,
+)
+from pierpressure.health import ProviderHealth
 
 from .conftest import (
     ACCEPT,
     SOCKET_FAILURE,
     THREAD_ENDS,
     FakeMqttClient,
+    make_document,
     make_mqtt_config,
     refused,
 )
@@ -345,3 +354,58 @@ def test_a_lost_connection_forgets_unanswered_subscriptions() -> None:
     delivery.close()
     # The reconnect's subscriptions were answered; none of the lost ones linger.
     assert delivery._unanswered == {}
+
+
+# --------------------------------------------------------------------------- #
+# Holding publishes while disconnected (publish-failure-resilience D1)
+# --------------------------------------------------------------------------- #
+
+
+def _health() -> ProviderHealth:
+    return ProviderHealth.empty(
+        key="open_meteo",
+        name="Open-Meteo",
+        role="base",
+        tracking_since=datetime(2026, 10, 9, 9, 0, tzinfo=UTC),
+    )
+
+
+def test_nothing_is_handed_to_the_client_while_disconnected(started: Started) -> None:
+    started.client.drop([SOCKET_FAILURE])
+    before = len(started.client.published)
+
+    started.delivery.publish_health("backyard", [_health()])
+    started.delivery.publish_verdict(make_document(pier="backyard"))
+    started.delivery.go_online()
+    started.delivery.replay()
+
+    assert started.client.published[before:] == []
+
+
+def test_the_replay_after_the_reconnect_sends_the_held_payloads(started: Started) -> None:
+    started.delivery.publish_verdict(make_document(pier="backyard"))
+    started.client.drop([SOCKET_FAILURE])
+    started.delivery.publish_health("backyard", [_health()])
+    started.delivery.publish_verdict(make_document(pier="backyard", verdict=Verdict.GO, score=90))
+    started.client.accept_again()
+    before = len(started.client.published)
+
+    started.delivery.replay()
+
+    replayed = started.client.published[before:]
+    state = verdict_state_topic(BASE, "backyard")
+    assert [p.payload for p in replayed if p.topic == state] == ["GO"]
+    assert any(p.topic == health_state_topic(BASE, "backyard", "open_meteo") for p in replayed)
+    assert all(p.retain for p in replayed)
+
+
+def test_a_publish_after_the_reconnect_goes_to_the_client(started: Started) -> None:
+    started.client.drop([SOCKET_FAILURE])
+    started.client.accept_again()
+    before = len(started.client.published)
+
+    started.delivery.go_online()
+
+    assert [p.topic for p in started.client.published[before:]] == [
+        delivery_mqtt.availability_topic(BASE)
+    ]

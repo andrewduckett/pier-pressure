@@ -23,7 +23,9 @@ the deadline.
 Provider health (provider-health-entities D3, D4) is kept here, in memory, per
 pier and provider. On startup the service publishes every provider's health with
 no history before it goes online, so no retained success from before a restart is
-ever shown as current. After each fetch it folds that fetch's outcomes into the
+ever shown as current. A drop before the reset reaches the broker needs no retry:
+the replay after the reconnect sends the reset health, then ``online``
+(publish-failure-resilience D4). After each fetch it folds that fetch's outcomes into the
 pier's health and publishes it beside the verdict.
 """
 
@@ -158,8 +160,9 @@ class Service:
     def _reset_health(self) -> None:
         """Seed every pier's health with no history and publish it (design D4).
 
-        Raises :class:`~pierpressure.delivery.mqtt.DeliveryError` if the publish
-        fails, so the process exits before it reports itself online.
+        It runs before ``go_online``. If the connection drops first, the delivery
+        adapter holds the reset, and the replay after the reconnect sends it before
+        ``online`` (publish-failure-resilience D4).
         """
         tracking_since = self._clock.now()
         for pier in self._config.piers:

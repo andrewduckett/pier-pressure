@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from pierpressure.core.model import Verdict
-from pierpressure.delivery.mqtt import MqttDelivery, availability_topic
+from pierpressure.delivery.mqtt import MqttDelivery, availability_topic, verdict_state_topic
 from pierpressure.health import ProviderHealth
 
 from .conftest import FakeMqttClient, Published, make_document, make_mqtt_config
@@ -90,3 +90,29 @@ def test_replay_of_a_pier_with_only_health_publishes_only_its_health() -> None:
     expected = [(m.topic, m.payload) for m in client.published]
     replayed = _replayed(delivery, client)
     assert [(m.topic, m.payload) for m in replayed] == expected
+
+
+# --------------------------------------------------------------------------- #
+# Recording whatever paho says (publish-failure-resilience D2)
+# --------------------------------------------------------------------------- #
+
+
+def test_a_refused_message_is_still_replayed() -> None:
+    delivery, client = _delivery()
+    state = verdict_state_topic(BASE, "backyard")
+    client.fail_publish(state)
+    delivery.publish_verdict(make_document(pier="backyard", verdict=Verdict.GO, score=90))
+
+    replayed = [p for p in _replayed(delivery, client) if p.topic == state]
+    assert [p.payload for p in replayed] == ["GO"]
+
+
+def test_a_later_refused_payload_replaces_the_earlier_one() -> None:
+    delivery, client = _delivery()
+    state = verdict_state_topic(BASE, "backyard")
+    delivery.publish_verdict(make_document(pier="backyard"))
+    client.fail_publish(state)
+    delivery.publish_verdict(make_document(pier="backyard", verdict=Verdict.GO, score=90))
+
+    replayed = [p for p in _replayed(delivery, client) if p.topic == state]
+    assert [p.payload for p in replayed] == ["GO"]

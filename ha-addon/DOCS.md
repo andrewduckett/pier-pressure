@@ -96,22 +96,23 @@ reconnect, with the same pauses as at startup. Once the broker accepts it again,
 PierPressure restores its delivery without a restart:
 
 - The Refresh button works again.
-- Each pier's last verdict and provider health are published again, so a broker
+- Each pier's latest verdict and provider health are published again, so a broker
   that lost its saved messages gets them back.
 - The entities come back online.
 
 A reconnect does not compute a new verdict. The next update, or a Refresh press,
 brings new data.
 
-PierPressure restores its delivery only when the outage ends before its next
-update. If the broker is still away when an update is due, the add-on can stop
-with a `Delivery failure` line. Start the add-on again once the broker is back.
+An outage of any length does not stop the add-on. PierPressure still computes
+each update while the broker is away. It holds the results and publishes them
+once the broker is back.
 
 | The log says | What it means | What to do |
 | --- | --- | --- |
 | Lost the connection to the MQTT broker | The broker stopped, restarted, or became unreachable. PierPressure tries again. | Nothing, if a `Reconnected to the MQTT broker` line follows. If not, check that the broker is running. |
 | The MQTT broker rejected the login, followed by `Trying again` | The broker refused a login that worked before. This can happen while the broker restarts. PierPressure keeps trying. | If the line repeats, check the login as the startup table above says. |
 | The MQTT broker refused the subscription to a `refresh/command` topic | The broker does not let PierPressure listen for that pier's Refresh button. The button does nothing until this is fixed. | Allow the user to subscribe to the topic on the broker, then restart the add-on. |
+| The MQTT client did not send the publish to a topic | The MQTT client refused one message. This is rare. PierPressure keeps running. | Nothing. The next update, or the next reconnect, publishes that topic again. |
 | Could not subscribe to a `refresh/command` topic | PierPressure could not ask the broker for that subscription, usually because the connection dropped at that moment. | Nothing, if a `Reconnected to the MQTT broker` line follows. If not, restart the add-on. |
 
 ## More settings

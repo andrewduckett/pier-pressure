@@ -7,17 +7,25 @@ and fetches no conditions for a reconnect (design D3).
 
 from __future__ import annotations
 
+import json
 import queue
 from typing import Any
 
 from pierpressure.conditions import FetchResult
 from pierpressure.core.config import AppConfig, PierConfig, RecomputeConfig
-from pierpressure.delivery.mqtt import PAYLOAD_ONLINE, MqttDelivery, availability_topic
+from pierpressure.delivery.mqtt import (
+    PAYLOAD_ONLINE,
+    MqttDelivery,
+    attributes_topic,
+    availability_topic,
+    health_state_topic,
+)
 from pierpressure.health import ProviderInfo
 from pierpressure.service import RECONNECTED, Service
 
 from .conftest import (
     ACCEPT,
+    SOCKET_FAILURE,
     FakeMqttClient,
     RecordingDelivery,
     ScriptedMonotonic,
@@ -192,3 +200,94 @@ def test_a_drop_after_online_still_ends_with_state_then_online() -> None:
     assert (last.topic, last.payload, last.retain) == (status, PAYLOAD_ONLINE, True)
     replayed_topics = {m.topic for m in client.published[drops[0] : -1]}
     assert replayed_topics >= {m.topic for m in client.published if m.topic != status}
+
+
+# --------------------------------------------------------------------------- #
+# Publishing during an outage (publish-failure-resilience D1, D4)
+# --------------------------------------------------------------------------- #
+
+
+class ReconnectOnWait(queue.Queue[Any]):
+    """A work queue whose first ``get`` lets the broker accept again first.
+
+    It plays paho's thread reconnecting while the main thread waits for work.
+    """
+
+    def __init__(self, client: FakeMqttClient) -> None:
+        super().__init__()
+        self._client = client
+        self._accepted = False
+
+    def get(self, block: bool = True, timeout: float | None = None) -> Any:
+        if not self._accepted:
+            self._accepted = True
+            self._client.accept_again()
+        return super().get(block, timeout)
+
+
+def _real_delivery() -> tuple[MqttDelivery, FakeMqttClient, ReconnectOnWait]:
+    client = FakeMqttClient()
+    delivery = MqttDelivery(make_mqtt_config(), client=client)
+    delivery.connect()
+    return delivery, client, ReconnectOnWait(client)
+
+
+def test_an_interval_during_an_outage_is_published_after_the_reconnect() -> None:
+    delivery, client, work = _real_delivery()
+    service = Service(_app_config(), delivery, StepClock(), refresh_queue=work)
+    delivery.on_reconnect(service.enqueue_reconnect)
+    calls: list[int] = []
+
+    def drop_at_the_interval(_pier: PierConfig) -> FetchResult:
+        calls.append(len(client.published))
+        if len(calls) == len(PIERS) + 1:  # the first fetch of the interval recompute
+            client.drop([SOCKET_FAILURE])
+        return FetchResult(make_conditions())
+
+    service._conditions_provider = drop_at_the_interval
+    try:
+        # Startup at 0; the interval is due at 11; the main thread waits at 12.
+        service.run(monotonic=ScriptedMonotonic([0.0, 11.0, 11.0, 12.0]), max_iterations=2)
+    finally:
+        delivery.close()
+
+    dropped_at = calls[len(PIERS)]
+    startup = client.published[:dropped_at]
+    after = client.published[dropped_at:]
+    status = availability_topic("pierpressure")
+    assert (after[-1].topic, after[-1].payload, after[-1].retain) == (status, PAYLOAD_ONLINE, True)
+    for pier in PIERS:
+        sent_before = [
+            m.payload for m in startup if m.topic == attributes_topic("pierpressure", pier)
+        ]
+        sent_after = [m.payload for m in after if m.topic == attributes_topic("pierpressure", pier)]
+        # Only the replay sends it, with the verdict from the recompute in the outage.
+        assert len(sent_after) == 1
+        assert _generated_at(sent_after[0]) > _generated_at(sent_before[-1])
+        assert all(m.retain for m in after if m.topic.startswith(f"pierpressure/{pier}/"))
+
+
+def test_a_drop_before_the_startup_reset_sends_the_reset_before_online() -> None:
+    delivery, client, work = _real_delivery()
+    service = Service(_app_config(), delivery, StepClock(), refresh_queue=work, providers=PROVIDERS)
+    delivery.on_reconnect(service.enqueue_reconnect)
+    client.drop([SOCKET_FAILURE])
+    try:
+        service.run(monotonic=ScriptedMonotonic([0.0, 1.0]), max_iterations=1)
+    finally:
+        delivery.close()
+
+    topics = [m.topic for m in client.published]
+    status = availability_topic("pierpressure")
+    online_at = topics.index(status)
+    for pier in PIERS:
+        reset_at = topics.index(health_state_topic("pierpressure", pier, "open_meteo"))
+        assert reset_at < online_at
+    assert topics[-1] == status
+
+
+def _generated_at(attributes: object) -> str:
+    assert isinstance(attributes, str)
+    value = json.loads(attributes)["generated_at"]
+    assert isinstance(value, str)
+    return value

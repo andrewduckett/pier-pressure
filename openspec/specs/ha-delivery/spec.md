@@ -120,13 +120,42 @@ The published verdict entity SHALL expose the verdict as a discrete, watchable s
 
 ### Requirement: Delivery failures are reported, not swallowed
 
-When the MQTT broker is unreachable or a publish fails, the system SHALL report the failure rather than reporting success. A delivery failure SHALL NOT corrupt or partially publish an entity's state such that a stale value is presented as current without indication.
+When the MQTT broker is unreachable or a publish fails, the system SHALL report the failure in its log rather than reporting success. A delivery failure SHALL NOT corrupt or partially publish an entity's state such that a stale value is presented as current without indication.
+
+A failed publish SHALL NOT stop the process. The process SHALL keep running, and SHALL keep its interval and refresh command working.
+
+While the process is disconnected from the broker, its entities show as unavailable through the offline last-will. A publish during that time is held for the replay after the reconnect, as the reconnect requirement describes. The disconnect is already logged, so the process SHALL NOT log each held publish.
+
+When the MQTT client refuses a publish for any other reason, the process SHALL log a warning that names the topic. While refusals continue, the process SHALL log only the first as a warning, until a publish succeeds. The log line SHALL NOT contain the broker password.
+
+When the MQTT client refuses the online availability, the process SHALL publish it again with the next verdict it publishes.
+
+#### Scenario: A refused online availability is published again
+
+- **WHEN** the MQTT client refuses the online availability
+- **AND** the process then publishes a verdict for a pier
+- **THEN** the process publishes its online availability again, with the retain flag set
 
 #### Scenario: Unreachable broker is reported as a failure
 
 - **WHEN** the adapter attempts to publish and the broker cannot be reached
-- **THEN** the run reports a delivery failure
-- **AND** does not report the publish as successful
+- **THEN** the log reports that the connection to the broker was lost
+- **AND** the process does not report the publish as successful
+
+#### Scenario: A publish during an outage does not stop the process
+
+- **WHEN** the process loses its connection to the broker
+- **AND** the configured interval elapses before the broker accepts a new connection
+- **THEN** the process recomputes the verdict for each pier
+- **AND** it does not exit
+
+#### Scenario: A refused publish is logged and the process keeps running
+
+- **WHEN** the process is connected to the broker
+- **AND** the MQTT client refuses a publish for a reason other than a lost connection
+- **THEN** the log has a warning that names the topic
+- **AND** the process does not exit
+- **AND** the next interval publishes a verdict for each pier
 
 ### Requirement: Top target is exposed as an entity
 
@@ -309,8 +338,10 @@ restart while the process is online.
 On startup, the system SHALL publish every configured provider's health with no
 history, for every pier. It SHALL do this before it publishes its online
 availability, and before it fetches any conditions or asks for any narrative. This
-replaces any retained health from before the restart. If that publish fails, the
-process SHALL exit without publishing its online availability.
+replaces any retained health from before the restart. If the connection drops
+before the reset reaches the broker, the process SHALL NOT exit. It SHALL publish
+the reset health again after the reconnect, before it publishes its online
+availability.
 
 The sensor's JSON attributes SHALL carry:
 
@@ -363,9 +394,11 @@ every existing entity, topic, and mapping is unchanged.
 
 #### Scenario: A failed startup reset does not go online
 
-- **WHEN** the startup health publish fails
-- **THEN** the process exits with an error
-- **AND** it has not published its online availability
+- **WHEN** the broker accepts the first connection
+- **AND** the connection drops before the process publishes the startup health reset
+- **AND** the broker accepts a new connection
+- **THEN** the process does not exit
+- **AND** after the reconnect, it publishes each configured provider's health with no history before it publishes its online availability
 
 #### Scenario: No success since a restart resolves to unknown
 
@@ -506,7 +539,9 @@ After each reconnect, the process SHALL do three things:
 
 1. Subscribe again to every pier's refresh command topic.
 2. For each pier, publish again its last discovery configs, verdict state,
-   attributes, narrative and provider health, exactly as it last published them.
+   attributes, narrative and provider health, each with the latest payload the
+   process produced for it. This includes a payload the process held during the
+   outage.
 3. Then publish its retained online availability.
 
 In this requirement, to publish a message means to hand it to the MQTT client for
@@ -543,8 +578,14 @@ It SHALL log an error that says the broker rejected the login, with the same
 advice it gives for a rejected login at startup. It SHALL keep trying to
 reconnect, with the same pauses.
 
-This requirement covers an outage during which the process publishes nothing.
-What happens to a publish during an outage is outside this requirement.
+The process MAY publish during an outage: on the interval, after a refresh
+command, or for the startup health reset. While the process knows it is
+disconnected, it SHALL hold each such message for step 2 instead of handing it to
+the MQTT client. It SHALL also hold its online availability, which step 3 then
+publishes. The process learns of a drop only after the MQTT client detects it.
+The MQTT client MAY send a message it received before then again after the
+reconnect, before or after step 2. When it comes after, that topic shows the
+older payload until the process next publishes it.
 
 #### Scenario: Refresh works again after a reconnect
 
@@ -629,3 +670,18 @@ What happens to a publish during an outage is outside this requirement.
 - **AND** the process does not exit
 - **AND** it tries to reconnect again after a pause
 - **AND** it publishes its online availability once the broker accepts a connection
+
+#### Scenario: State published during an outage is restored after the reconnect
+
+- **WHEN** the process loses its connection to the broker
+- **AND** the configured interval elapses, and the process recomputes the verdict for each pier
+- **AND** the broker accepts a new connection
+- **THEN** for each pier, the process publishes the verdict state and attributes from that recompute, each retained
+- **AND** it publishes its online availability only after all of them
+- **AND** it has not exited
+
+#### Scenario: Nothing is handed to the MQTT client while the process knows it is disconnected
+
+- **WHEN** the process has logged that it lost its connection
+- **AND** it recomputes the verdict for a pier before the broker accepts a new connection
+- **THEN** it hands no message for that pier to the MQTT client until the broker accepts a new connection
