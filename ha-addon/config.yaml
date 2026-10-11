@@ -37,6 +37,13 @@ schema:
       # blank text, or text in [[ and ]] (addon-form-horizon D4).
       min_altitude: float(0,90)?
       horizon_points: 'match(^\s*(\[\s*\[.*\]\s*\])?\s*$)?'
+      # The pier's equipment, flattened for the same reason; the service rebuilds
+      # the equipment block. The save check allows 0, because its bound is
+      # inclusive; the service rejects 0 (addon-form-equipment D4).
+      equipment_focal_length_mm: float(0,)?
+      equipment_sensor_width_mm: float(0,)?
+      equipment_sensor_height_mm: float(0,)?
+      equipment_reducer: float(0,)?
 # Ask the Supervisor for the broker another add-on (usually Mosquitto) provides.
 # "want", not "need", so the add-on still installs with any other broker. Used
 # only when config.yaml names no mqtt.host (ha-addon-mqtt-service).

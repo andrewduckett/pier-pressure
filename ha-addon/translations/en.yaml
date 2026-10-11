@@ -36,3 +36,23 @@ configuration:
           Optional. Your horizon as [azimuth, altitude] pairs in degrees, on one
           line, such as [[0, 10], [90, 25], [180, 5]]. Leave it empty when you set
           a horizon floor; the two cannot be used together.
+      equipment_focal_length_mm:
+        name: Focal length
+        description: >-
+          Optional. Your telescope's focal length, in millimetres. Set it with
+          sensor width and sensor height; the three go together.
+      equipment_sensor_width_mm:
+        name: Sensor width
+        description: >-
+          Optional. Your camera sensor's width, in millimetres. Set it with focal
+          length and sensor height; the three go together.
+      equipment_sensor_height_mm:
+        name: Sensor height
+        description: >-
+          Optional. Your camera sensor's height, in millimetres. Set it with focal
+          length and sensor width; the three go together.
+      equipment_reducer:
+        name: Reducer or barlow
+        description: >-
+          Optional. The factor of a focal reducer or barlow, with no unit, such
+          as 0.8 or 2. Leave it empty for 1.0, when you use neither.
