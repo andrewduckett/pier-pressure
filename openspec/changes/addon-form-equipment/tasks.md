@@ -5,7 +5,7 @@
 
 ## 2. Turning the form fields into equipment
 
-- [ ] 2.1 Write failing tests in `tests/test_addon_options.py` for `read_addon_options` (design D1 to D3):
+- [x] 2.1 Write failing tests in `tests/test_addon_options.py` for `read_addon_options` (design D1 to D3):
   - All four fields become `equipment: {focal_length_mm, sensor_width_mm, sensor_height_mm, reducer}`.
   - Three fields without the reducer give a block without `reducer`.
   - Only some fields give a block with just those keys, for the core to reject.
@@ -16,7 +16,7 @@
   - The horizon fields still become a `horizon` block beside the `equipment` block.
 
   Verify they fail.
-- [ ] 2.2 Change `pierpressure/addon_options.py` to rebuild each pier's `equipment` block, and update its module and function docstrings to name equipment beside the horizon. Verify the 2.1 tests and the existing tests in the file pass.
+- [x] 2.2 Change `pierpressure/addon_options.py` to rebuild each pier's `equipment` block, and update its module and function docstrings to name equipment beside the horizon. Verify the 2.1 tests and the existing tests in the file pass.
 
 ## 3. Equipment from the form, end to end
 

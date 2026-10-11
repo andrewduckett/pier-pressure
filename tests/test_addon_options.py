@@ -1,4 +1,8 @@
-"""addon-options-form D1, D3: the Configuration form's saved values become config."""
+"""addon-options-form D1, D3: the Configuration form's saved values become config.
+
+The horizon fields follow addon-form-horizon D1-D3, and the equipment fields
+addon-form-equipment D1-D3.
+"""
 
 from __future__ import annotations
 
@@ -153,3 +157,101 @@ def test_a_yaml_error_logs_on_one_line(tmp_path: Path, caplog: pytest.LogCapture
 
     [record] = caplog.records
     assert "\n" not in record.getMessage()
+
+
+EQUIPMENT_FIELDS = {
+    "equipment_focal_length_mm": 400,
+    "equipment_sensor_width_mm": 23.5,
+    "equipment_sensor_height_mm": 15.7,
+    "equipment_reducer": 0.8,
+}
+
+
+def test_equipment_fields_become_an_equipment_block(tmp_path: Path) -> None:
+    # addon-form-equipment D1.
+    assert _read_piers(tmp_path, [{**PIER, **EQUIPMENT_FIELDS}]) == [
+        {
+            **PIER,
+            "equipment": {
+                "focal_length_mm": 400,
+                "sensor_width_mm": 23.5,
+                "sensor_height_mm": 15.7,
+                "reducer": 0.8,
+            },
+        }
+    ]
+
+
+def test_equipment_without_a_reducer_has_no_reducer_key(tmp_path: Path) -> None:
+    # The core's default of 1.0 applies (D1).
+    fields = {key: value for key, value in EQUIPMENT_FIELDS.items() if key != "equipment_reducer"}
+
+    assert _read_piers(tmp_path, [{**PIER, **fields}]) == [
+        {
+            **PIER,
+            "equipment": {
+                "focal_length_mm": 400,
+                "sensor_width_mm": 23.5,
+                "sensor_height_mm": 15.7,
+            },
+        }
+    ]
+
+
+def test_some_equipment_fields_give_a_block_of_just_those(tmp_path: Path) -> None:
+    # The core rejects the incomplete block and skips the pier (D2).
+    pier = {**PIER, "equipment_focal_length_mm": 400, "equipment_sensor_width_mm": 23.5}
+
+    assert _read_piers(tmp_path, [pier]) == [
+        {**PIER, "equipment": {"focal_length_mm": 400, "sensor_width_mm": 23.5}}
+    ]
+
+
+def test_a_pier_without_equipment_fields_has_no_equipment(tmp_path: Path) -> None:
+    assert _read_piers(tmp_path, [PIER]) == [PIER]
+
+
+def test_null_equipment_fields_count_as_unset(tmp_path: Path) -> None:
+    # D3: a cleared field may be saved as null.
+    all_null = {**PIER, **dict.fromkeys(EQUIPMENT_FIELDS)}
+    one_null = {**PIER, "id": "roof", **EQUIPMENT_FIELDS, "equipment_reducer": None}
+
+    assert _read_piers(tmp_path, [all_null, one_null]) == [
+        PIER,
+        {
+            **PIER,
+            "id": "roof",
+            "equipment": {
+                "focal_length_mm": 400,
+                "sensor_width_mm": 23.5,
+                "sensor_height_mm": 15.7,
+            },
+        },
+    ]
+
+
+def test_an_equipment_block_beside_equipment_fields_skips_only_its_pier(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # D1: the edge does not merge the two.
+    both = {**PIER, "equipment": {"focal_length_mm": 400}, "equipment_focal_length_mm": 400}
+    other = {**PIER, "id": "roof"}
+
+    assert _read_piers(tmp_path, [both, other]) == [other]
+    assert "Skipping invalid pier 'backyard'" in caplog.text
+    assert "equipment and the equipment_* fields cannot both be set" in caplog.text
+
+
+def test_an_equipment_block_alone_passes_through(tmp_path: Path) -> None:
+    # The core checks it as it checks a file's block (D1).
+    pier = {**PIER, "equipment": {"focal_length_mm": 400}}
+
+    assert _read_piers(tmp_path, [pier]) == [pier]
+
+
+def test_horizon_and_equipment_blocks_sit_side_by_side(tmp_path: Path) -> None:
+    pier = {**PIER, "min_altitude": 15, "equipment_focal_length_mm": 400}
+
+    assert _read_piers(tmp_path, [pier]) == [
+        {**PIER, "horizon": {"min_altitude": 15}, "equipment": {"focal_length_mm": 400}}
+    ]
