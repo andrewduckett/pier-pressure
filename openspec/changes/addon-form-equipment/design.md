@@ -6,9 +6,10 @@ equipment without changing the core or the `config.yaml` format.
 
 Facts that shape the approach:
 
-- **The edge already rebuilds nested blocks.** The edge is the code outside the
-  pure core that reads the add-on's form. `pierpressure/addon_options.py` turns `/data/options.json` into the mapping a `config.yaml` would hold
-  (ADR-0020). It already moves each pier's flat `min_altitude` and
+- **The edge already rebuilds nested blocks.** Here, "the edge" means the code
+  outside the pure core that reads the add-on's form.
+  `pierpressure/addon_options.py` turns `/data/options.json` into the mapping a
+  `config.yaml` would hold (ADR-0020). It already moves each pier's flat `min_altitude` and
   `horizon_points` into a `horizon` block (addon-form-horizon D1).
 - **The core already has every equipment rule.** `Equipment` in
   `pierpressure/core/config.py` requires focal length, sensor width and sensor
@@ -57,6 +58,12 @@ form pier                                  config-shaped pier
 
 The edge removes only these four names. Any other key passes through, and the
 core rejects it as unknown.
+
+The form has no `equipment` field, so saved values should never hold one. When
+a pier holds both an `equipment` key and any `equipment_*` field, the edge does
+not merge them. It skips the pier with a logged error in the core's skip wording:
+`equipment and the equipment_* fields cannot both be set`. An `equipment` key on
+its own passes through to the core unchanged.
 
 - *Why:* the core keeps one copy of every equipment rule and gains no form
   names. This is the horizon pattern again.
@@ -158,7 +165,8 @@ The existing test that every schema key has a label covers the four fields.
 None. All four fields are optional, so a saved form without them keeps working
 and its piers keep ranking without a field-of-view term. A rollback restores the
 previous add-on version. Its schema lacks the new fields. We have not checked
-what the Supervisor does with their saved values. It may warn and keep them, or
-drop them. If it keeps them, the older service rejects each pier that holds them
-as an unknown key. In either case, the user should clear the four fields before
-rolling back, and may need to enter them again after upgrading.
+what the Supervisor does with their saved values. If it keeps them, the older
+service rejects each pier that holds them as an unknown key. So before rolling
+back, the user clears the four fields on the form and saves. The new version's
+form still shows the fields, so this step is always possible. After upgrading
+again, the user enters the values again.

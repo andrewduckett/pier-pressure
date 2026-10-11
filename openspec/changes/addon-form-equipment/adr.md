@@ -10,11 +10,7 @@ ADR review completed for this change.
 No major durable architectural decisions were introduced, and no new
 repository-level ADR files were created.
 
-The design applies ADR-0020: the edge translates the form into the config
-file's shape, with field names that follow the file's keys where the nesting
-limit allows. The flat `equipment_*` fields are that limit at work. Skipping a
-pier with incomplete equipment is a requirement in the specs, not a fork. The
-remaining decisions are cheap to change and readable from the code.
+The design applies ADR-0020 without changing it.
 
 Two in-force ADRs touch the area, and none is superseded:
 

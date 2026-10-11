@@ -19,8 +19,9 @@ Each pier SHALL also have two optional horizon fields:
   two, as a list of pairs does. Spaces may sit between the brackets and around
   the text. It SHALL reject any other text.
 
-Each pier SHALL also have four optional equipment fields. Each SHALL be a number
-of at least 0:
+Each pier SHALL also have four optional equipment fields. On save, the form
+SHALL accept a number of at least 0 in each. The service then rejects 0, as
+described in "The form sets each pier's equipment":
 
 - `equipment_focal_length_mm`: the telescope's focal length, in millimetres.
 - `equipment_sensor_width_mm`: the camera sensor's width, in millimetres.
@@ -79,12 +80,15 @@ equipment:
 When `equipment_reducer` is not set, the reducer SHALL be 1.0, as in the file.
 
 A pier whose equipment fails these checks SHALL be skipped with a logged error
-that names the pier. The other piers SHALL still be published. This covers two
+that names the pier. The other piers SHALL still be published. This covers three
 cases:
 
 - a missing focal length, sensor width or sensor height, while another
   equipment field is set. The error SHALL name the missing field.
 - a value of 0 or less.
+- saved values that hold both an `equipment` mapping and any equipment field.
+  The error SHALL name `equipment`. The form has no `equipment` field, so this
+  happens only when the saved values were written some other way.
 
 When every pier is skipped, the add-on SHALL stop with a configuration error, as
 it does for any setup with no valid pier.
@@ -158,6 +162,14 @@ it does for any setup with no valid pier.
 This holds for each of the four fields and both values. The Supervisor normally
 refuses to save a negative value. The service still checks it, because it does
 not rely on the Supervisor's check.
+
+#### Scenario: An equipment mapping beside equipment fields skips the pier
+
+- **WHEN** the saved form values list two piers
+- **AND** one pier holds an `equipment` mapping and sets
+  `equipment_focal_length_mm`
+- **THEN** the service logs an error that names that pier and `equipment`
+- **AND** it publishes a verdict for the other pier
 
 #### Scenario: Incomplete equipment on the only pier stops the add-on
 
