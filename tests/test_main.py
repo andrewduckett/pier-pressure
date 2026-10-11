@@ -349,7 +349,7 @@ piers:
 """
 
 
-def _form(path: Path, *piers: dict[str, Any], interval_seconds: int = 600) -> None:
+def _form(path: Path, *piers: Any, interval_seconds: int = 600) -> None:
     path.write_text(
         json.dumps({"interval_seconds": interval_seconds, "piers": list(piers)}), encoding="utf-8"
     )
@@ -715,3 +715,125 @@ def test_sigterm_while_loading_the_config_exits_0(
 
     monkeypatch.setattr(entry, "load_app_config", terminate)
     assert entry.main([_config(tmp_path, FILE_BROKER + PIERS)]) == 0
+
+
+# --------------------------------------------------------------------------- #
+# addon-form-horizon: the form sets each pier's horizon (design D1-D3)
+# --------------------------------------------------------------------------- #
+
+ROOF_FORM = {**BACKYARD, "id": "roof"}
+POINTS = [[0, 10], [90, 25], [180, 5]]
+
+
+def _form_piers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path, *piers: Any
+) -> AppConfig:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _form(options_file, *piers)
+    StartupStub(monkeypatch)
+    return _load(str(tmp_path / "config.yaml"))
+
+
+@pytest.mark.parametrize(
+    ("fields", "altitude"),
+    [
+        ({"min_altitude": 15}, 15.0),
+        ({}, 0.0),
+        ({"min_altitude": 15, "horizon_points": "  "}, 15.0),
+    ],
+    ids=["floor", "open-sky", "blank-points-beside-floor"],
+)
+def test_the_form_sets_a_flat_horizon(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    fields: dict[str, Any],
+    altitude: float,
+) -> None:
+    config = _form_piers(tmp_path, monkeypatch, options_file, {**BACKYARD, **fields})
+
+    [pier] = config.piers
+    assert {pier.horizon_mask.alt_at(az) for az in range(0, 360, 15)} == {altitude}
+
+
+def test_form_points_match_the_same_points_in_the_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    file_text = FILE_BROKER + PIERS + f"    horizon:\n      points: {POINTS}\n"
+    [file_pier] = _load(_config(tmp_path, file_text)).piers
+
+    form = {**BACKYARD, "horizon_points": json.dumps(POINTS)}
+    [form_pier] = _form_piers(tmp_path, monkeypatch, options_file, form).piers
+
+    assert form_pier.horizon_mask == file_pier.horizon_mask
+    assert form_pier.horizon_mask.alt_at(90) == 25.0
+
+
+@pytest.mark.parametrize(
+    ("fields", "names_field"),
+    [
+        ({"horizon_points": "[[0, 10], [90"}, True),
+        ({"horizon_points": 5}, True),
+        ({"horizon_points": "[[0, 95]]"}, False),
+        ({"min_altitude": 15, "horizon_points": "[[0, 10]]"}, False),
+    ],
+    ids=["unreadable", "not-text", "out-of-range", "both-fields"],
+)
+def test_a_bad_form_horizon_skips_only_its_pier(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+    fields: dict[str, Any],
+    names_field: bool,
+) -> None:
+    with caplog.at_level(logging.ERROR):
+        config = _form_piers(tmp_path, monkeypatch, options_file, {**BACKYARD, **fields}, ROOF_FORM)
+
+    assert [p.id for p in config.piers] == ["roof"]
+    errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+    [error] = [e for e in errors if "Skipping invalid pier 'backyard'" in e]
+    assert ("horizon_points" in error) is names_field
+
+
+def test_malformed_saved_values_skip_only_their_pier(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # The Supervisor normally refuses these; the service does not rely on it.
+    with caplog.at_level(logging.ERROR):
+        config = _form_piers(
+            tmp_path,
+            monkeypatch,
+            options_file,
+            {**BACKYARD, "horizon_points": 5},
+            "not a pier",
+            ROOF_FORM,
+        )
+
+    assert [p.id for p in config.piers] == ["roof"]
+    errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+    skips = [e for e in errors if e.startswith("Skipping invalid pier")]
+    assert len(skips) == 2
+    assert any("'backyard'" in e and "horizon_points" in e for e in skips)
+
+
+def test_a_bad_horizon_on_the_only_pier_stops_the_addon(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _form(options_file, {**BACKYARD, "horizon_points": "[[0, 10], [90"})
+    StartupStub(monkeypatch)
+
+    with caplog.at_level(logging.ERROR):
+        assert entry.main([str(tmp_path / "config.yaml")]) == 1
+
+    errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+    assert any("'backyard'" in e and "horizon_points" in e for e in errors)
+    assert errors[-1].startswith("Configuration error: No valid pier")
