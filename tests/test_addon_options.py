@@ -145,3 +145,11 @@ def test_a_form_whose_every_pier_is_skipped_keeps_an_empty_list(tmp_path: Path) 
     # The form did list piers, so config.yaml is not read; the core reports
     # "No valid pier" (D2).
     assert _read_piers(tmp_path, [{**PIER, "horizon_points": "[[0"}]) == []
+
+
+def test_a_yaml_error_logs_on_one_line(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    # The parser's message spans several lines; the Log tab shows one per record.
+    _read_piers(tmp_path, [{**PIER, "horizon_points": "[[0, 10], [90"}])
+
+    [record] = caplog.records
+    assert "\n" not in record.getMessage()

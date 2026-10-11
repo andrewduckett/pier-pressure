@@ -96,7 +96,8 @@ def test_addon_form_schema_declares_the_interval_and_piers(addon: dict[str, Any]
     schema = addon["schema"]
     assert schema["interval_seconds"] == "int(1,)"
     # A list of one mapping: the Supervisor shows it as a list of piers, each with
-    # its own fields, and every field is required, as in PierConfig.
+    # its own fields. The horizon fields are optional, as in PierConfig; the
+    # others are required.
     (pier,) = schema["piers"]
     assert {key: value for key, value in pier.items() if key != "horizon_points"} == PIER_FIELDS
     assert re.fullmatch(r"match\(.*\)\?", pier["horizon_points"])

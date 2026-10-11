@@ -36,6 +36,10 @@ from .horizon import Horizon, flat, from_points, open_sky, parse_horizon_text
 
 logger = logging.getLogger(__name__)
 
+# The log line for a skipped pier. The add-on's form uses it too, and its docs tell
+# users to search the log for it (addon-form-horizon D2).
+SKIP_PIER_MESSAGE = "Skipping invalid pier %r: %s"
+
 _ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 # The system-wide go-threshold applied when a pier omits its own (design D8, and
@@ -409,5 +413,5 @@ def validate_piers(raw_piers: list[Any], base_dir: Path | None = None) -> list[P
             valid.append(PierConfig.model_validate(raw_pier, context=context))
         except ValidationError as exc:
             pier_id = raw_pier.get("id") if isinstance(raw_pier, dict) else None
-            logger.error("Skipping invalid pier %r: %s", pier_id, exc)
+            logger.error(SKIP_PIER_MESSAGE, pier_id, exc)
     return valid

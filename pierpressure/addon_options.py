@@ -18,7 +18,7 @@ from typing import Any
 
 import yaml
 
-from pierpressure.core.config import ConfigError
+from pierpressure.core.config import SKIP_PIER_MESSAGE, ConfigError
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ def _config_piers(piers: list[Any]) -> list[Any]:
             rebuilt.append(_with_horizon_block(pier))
         except ValueError as exc:
             # The core's skip wording, so both read alike in the log (D2).
-            logger.error("Skipping invalid pier %r: %s", pier.get("id"), exc)
+            logger.error(SKIP_PIER_MESSAGE, pier.get("id"), exc)
     return rebuilt
 
 
@@ -97,7 +97,9 @@ def _with_horizon_block(pier: dict[str, Any]) -> dict[str, Any]:
             try:
                 horizon["points"] = yaml.safe_load(points_text)
             except yaml.YAMLError as exc:
-                raise ValueError(f"horizon_points is not valid YAML: {exc}") from exc
+                # The parser's message spans several lines; keep the log to one.
+                message = " ".join(str(exc).split())
+                raise ValueError(f"horizon_points is not valid YAML: {message}") from exc
     if horizon:
         rebuilt["horizon"] = horizon
     return rebuilt
