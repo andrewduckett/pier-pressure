@@ -6,8 +6,8 @@ equipment without changing the core or the `config.yaml` format.
 
 Facts that shape the approach:
 
-- **The edge already rebuilds nested blocks.** `pierpressure/addon_options.py`
-  turns `/data/options.json` into the mapping a `config.yaml` would hold
+- **The edge already rebuilds nested blocks.** The edge is the code outside the
+  pure core that reads the add-on's form. `pierpressure/addon_options.py` turns `/data/options.json` into the mapping a `config.yaml` would hold
   (ADR-0020). It already moves each pier's flat `min_altitude` and
   `horizon_points` into a `horizon` block (addon-form-horizon D1).
 - **The core already has every equipment rule.** `Equipment` in
@@ -91,9 +91,11 @@ When every pier is skipped, `build_config` raises its usual "No valid pier"
 ### D3. Unset values
 
 A field that is absent or `null` is unset. The edge does no other type work on
-the four fields: a saved value of the wrong type goes into the block unchanged,
-and the core rejects it. Unlike `horizon_points`, these fields are numbers, so
-there is no blank text to handle.
+the four fields. A saved value of the wrong type goes into the block unchanged,
+and the core checks it under the file's rules. Those rules turn numeric text,
+such as `"400"`, into a number, as they do for `config.yaml`, and reject other
+text. Unlike `horizon_points`, these fields are numbers, so there is no blank
+text to handle.
 
 ### D4. The manifest's equipment fields
 
@@ -138,9 +140,9 @@ The existing test that every schema key has a label covers the four fields.
   label (D5). Form-specific wording would need a second copy of the rule (D2).
 - [The core's log line spans several lines] → This is how every core validation
   skip is logged today, for file and form piers alike. It is outside this change.
-- [Four more fields make each pier longer on the form] → All four are optional.
-  Home Assistant hides unset optional fields until the user asks to show them.
-  The manual check below confirms this.
+- [Four more fields make each pier longer on the form] → All four are optional,
+  and their labels say the three sizes go together. The manual check below
+  records how the live form shows them.
 - [The schema tests prove only the manifest, not the live form] → A manual check
   on a real Home Assistant instance records its Home Assistant and Supervisor
   versions. It passes when all of these hold:
@@ -148,13 +150,15 @@ The existing test that every schema key has a label covers the four fields.
   2. A pier with focal length, sensor width and sensor height saves. After a
      restart, the log shows no error for it.
   3. A negative focal length does not save, and the form shows an error.
-  4. Clearing all four fields saves.
+  4. Clearing all four fields saves. The saved values hold none of the four
+     fields, and after a restart the pier has no equipment.
 
 ## Migration Plan
 
 None. All four fields are optional, so a saved form without them keeps working
 and its piers keep ranking without a field-of-view term. A rollback restores the
-previous add-on version. Its schema lacks the new fields, so the Supervisor
-drops their values and warns about them in its log. The piers then rank without
-equipment. A user who rolls back and later upgrades again must enter their
-equipment values again.
+previous add-on version. Its schema lacks the new fields. We have not checked
+what the Supervisor does with their saved values. It may warn and keep them, or
+drop them. If it keeps them, the older service rejects each pier that holds them
+as an unknown key. In either case, the user should clear the four fields before
+rolling back, and may need to enter them again after upgrading.

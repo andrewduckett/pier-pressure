@@ -109,11 +109,14 @@ it does for any setup with no valid pier.
 - **THEN** the pier has no equipment
 - **AND** no field-of-view term contributes to any of its targets' scores
 
-#### Scenario: Equipment from the form ranks on field-of-view fit
+#### Scenario: Equipment from the form ranks like file equipment
 
 - **WHEN** the form lists a pier with focal length, sensor width and sensor
   height set
-- **THEN** the pier's verdict ranks its targets with a field-of-view term
+- **AND** a `config.yaml` pier has the same location and the same three values
+  in its `equipment` block
+- **THEN** at the same evaluation instant and conditions, both piers get the
+  same verdict document, including the same ranked targets
 
 #### Scenario: Incomplete equipment skips only that pier
 
@@ -132,13 +135,17 @@ it does for any setup with no valid pier.
   `focal_length_mm`
 - **AND** it publishes a verdict for the other pier
 
-#### Scenario: A zero value skips only that pier
+#### Scenario: A value of 0 or less skips only its pier
 
-- **WHEN** the form lists two piers
-- **AND** one pier sets all three required equipment fields, with
-  `equipment_focal_length_mm` set to 0
-- **THEN** the service logs an error that names that pier
-- **AND** it publishes a verdict for the other pier
+- **WHEN** the form lists three piers, each with all three required equipment
+  fields set
+- **AND** one pier sets `equipment_focal_length_mm` to 0
+- **AND** another pier sets `equipment_reducer` to −0.5
+- **THEN** the service logs an error for each of those two piers, naming the pier
+- **AND** it publishes a verdict for the third pier
+
+The Supervisor normally refuses to save a negative value. The service still
+checks it, because it does not rely on the Supervisor's check.
 
 #### Scenario: Incomplete equipment on the only pier stops the add-on
 
