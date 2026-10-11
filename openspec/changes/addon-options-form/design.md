@@ -165,10 +165,15 @@ entry, so a later story cannot add a field without a label.
   work, because the user could switch to YAML mode. The finding comes from the
   current frontend source. A manual check on a real instance during
   verification confirms it.
-- [A user with an old `config.yaml` adds a pier on the form, and the file's other
-  settings, such as `mqtt.host`, stop applying] → The warning names the ignored
-  file. Nobody runs the add-on yet (epic #67), and #72 and #73 bring those
-  settings to the form.
+- [A user adds a pier on the form while an old `config.yaml` sets `mqtt.host`]
+  → The file's settings stop applying. The warning names the ignored file.
+  Nobody runs the add-on yet (epic #67). #72 and #73 bring those settings to the
+  form.
+- [A form user's broker fails, and the existing errors say to set `mqtt.host` in
+  `config.yaml`] → That advice does nothing while the form lists piers. On the
+  form path, `load_app_config` adds a note to each broker error. The note says
+  the file is not read while the form lists piers. This covers the Supervisor
+  errors and the rejected-login advice.
 - [The form has no topic settings] → A form user gets the default discovery
   prefix and base topic. Users who need others can use `config.yaml` until a
   later story adds them.

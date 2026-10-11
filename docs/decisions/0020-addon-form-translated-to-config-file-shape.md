@@ -36,8 +36,13 @@ settings would hold. The core then validates that mapping exactly as it validate
 a file.
 
 Form field names follow the config file's key names wherever the nesting limit
-allows. The config file stays available to add-on users for settings the form
-cannot hold. Outside an add-on, the service never reads the form.
+allows. Outside an add-on, the service never reads the form.
+
+The config file stays available to add-on users for settings the form cannot
+hold. At first, the service uses either the form or the file, never both: when
+the form lists a pier, it ignores the file. A user who needs a file-only setting
+then lists their piers in the file too. Letting the file add settings to a form
+setup is a separate decision, with its own rule for settings given in both.
 
 ## Consequences
 

@@ -40,10 +40,15 @@ Configuration form at startup. The rule for which source it uses is:
   requirement "The add-on reads config from its own config folder" describes. It
   SHALL ignore the form's interval.
 
-When the service uses the form, it SHALL take the broker's host, port, username
-and password from the Supervisor's `mqtt` service, as it does for a
-`config.yaml` that names no `mqtt.host`. The discovery prefix and base topic
-SHALL take their defaults.
+When the service uses the form, it SHALL take the broker from the Supervisor's
+`mqtt` service. The broker's host, port, username and password all come from
+there. The discovery prefix and base topic SHALL take their defaults.
+
+When the service uses the form and stops with a broker error, the error SHALL
+say that `config.yaml` is not read while the form lists piers. It SHALL NOT tell
+the user only to set `mqtt.host` in `config.yaml`. This covers the "no MQTT
+broker was found", "access refused", TLS, MQTT version and rejected-login
+errors.
 
 The service SHALL check each pier from the form exactly as it checks a pier from
 `config.yaml`. A pier that fails the check SHALL be skipped with a logged error,
@@ -84,12 +89,22 @@ as it did before this change.
 - **THEN** the service publishes a verdict for `backyard` only
 - **AND** its log contains a warning that names `/config/config.yaml` as ignored
 
-#### Scenario: A bad pier on the form is skipped
+#### Scenario: A bad pier in the saved form values is skipped
 
-- **WHEN** the form lists two piers, and one of them fails the same check a pier
-  in `config.yaml` would fail
+- **WHEN** the saved form values list two piers, and one has a latitude of 95
 - **THEN** the service logs an error that names the skipped pier
 - **AND** it publishes a verdict for the other pier
+
+The Supervisor normally refuses to save such a value. The service still checks
+each pier, because it does not rely on the Supervisor's check.
+
+#### Scenario: A form user's broker error does not point only to the file
+
+- **WHEN** the form lists a pier
+- **AND** the Supervisor provides no `mqtt` service within the wait
+- **THEN** the add-on stops
+- **AND** its log says no MQTT broker was found
+- **AND** it says `config.yaml` is not read while the form lists piers
 
 #### Scenario: Nothing is set up
 
