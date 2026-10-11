@@ -33,7 +33,8 @@ Story: #72 `addon-form-broker`, part of epic #67.
 - **Empty fields count as not set.** A broker field the user clears on the form
   is treated as absent, not as empty text.
 - **No password in the log.** The log names the Configuration tab as the
-  broker's source. No log line or error message includes the password.
+  broker's source. The service never reads or inserts `mqtt.password`
+  when it builds a log line or an error message.
 - **Documentation.** `ha-addon/DOCS.md` and the README's add-on section describe
   the broker fields. They no longer advise writing the broker password into
   `config.yaml` in the add-on.

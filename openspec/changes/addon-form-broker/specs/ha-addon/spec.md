@@ -399,8 +399,9 @@ check the username and password. It SHALL NOT tell the user to restart the
 Mosquitto add-on.
 
 The log SHALL say that the broker came from the Configuration tab, and SHALL
-name its host and port. No log line or error message SHALL contain the value of
-the password field.
+name its host and port. The service SHALL NOT read or insert `mqtt.password`
+when it builds a log line or an error message. The log may still show the host,
+even when the user enters the same text as the host and the password.
 
 #### Scenario: The form's broker is used
 
@@ -445,7 +446,7 @@ the password field.
 
 #### Scenario: A rejected login does not reveal the form's password
 
-- **WHEN** the form lists a pier, sets `mqtt.host`, and sets `mqtt.password` to
-  `pw-8c41f2`
+- **WHEN** the form lists a pier, sets `mqtt.host` to `broker.lan`, and sets
+  `mqtt.password` to `pw-8c41f2`
 - **AND** the broker rejects the login
 - **THEN** no log line or error message contains `pw-8c41f2`
