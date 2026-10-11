@@ -123,7 +123,7 @@ def _with_equipment_block(pier: dict[str, Any]) -> dict[str, Any]:
 
     A field that is absent or ``None`` is unset (D3). The block holds only the
     fields that are set; the core rejects an incomplete one (D2). Raises
-    :class:`ValueError` when the pier also holds an ``equipment`` key, rather
+    :class:`ValueError` when the pier also holds an ``equipment`` value, rather
     than merging the two.
     """
     rebuilt = {key: value for key, value in pier.items() if key not in EQUIPMENT_FIELDS}
@@ -131,7 +131,7 @@ def _with_equipment_block(pier: dict[str, Any]) -> dict[str, Any]:
         key: pier[field] for field, key in EQUIPMENT_FIELDS.items() if pier.get(field) is not None
     }
     if equipment:
-        if "equipment" in pier:
+        if pier.get("equipment") is not None:
             raise ValueError("equipment and the equipment_* fields cannot both be set")
         rebuilt["equipment"] = equipment
     return rebuilt

@@ -1001,19 +1001,12 @@ def test_incomplete_equipment_on_the_only_pier_stops_the_addon(
     assert errors[-1].startswith("Configuration error: No valid pier")
 
 
-FRAMING_SENTENCES = (
-    "Top pick {} frames well in your field of view.",
-    "Top pick {} is larger than your field of view.",
-    "Top pick {} is small in your field of view.",
-    "Top pick {} fills most of your field of view.",
-)
-
-
 def test_form_equipment_ranks_like_file_equipment(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
 ) -> None:
-    # The instant, conditions and pier of tests/test_producer_targets.py's
-    # equipment test, whose top pick has a known size.
+    # The instant, conditions and London pier of tests/test_producer_targets.py's
+    # equipment test, plus a horizon. The asserts below check that the top pick
+    # still has a known size.
     monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
     file_text = _equipment_file(EQUIPMENT) + "    horizon:\n      min_altitude: 15\n"
     [file_pier] = _load(_config(tmp_path, file_text)).piers
@@ -1028,8 +1021,9 @@ def test_form_equipment_ranks_like_file_equipment(
     assert from_form.to_json() == from_file.to_json()
     top = from_form.targets[0]
     assert top.size_arcmin is not None
-    framing = {sentence.format(top.name or top.id) for sentence in FRAMING_SENTENCES}
-    assert len([r for r in from_form.reasons if r in framing]) == 1, from_form.reasons
+    top_pick = f"Top pick {top.name or top.id} "
+    framing = [r for r in from_form.reasons if r.startswith(top_pick) and "field of view" in r]
+    assert len(framing) == 1, from_form.reasons
 
 
 def test_a_form_pier_without_equipment_has_no_field_of_view_reason(

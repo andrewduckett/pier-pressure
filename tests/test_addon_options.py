@@ -159,7 +159,7 @@ def test_a_yaml_error_logs_on_one_line(tmp_path: Path, caplog: pytest.LogCapture
     assert "\n" not in record.getMessage()
 
 
-EQUIPMENT_FIELDS = {
+EQUIPMENT_FORM_VALUES = {
     "equipment_focal_length_mm": 400,
     "equipment_sensor_width_mm": 23.5,
     "equipment_sensor_height_mm": 15.7,
@@ -169,7 +169,7 @@ EQUIPMENT_FIELDS = {
 
 def test_equipment_fields_become_an_equipment_block(tmp_path: Path) -> None:
     # addon-form-equipment D1.
-    assert _read_piers(tmp_path, [{**PIER, **EQUIPMENT_FIELDS}]) == [
+    assert _read_piers(tmp_path, [{**PIER, **EQUIPMENT_FORM_VALUES}]) == [
         {
             **PIER,
             "equipment": {
@@ -184,7 +184,9 @@ def test_equipment_fields_become_an_equipment_block(tmp_path: Path) -> None:
 
 def test_equipment_without_a_reducer_has_no_reducer_key(tmp_path: Path) -> None:
     # The core's default of 1.0 applies (D1).
-    fields = {key: value for key, value in EQUIPMENT_FIELDS.items() if key != "equipment_reducer"}
+    fields = {
+        key: value for key, value in EQUIPMENT_FORM_VALUES.items() if key != "equipment_reducer"
+    }
 
     assert _read_piers(tmp_path, [{**PIER, **fields}]) == [
         {
@@ -213,8 +215,8 @@ def test_a_pier_without_equipment_fields_has_no_equipment(tmp_path: Path) -> Non
 
 def test_null_equipment_fields_count_as_unset(tmp_path: Path) -> None:
     # D3: a cleared field may be saved as null.
-    all_null = {**PIER, **dict.fromkeys(EQUIPMENT_FIELDS)}
-    one_null = {**PIER, "id": "roof", **EQUIPMENT_FIELDS, "equipment_reducer": None}
+    all_null = {**PIER, **dict.fromkeys(EQUIPMENT_FORM_VALUES)}
+    one_null = {**PIER, "id": "roof", **EQUIPMENT_FORM_VALUES, "equipment_reducer": None}
 
     assert _read_piers(tmp_path, [all_null, one_null]) == [
         PIER,
@@ -255,3 +257,10 @@ def test_horizon_and_equipment_blocks_sit_side_by_side(tmp_path: Path) -> None:
     assert _read_piers(tmp_path, [pier]) == [
         {**PIER, "horizon": {"min_altitude": 15}, "equipment": {"focal_length_mm": 400}}
     ]
+
+
+def test_a_null_equipment_key_beside_equipment_fields_counts_as_unset(tmp_path: Path) -> None:
+    # Only an equipment mapping clashes with the fields (D1, D3).
+    pier = {**PIER, "equipment": None, "equipment_focal_length_mm": 400}
+
+    assert _read_piers(tmp_path, [pier]) == [{**PIER, "equipment": {"focal_length_mm": 400}}]
