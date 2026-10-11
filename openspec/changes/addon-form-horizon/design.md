@@ -97,11 +97,21 @@ then raises its usual "No valid pier" `ConfigError`, and the add-on stops.
 - *Alternative:* let `HorizonConfig.points` accept a string. Rejected: it changes
   the `config.yaml` format, which epic #67 rules out.
 
-### D3. Blank and missing values mean "not set"
+### D3. Blank, missing and malformed values
 
 A key that is absent or `null` is unset. A `horizon_points` value that is empty
 or blank after stripping whitespace is unset too. The frontend may save a cleared
 text field as `""`, and that must not count as a second horizon source.
+
+The edge does not trust the saved values to have the schema's types. Before any
+string work, it checks each entry:
+
+- A pier entry that is not a mapping passes through unchanged. The core's
+  per-pier check then skips it, as it does today.
+- A `horizon_points` value that is set but is not text skips the pier at the
+  edge, with the D2 wording: `horizon_points must be text`.
+
+Every edge failure is per pier, so no saved value can stop the other piers.
 
 ### D4. The manifest's horizon fields
 
@@ -159,10 +169,21 @@ The existing test that every schema key has a label covers both fields.
 - [The frontend changes how it shows a `match` field] → The finding comes from
   the current Supervisor source. The manual check on a real instance confirms
   it.
+- [The `re.match` test proves only the pattern, not the live form] → A manual
+  check on a real Home Assistant instance records its Home Assistant and
+  Supervisor versions. It passes when all of these hold:
+  1. A pier shows both horizon fields, with their labels.
+  2. `[[0, 10], [90, 25]]` in `horizon_points` saves, and the pier's log shows
+     no error after restart.
+  3. `[0, 10], [90, 25]` in `horizon_points` does not save, and the form shows
+     an error.
+  4. Clearing `horizon_points` saves.
+  5. Clearing `min_altitude` saves.
 
 ## Migration Plan
 
 None. Both fields are optional, so a saved form without them keeps working and
 its piers keep an open horizon. A rollback restores the previous add-on version.
 Its schema lacks the new fields, so the Supervisor drops their values and warns
-about them in its log. The piers then fall back to an open horizon.
+about them in its log. The piers then fall back to an open horizon. A user who
+rolls back and later upgrades again must enter their horizon values again.
