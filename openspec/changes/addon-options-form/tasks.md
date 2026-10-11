@@ -1,7 +1,7 @@
 ## 1. The add-on manifest and its labels
 
 - [x] 1.1 Write failing tests in `tests/test_ha_addon.py`. Replace `test_addon_offers_no_options` with tests that check the manifest's `options` (`interval_seconds: 900`, `piers: []`) and `schema` (design D5). Add a test that every key in `schema`, and every pier field, has a `name` and a `description` in `ha-addon/translations/en.yaml` (design D6). Verify both fail.
-- [ ] 1.2 Add `options` and `schema` to `ha-addon/config.yaml`, and update its comment that says there is no options form. Create `ha-addon/translations/en.yaml`, with units in each number's description. Verify the 1.1 tests pass.
+- [x] 1.2 Add `options` and `schema` to `ha-addon/config.yaml`, and update its comment that says there is no options form. Create `ha-addon/translations/en.yaml`, with units in each number's description. Verify the 1.1 tests pass.
 
 ## 2. Reading the form
 
