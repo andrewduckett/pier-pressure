@@ -5,7 +5,7 @@
 
 ## 2. Reading the form
 
-- [ ] 2.1 Write failing tests in a new `tests/test_addon_options.py` for the function in `pierpressure/addon_options.py` (design D1, D3). Cover these cases: a form with piers returns the config-shaped mapping; a form with no piers returns `None`; a missing file returns `None`; invalid JSON, a non-mapping root, and a non-list `piers` each raise `ConfigError` naming the file. Verify they fail.
+- [x] 2.1 Write failing tests in a new `tests/test_addon_options.py` for the function in `pierpressure/addon_options.py` (design D1, D3). Cover these cases: a form with piers returns the config-shaped mapping; a form with no piers returns `None`; a missing file returns `None`; invalid JSON, a non-mapping root, and a non-list `piers` each raise `ConfigError` naming the file. Verify they fail.
 - [ ] 2.2 Implement `pierpressure/addon_options.py` outside the core. Add `pierpressure.addon_options` to the forbidden imports in `tests/test_core_boundary.py`. Verify the 2.1 tests and the boundary test pass.
 
 ## 3. Choosing the source at startup
