@@ -123,19 +123,23 @@ schema:
       longitude: float(-180,180)
       elevation_m: float
       min_altitude: float(0,90)?
-      horizon_points: 'match(^\s*(\[.*\])?\s*$)?'
+      horizon_points: 'match(^\s*(\[\s*\[.*\]\s*\])?\s*$)?'
 ```
 
 Neither field appears in `options`, so a new pier starts with no horizon.
 
-The pattern accepts blank text, or one bracketed span with only whitespace
-around it. It ends with `$` because the Supervisor anchors only the start. A
+The pattern accepts blank text, or text that opens with `[[` and closes with
+`]]`, as a list of pairs does. Whitespace may sit between the brackets and around
+the text. It ends with `$` because the Supervisor anchors only the start. A
 test reads the pattern from the manifest and applies it with `re.match`, as the
 Supervisor does.
 
 - *Why a loose pattern:* it catches the most common mistake, missing outer
   brackets, while the user can still fix it before saving. Checking the full
   structure with a regex would be hard to read, and the parser checks it anyway.
+- *Why two brackets, not one:* a pattern that needs only one bracket at each
+  end accepts `[0, 10], [90, 25]`, because that text also starts with `[` and
+  ends with `]`. A list of pairs always opens with `[[` and closes with `]]`.
 - *Why accept blank text:* a pattern that needs brackets would reject a cleared
   field. The user could then not save the form.
 - *Why `float(0,90)`:* it is the range `flat` accepts. The Supervisor then
