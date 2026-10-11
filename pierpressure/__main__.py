@@ -52,10 +52,11 @@ DEFAULT_CONFIG_PATH = "config.yaml"
 # the user never set mqtt.username or mqtt.password, and cannot set them alone. The
 # delivery adapter gives it at startup and during a reconnect
 # (reconnect-restores-delivery D5).
-SUPERVISOR_LOGIN_ADVICE = (
+_RESTART_MOSQUITTO = (
     "The username and password came from the Supervisor's mqtt service, so restart the "
-    "Mosquitto broker add-on, or set mqtt.host to use your own broker login."
+    "Mosquitto broker add-on"
 )
+SUPERVISOR_LOGIN_ADVICE = f"{_RESTART_MOSQUITTO}, or set mqtt.host to use your own broker login."
 
 # On the form path, config.yaml is not read, so setting mqtt.host there does nothing
 # until the piers move into it too (addon-options-form, "Risks / Trade-offs").
@@ -63,10 +64,7 @@ FORM_NOTE = (
     "config.yaml is not read while the Configuration tab lists piers. To set mqtt.host "
     "there, move your piers from the Configuration tab into config.yaml as well."
 )
-FORM_LOGIN_ADVICE = (
-    "The username and password came from the Supervisor's mqtt service, so restart the "
-    f"Mosquitto broker add-on. {FORM_NOTE}"
-)
+FORM_LOGIN_ADVICE = f"{_RESTART_MOSQUITTO}. {FORM_NOTE}"
 
 
 class LoadedConfig(NamedTuple):

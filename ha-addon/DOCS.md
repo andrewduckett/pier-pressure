@@ -19,8 +19,9 @@ This add-on runs the same image as a Docker install. You set it up on its
      underscores, because the ID becomes part of the MQTT topics and entity IDs.
    - its **latitude** and **longitude** in degrees. North and east are positive.
    - its **elevation** above sea level, in metres.
-4. **Save, then start the add-on.** Saving restarts a running add-on, so it reads
-   the new settings.
+4. **Save, then start the add-on.** The add-on reads the tab only when it starts.
+   If it is already running, restart it when Home Assistant offers to, or from
+   the **Info** tab.
 5. **Check the log.** Open the **Log** tab. The first line ends with the
    version, for example `PierPressure 2026.10.0`. Later lines name where the
    settings and the broker came from:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import logging
 import os
@@ -502,6 +503,13 @@ def test_main_logs_the_settings_source(
         entry.main([_config(tmp_path, PIERS)])
 
     assert expected in [r.getMessage() for r in caplog.records]
+
+
+def test_load_app_config_reads_the_supervisors_options_file_by_default() -> None:
+    # The autouse fixture swaps in a temporary path, so pin the real default here.
+    original = entry.load_app_config.func  # type: ignore[attr-defined]
+    default = inspect.signature(original).parameters["options_path"].default
+    assert default == "/data/options.json"
 
 
 # A form user's broker errors must not point only to config.yaml, which is not
