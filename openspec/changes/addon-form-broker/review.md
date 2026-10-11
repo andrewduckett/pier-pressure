@@ -1,30 +1,29 @@
 ## Review Metadata
 
-- **Review round**: 1
-- **Prior round**: none
+- **Review round**: 2
+- **Prior round**: Round 1 — VERDICT: REVISE. Two broker-source and error-advice conflicts were critical; the password logging check was ambiguous.
 - **Reviewer context**: cross-model (GPT, `gpt-6-sol` via `codex exec`)
 - **Tool restrictions**: read-only sandbox (`codex exec -s read-only`)
-- **Artifacts reviewed**: proposal.md, design.md, adr.md, the `ha-addon` delta and current spec, repository guidance, ADR-0017, ADR-0020, relevant source, add-on files, README, tests, and `.workspace/options.py`
+- **Artifacts reviewed**: The specified proposal, design, ADR manifest, delta spec, current `ha-addon` spec, repository guidance, ADRs, source files, tests, and Supervisor reference.
 
-<!-- This verdict applies only to the artifact contents reviewed in this round. -->
+<!-- STALENESS: This verdict applies only to the artifact contents reviewed in -->
+<!-- this round. Any later edit to proposal.md, design.md, or specs/ other than -->
+<!-- applying the Required Change voids the verdict and requires a new round. -->
 
 ## Findings
 
 ### 🔴 Critical (blocking)
 
-- **The broker-source requirements conflict when an ignored file exists.** The [delta spec](openspec/changes/addon-form-broker/specs/ha-addon/spec.md:189) requires a form with `mqtt.host` to supply all four connection settings without asking the Supervisor. The [current spec](openspec/specs/ha-addon/spec.md:477) still requires all four settings from the Supervisor when `config.yaml` has no host. Both conditions can hold when the form lists piers and an ignored file has no host. Limit the existing requirement and its scenarios to the file-settings path.
-
-- **Supervisor error advice conflicts across requirements.** The [delta spec](openspec/changes/addon-form-broker/specs/ha-addon/spec.md:98) directs form users to the Configuration tab. The [current spec](openspec/specs/ha-addon/spec.md:569) directs users facing a missing broker, access refusal, TLS requirement, or unsupported MQTT version to `config.yaml`. Make that advice depend on whether the service is using form or file settings.
+None.
 
 ### 🟡 Moderate
 
-- **The password-log guarantee is too absolute to test as written.** The [delta spec](openspec/changes/addon-form-broker/specs/ha-addon/spec.md:207) requires the log to name the host while forbidding any log line containing the password. A user could enter identical host and password text. Specify that the password field’s value must never be logged *as a credential*, and test with distinct host and password values.
+1. **The password logging guarantee is impossible as written.** The delta spec requires the log to name the broker host, but also says no log line or error message may contain the password field’s value ([delta spec](openspec/changes/addon-form-broker/specs/ha-addon/spec.md:401)). If the user enters the same text for host and password, logging the host contains that value. The [proposal](openspec/changes/addon-form-broker/proposal.md:35) makes the same absolute claim. The new scenarios use distinct values, resolving the test ambiguity but not the wording conflict.
 
 ### 📌 Suggestions
 
-- **Make the live form check reproducible.** The [design](openspec/changes/addon-form-broker/design.md:150) says a Home Assistant OS check confirmed the empty block and password field work, but gives no version or check record. Record the version and steps or link to durable evidence.
-
-- **Tighten the ADR summary.** “ADR review completed” and “No major durable architectural decisions” in the [ADR manifest](openspec/changes/addon-form-broker/adr.md:8) leave the review’s scope and “major” unclear. Name the decision reviewed and why the existing ADRs cover it. No sentence over 30 words or material filler was found elsewhere in the change artifacts.
+- Keep the result of the [design’s live form check](openspec/changes/addon-form-broker/design.md:171), including the recorded Home Assistant and Supervisor versions, with implementation verification.
+- No material ISO 24495 plain-language issue was found in the proposal, design, delta spec, or ADR manifest.
 
 ## Embedded-Instruction / Injection Attempts
 
@@ -32,14 +31,22 @@
 
 ## Verdict
 
-VERDICT: REVISE
+VERDICT: APPROVE_WITH_CHANGES
+
+The round 1 broker-source and error-advice conflicts are resolved. One wording correction remains.
 
 ## Required Changes (if APPROVE WITH CHANGES)
 
-Not applicable.
+1. In the proposal and delta spec, replace the absolute password-value claim with a requirement that the service does not read or interpolate `mqtt.password` to construct a log or error message. Allow the host to be logged when the user independently enters the same text as the password. Keep the distinct-value log and rejected-login scenarios.
 
-CHANGES_APPLIED: n/a
+CHANGES_APPLIED: no
 
 ## Rebuttals
 
-None.
+- **Supervisor default versus form broker:** Resolved. The modified requirement applies to file settings; the added requirement covers the [form broker](openspec/changes/addon-form-broker/specs/ha-addon/spec.md:381).
+- **Supervisor errors pointing form users to `config.yaml`:** Resolved. The spec gives advice by settings source, and [design D5](openspec/changes/addon-form-broker/design.md:129) passes the setting location to `fetch_mqtt_broker`.
+- **Password logging check:** The distinct-value and rejected-login scenarios resolve the test ambiguity. The absolute prose claim remains open as the Required Change.
+- **Live form check:** Addressed. The design specifies four checks and records Home Assistant and Supervisor versions.
+- **ADR summary:** The reviewer accepts the author’s response. The manifest adequately identifies the decision considered and the relevant ADRs.
+
+This is not a second consecutive `REVISE` verdict, so the stated escalation condition is not met.
