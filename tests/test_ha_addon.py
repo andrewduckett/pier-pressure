@@ -1,4 +1,7 @@
-"""ha-addon: the add-on files stay valid and pinned to the release (design D1-D3, D7)."""
+"""ha-addon: the add-on files stay valid and pinned to the release (design D1-D3, D7).
+
+The Configuration form's options, schema and labels follow addon-options-form D5, D6.
+"""
 
 from __future__ import annotations
 
@@ -12,6 +15,7 @@ from next_version import RELEASE_TAG
 ROOT = Path(__file__).resolve().parent.parent
 REPOSITORY_FILE = ROOT / "repository.yaml"
 ADDON_CONFIG = ROOT / "ha-addon" / "config.yaml"
+ADDON_TRANSLATIONS = ROOT / "ha-addon" / "translations" / "en.yaml"
 RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
 
 REPOSITORY_URL = "https://github.com/andrewduckett/pier-pressure"
@@ -73,9 +77,54 @@ def test_addon_reads_config_from_its_own_folder(addon: dict[str, Any]) -> None:
     assert addon["environment"]["PIERPRESSURE_CONFIG"] == "/config/config.yaml"
 
 
-def test_addon_offers_no_options(addon: dict[str, Any]) -> None:
-    assert "options" not in addon
-    assert "schema" not in addon
+PIER_FIELDS = {
+    "id": "str",
+    "latitude": "float(-90,90)",
+    "longitude": "float(-180,180)",
+    "elevation_m": "float",
+}
+
+
+def test_addon_form_defaults_to_the_interval_and_no_piers(addon: dict[str, Any]) -> None:
+    assert addon["options"] == {"interval_seconds": 900, "piers": []}
+
+
+def test_addon_form_schema_declares_the_interval_and_piers(addon: dict[str, Any]) -> None:
+    schema = addon["schema"]
+    assert schema["interval_seconds"] == "int(1,)"
+    # A list of one mapping: the Supervisor shows it as a list of piers, each with
+    # its own fields, and every field is required, as in PierConfig.
+    assert schema["piers"] == [PIER_FIELDS]
+    assert set(schema) == set(addon["options"])
+
+
+def test_every_form_field_has_a_label(addon: dict[str, Any]) -> None:
+    labels = _load(ADDON_TRANSLATIONS)["configuration"]
+    schema = addon["schema"]
+
+    for key in schema:
+        assert labels[key]["name"], f"{key} has no name"
+        assert labels[key]["description"], f"{key} has no description"
+    for field in schema["piers"][0]:
+        entry = labels["piers"]["fields"][field]
+        assert entry["name"], f"piers.{field} has no name"
+        assert entry["description"], f"piers.{field} has no description"
+
+
+@pytest.mark.parametrize(
+    ("path", "unit"),
+    [
+        (("interval_seconds",), "seconds"),
+        (("piers", "fields", "latitude"), "degrees"),
+        (("piers", "fields", "longitude"), "degrees"),
+        (("piers", "fields", "elevation_m"), "metres"),
+    ],
+)
+def test_every_number_label_names_its_unit(path: tuple[str, ...], unit: str) -> None:
+    entry: Any = _load(ADDON_TRANSLATIONS)["configuration"]
+    for key in path:
+        entry = entry[key]
+    assert unit in entry["description"]
 
 
 def test_addon_architectures_match_the_release_platforms(addon: dict[str, Any]) -> None:
