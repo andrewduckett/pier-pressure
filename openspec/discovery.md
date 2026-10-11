@@ -80,7 +80,7 @@ Stage status checked against the code on 2026-10-10.
    `.hrz` file; Stellarium and Telescopius exports are rejected as not yet
    supported. On Home Assistant OS, writing the file needs a second add-on (Samba
    share or Studio Code Server), because the add-on has no Configuration tab —
-   partial
+   partial ([#69](https://github.com/andrewduckett/pier-pressure/issues/69), [#70](https://github.com/andrewduckett/pier-pressure/issues/70), [#71](https://github.com/andrewduckett/pier-pressure/issues/71), [#72](https://github.com/andrewduckett/pier-pressure/issues/72), [#73](https://github.com/andrewduckett/pier-pressure/issues/73))
 5. **See tonight's verdict** — verdict, score, confidence, and reasons; a refresh
    button; an optional plain-language narrative — supported
 6. **Get told in time** — the README gives a Home Assistant automation that
