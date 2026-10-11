@@ -1,7 +1,7 @@
 ## 1. The add-on manifest and its labels
 
-- [ ] 1.1 Write failing tests in `tests/test_ha_addon.py` (design D4, D5). Extend the schema test: each pier item has `min_altitude: float(0,90)?` and an optional `match(...)` type for `horizon_points`, and `options` does not set either field. Add a test that reads the `horizon_points` pattern from the manifest and applies it with `re.match`, as the Supervisor does. It accepts `[[0, 10], [90, 25]]`, empty text and blank text. It rejects `[0, 10], [90, 25]` and `[[0, 10]] extra`. Verify they fail.
-- [ ] 1.2 Add both fields to the pier schema in `ha-addon/config.yaml`, with a comment naming this change's D4. Add their names and descriptions under `piers.fields` in `ha-addon/translations/en.yaml` (design D5). Verify the 1.1 tests pass, and that the existing label test covers both new fields.
+- [x] 1.1 Write failing tests in `tests/test_ha_addon.py` (design D4, D5). Extend the schema test: each pier item has `min_altitude: float(0,90)?` and an optional `match(...)` type for `horizon_points`, and `options` does not set either field. Add a test that reads the `horizon_points` pattern from the manifest and applies it with `re.match`, as the Supervisor does. It accepts `[[0, 10], [90, 25]]`, empty text and blank text. It rejects `[0, 10], [90, 25]` and `[[0, 10]] extra`. Verify they fail.
+- [x] 1.2 Add both fields to the pier schema in `ha-addon/config.yaml`, with a comment naming this change's D4. Add their names and descriptions under `piers.fields` in `ha-addon/translations/en.yaml` (design D5). Verify the 1.1 tests pass, and that the existing label test covers both new fields.
 
 ## 2. Turning the form fields into a horizon
 

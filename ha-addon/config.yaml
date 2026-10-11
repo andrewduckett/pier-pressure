@@ -32,6 +32,11 @@ schema:
       latitude: float(-90,90)
       longitude: float(-180,180)
       elevation_m: float
+      # The pier's horizon, flattened because the form nests only two levels:
+      # a floor, or points as text the service parses. The check on save wants
+      # blank text, or text in [[ and ]] (addon-form-horizon D4).
+      min_altitude: float(0,90)?
+      horizon_points: 'match(^\s*(\[\s*\[.*\]\s*\])?\s*$)?'
 # Ask the Supervisor for the broker another add-on (usually Mosquitto) provides.
 # "want", not "need", so the add-on still installs with any other broker. Used
 # only when config.yaml names no mqtt.host (ha-addon-mqtt-service).

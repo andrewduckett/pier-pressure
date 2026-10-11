@@ -24,3 +24,15 @@ configuration:
       elevation_m:
         name: Elevation
         description: Height above sea level, in metres.
+      min_altitude:
+        name: Horizon floor
+        description: >-
+          Optional. The lowest altitude a target must reach, in degrees from 0 to
+          90, the same in every direction. Leave it empty when you set horizon
+          points; the two cannot be used together.
+      horizon_points:
+        name: Horizon points
+        description: >-
+          Optional. Your horizon as [azimuth, altitude] pairs in degrees, on one
+          line, such as [[0, 10], [90, 25], [180, 5]]. Leave it empty when you set
+          a horizon floor; the two cannot be used together.
