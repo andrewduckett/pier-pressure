@@ -355,8 +355,7 @@ def _form(path: Path, *piers: dict[str, Any], interval_seconds: int = 600) -> No
 
 
 def _load(config_path: str) -> AppConfig:
-    config, _ = entry.load_app_config(config_path)
-    return config
+    return entry.load_app_config(config_path).config
 
 
 def test_a_form_setup_without_a_file_uses_the_form_and_the_supervisor_broker(
@@ -503,6 +502,109 @@ def test_main_logs_the_settings_source(
         entry.main([_config(tmp_path, PIERS)])
 
     assert expected in [r.getMessage() for r in caplog.records]
+
+
+# A form user's broker errors must not point only to config.yaml, which is not
+# read while the form lists piers (design "Risks / Trade-offs").
+FORM_NOTE = "config.yaml is not read while the Configuration tab lists piers"
+
+
+@pytest.mark.parametrize(
+    ("form", "from_form"), [([BACKYARD], True), ([], False)], ids=["form", "file"]
+)
+def test_load_app_config_reports_whether_the_form_was_the_source(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    form: list[dict[str, Any]],
+    from_form: bool,
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _form(options_file, *form)
+    StartupStub(monkeypatch)
+
+    loaded = entry.load_app_config(_config(tmp_path, PIERS))
+
+    assert loaded.from_form is from_form
+    assert loaded.broker_from_supervisor
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "No MQTT broker was found. Install the Mosquitto broker add-on, or set mqtt.host "
+        "in config.yaml.",
+        "The Supervisor's MQTT broker requires TLS. Set mqtt.host and mqtt.port in config.yaml.",
+    ],
+    ids=["no-broker", "tls"],
+)
+def test_a_form_users_supervisor_error_says_the_file_is_not_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+    message: str,
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _form(options_file, BACKYARD)
+    StartupStub(monkeypatch, supervisor=SupervisorError(message))
+
+    with caplog.at_level(logging.ERROR, logger="pierpressure"):
+        assert entry.main([str(tmp_path / "config.yaml")]) == 1
+
+    [error] = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+    assert error.startswith(f"Configuration error: {message}")
+    assert FORM_NOTE in error
+
+
+def test_a_file_users_supervisor_error_keeps_its_wording(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _form(options_file)
+    StartupStub(monkeypatch, supervisor=SupervisorError("No MQTT broker was found."))
+
+    with caplog.at_level(logging.ERROR, logger="pierpressure"):
+        assert entry.main([_config(tmp_path, PIERS)]) == 1
+
+    errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+    assert errors == ["Configuration error: No MQTT broker was found."]
+
+
+def test_a_form_users_rejected_login_says_the_file_is_not_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _form(options_file, BACKYARD)
+    stub = StartupStub(monkeypatch, reject_login=True)
+
+    with caplog.at_level(logging.ERROR, logger="pierpressure"):
+        assert entry.main([str(tmp_path / "config.yaml")]) == 1
+
+    # The adapter keeps this advice for a login rejected during a reconnect too.
+    assert stub.login_advice == [entry.FORM_LOGIN_ADVICE]
+    [error] = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+    assert error.startswith("Startup delivery failure: The MQTT broker at core-mosquitto:1883")
+    assert "restart the Mosquitto broker add-on" in error
+    assert FORM_NOTE in error
+
+
+def test_a_file_users_rejected_supervisor_login_keeps_its_advice(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _form(options_file)
+    stub = StartupStub(monkeypatch, reject_login=True)
+
+    entry.main([_config(tmp_path, PIERS)])
+
+    assert stub.login_advice == [entry.SUPERVISOR_LOGIN_ADVICE]
 
 
 # --------------------------------------------------------------------------- #
