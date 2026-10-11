@@ -170,10 +170,16 @@ entry, so a later story cannot add a field without a label.
   Nobody runs the add-on yet (epic #67). #72 and #73 bring those settings to the
   form.
 - [A form user's broker fails, and the existing errors say to set `mqtt.host` in
-  `config.yaml`] → That advice does nothing while the form lists piers. On the
-  form path, `load_app_config` adds a note to each broker error. The note says
-  the file is not read while the form lists piers. This covers the Supervisor
-  errors and the rejected-login advice.
+  `config.yaml`] → That advice does nothing while the form lists piers. The fix
+  has two parts, because the errors arise at two times:
+  - **At startup lookup.** On the form path, `load_app_config` adds a note to a
+    `SupervisorError`. The note says the file is not read while the form lists
+    piers.
+  - **At connect, or a later reconnect.** A rejected login arises in the
+    delivery adapter, after `load_app_config` returns. `load_app_config` also
+    reports that the form was the source. `main` passes that to
+    `build_delivery_and_explainer`, which picks login advice for form users
+    instead of `SUPERVISOR_LOGIN_ADVICE`.
 - [The form has no topic settings] → A form user gets the default discovery
   prefix and base topic. Users who need others can use `config.yaml` until a
   later story adds them.

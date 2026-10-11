@@ -46,13 +46,13 @@ VERDICT: APPROVE_WITH_CHANGES
 2. Make the bad-pier scenario reachable or identify it as malformed saved-data testing.
 3. Clarify in ADR-0020 that users who need file-only settings must also configure their piers in the file until the later merge change.
 
-CHANGES_APPLIED: no
+CHANGES_APPLIED: yes
 
 ## Rebuttals
 
-- **Moderate 1 — fixed.** The delta spec adds a rule: on the form path, a broker error says `config.yaml` is not read while the form lists piers, and does not tell the user only to set `mqtt.host` in the file. A new scenario, "A form user's broker error does not point only to the file", covers it. The design's risks section says how: `load_app_config` adds a note to each broker error on the form path, including the rejected-login advice.
-- **Moderate 2 — fixed.** The scenario is now "A bad pier in the saved form values is skipped", with a latitude of 95. It says that the Supervisor normally refuses this value, and that the service still checks each pier.
-- **Moderate 3 — fixed.** ADR-0020 now says that at first the service uses the form or the file, never both, and that a user who needs a file-only setting lists their piers in the file too.
+- **Moderate 1 — fixed; accepted by reviewer after re-check 2.** The delta spec adds a rule: on the form path, a broker error says `config.yaml` is not read while the form lists piers, and does not tell the user only to set `mqtt.host` in the file. A new scenario, "A form user's broker error does not point only to the file", covers it. The design's risks section says how: `load_app_config` adds a note to each broker error on the form path, including the rejected-login advice. *Re-check 1:* the reviewer did not accept this, because `load_app_config` runs before a login can be rejected. The design now splits the fix: `load_app_config` notes `SupervisorError`s, and `main` passes the form source to `build_delivery_and_explainer`, which picks login advice for form users. *Re-check 2:* accepted by reviewer — "the design now passes the form configuration source to the delivery adapter, where rejected logins are handled at connection and reconnection time."
+- **Moderate 2 — fixed; accepted by reviewer** (re-check 1: the scenario names malformed saved values and why the service still checks them). The scenario is now "A bad pier in the saved form values is skipped", with a latitude of 95. It says that the Supervisor normally refuses this value, and that the service still checks each pier.
+- **Moderate 3 — fixed; accepted by reviewer** (re-check 1: the decision now says the form and the file are exclusive). ADR-0020 now says that at first the service uses the form or the file, never both, and that a user who needs a file-only setting lists their piers in the file too.
 - **Suggestion 1 — declined.** A retained entity for a pier that is no longer configured is existing behaviour. Removing a pier from `config.yaml` has the same effect today. Cleaning up such entities is outside this story.
 - **Suggestion 2 — accepted.** tasks.md will record the Home Assistant and Supervisor versions and the steps for the live form check.
 - **Suggestion 3 — applied.** The long spec sentence about the broker is split. The design's first risk entry is split into condition and mitigation.
