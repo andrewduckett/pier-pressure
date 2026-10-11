@@ -17,8 +17,10 @@ import pytest
 
 import pierpressure
 from pierpressure import __main__ as entry
+from pierpressure.conditions.provider import assemble_snapshot
 from pierpressure.core.clock import FixedClock
 from pierpressure.core.config import AppConfig, BrokerSettings, MqttConfig, RecomputeConfig
+from pierpressure.core.producer import produce_verdict
 from pierpressure.delivery.mqtt import (
     DeliveryError,
     LoginRejected,
@@ -30,6 +32,8 @@ from pierpressure.service import Service
 from pierpressure.supervisor import SupervisorError
 
 from .conftest import FakeMqttClient, make_mqtt_config, make_pier
+from .offline_guard import no_network
+from .test_golden_verdict import _INSTANT, _base_full, _secondary_full
 
 
 @pytest.fixture(autouse=True)
@@ -837,3 +841,205 @@ def test_a_bad_horizon_on_the_only_pier_stops_the_addon(
     errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
     assert any("'backyard'" in e and "horizon_points" in e for e in errors)
     assert errors[-1].startswith("Configuration error: No valid pier")
+
+
+# --------------------------------------------------------------------------- #
+# addon-form-equipment: the form sets each pier's equipment (design D1-D3)
+# --------------------------------------------------------------------------- #
+
+EQUIPMENT = {
+    "focal_length_mm": 400.0,
+    "sensor_width_mm": 23.5,
+    "sensor_height_mm": 15.7,
+    "reducer": 0.8,
+}
+EQUIPMENT_FORM = {f"equipment_{key}": value for key, value in EQUIPMENT.items()}
+REQUIRED_EQUIPMENT_FORM = {
+    key: value for key, value in EQUIPMENT_FORM.items() if key != "equipment_reducer"
+}
+
+
+def _equipment_file(equipment: dict[str, float]) -> str:
+    lines = "".join(f"      {key}: {value}\n" for key, value in equipment.items())
+    return FILE_BROKER + PIERS + "    equipment:\n" + lines
+
+
+def _skip_error(caplog: pytest.LogCaptureFixture, pier_id: str) -> str:
+    errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+    [error] = [e for e in errors if f"Skipping invalid pier {pier_id!r}" in e]
+    return error
+
+
+def test_form_equipment_matches_the_same_equipment_in_the_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    [file_pier] = _load(_config(tmp_path, _equipment_file(EQUIPMENT))).piers
+
+    [form_pier] = _form_piers(
+        tmp_path, monkeypatch, options_file, {**BACKYARD, **EQUIPMENT_FORM}
+    ).piers
+
+    assert form_pier.equipment is not None
+    assert form_pier.equipment == file_pier.equipment
+
+
+def test_form_equipment_without_a_reducer_has_a_reducer_of_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    [pier] = _form_piers(
+        tmp_path, monkeypatch, options_file, {**BACKYARD, **REQUIRED_EQUIPMENT_FORM}
+    ).piers
+
+    assert pier.equipment is not None
+    assert pier.equipment.reducer == 1.0
+
+
+def test_a_form_pier_without_equipment_fields_has_no_equipment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    [pier] = _form_piers(tmp_path, monkeypatch, options_file, BACKYARD).piers
+
+    assert pier.equipment is None
+
+
+def test_saved_null_equipment_counts_as_unset(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    all_null = {**BACKYARD, **dict.fromkeys(EQUIPMENT_FORM)}
+    null_height = {**ROOF_FORM, **REQUIRED_EQUIPMENT_FORM, "equipment_sensor_height_mm": None}
+
+    with caplog.at_level(logging.ERROR):
+        config = _form_piers(tmp_path, monkeypatch, options_file, all_null, null_height)
+
+    [pier] = config.piers
+    assert (pier.id, pier.equipment) == ("backyard", None)
+    assert "sensor_height_mm" in _skip_error(caplog, "roof")
+
+
+@pytest.mark.parametrize(
+    ("fields", "missing"),
+    [
+        (
+            {"equipment_focal_length_mm": 400.0, "equipment_sensor_width_mm": 23.5},
+            "sensor_height_mm",
+        ),
+        ({"equipment_reducer": 0.8}, "focal_length_mm"),
+    ],
+    ids=["no-sensor-height", "reducer-alone"],
+)
+def test_incomplete_form_equipment_skips_only_its_pier(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+    fields: dict[str, float],
+    missing: str,
+) -> None:
+    # The core's equipment check rejects the block, as it would a file's (D2).
+    with caplog.at_level(logging.ERROR):
+        config = _form_piers(tmp_path, monkeypatch, options_file, {**BACKYARD, **fields}, ROOF_FORM)
+
+    assert [p.id for p in config.piers] == ["roof"]
+    assert missing in _skip_error(caplog, "backyard")
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0], ids=["zero", "negative"])
+@pytest.mark.parametrize("key", list(EQUIPMENT))
+def test_a_form_equipment_value_of_zero_or_less_skips_only_its_pier(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+    key: str,
+    value: float,
+) -> None:
+    # The Supervisor refuses a negative value on save; the service does not rely on it.
+    bad = {**BACKYARD, **REQUIRED_EQUIPMENT_FORM, f"equipment_{key}": value}
+    good = {**ROOF_FORM, **REQUIRED_EQUIPMENT_FORM}
+
+    with caplog.at_level(logging.ERROR):
+        config = _form_piers(tmp_path, monkeypatch, options_file, bad, good)
+
+    assert [p.id for p in config.piers] == ["roof"]
+    assert key in _skip_error(caplog, "backyard")
+
+
+def test_an_equipment_mapping_beside_equipment_fields_skips_only_its_pier(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    both = {**BACKYARD, "equipment": EQUIPMENT, "equipment_focal_length_mm": 400.0}
+
+    with caplog.at_level(logging.ERROR):
+        config = _form_piers(tmp_path, monkeypatch, options_file, both, ROOF_FORM)
+
+    assert [p.id for p in config.piers] == ["roof"]
+    assert "equipment" in _skip_error(caplog, "backyard")
+
+
+def test_incomplete_equipment_on_the_only_pier_stops_the_addon(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _form(options_file, {**BACKYARD, "equipment_focal_length_mm": 400.0})
+    StartupStub(monkeypatch)
+
+    with caplog.at_level(logging.ERROR):
+        assert entry.main([str(tmp_path / "config.yaml")]) == 1
+
+    errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+    assert any("Skipping invalid pier 'backyard'" in e for e in errors)
+    assert errors[-1].startswith("Configuration error: No valid pier")
+
+
+FRAMING_SENTENCES = (
+    "Top pick {} frames well in your field of view.",
+    "Top pick {} is larger than your field of view.",
+    "Top pick {} is small in your field of view.",
+    "Top pick {} fills most of your field of view.",
+)
+
+
+def test_form_equipment_ranks_like_file_equipment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    # The instant, conditions and pier of tests/test_producer_targets.py's
+    # equipment test, whose top pick has a known size.
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    file_text = _equipment_file(EQUIPMENT) + "    horizon:\n      min_altitude: 15\n"
+    [file_pier] = _load(_config(tmp_path, file_text)).piers
+    form = {**BACKYARD, **EQUIPMENT_FORM, "min_altitude": 15}
+    [form_pier] = _form_piers(tmp_path, monkeypatch, options_file, form).piers
+    conditions = assemble_snapshot(_base_full(), _secondary_full())
+
+    with no_network():
+        from_file = produce_verdict(file_pier, FixedClock(_INSTANT), conditions)
+        from_form = produce_verdict(form_pier, FixedClock(_INSTANT), conditions)
+
+    assert from_form.to_json() == from_file.to_json()
+    top = from_form.targets[0]
+    assert top.size_arcmin is not None
+    framing = {sentence.format(top.name or top.id) for sentence in FRAMING_SENTENCES}
+    assert len([r for r in from_form.reasons if r in framing]) == 1, from_form.reasons
+
+
+def test_a_form_pier_without_equipment_has_no_field_of_view_reason(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    [pier] = _form_piers(tmp_path, monkeypatch, options_file, BACKYARD).piers
+    conditions = assemble_snapshot(_base_full(), _secondary_full())
+
+    with no_network():
+        document = produce_verdict(pier, FixedClock(_INSTANT), conditions)
+
+    assert document.targets
+    assert not any("field of view" in r for r in document.reasons), document.reasons
