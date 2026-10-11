@@ -1,0 +1,26 @@
+# Labels for the add-on's Configuration form (addon-options-form D6). Every key
+# in config.yaml's schema needs an entry here (tests/test_ha_addon.py).
+configuration:
+  interval_seconds:
+    name: Recompute interval
+    description: How often to recompute the verdict, in seconds. 900 is 15 minutes.
+  piers:
+    name: Piers
+    description: >-
+      The places you observe from. Each pier gets its own verdict device. While
+      this list is empty, the add-on reads config.yaml instead.
+    fields:
+      id:
+        name: Pier ID
+        description: >-
+          A short name for the pier, such as backyard. It becomes part of the MQTT
+          topics and entity IDs, so keep it to letters, digits and underscores.
+      latitude:
+        name: Latitude
+        description: In degrees, from -90 to 90. Positive is north of the equator.
+      longitude:
+        name: Longitude
+        description: In degrees, from -180 to 180. Positive is east of Greenwich.
+      elevation_m:
+        name: Elevation
+        description: Height above sea level, in metres.

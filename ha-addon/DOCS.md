@@ -4,10 +4,52 @@ PierPressure tells you each evening whether tonight is worth setting up for, and
 what to point at from your pier. It publishes its verdict to Home Assistant over
 MQTT, so you need an MQTT broker, such as the Mosquitto broker add-on.
 
-This add-on runs the same image as a Docker install. It has no options of its
-own: all its settings live in one file, `config.yaml`.
+This add-on runs the same image as a Docker install. You set it up on its
+**Configuration** tab. For settings the tab does not have yet, you can write a
+`config.yaml` file instead.
 
 ## Set up the add-on
+
+1. **Open the add-on's Configuration tab.**
+2. **Check the recompute interval.** It is how often PierPressure recomputes the
+   verdict, in seconds. The default, 900, is 15 minutes.
+3. **Add a pier.** Under **Piers**, add an entry for each place you observe from.
+   Give it:
+   - an **ID**, a short name such as `backyard`. Use only letters, digits and
+     underscores, because the ID becomes part of the MQTT topics and entity IDs.
+   - its **latitude** and **longitude** in degrees. North and east are positive.
+   - its **elevation** above sea level, in metres.
+4. **Save, then start the add-on.** The add-on reads the tab only when it starts.
+   If it is already running, restart it when Home Assistant offers to, or from
+   the **Info** tab.
+5. **Check the log.** Open the **Log** tab. The first line ends with the
+   version, for example `PierPressure 2026.10.0`. Later lines name where the
+   settings and the broker came from:
+
+   ```text
+   Settings from the Configuration tab
+   MQTT broker from the Supervisor's mqtt service: core-mosquitto:1883
+   ```
+
+   The add-on asks Home Assistant's Supervisor for the Mosquitto add-on's broker,
+   and uses its host, port, username and password. You enter no password.
+6. **Find the entities.** Open **Settings → Devices & services → MQTT**. A device
+   named `PierPressure <pier>` appears for each pier.
+
+## The form or the file
+
+The add-on takes its settings from one place, never a mix of the two:
+
+- **When the Configuration tab lists at least one pier,** the add-on uses only
+  the tab. It does not read `config.yaml`. If that file exists, the log warns
+  that it is ignored, and the add-on starts as usual.
+- **When the Configuration tab lists no piers,** the add-on reads `config.yaml`,
+  and ignores the tab's interval.
+
+So to use a setting the tab does not have, such as a horizon or your own broker,
+remove the piers from the tab, and list them in `config.yaml` with that setting.
+
+## Set up with config.yaml instead
 
 1. **Find the add-on's config folder.** Home Assistant creates it when you
    install the add-on. It is `/addon_configs/<id>_pierpressure`, where `<id>` is
@@ -27,20 +69,14 @@ own: all its settings live in one file, `config.yaml`.
        elevation_m: 30
    ```
 
-   The add-on asks Home Assistant's Supervisor for the Mosquitto add-on's broker,
-   and uses its host, port, username and password. No password goes in the file.
-3. **Start the add-on.** Open its **Log** tab. The first line ends with its
-   version, for example `PierPressure 2026.10.0`. A later line names the broker,
-   for example
-   `MQTT broker from the Supervisor's mqtt service: core-mosquitto:1883`.
-4. **Find the entities.** Open **Settings → Devices & services → MQTT**. A device
-   named `PierPressure <pier>` appears for each pier.
+3. **Leave the Configuration tab's pier list empty, and start the add-on.** The
+   log says `Settings from config.yaml`.
 
 ## Use a different broker
 
-To use a broker other than the Mosquitto add-on, set `mqtt.host` in
-`config.yaml`. The add-on then takes the host, port, username and password from
-the file, all four together, and does not ask the Supervisor:
+To use a broker other than the Mosquitto add-on, set up with `config.yaml`, and
+set `mqtt.host` in it. The add-on then takes the host, port, username and
+password from the file, all four together, and does not ask the Supervisor:
 
 ```yaml
 mqtt:
@@ -62,11 +98,17 @@ broker you use. You can set them without setting `mqtt.host`.
 The add-on stops when it cannot start safely. Its log names the problem in a line
 that starts with `Configuration error` or `Startup delivery failure`.
 
+Some answers below say to set `mqtt.host`. That setting lives in `config.yaml`,
+which is read only while the Configuration tab lists no piers. When you set up on
+the tab, the log says so, and tells you to move your piers into the file too.
+
 | The log says | What it means | What to do |
 | --- | --- | --- |
-| It names `/config/config.yaml` | The file is missing, or not valid YAML. | Write or fix `config.yaml`. |
+| Nothing is set up | The Configuration tab lists no piers, and `/config/config.yaml` does not exist. | Add a pier on the Configuration tab, then restart the add-on. |
+| It names `/config/config.yaml` | The tab lists no piers, and the file is not valid YAML. | Fix `config.yaml`, or add your piers on the Configuration tab. |
+| It names `/data/options.json` | The saved Configuration tab values could not be read. This is rare. | Save the Configuration tab again. If the error stays, [report the problem](https://github.com/andrewduckett/pier-pressure/issues). |
 | `mqtt.port`, `mqtt.username` or `mqtt.password` is set without `mqtt.host` | The file sets part of a broker. The add-on takes the broker settings from one place. | Set `mqtt.host` too, or remove the other broker settings. |
-| No MQTT broker was found | The file names no `mqtt.host`, and the Supervisor offered no broker within 60 seconds. | Install and start the Mosquitto broker add-on, or set `mqtt.host`. |
+| No MQTT broker was found | No `mqtt.host` is set, and the Supervisor offered no broker within 60 seconds. | Install and start the Mosquitto broker add-on, or set `mqtt.host`. |
 | The Supervisor refused access to the mqtt service | Home Assistant would not give this add-on the broker settings. | Set `mqtt.host`, and [report the problem](https://github.com/andrewduckett/pier-pressure/issues). |
 | The broker requires TLS | The Supervisor's broker accepts only encrypted connections, which PierPressure does not support yet. | Set `mqtt.host` and `mqtt.port` to a broker listener without TLS. |
 | The broker asks for another MQTT version | The Supervisor's broker needs an MQTT version other than 3.1.1. | Set `mqtt.host` and `mqtt.port` to a broker that accepts MQTT 3.1.1. |
@@ -117,7 +159,9 @@ once the broker is back.
 
 ## More settings
 
-The file has the same format as a Docker install. Horizon files can sit in the
+The Configuration tab has only the interval and the piers so far. For any other
+setting, set up with `config.yaml`. The file has the same format as a Docker
+install. Horizon files can sit in the
 same folder, because a relative `file:` path is read from the folder that holds
 `config.yaml`. For every setting, see the
 [Configuration section of the README](https://github.com/andrewduckett/pier-pressure#️-configuration).
