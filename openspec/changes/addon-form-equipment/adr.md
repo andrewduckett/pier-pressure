@@ -10,16 +10,11 @@ ADR review completed for this change.
 No major durable architectural decisions were introduced, and no new
 repository-level ADR files were created.
 
-The decisions in design.md apply existing ADRs:
-
-- D1 and D2 translate four flat form fields into the config file's `equipment`
-  block, outside the core, and leave every equipment rule to the core. ADR-0020
-  already makes this choice: the form is translated into the file's shape, and
-  its field names follow the file's keys "wherever the nesting limit allows".
-  The `equipment_` prefix is that nesting limit at work.
-- D2's rule that incomplete equipment skips only its pier follows the existing
-  per-pier skip. It is a requirement in the specs, not a fork.
-- D3 to D5 need no ADR: each is cheap to change and readable from the code.
+The design applies ADR-0020: the edge translates the form into the config
+file's shape, with field names that follow the file's keys where the nesting
+limit allows. The flat `equipment_*` fields are that limit at work. Skipping a
+pier with incomplete equipment is a requirement in the specs, not a fork. The
+remaining decisions are cheap to change and readable from the code.
 
 Two in-force ADRs touch the area, and none is superseded:
 

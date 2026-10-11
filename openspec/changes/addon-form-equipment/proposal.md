@@ -2,8 +2,8 @@
 
 On the add-on's **Configuration** tab, a pier has no telescope or camera. Without
 them, the service cannot rank targets on how well they fit the field of view. A
-form user then gets a worse target list than a `config.yaml` user with the same
-pier.
+`config.yaml` user gets that ranking for every target with a known size. A form
+user does not get it at all.
 
 This story adds equipment to each pier on the form, so both users get the same
 ranking.
