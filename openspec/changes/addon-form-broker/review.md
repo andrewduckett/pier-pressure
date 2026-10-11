@@ -39,7 +39,7 @@ The round 1 broker-source and error-advice conflicts are resolved. One wording c
 
 1. In the proposal and delta spec, replace the absolute password-value claim with a requirement that the service does not read or interpolate `mqtt.password` to construct a log or error message. Allow the host to be logged when the user independently enters the same text as the password. Keep the distinct-value log and rejected-login scenarios.
 
-CHANGES_APPLIED: no
+CHANGES_APPLIED: yes
 
 ## Rebuttals
 
@@ -50,3 +50,4 @@ CHANGES_APPLIED: no
 - **ADR summary:** The reviewer accepts the author’s response. The manifest adequately identifies the decision considered and the relevant ADRs.
 
 This is not a second consecutive `REVISE` verdict, so the stated escalation condition is not met.
+- **Required Change 1:** fixed. The proposal and the requirement "The form sets the broker" now say the service never reads or inserts `mqtt.password` when it builds a log line or an error message, and that the host may still appear. The rejected-login scenario now fixes the host to `broker.lan`. Accepted by reviewer on re-check, after two narrower re-checks asked for the explicit "read or insert" wording and a fixed host.
