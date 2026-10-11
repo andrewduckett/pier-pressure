@@ -25,6 +25,7 @@ import os
 import signal
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 from pierpressure import __version__
 from pierpressure.addon_options import OPTIONS_PATH, read_addon_options
@@ -56,9 +57,28 @@ SUPERVISOR_LOGIN_ADVICE = (
     "Mosquitto broker add-on, or set mqtt.host to use your own broker login."
 )
 
+# On the form path, config.yaml is not read, so setting mqtt.host there does nothing
+# until the piers move into it too (addon-options-form, "Risks / Trade-offs").
+FORM_NOTE = (
+    "config.yaml is not read while the Configuration tab lists piers. To set mqtt.host "
+    "there, move your piers from the Configuration tab into config.yaml as well."
+)
+FORM_LOGIN_ADVICE = (
+    "The username and password came from the Supervisor's mqtt service, so restart the "
+    f"Mosquitto broker add-on. {FORM_NOTE}"
+)
+
+
+class LoadedConfig(NamedTuple):
+    """The validated config, and where its settings and broker came from."""
+
+    config: AppConfig
+    broker_from_supervisor: bool
+    from_form: bool
+
 
 def build_delivery_and_explainer(
-    config: AppConfig, *, broker_from_supervisor: bool = False
+    config: AppConfig, *, broker_from_supervisor: bool = False, from_form: bool = False
 ) -> tuple[MqttDelivery, Explainer]:
     """Construct the delivery adapter and explainer from config (design D7).
 
@@ -68,14 +88,20 @@ def build_delivery_and_explainer(
     does not manage the entity — so no provider is constructed and no narrative entity
     appears.
 
-    A broker from the Supervisor gets the Supervisor's login advice; a broker from
-    the file gets the adapter's default (reconnect-restores-delivery D5).
+    A broker from the Supervisor gets the Supervisor's login advice, which names the
+    form when the settings came from it; a broker from the file gets the adapter's
+    default (reconnect-restores-delivery D5, addon-options-form).
     """
     manage_narrative = config.explainer is not None and config.explainer.enabled
+    login_advice: str | None = None
+    if from_form:
+        login_advice = FORM_LOGIN_ADVICE
+    elif broker_from_supervisor:
+        login_advice = SUPERVISOR_LOGIN_ADVICE
     delivery = MqttDelivery(
         config.mqtt,
         manage_narrative=manage_narrative,
-        login_advice=SUPERVISOR_LOGIN_ADVICE if broker_from_supervisor else None,
+        login_advice=login_advice,
     )
     explainer = build_explainer(config.explainer)
     return delivery, explainer
@@ -83,7 +109,7 @@ def build_delivery_and_explainer(
 
 def load_app_config(
     config_path: str, options_path: str | os.PathLike[str] = OPTIONS_PATH
-) -> tuple[AppConfig, bool]:
+) -> LoadedConfig:
     """Load the config, asking the Supervisor for the broker only when needed (D1, D2).
 
     Inside an add-on (``SUPERVISOR_TOKEN`` is set), the Configuration form saved at
@@ -91,9 +117,10 @@ def load_app_config(
     file, which is then not read (addon-options-form D2). The Supervisor is asked
     for the broker only inside an add-on, and only when the settings name no
     ``mqtt.host``; a form never does. Logs where the settings and the broker came
-    from, never the broker's password (D6). Returns the config, and whether the
-    broker came from the Supervisor. Raises :class:`ConfigError`, :class:`OSError`
-    or :class:`SupervisorError`.
+    from, never the broker's password (D6). Returns the config, whether the broker
+    came from the Supervisor, and whether the settings came from the form. Raises
+    :class:`ConfigError`, :class:`OSError` or :class:`SupervisorError`; on the form
+    path, a :class:`SupervisorError` notes that the file is not read.
     """
     token = os.environ.get("SUPERVISOR_TOKEN")
     form = read_addon_options(options_path) if token else None
@@ -111,12 +138,19 @@ def load_app_config(
 
     broker: BrokerSettings | None = None
     if token and not read.names_broker_host:
-        broker = fetch_mqtt_broker(token)
+        try:
+            broker = fetch_mqtt_broker(token)
+        except SupervisorError as exc:
+            if form is None:
+                raise
+            raise SupervisorError(f"{exc} {FORM_NOTE}") from exc
     config = build_config(read, broker)
 
     source = "the Supervisor's mqtt service" if broker is not None else Path(config_path).name
     logger.info("MQTT broker from %s: %s:%d", source, config.mqtt.host, config.mqtt.port)
-    return config, broker is not None
+    return LoadedConfig(
+        config, broker_from_supervisor=broker is not None, from_form=form is not None
+    )
 
 
 def _read_config_file(config_path: str, *, inside_addon: bool) -> ConfigFile:
@@ -146,7 +180,7 @@ def main(argv: list[str] | None = None) -> int:
     signal.signal(signal.SIGTERM, signal.default_int_handler)
 
     try:
-        config, broker_from_supervisor = load_app_config(config_path)
+        loaded = load_app_config(config_path)
     except (ConfigError, OSError, SupervisorError) as exc:
         logger.error("Configuration error: %s", exc)
         return 1
@@ -154,8 +188,9 @@ def main(argv: list[str] | None = None) -> int:
         logger.info("Shutting down")
         return 0
 
+    config = loaded.config
     delivery, explainer = build_delivery_and_explainer(
-        config, broker_from_supervisor=broker_from_supervisor
+        config, broker_from_supervisor=loaded.broker_from_supervisor, from_form=loaded.from_form
     )
     clock = SystemClock()
     conditions = build_provider(now=clock.now)

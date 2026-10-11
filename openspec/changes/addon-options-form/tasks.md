@@ -24,7 +24,7 @@
 ## 4. Broker errors for form users
 
 - [x] 4.1 Write failing tests: on the form path, a "no MQTT broker was found" `SupervisorError`, and a rejected login, each say that `config.yaml` is not read while the form lists piers. On the file path, both keep today's wording. Verify they fail.
-- [ ] 4.2 On the form path, add the note to `SupervisorError` in `load_app_config`. Have `load_app_config` report that the form was the source, and pass that through `main` to `build_delivery_and_explainer`, which picks login advice for form users (design, "Risks / Trade-offs"). Verify the 4.1 tests pass and `just check` is green.
+- [x] 4.2 On the form path, add the note to `SupervisorError` in `load_app_config`. Have `load_app_config` report that the form was the source, and pass that through `main` to `build_delivery_and_explainer`, which picks login advice for form users (design, "Risks / Trade-offs"). Verify the 4.1 tests pass and `just check` is green.
 
 ## 5. Documentation
 
