@@ -71,3 +71,77 @@ def test_a_broken_form_names_the_file(tmp_path: Path, text: str) -> None:
 
     with pytest.raises(ConfigError, match=str(path)):
         read_addon_options(path)
+
+
+def _read_piers(tmp_path: Path, piers: list[object]) -> list[object]:
+    read = read_addon_options(_options(tmp_path, json.dumps({"piers": piers})))
+    assert read is not None
+    result: list[object] = read["piers"]
+    return result
+
+
+def test_a_horizon_floor_becomes_a_horizon_block(tmp_path: Path) -> None:
+    # addon-form-horizon D1.
+    assert _read_piers(tmp_path, [{**PIER, "min_altitude": 15}]) == [
+        {**PIER, "horizon": {"min_altitude": 15}}
+    ]
+
+
+def test_horizon_points_text_becomes_points(tmp_path: Path) -> None:
+    pier = {**PIER, "horizon_points": "[[0, 10], [90, 25], [180, 5]]"}
+
+    assert _read_piers(tmp_path, [pier]) == [
+        {**PIER, "horizon": {"points": [[0, 10], [90, 25], [180, 5]]}}
+    ]
+
+
+def test_a_pier_without_horizon_fields_has_no_horizon(tmp_path: Path) -> None:
+    assert _read_piers(tmp_path, [PIER]) == [PIER]
+
+
+@pytest.mark.parametrize("blank", ["", "   ", None], ids=["empty", "blank", "null"])
+def test_blank_horizon_points_count_as_unset(tmp_path: Path, blank: str | None) -> None:
+    # A cleared text field may be saved as "" (addon-form-horizon D3).
+    pier = {**PIER, "min_altitude": 15, "horizon_points": blank}
+
+    assert _read_piers(tmp_path, [pier]) == [{**PIER, "horizon": {"min_altitude": 15}}]
+
+
+def test_both_horizon_fields_reach_the_core_together(tmp_path: Path) -> None:
+    # The core's "exactly one source" rule rejects the pier (D1).
+    pier = {**PIER, "min_altitude": 15, "horizon_points": "[[0, 10]]"}
+
+    assert _read_piers(tmp_path, [pier]) == [
+        {**PIER, "horizon": {"min_altitude": 15, "points": [[0, 10]]}}
+    ]
+
+
+@pytest.mark.parametrize(
+    ("points", "message"),
+    [
+        ("[[0, 10], [90", "horizon_points is not valid YAML"),
+        (5, "horizon_points must be text"),
+    ],
+    ids=["invalid-yaml", "not-text"],
+)
+def test_unusable_horizon_points_skip_only_their_pier(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, points: object, message: str
+) -> None:
+    other = {**PIER, "id": "roof"}
+
+    piers = _read_piers(tmp_path, [{**PIER, "horizon_points": points}, other])
+
+    assert piers == [other]
+    assert "Skipping invalid pier 'backyard'" in caplog.text
+    assert message in caplog.text
+
+
+def test_a_pier_that_is_not_a_mapping_passes_through(tmp_path: Path) -> None:
+    # The core's per-pier check skips it (D3).
+    assert _read_piers(tmp_path, ["backyard", PIER]) == ["backyard", PIER]
+
+
+def test_a_form_whose_every_pier_is_skipped_keeps_an_empty_list(tmp_path: Path) -> None:
+    # The form did list piers, so config.yaml is not read; the core reports
+    # "No valid pier" (D2).
+    assert _read_piers(tmp_path, [{**PIER, "horizon_points": "[[0"}]) == []
