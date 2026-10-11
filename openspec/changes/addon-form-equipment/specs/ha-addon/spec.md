@@ -111,12 +111,23 @@ it does for any setup with no valid pier.
 
 #### Scenario: Equipment from the form ranks like file equipment
 
-- **WHEN** the form lists a pier with focal length, sensor width and sensor
-  height set
-- **AND** a `config.yaml` pier has the same location and the same three values
-  in its `equipment` block
-- **THEN** at the same evaluation instant and conditions, both piers get the
-  same verdict document, including the same ranked targets
+- **WHEN** the form lists a pier with all four equipment fields set
+- **AND** a `config.yaml` pier has the same id, location, elevation and horizon,
+  and the same four values in its `equipment` block
+- **AND** the top pick at the chosen evaluation instant has a known catalog size
+- **THEN** at that instant and with the same conditions, both piers get the same
+  verdict document
+- **AND** its `reasons[]` say how the top pick fits the field of view
+
+#### Scenario: Saved null values count as unset
+
+- **WHEN** the saved form values list two piers
+- **AND** one pier has all four equipment fields saved as `null`
+- **AND** the other pier sets focal length and sensor width, with
+  `equipment_sensor_height_mm` saved as `null`
+- **THEN** the first pier has no equipment and gets a verdict
+- **AND** the service logs an error that names the second pier and
+  `sensor_height_mm`
 
 #### Scenario: Incomplete equipment skips only that pier
 
@@ -137,15 +148,16 @@ it does for any setup with no valid pier.
 
 #### Scenario: A value of 0 or less skips only its pier
 
-- **WHEN** the form lists three piers, each with all three required equipment
+- **WHEN** the form lists two piers, each with all three required equipment
   fields set
-- **AND** one pier sets `equipment_focal_length_mm` to 0
-- **AND** another pier sets `equipment_reducer` to −0.5
-- **THEN** the service logs an error for each of those two piers, naming the pier
-- **AND** it publishes a verdict for the third pier
+- **AND** one pier sets one of the four equipment fields to 0 or to −1
+- **THEN** the service logs an error that names that pier and the field's
+  `equipment` key, such as `focal_length_mm`
+- **AND** it publishes a verdict for the other pier
 
-The Supervisor normally refuses to save a negative value. The service still
-checks it, because it does not rely on the Supervisor's check.
+This holds for each of the four fields and both values. The Supervisor normally
+refuses to save a negative value. The service still checks it, because it does
+not rely on the Supervisor's check.
 
 #### Scenario: Incomplete equipment on the only pier stops the add-on
 

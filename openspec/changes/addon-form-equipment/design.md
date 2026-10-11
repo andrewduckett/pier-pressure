@@ -144,8 +144,8 @@ The existing test that every schema key has a label covers the four fields.
   and their labels say the three sizes go together. The manual check below
   records how the live form shows them.
 - [The schema tests prove only the manifest, not the live form] → A manual check
-  on a real Home Assistant instance records its Home Assistant and Supervisor
-  versions. It passes when all of these hold:
+  on a real Home Assistant instance is its own task in tasks.md. It records the
+  Home Assistant and Supervisor versions. It passes when all of these hold:
   1. A pier shows the four equipment fields, with their labels.
   2. A pier with focal length, sensor width and sensor height saves. After a
      restart, the log shows no error for it.
