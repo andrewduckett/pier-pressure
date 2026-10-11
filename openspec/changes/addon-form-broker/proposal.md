@@ -26,8 +26,10 @@ Story: #72 `addon-form-broker`, part of epic #67.
   enforces this rule on the settings, whichever source they come from. Until
   now, only the config-file reader enforced it.
 - **Advice that fits the source.** When the broker rejects a login from the
-  form, the error points to the Configuration tab. Errors and advice no longer
-  tell a form user to move their piers into `config.yaml` to choose a broker.
+  form, the error tells the user to check the username and password. On the
+  form path, errors about the Supervisor's broker tell the user to set the
+  broker on the Configuration tab. They no longer tell a form user to move
+  their piers into `config.yaml`.
 - **Empty fields count as not set.** A broker field the user clears on the form
   is treated as absent, not as empty text.
 - **No password in the log.** The log names the Configuration tab as the
@@ -69,6 +71,8 @@ None.
     onto `ConfigFile`, so every source of settings gets it.
   - `pierpressure/__main__.py`: the broker's source in the log, login advice,
     and the note added to a Supervisor error on the form path.
+  - `pierpressure/supervisor.py`: each error names the place to set
+    `mqtt.host`, which is `config.yaml` or the Configuration tab.
   - `ha-addon/DOCS.md` and `README.md`: the broker fields.
 - **Unchanged:** the `config.yaml` format, and Docker and source installs. A
   `config.yaml` that loads today loads the same way.
