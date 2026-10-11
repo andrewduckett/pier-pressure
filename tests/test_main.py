@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import signal
 from collections.abc import Iterator
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +37,18 @@ def restore_sigterm() -> Iterator[None]:
     previous = signal.getsignal(signal.SIGTERM)
     yield
     signal.signal(signal.SIGTERM, previous)
+
+
+@pytest.fixture(autouse=True)
+def options_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Point ``load_app_config`` at a temporary ``options.json``, absent at first.
+
+    No test reads the real ``/data/options.json``; a test writes this path to
+    give the add-on's Configuration form values (addon-options-form D2).
+    """
+    path = tmp_path / "options.json"
+    monkeypatch.setattr(entry, "load_app_config", partial(entry.load_app_config, options_path=path))
+    return path
 
 
 def test_startup_publishes_a_verdict_against_a_fake_broker() -> None:
@@ -316,6 +330,177 @@ def test_ctrl_c_while_waiting_for_the_broker_shuts_down_cleanly(
     stub = StartupStub(monkeypatch, connect_error=KeyboardInterrupt())
     assert entry.main([_config(tmp_path, FILE_BROKER + PIERS)]) == 0
     assert stub.closed
+
+
+# --------------------------------------------------------------------------- #
+# addon-options-form D2, D4: the Configuration form before the config file
+# --------------------------------------------------------------------------- #
+
+BACKYARD = {"id": "backyard", "latitude": 51.5, "longitude": -0.12, "elevation_m": 30.0}
+ROOF = """
+piers:
+  - id: roof
+    latitude: 48.85
+    longitude: 2.35
+    elevation_m: 35
+"""
+
+
+def _form(path: Path, *piers: dict[str, Any], interval_seconds: int = 600) -> None:
+    path.write_text(
+        json.dumps({"interval_seconds": interval_seconds, "piers": list(piers)}), encoding="utf-8"
+    )
+
+
+def _load(config_path: str) -> AppConfig:
+    config, _ = entry.load_app_config(config_path)
+    return config
+
+
+def test_a_form_setup_without_a_file_uses_the_form_and_the_supervisor_broker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _form(options_file, BACKYARD, interval_seconds=600)
+    stub = StartupStub(monkeypatch)
+    missing = str(tmp_path / "config.yaml")
+
+    config = _load(missing)
+    entry.main([missing])
+
+    assert [p.id for p in config.piers] == ["backyard"]
+    assert config.recompute.interval_seconds == 600
+    assert (config.mqtt.discovery_prefix, config.mqtt.base_topic) == (
+        "homeassistant",
+        "pierpressure",
+    )
+    assert stub.supervisor_calls == ["token-1", "token-1"]
+    assert [m.host for m in stub.connected_to] == ["core-mosquitto"]
+
+
+def test_an_empty_form_falls_back_to_the_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _form(options_file, interval_seconds=60)
+    StartupStub(monkeypatch)
+
+    config = _load(_config(tmp_path, PIERS))
+
+    assert [p.id for p in config.piers] == ["backyard"]
+    # The form's interval is ignored along with its empty pier list.
+    assert config.recompute.interval_seconds == 900
+
+
+def test_the_form_wins_over_an_existing_file_and_warns(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _form(options_file, BACKYARD)
+    StartupStub(monkeypatch)
+    config_path = _config(tmp_path, FILE_BROKER + ROOF)
+
+    with caplog.at_level(logging.WARNING, logger="pierpressure"):
+        config = _load(config_path)
+
+    assert [p.id for p in config.piers] == ["backyard"]
+    # The file's broker is ignored too: the form always uses the Supervisor's.
+    assert config.mqtt.host == "core-mosquitto"
+    [warning] = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert config_path in warning
+    assert "ignored" in warning
+
+
+def test_a_bad_pier_in_the_saved_form_is_skipped(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _form(options_file, {**BACKYARD, "id": "north", "latitude": 95.0}, BACKYARD)
+    StartupStub(monkeypatch)
+
+    with caplog.at_level(logging.ERROR):
+        config = _load(str(tmp_path / "config.yaml"))
+
+    assert [p.id for p in config.piers] == ["backyard"]
+    errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+    assert any("Skipping invalid pier 'north'" in error for error in errors)
+
+
+def test_with_nothing_set_up_the_error_names_the_file_and_the_configuration_tab(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _form(options_file)
+    stub = StartupStub(monkeypatch)
+    missing = str(tmp_path / "config.yaml")
+
+    with caplog.at_level(logging.ERROR, logger="pierpressure"):
+        assert entry.main([missing]) == 1
+
+    [error] = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+    assert error.startswith("Configuration error: ")
+    assert missing in error
+    assert "Configuration tab" in error
+    assert stub.supervisor_calls == []
+
+
+def test_outside_an_addon_the_form_is_never_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    _form(options_file, BACKYARD)
+    StartupStub(monkeypatch)
+
+    config = _load(_config(tmp_path, FILE_BROKER + ROOF))
+
+    assert [p.id for p in config.piers] == ["roof"]
+
+
+def test_outside_an_addon_a_broken_form_is_never_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    options_file.write_text("{not json", encoding="utf-8")
+    StartupStub(monkeypatch)
+
+    config = _load(_config(tmp_path, FILE_BROKER + ROOF))
+
+    assert [p.id for p in config.piers] == ["roof"]
+
+
+@pytest.mark.parametrize(
+    ("form", "expected"),
+    [
+        ([BACKYARD], "Settings from the Configuration tab"),
+        ([], "Settings from config.yaml"),
+    ],
+    ids=["form", "file"],
+)
+def test_main_logs_the_settings_source(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+    form: list[dict[str, Any]],
+    expected: str,
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _form(options_file, *form)
+    StartupStub(monkeypatch)
+
+    with caplog.at_level(logging.INFO, logger="pierpressure"):
+        entry.main([_config(tmp_path, PIERS)])
+
+    assert expected in [r.getMessage() for r in caplog.records]
 
 
 # --------------------------------------------------------------------------- #

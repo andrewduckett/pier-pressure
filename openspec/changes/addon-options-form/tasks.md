@@ -10,7 +10,7 @@
 
 ## 3. Choosing the source at startup
 
-- [ ] 3.1 Write failing tests in `tests/test_main.py` for `load_app_config` and `main` (design D2, D4). Use a temporary `options.json` and the existing `StartupStub`. Cover each scenario in the requirement "The add-on reads the Configuration form before the config file":
+- [x] 3.1 Write failing tests in `tests/test_main.py` for `load_app_config` and `main` (design D2, D4). Use a temporary `options.json` and the existing `StartupStub`. Cover each scenario in the requirement "The add-on reads the Configuration form before the config file":
   - a form setup with no file publishes the form's pier, using the Supervisor's broker and the form's interval
   - an empty form falls back to the file
   - the form wins over an existing file, with a warning naming the file
