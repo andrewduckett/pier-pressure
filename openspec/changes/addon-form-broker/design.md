@@ -126,13 +126,34 @@ not from the settings' source:
 | file | Supervisor | restart Mosquitto, or set `mqtt.host` (unchanged) |
 | file | file | the adapter's default (unchanged) |
 
-`FORM_NOTE` changes its advice. Today it tells a form user to move their piers
-into `config.yaml` to set `mqtt.host`. It will say that `config.yaml` is not
-read while the form lists piers, and that the broker is set on the
-Configuration tab. `load_app_config` already adds this note to every Supervisor
-error on the form path, so `pierpressure/supervisor.py` does not change.
+### D5. Supervisor errors name the place the settings come from
 
-### D5. The log names the Configuration tab as the source
+Today each Supervisor error in `pierpressure/supervisor.py` says to set
+`mqtt.host` "in config.yaml". On the form path, `load_app_config` then adds
+`FORM_NOTE`, which tells the user to move their piers into `config.yaml`. With a
+broker on the form, both pieces of advice point to the wrong place.
+
+`fetch_mqtt_broker` gains a keyword argument that names where the settings
+come from. Its default is `config.yaml`, so the file path's messages do not
+change. On the form path, `load_app_config` passes "the Configuration tab".
+Each error then names that place:
+
+```
+file:  ... or set mqtt.host in config.yaml.
+form:  ... or set mqtt.host on the Configuration tab. config.yaml is not read
+       while the Configuration tab lists piers.
+```
+
+`FORM_NOTE` shrinks to its first sentence: `config.yaml` is not read while the
+Configuration tab lists piers. `load_app_config` still adds it to every
+Supervisor error on the form path.
+
+Alternative considered: keep the Supervisor's messages and only change
+`FORM_NOTE`. The error would then say "set mqtt.host in config.yaml" and, in
+the next sentence, that `config.yaml` is not read. The spec forbids naming
+`config.yaml` as the place to set the broker on the form path.
+
+### D6. The log names the Configuration tab as the source
 
 `load_app_config` logs the broker's source as one of three: the Supervisor's
 `mqtt` service, the Configuration tab, or the config file's name. Today a form
@@ -148,8 +169,10 @@ read. The log line keeps its form: source, host and port, with no password.
   → Accepted. Story #73 settles how the form and the file combine. `DOCS.md`
   says the broker fields apply only when the form lists piers.
 - [The Supervisor's form may show the empty `mqtt` block differently across Home
-  Assistant versions] → The live check on Home Assistant OS confirms the block
-  shows four fields, saves when empty, and saves a password.
+  Assistant versions] → A task in tasks.md runs a live check on Home Assistant
+  OS with an add-on built from this branch. It records the Home Assistant and
+  Supervisor versions, and confirms four things: the block shows four fields,
+  it saves when empty, a password saves, and the field hides its value.
 - [Moving the rule onto `ConfigFile` lets any caller trigger it at
   construction] → The only callers are `read_config` and `load_app_config`, and
   no test builds a `ConfigFile` directly.
