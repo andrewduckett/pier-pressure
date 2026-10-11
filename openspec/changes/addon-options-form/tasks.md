@@ -28,7 +28,7 @@
 
 ## 5. Documentation
 
-- [ ] 5.1 Rewrite "Set up the add-on" in `ha-addon/DOCS.md`: the Configuration tab is the main path, and `config.yaml` is the alternative for settings the form lacks. Explain the "form or file" rule and the warning. Add the new missing-setup error to the startup-error table. Verify by reading the rendered Markdown.
+- [x] 5.1 Rewrite "Set up the add-on" in `ha-addon/DOCS.md`: the Configuration tab is the main path, and `config.yaml` is the alternative for settings the form lacks. Explain the "form or file" rule and the warning. Add the new missing-setup error to the startup-error table. Verify by reading the rendered Markdown.
 - [ ] 5.2 Update the README's add-on section (`README.md`, "Install as a Home Assistant add-on") to match 5.1, without asking for a second add-on. Verify that the README's add-on steps name the Configuration tab.
 
 ## 6. Live check
