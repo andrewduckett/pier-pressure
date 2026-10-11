@@ -114,12 +114,23 @@ Each pier SHALL also have two optional horizon fields:
   two, as a list of pairs does. Spaces may sit between the brackets and around
   the text. It SHALL reject any other text.
 
-These names SHALL match the names of the same settings in `config.yaml`. The two
-horizon fields are the exception, because a form cannot nest a `horizon` block
-inside a pier. `min_altitude` SHALL hold the value of the file's
-`horizon.min_altitude`, and `horizon_points` the value of `horizon.points`. Each
-form field SHALL have a label and a description in English, and each description
-of a number SHALL name its unit.
+Each pier SHALL also have four optional equipment fields. On save, the form
+SHALL accept a number of at least 0 in each. The service then rejects 0, as
+described in "The form sets each pier's equipment":
+
+- `equipment_focal_length_mm`: the telescope's focal length, in millimetres.
+- `equipment_sensor_width_mm`: the camera sensor's width, in millimetres.
+- `equipment_sensor_height_mm`: the camera sensor's height, in millimetres.
+- `equipment_reducer`: a focal reducer or barlow factor, with no unit.
+
+These names SHALL match the names of the same settings in `config.yaml`. The
+horizon and equipment fields are the exception, because a form cannot nest a
+`horizon` or `equipment` block inside a pier. `min_altitude` SHALL hold the
+value of the file's `horizon.min_altitude`, and `horizon_points` the value of
+`horizon.points`. Each `equipment_<name>` field SHALL hold the value of the
+file's `equipment.<name>`. Each form field SHALL have a label and a description
+in English, and each description of a number SHALL name its unit or say it has
+none.
 
 #### Scenario: Add-on config declares the form
 
@@ -130,6 +141,9 @@ of a number SHALL name its unit.
   as a list whose items have `id`, `latitude`, `longitude` and `elevation_m`
 - **AND** each pier item has an optional `min_altitude` from 0 to 90 and an
   optional `horizon_points`
+- **AND** each pier item has optional `equipment_focal_length_mm`,
+  `equipment_sensor_width_mm`, `equipment_sensor_height_mm` and
+  `equipment_reducer`, each a number of at least 0
 
 #### Scenario: The save check on horizon points
 
@@ -142,7 +156,8 @@ of a number SHALL name its unit.
 
 - **WHEN** the test suite reads the add-on's English translation file
 - **THEN** it gives a name and a description for `interval_seconds`, `piers`, and
-  each field of a pier, including `min_altitude` and `horizon_points`
+  each field of a pier, including `min_altitude`, `horizon_points` and the four
+  equipment fields
 
 ### Requirement: The add-on reads the Configuration form before the config file
 
@@ -325,6 +340,119 @@ them, because it does not rely on the Supervisor's check.
 
 - **WHEN** the form lists one pier, and its `horizon_points` cannot be read
 - **THEN** the service logs an error that names the pier and `horizon_points`
+- **AND** the add-on stops with a configuration error that says no valid pier
+  remains
+
+### Requirement: The form sets each pier's equipment
+
+The service SHALL turn a form pier's equipment fields into that pier's
+equipment:
+
+- When at least one equipment field is set, the service SHALL build the pier's
+  equipment from the fields that are set. It SHALL then check the equipment
+  exactly as it checks a file's `equipment` block.
+- When no equipment field is set, the pier SHALL have no equipment. It SHALL
+  rank targets without a field-of-view term.
+
+When `equipment_reducer` is not set, the reducer SHALL be 1.0, as in the file.
+
+A pier whose equipment fails these checks SHALL be skipped with a logged error
+that names the pier. The other piers SHALL still be published. This covers three
+cases:
+
+- a missing focal length, sensor width or sensor height, while another
+  equipment field is set. The error SHALL name the missing field.
+- a value of 0 or less.
+- saved values that hold both an `equipment` mapping and any equipment field.
+  The error SHALL name `equipment`. The form has no `equipment` field, so this
+  happens only when the saved values were written some other way.
+
+When every pier is skipped, the add-on SHALL stop with a configuration error, as
+it does for any setup with no valid pier.
+
+#### Scenario: Equipment from the form
+
+- **WHEN** the form lists a pier with `equipment_focal_length_mm` set to 400,
+  `equipment_sensor_width_mm` to 23.5, `equipment_sensor_height_mm` to 15.7 and
+  `equipment_reducer` to 0.8
+- **THEN** the pier's equipment equals the equipment of a `config.yaml` pier
+  whose `equipment` block holds the same four values
+
+#### Scenario: The reducer defaults to 1.0
+
+- **WHEN** the form lists a pier with focal length, sensor width and sensor
+  height set, and no `equipment_reducer`
+- **THEN** the pier's equipment has a reducer of 1.0
+
+#### Scenario: No equipment fields means no equipment
+
+- **WHEN** the form lists a pier with no equipment field set
+- **THEN** the pier has no equipment
+- **AND** no field-of-view term contributes to any of its targets' scores
+
+#### Scenario: Equipment from the form ranks like file equipment
+
+- **WHEN** the form lists a pier with all four equipment fields set
+- **AND** a `config.yaml` pier has the same id, location, elevation and horizon,
+  and the same four values in its `equipment` block
+- **AND** the top pick at the chosen evaluation instant has a known catalog size
+- **THEN** at that instant and with the same conditions, both piers get the same
+  verdict document
+- **AND** its `reasons[]` say how the top pick fits the field of view
+
+#### Scenario: Saved null values count as unset
+
+- **WHEN** the saved form values list two piers
+- **AND** one pier has all four equipment fields saved as `null`
+- **AND** the other pier sets focal length and sensor width, with
+  `equipment_sensor_height_mm` saved as `null`
+- **THEN** the first pier has no equipment and gets a verdict
+- **AND** the service logs an error that names the second pier and
+  `sensor_height_mm`
+
+#### Scenario: Incomplete equipment skips only that pier
+
+- **WHEN** the form lists two piers
+- **AND** one pier sets `equipment_focal_length_mm` and
+  `equipment_sensor_width_mm`, but not `equipment_sensor_height_mm`
+- **THEN** the service logs an error that names that pier and
+  `sensor_height_mm`
+- **AND** it publishes a verdict for the other pier
+
+#### Scenario: A reducer alone skips the pier
+
+- **WHEN** the form lists two piers
+- **AND** one pier sets only `equipment_reducer`
+- **THEN** the service logs an error that names that pier and
+  `focal_length_mm`
+- **AND** it publishes a verdict for the other pier
+
+#### Scenario: A value of 0 or less skips only its pier
+
+- **WHEN** the form lists two piers, each with all three required equipment
+  fields set
+- **AND** one pier sets one of the four equipment fields to 0 or to −1
+- **THEN** the service logs an error that names that pier and the field's
+  `equipment` key, such as `focal_length_mm`
+- **AND** it publishes a verdict for the other pier
+
+This holds for each of the four fields and both values. The Supervisor normally
+refuses to save a negative value. The service still checks it, because it does
+not rely on the Supervisor's check.
+
+#### Scenario: An equipment mapping beside equipment fields skips the pier
+
+- **WHEN** the saved form values list two piers
+- **AND** one pier holds an `equipment` mapping and sets
+  `equipment_focal_length_mm`
+- **THEN** the service logs an error that names that pier and `equipment`
+- **AND** it publishes a verdict for the other pier
+
+#### Scenario: Incomplete equipment on the only pier stops the add-on
+
+- **WHEN** the form lists one pier, and it sets only
+  `equipment_focal_length_mm`
+- **THEN** the service logs an error that names the pier
 - **AND** the add-on stops with a configuration error that says no valid pier
   remains
 
