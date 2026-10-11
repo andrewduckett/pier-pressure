@@ -19,8 +19,7 @@ The decisions in design.md apply existing ADRs:
   The `equipment_` prefix is that nesting limit at work.
 - D2's rule that incomplete equipment skips only its pier follows the existing
   per-pier skip. It is a requirement in the specs, not a fork.
-- D3 to D5 cover unset values, the manifest's schema, labels and documentation.
-  The code and specs record them well enough.
+- D3 to D5 need no ADR: each is cheap to change and readable from the code.
 
 Two in-force ADRs touch the area, and none is superseded:
 
