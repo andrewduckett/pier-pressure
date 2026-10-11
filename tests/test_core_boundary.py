@@ -24,7 +24,10 @@ def test_pierpressure_imports() -> None:
 # reach the pure core. ("pydantic_ai" does not match the core's own "pydantic" use.)
 # "pierpressure.supervisor" asks the Home Assistant Supervisor for the broker; the
 # core only receives its result as plain data (ha-addon-mqtt-service D2).
+# "pierpressure.addon_options" reads the add-on's Configuration form; the core
+# only receives it in the config file's shape (addon-options-form D1).
 _FORBIDDEN = (
+    "pierpressure.addon_options",
     "delivery",
     "httpx",
     "pierpressure.conditions",

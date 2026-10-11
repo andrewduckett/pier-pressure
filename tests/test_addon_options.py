@@ -6,8 +6,8 @@ import json
 from pathlib import Path
 
 import pytest
-from pierpressure.addon_options import read_addon_options
 
+from pierpressure.addon_options import read_addon_options
 from pierpressure.core.config import ConfigError
 
 PIER = {"id": "backyard", "latitude": 51.5, "longitude": -0.12, "elevation_m": 30.0}
