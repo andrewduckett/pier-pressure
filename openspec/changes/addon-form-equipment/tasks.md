@@ -20,7 +20,7 @@
 
 ## 3. Equipment from the form, end to end
 
-- [ ] 3.1 Write failing tests in `tests/test_main.py` for `load_app_config`. Use a temporary `options.json` inside an add-on, and cover each scenario in the requirement "The form sets each pier's equipment":
+- [x] 3.1 Write failing tests in `tests/test_main.py` for `load_app_config`. Use a temporary `options.json` inside an add-on, and cover each scenario in the requirement "The form sets each pier's equipment":
   - four values give the same equipment as a `config.yaml` pier with the same `equipment` block
   - no reducer gives a reducer of 1.0
   - no equipment fields give no equipment
@@ -31,8 +31,8 @@
   - incomplete equipment on the only pier stops the add-on with "No valid pier"
 
   Verify any that fail, and fix the code until they pass.
-- [ ] 3.2 Write a test that a form pier and a `config.yaml` pier rank alike. Use the pinned instant, conditions and London pier of `test_an_equipped_pier_emits_an_equipment_reason_for_the_top_pick` in `tests/test_producer_targets.py`. Give both piers the same id, location, elevation, horizon and four equipment values. Verify both produce the same verdict JSON, that its top pick has a known size, and that `reasons[]` holds exactly one field-of-view sentence for that top pick.
-- [ ] 3.3 Run `just check` and verify that it is green.
+- [x] 3.2 Write a test that a form pier and a `config.yaml` pier rank alike. Use the pinned instant, conditions and London pier of `test_an_equipped_pier_emits_an_equipment_reason_for_the_top_pick` in `tests/test_producer_targets.py`. Give both piers the same id, location, elevation, horizon and four equipment values. Verify both produce the same verdict JSON, that its top pick has a known size, and that `reasons[]` holds exactly one field-of-view sentence for that top pick.
+- [x] 3.3 Run `just check` and verify that it is green.
 
 ## 4. Documentation
 
