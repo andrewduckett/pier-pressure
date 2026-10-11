@@ -338,6 +338,8 @@ def test_ctrl_c_while_waiting_for_the_broker_shuts_down_cleanly(
 
 BACKYARD = {"id": "backyard", "latitude": 51.5, "longitude": -0.12, "elevation_m": 30.0}
 ROOF = """
+recompute:
+  interval_seconds: 900
 piers:
   - id: roof
     latitude: 48.85

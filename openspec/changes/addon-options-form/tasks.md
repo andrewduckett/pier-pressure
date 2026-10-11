@@ -19,7 +19,7 @@
   - outside an add-on, the form is never read
 
   Verify they fail.
-- [ ] 3.2 Change `load_app_config` in `pierpressure/__main__.py`: read the form first inside an add-on, and log the settings' source. Take the `options.json` path as an argument that defaults to `/data/options.json`. Verify the 3.1 tests pass, and the existing add-on and broker tests pass unchanged.
+- [x] 3.2 Change `load_app_config` in `pierpressure/__main__.py`: read the form first inside an add-on, and log the settings' source. Take the `options.json` path as an argument that defaults to `/data/options.json`. Verify the 3.1 tests pass, and the existing add-on and broker tests pass unchanged.
 
 ## 4. Broker errors for form users
 

@@ -13,7 +13,9 @@ SIGTERM stops it the same way as Ctrl-C: it closes the delivery, which publishes
 the retained ``offline`` first, and exits 0 (stop-goes-offline).
 
 Inside a Home Assistant add-on, a config file that names no broker host uses the
-broker from the Supervisor's ``mqtt`` service (ha-addon-mqtt-service D1, D2).
+broker from the Supervisor's ``mqtt`` service (ha-addon-mqtt-service D1, D2). When
+the add-on's Configuration form lists a pier, the form replaces the config file
+(addon-options-form D2).
 """
 
 from __future__ import annotations
@@ -25,12 +27,14 @@ import sys
 from pathlib import Path
 
 from pierpressure import __version__
+from pierpressure.addon_options import OPTIONS_PATH, read_addon_options
 from pierpressure.conditions import build_provider
 from pierpressure.core.clock import SystemClock
 from pierpressure.core.config import (
     AppConfig,
     BrokerSettings,
     ConfigError,
+    ConfigFile,
     build_config,
     read_config,
 )
@@ -77,17 +81,34 @@ def build_delivery_and_explainer(
     return delivery, explainer
 
 
-def load_app_config(config_path: str) -> tuple[AppConfig, bool]:
+def load_app_config(
+    config_path: str, options_path: str | os.PathLike[str] = OPTIONS_PATH
+) -> tuple[AppConfig, bool]:
     """Load the config, asking the Supervisor for the broker only when needed (D1, D2).
 
-    The Supervisor is asked only inside an add-on (``SUPERVISOR_TOKEN`` is set) and
-    only when the file names no ``mqtt.host``. Logs where the broker came from,
-    never its password (D6). Returns the config, and whether the broker came from
-    the Supervisor. Raises :class:`ConfigError`, :class:`OSError` or
-    :class:`SupervisorError`.
+    Inside an add-on (``SUPERVISOR_TOKEN`` is set), the Configuration form saved at
+    ``options_path`` is read first. When it lists a pier, it replaces the config
+    file, which is then not read (addon-options-form D2). The Supervisor is asked
+    for the broker only inside an add-on, and only when the settings name no
+    ``mqtt.host``; a form never does. Logs where the settings and the broker came
+    from, never the broker's password (D6). Returns the config, and whether the
+    broker came from the Supervisor. Raises :class:`ConfigError`, :class:`OSError`
+    or :class:`SupervisorError`.
     """
-    read = read_config(config_path)
     token = os.environ.get("SUPERVISOR_TOKEN")
+    form = read_addon_options(options_path) if token else None
+    if form is not None:
+        if Path(config_path).exists():
+            logger.warning(
+                "%s is ignored: the Configuration tab lists piers, so only its settings apply",
+                config_path,
+            )
+        read = ConfigFile(raw=form, base_dir=Path(config_path).resolve().parent)
+        logger.info("Settings from the Configuration tab")
+    else:
+        read = _read_config_file(config_path, inside_addon=bool(token))
+        logger.info("Settings from %s", Path(config_path).name)
+
     broker: BrokerSettings | None = None
     if token and not read.names_broker_host:
         broker = fetch_mqtt_broker(token)
@@ -96,6 +117,19 @@ def load_app_config(config_path: str) -> tuple[AppConfig, bool]:
     source = "the Supervisor's mqtt service" if broker is not None else Path(config_path).name
     logger.info("MQTT broker from %s: %s:%d", source, config.mqtt.host, config.mqtt.port)
     return config, broker is not None
+
+
+def _read_config_file(config_path: str, *, inside_addon: bool) -> ConfigFile:
+    """Read the config file; inside an add-on, a missing one points to the form (D4)."""
+    try:
+        return read_config(config_path)
+    except FileNotFoundError as exc:
+        if not inside_addon:
+            raise
+        raise ConfigError(
+            f"Nothing is set up: the Configuration tab lists no piers, and {config_path} "
+            "does not exist. Add a pier on the add-on's Configuration tab, then restart it."
+        ) from exc
 
 
 def main(argv: list[str] | None = None) -> int:

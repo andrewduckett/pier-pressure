@@ -40,7 +40,9 @@ def test_pier_entries_pass_through_unchanged(tmp_path: Path) -> None:
     assert read["piers"] == [odd]
 
 
-def test_a_form_without_an_interval_leaves_the_default_to_the_config(tmp_path: Path) -> None:
+def test_a_form_without_an_interval_leaves_out_recompute(tmp_path: Path) -> None:
+    # The Supervisor always writes the interval; without it, the core reports the
+    # missing recompute settings as it does for a file.
     path = _options(tmp_path, json.dumps({"piers": [PIER]}))
 
     assert read_addon_options(path) == {"piers": [PIER]}
