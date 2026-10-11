@@ -1,7 +1,7 @@
 ## 1. The add-on manifest and its labels
 
-- [ ] 1.1 Write failing tests in `tests/test_ha_addon.py` (design D4, D5). Extend the schema test: each pier item has `equipment_focal_length_mm`, `equipment_sensor_width_mm`, `equipment_sensor_height_mm` and `equipment_reducer`, each `float(0,)?`, and `options` sets none of them. Verify they fail.
-- [ ] 1.2 Add the four fields to the pier schema in `ha-addon/config.yaml`, with a comment naming this change's D4. Add their names and descriptions under `piers.fields` in `ha-addon/translations/en.yaml` (design D5). Verify the 1.1 tests pass, and that the existing label test covers all four new fields.
+- [x] 1.1 Write failing tests in `tests/test_ha_addon.py` (design D4, D5). Extend the schema test: each pier item has `equipment_focal_length_mm`, `equipment_sensor_width_mm`, `equipment_sensor_height_mm` and `equipment_reducer`, each `float(0,)?`, and `options` sets none of them. Verify they fail.
+- [x] 1.2 Add the four fields to the pier schema in `ha-addon/config.yaml`, with a comment naming this change's D4. Add their names and descriptions under `piers.fields` in `ha-addon/translations/en.yaml` (design D5). Verify the 1.1 tests pass, and that the existing label test covers all four new fields.
 
 ## 2. Turning the form fields into equipment
 

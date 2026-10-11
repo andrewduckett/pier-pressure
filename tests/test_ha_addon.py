@@ -1,7 +1,8 @@
 """ha-addon: the add-on files stay valid and pinned to the release (design D1-D3, D7).
 
 The Configuration form's options, schema and labels follow addon-options-form D5, D6,
-and its horizon fields addon-form-horizon D4, D5.
+its horizon fields addon-form-horizon D4, D5, and its equipment fields
+addon-form-equipment D4, D5.
 """
 
 from __future__ import annotations
@@ -85,10 +86,17 @@ PIER_FIELDS = {
     "longitude": "float(-180,180)",
     "elevation_m": "float",
     "min_altitude": "float(0,90)?",
+    # Optional, and at least 0 on save; the core rejects 0 itself
+    # (addon-form-equipment D4).
+    "equipment_focal_length_mm": "float(0,)?",
+    "equipment_sensor_width_mm": "float(0,)?",
+    "equipment_sensor_height_mm": "float(0,)?",
+    "equipment_reducer": "float(0,)?",
 }
 
 
 def test_addon_form_defaults_to_the_interval_and_no_piers(addon: dict[str, Any]) -> None:
+    # No equipment default: a new pier starts with no equipment (D4).
     assert addon["options"] == {"interval_seconds": 900, "piers": []}
 
 
@@ -145,6 +153,10 @@ def test_every_form_field_has_a_label(addon: dict[str, Any]) -> None:
         (("piers", "fields", "elevation_m"), "metres"),
         (("piers", "fields", "min_altitude"), "degrees"),
         (("piers", "fields", "horizon_points"), "degrees"),
+        (("piers", "fields", "equipment_focal_length_mm"), "millimetres"),
+        (("piers", "fields", "equipment_sensor_width_mm"), "millimetres"),
+        (("piers", "fields", "equipment_sensor_height_mm"), "millimetres"),
+        (("piers", "fields", "equipment_reducer"), "no unit"),
     ],
 )
 def test_every_number_label_names_its_unit(path: tuple[str, ...], unit: str) -> None:
