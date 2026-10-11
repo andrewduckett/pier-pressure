@@ -28,8 +28,10 @@ Story: #72 `addon-form-broker`, part of epic #67.
 - **Advice that fits the source.** When the broker rejects a login from the
   form, the error points to the Configuration tab. Errors and advice no longer
   tell a form user to move their piers into `config.yaml` to choose a broker.
-- **No password in the log.** No log line or error message includes the
-  password.
+- **Empty fields count as not set.** A broker field the user clears on the form
+  is treated as absent, not as empty text.
+- **No password in the log.** The log names the Configuration tab as the
+  broker's source. No log line or error message includes the password.
 - **Documentation.** `ha-addon/DOCS.md` and the README's add-on section describe
   the broker fields. They no longer advise writing the broker password into
   `config.yaml` in the add-on.
@@ -61,12 +63,12 @@ None.
 - **Changed files:**
   - `ha-addon/config.yaml`: an `mqtt` block in `options` and `schema`.
   - `ha-addon/translations/en.yaml`: labels and descriptions for the four fields.
-  - `pierpressure/addon_options.py`: passes the form's `mqtt` block through.
+  - `pierpressure/addon_options.py`: passes the form's `mqtt` block through,
+    leaving out empty fields.
   - `pierpressure/core/config.py`: the connection rule moves from `read_config`
     onto `ConfigFile`, so every source of settings gets it.
-  - `pierpressure/__main__.py`: login advice and error notes for a form broker.
-  - `pierpressure/supervisor.py`: error advice that names the right place to set
-    a broker.
+  - `pierpressure/__main__.py`: the broker's source in the log, login advice,
+    and the note added to a Supervisor error on the form path.
   - `ha-addon/DOCS.md` and `README.md`: the broker fields.
 - **Unchanged:** the `config.yaml` format, and Docker and source installs. A
   `config.yaml` that loads today loads the same way.
