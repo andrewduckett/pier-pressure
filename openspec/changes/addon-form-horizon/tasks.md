@@ -21,7 +21,7 @@
 
 ## 3. The horizon from the form, end to end
 
-- [ ] 3.1 Write failing tests in `tests/test_main.py` for `load_app_config`. Use a temporary `options.json` inside an add-on, and cover each scenario in the requirement "The form sets each pier's horizon":
+- [x] 3.1 Write failing tests in `tests/test_main.py` for `load_app_config`. Use a temporary `options.json` inside an add-on, and cover each scenario in the requirement "The form sets each pier's horizon":
   - a flat floor of 15
   - points equal to a `config.yaml` pier with the same `horizon.points`
   - no fields means open sky
@@ -30,7 +30,7 @@
   - a bad horizon on the only pier stops the add-on with "No valid pier"
 
   Verify any that fail, and fix the code until they pass.
-- [ ] 3.2 Run `just check` and verify that it is green.
+- [x] 3.2 Run `just check` and verify that it is green.
 
 ## 4. Documentation
 
