@@ -39,9 +39,9 @@ def _london(**overrides: object) -> PierConfig:
 
 # A widefield rig (short focal length, so a large field frames big objects) and a
 # long rig (narrow field, so only small objects frame well) — they frame the
-# candidates differently, which is what a rig-change test needs.
-_WIDEFIELD_RIG = {"focal_length_mm": 250.0, "sensor_width_mm": 23.5, "sensor_height_mm": 15.7}
-_LONG_RIG = {"focal_length_mm": 2000.0, "sensor_width_mm": 23.5, "sensor_height_mm": 15.7}
+# candidates differently, which is what an equipment-change test needs.
+_WIDEFIELD_EQUIPMENT = {"focal_length_mm": 250.0, "sensor_width_mm": 23.5, "sensor_height_mm": 15.7}
+_LONG_EQUIPMENT = {"focal_length_mm": 2000.0, "sensor_width_mm": 23.5, "sensor_height_mm": 15.7}
 
 
 def _rank(pier: PierConfig) -> list:
@@ -79,7 +79,7 @@ def test_top_target_is_genuinely_well_placed() -> None:
     # The pipeline surfaces objectively well-placed targets: the top one reaches a
     # high altitude, stays up for most of the night, and transits inside its
     # window. (Which object wins now also depends on brightness and framing, but a
-    # rig-less pier still ranks on placement and brightness, so the test checks
+    # pier without equipment still ranks on placement and brightness, so the test checks
     # placement, not identity.)
     targets = _rank(_london())
     top = targets[0]
@@ -119,15 +119,15 @@ def test_far_southern_object_that_never_rises_is_absent() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Equipment: rig-configured and rig-less piers both rank; a rig changes ranking
+# Equipment: piers with and without equipment both rank; changing it changes ranking
 # --------------------------------------------------------------------------- #
 
 
-def test_rig_configured_and_rig_less_piers_both_rank_without_error() -> None:
-    # A pier with a rig and a pier without one both produce a bounded, scored list.
-    with_rig = _rank(_london(rig=_WIDEFIELD_RIG))
-    without_rig = _rank(_london())
-    for targets in (with_rig, without_rig):
+def test_piers_with_and_without_equipment_both_rank_without_error() -> None:
+    # A pier with equipment and a pier without it both produce a bounded, scored list.
+    with_equipment = _rank(_london(equipment=_WIDEFIELD_EQUIPMENT))
+    without_equipment = _rank(_london())
+    for targets in (with_equipment, without_equipment):
         assert 0 < len(targets) <= TOP_N
         assert all(0 <= t.score <= 100 for t in targets)
 
@@ -136,7 +136,7 @@ def test_targets_carry_the_raw_catalog_facts() -> None:
     # Every emitted target carries size/magnitude/surface_brightness (null when the
     # catalog records none); each present value came straight from the catalog.
     catalog = {o.id: o for o in load_catalog()}
-    for target in _rank(_london(rig=_WIDEFIELD_RIG)):
+    for target in _rank(_london(equipment=_WIDEFIELD_EQUIPMENT)):
         source = catalog[target.id]
         assert target.size_arcmin == (
             None if source.size_arcmin is None else round(source.size_arcmin, 2)
@@ -146,27 +146,27 @@ def test_targets_carry_the_raw_catalog_facts() -> None:
         )
 
 
-def test_a_rig_change_changes_the_ranking() -> None:
-    # The target-ranking "A rig change changes the ranking" scenario: the same pier
+def test_an_equipment_change_changes_the_ranking() -> None:
+    # The target-ranking "An equipment change changes the ranking" scenario: the same pier
     # and instant with two differently-framing rigs must differ in scores or order.
     ranking._rank_cache.clear()
-    widefield = _rank(_london(rig=_WIDEFIELD_RIG))
+    widefield = _rank(_london(equipment=_WIDEFIELD_EQUIPMENT))
     ranking._rank_cache.clear()
-    long = _rank(_london(rig=_LONG_RIG))
+    long = _rank(_london(equipment=_LONG_EQUIPMENT))
     widefield_key = [(t.id, t.score) for t in widefield]
     long_key = [(t.id, t.score) for t in long]
     assert widefield_key != long_key
 
 
-def test_the_rig_joins_the_cache_key() -> None:
+def test_the_equipment_joins_the_cache_key() -> None:
     # Two rigs must not collide in the per-night cache: the second rig recomputes
     # rather than serving the first rig's ranking.
     ranking._rank_cache.clear()
     with no_network():
         window = dark_window(_london(), _INSTANT)
         moon = moon_info(_london(), window, _INSTANT)
-        first = rank_targets(_london(rig=_WIDEFIELD_RIG), _INSTANT, window, moon)
-        second = rank_targets(_london(rig=_LONG_RIG), _INSTANT, window, moon)
+        first = rank_targets(_london(equipment=_WIDEFIELD_EQUIPMENT), _INSTANT, window, moon)
+        second = rank_targets(_london(equipment=_LONG_EQUIPMENT), _INSTANT, window, moon)
     assert [(t.id, t.score) for t in first] != [(t.id, t.score) for t in second]
 
 

@@ -141,7 +141,7 @@ piers:
     horizon:
       file: horizons/backyard.hrz   # relative to this config file
       format: nina
-    rig:
+    equipment:
       focal_length_mm: 400
       sensor_width_mm: 23.5
       sensor_height_mm: 15.7
@@ -154,7 +154,7 @@ piers:
 | `go_threshold` | The score a night needs for `GO`. |
 | `max_gust` | Turns on the wind gate. Leave it out to ignore wind gusts. |
 | `horizon` | Exactly one of: `points` (a list of `[azimuth, altitude]` pairs), `min_altitude` (a flat floor in degrees), or `file` + `format`. Without it the horizon is flat at 0°. The only file format supported today is `nina` (a NINA `.hrz` export). `stellarium` and `telescopius` are recognised but rejected as not yet supported. |
-| `rig` | Your telescope and camera. With a rig, targets are also ranked on how well they fit the field of view. |
+| `equipment` | Your telescope and camera. With equipment, targets are also ranked on how well they fit the field of view. |
 | `explainer` | The optional LLM summary. See [docs/llm-explainer.md](docs/llm-explainer.md). |
 
 **Secrets.** Any `${VAR}` in a value is replaced with that environment variable
