@@ -34,8 +34,8 @@
 
 ## 4. Documentation
 
-- [ ] 4.1 Update `ha-addon/DOCS.md`. Describe the two horizon fields, with a one-line points example, and say they cannot be used together. Remove the horizon from the list of settings only `config.yaml` can hold, but keep horizon files on it. Verify by reading the rendered Markdown.
-- [ ] 4.2 Update the README's add-on section in `README.md` to match 4.1. Verify that it no longer sends a form user to `config.yaml` for a flat floor or points.
+- [x] 4.1 Update `ha-addon/DOCS.md`. Describe the two horizon fields, with a one-line points example, and say they cannot be used together. Remove the horizon from the list of settings only `config.yaml` can hold, but keep horizon files on it. Verify by reading the rendered Markdown.
+- [x] 4.2 Update the README's add-on section in `README.md` to match 4.1. Verify that it no longer sends a form user to `config.yaml` for a flat floor or points.
 
 ## 5. Live check
 

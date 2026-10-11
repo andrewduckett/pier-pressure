@@ -19,6 +19,7 @@ This add-on runs the same image as a Docker install. You set it up on its
      underscores, because the ID becomes part of the MQTT topics and entity IDs.
    - its **latitude** and **longitude** in degrees. North and east are positive.
    - its **elevation** above sea level, in metres.
+   - optionally, its **horizon**. See [Set a pier's horizon](#set-a-piers-horizon).
 4. **Save, then start the add-on.** The add-on reads the tab only when it starts.
    If it is already running, restart it when Home Assistant offers to, or from
    the **Info** tab.
@@ -36,6 +37,33 @@ This add-on runs the same image as a Docker install. You set it up on its
 6. **Find the entities.** Open **Settings → Devices & services → MQTT**. A device
    named `PierPressure <pier>` appears for each pier.
 
+## Set a pier's horizon
+
+Trees and buildings hide the low sky. A pier's horizon tells PierPressure where
+the sky is blocked, so it suggests only targets you can see. A pier with no
+horizon has an open, flat horizon at 0°.
+
+Each pier on the Configuration tab has two optional horizon fields. Fill in one
+of them at most:
+
+- **Horizon floor** is one altitude, in degrees from 0 to 90, that applies in
+  every direction. For example, `15` hides everything lower than 15°.
+- **Horizon points** is a list of `[azimuth, altitude]` pairs, in degrees, on one
+  line. Azimuth runs from 0 (north) through 90 (east). Between two points, the
+  horizon runs in a straight line. For example:
+
+  ```text
+  [[0, 10], [90, 25], [180, 5], [270, 15]]
+  ```
+
+  The text must start with `[[` and end with `]]`. Otherwise the tab does not
+  save it.
+
+**The two fields cannot be used together.** If a pier sets both, or its points
+cannot be read, the add-on skips that pier and logs an error that names it. The
+other piers still publish. To find the error, open the **Log** tab and look for
+`Skipping invalid pier`.
+
 ## The form or the file
 
 The add-on takes its settings from one place, never a mix of the two:
@@ -46,8 +74,9 @@ The add-on takes its settings from one place, never a mix of the two:
 - **When the Configuration tab lists no piers,** the add-on reads `config.yaml`,
   and ignores the tab's interval.
 
-So to use a setting the tab does not have, such as a horizon or your own broker,
-remove the piers from the tab, and list them in `config.yaml` with that setting.
+So to use a setting the tab does not have, such as a horizon file or your own
+broker, remove the piers from the tab, and list them in `config.yaml` with that
+setting.
 
 ## Set up with config.yaml instead
 
@@ -159,9 +188,9 @@ once the broker is back.
 
 ## More settings
 
-The Configuration tab has only the interval and the piers so far. For any other
-setting, set up with `config.yaml`. The file has the same format as a Docker
-install. Horizon files can sit in the
-same folder, because a relative `file:` path is read from the folder that holds
+The Configuration tab has only the interval and the piers, with their horizon
+floor or points, so far. For any other setting, such as a horizon file, set up
+with `config.yaml`. The file has the same format as a Docker install. Horizon
+files can sit in the same folder, because a relative `file:` path is read from the folder that holds
 `config.yaml`. For every setting, see the
 [Configuration section of the README](https://github.com/andrewduckett/pier-pressure#️-configuration).

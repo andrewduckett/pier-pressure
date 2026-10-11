@@ -89,7 +89,9 @@ ARM.
 2. Install **PierPressure** from the store.
 3. Open the add-on's **Configuration** tab. Check the recompute interval, in
    seconds, and add a pier: its ID, its latitude and longitude in degrees, and
-   its elevation in metres. Save.
+   its elevation in metres. To block the low sky, also give the pier either a
+   horizon floor in degrees, or horizon points on one line, such as
+   `[[0, 10], [90, 25], [180, 5]]`. Do not set both. Save.
 4. Start the add-on. Its log's first line ends with its version, and a device
    named `PierPressure <pier>` appears under **Settings → Devices & services →
    MQTT** for each pier. With the Mosquitto broker add-on, you enter no broker
@@ -100,9 +102,10 @@ ARM.
 pier, the add-on uses only the tab, and logs a warning if `config.yaml` exists.
 While the tab lists no piers, the add-on reads `config.yaml` from its config
 folder, `/addon_configs/<id>_pierpressure`, where `<id>` is a short code for this
-repository. The tab has only the interval and the piers so far. For any other
-setting, such as a horizon or your own broker, leave the tab's pier list empty
-and list your piers in `config.yaml` instead.
+repository. The tab has only the interval and the piers, with a horizon floor or
+points for each pier. For any other setting, such as a horizon file or your own
+broker, leave the tab's pier list empty and list your piers in `config.yaml`
+instead.
 
 **To use another broker, set `mqtt.host` in `config.yaml`.** The add-on then takes
 the host, port, username and password from the file, all four together, and does
