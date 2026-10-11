@@ -5,7 +5,7 @@
 
 ## 2. Turning the form fields into a horizon
 
-- [ ] 2.1 Write failing tests in `tests/test_addon_options.py` for `read_addon_options` (design D1 to D3):
+- [x] 2.1 Write failing tests in `tests/test_addon_options.py` for `read_addon_options` (design D1 to D3):
   - `min_altitude` becomes `horizon: {min_altitude: ...}`.
   - `horizon_points` text becomes `horizon: {points: [...]}`.
   - A pier with neither field has no `horizon` key.
@@ -17,7 +17,7 @@
   - When every pier is left out, the result still holds an empty `piers` list, not `None`.
 
   Verify they fail.
-- [ ] 2.2 Change `pierpressure/addon_options.py` to rebuild each pier's `horizon` block, and update its module and function docstrings. They must no longer say that pier entries pass through unchanged. Verify the 2.1 tests and the existing tests in the file pass.
+- [x] 2.2 Change `pierpressure/addon_options.py` to rebuild each pier's `horizon` block, and update its module and function docstrings. They must no longer say that pier entries pass through unchanged. Verify the 2.1 tests and the existing tests in the file pass.
 
 ## 3. The horizon from the form, end to end
 
