@@ -15,8 +15,9 @@ Each pier SHALL also have two optional horizon fields:
 
 - `min_altitude`: a flat horizon floor, from 0 to 90 degrees.
 - `horizon_points`: horizon points as text. On save, the form SHALL accept empty
-  or blank text, or text wrapped in one pair of square brackets. It SHALL reject
-  any other text.
+  or blank text, or text that opens with two square brackets and closes with
+  two, as a list of pairs does. Spaces may sit between the brackets and around
+  the text. It SHALL reject any other text.
 
 These names SHALL match the names of the same settings in `config.yaml`. The two
 horizon fields are the exception, because a form cannot nest a `horizon` block
