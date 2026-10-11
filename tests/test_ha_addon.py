@@ -1,10 +1,12 @@
 """ha-addon: the add-on files stay valid and pinned to the release (design D1-D3, D7).
 
-The Configuration form's options, schema and labels follow addon-options-form D5, D6.
+The Configuration form's options, schema and labels follow addon-options-form D5, D6,
+and its horizon fields addon-form-horizon D4, D5.
 """
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -82,6 +84,7 @@ PIER_FIELDS = {
     "latitude": "float(-90,90)",
     "longitude": "float(-180,180)",
     "elevation_m": "float",
+    "min_altitude": "float(0,90)?",
 }
 
 
@@ -94,8 +97,29 @@ def test_addon_form_schema_declares_the_interval_and_piers(addon: dict[str, Any]
     assert schema["interval_seconds"] == "int(1,)"
     # A list of one mapping: the Supervisor shows it as a list of piers, each with
     # its own fields, and every field is required, as in PierConfig.
-    assert schema["piers"] == [PIER_FIELDS]
+    (pier,) = schema["piers"]
+    assert {key: value for key, value in pier.items() if key != "horizon_points"} == PIER_FIELDS
+    assert re.fullmatch(r"match\(.*\)\?", pier["horizon_points"])
     assert set(schema) == set(addon["options"])
+
+
+def _horizon_points_pattern(addon: dict[str, Any]) -> str:
+    match = re.fullmatch(r"match\((.*)\)\?", addon["schema"]["piers"][0]["horizon_points"])
+    assert match is not None
+    return match.group(1)
+
+
+@pytest.mark.parametrize("text", ["[[0, 10], [90, 25]]", "", "   "])
+def test_the_horizon_points_check_accepts_brackets_or_blank(
+    addon: dict[str, Any], text: str
+) -> None:
+    # The Supervisor runs vol.Match, which uses re.match (addon-form-horizon D4).
+    assert re.match(_horizon_points_pattern(addon), text)
+
+
+@pytest.mark.parametrize("text", ["[0, 10], [90, 25]", "[[0, 10]] extra"])
+def test_the_horizon_points_check_rejects_other_text(addon: dict[str, Any], text: str) -> None:
+    assert not re.match(_horizon_points_pattern(addon), text)
 
 
 def test_every_form_field_has_a_label(addon: dict[str, Any]) -> None:
@@ -118,6 +142,8 @@ def test_every_form_field_has_a_label(addon: dict[str, Any]) -> None:
         (("piers", "fields", "latitude"), "degrees"),
         (("piers", "fields", "longitude"), "degrees"),
         (("piers", "fields", "elevation_m"), "metres"),
+        (("piers", "fields", "min_altitude"), "degrees"),
+        (("piers", "fields", "horizon_points"), "degrees"),
     ],
 )
 def test_every_number_label_names_its_unit(path: tuple[str, ...], unit: str) -> None:
