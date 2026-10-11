@@ -14,9 +14,15 @@ The decisions in design.md apply existing ADRs:
 
 - D1 and D2 translate two form fields into the config file's `horizon` block,
   outside the core. ADR-0020 already makes this choice: the form is translated
-  into the file's shape, and its names follow the file's keys "wherever the
+  into the file's shape. Its field names follow the file's keys "wherever the
   nesting limit allows". The flat `min_altitude` and `horizon_points` fields are
   that nesting limit at work.
+- ADR-0020's context says a list of horizon points does not fit the form. That
+  is still true of a structured list, which would need a third level of
+  nesting. This change does not nest the list. It holds the points as one text
+  field and parses it at the edge, so ADR-0020's decision still holds
+  unchanged. Only its example of a setting that cannot fit the form is now out
+  of date.
 - D2's rule that an unreadable points text skips only its pier follows the
   existing per-pier skip. It is a requirement in the specs, not a fork.
 - D3 to D5 cover blank values, the manifest's schema and labels. The code and

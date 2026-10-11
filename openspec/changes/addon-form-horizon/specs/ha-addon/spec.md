@@ -65,10 +65,12 @@ The service SHALL turn a form pier's horizon fields into that pier's horizon:
 The service SHALL treat empty or blank `horizon_points` text as unset.
 
 A pier whose horizon fails these rules SHALL be skipped with a logged error that
-names the pier. The other piers SHALL still be published. This covers three
+names the pier. The other piers SHALL still be published. This covers four
 cases:
 
 - `horizon_points` text that the parser cannot read. The error SHALL name
+  `horizon_points`.
+- a saved `horizon_points` value that is not text. The error SHALL name
   `horizon_points`.
 - points that fail the checks for inline points.
 - both `min_altitude` and `horizon_points` set. This breaks the rule that a
@@ -106,6 +108,18 @@ it does for any setup with no valid pier.
 - **AND** one pier's `horizon_points` is `[[0, 10], [90`
 - **THEN** the service logs an error that names that pier and `horizon_points`
 - **AND** it publishes a verdict for the other pier
+
+#### Scenario: Malformed saved values skip only their pier
+
+- **WHEN** the saved form values list three piers
+- **AND** one pier's `horizon_points` is the number 5, not text
+- **AND** another entry in `piers` is not a mapping
+- **THEN** the service logs an error for each of those two entries, naming
+  `horizon_points` for the first
+- **AND** it publishes a verdict for the third pier
+
+The Supervisor normally refuses to save such values. The service still checks
+them, because it does not rely on the Supervisor's check.
 
 #### Scenario: An out-of-range point skips only that pier
 
