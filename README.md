@@ -76,7 +76,8 @@ uv run python -m pierpressure /path/to/config.yaml   # or name a file
 
 Home Assistant OS cannot run a container of your own, but it can run PierPressure
 as an add-on (Home Assistant now also calls these "apps"). The add-on runs the same
-release image as the Docker install, with the same `config.yaml`.
+release image as the Docker install. You set it up on its **Configuration** tab,
+or with the same `config.yaml` as a Docker install.
 
 It runs on `amd64` and `aarch64` (64-bit ARM, such as a Raspberry Pi 4 or 5 on a
 64-bit Home Assistant OS). Home Assistant hides it on other systems, such as 32-bit
@@ -86,26 +87,33 @@ ARM.
    menu, choose **Repositories** and add
    `https://github.com/andrewduckett/pier-pressure`.
 2. Install **PierPressure** from the store.
-3. Write `config.yaml` in the add-on's config folder,
-   `/addon_configs/<id>_pierpressure`, where `<id>` is a short code for this
-   repository. Open the folder with an add-on that can reach `addon_configs`,
-   such as Samba share or Studio Code Server. The add-on reads the file as
-   `/config/config.yaml`. With the Mosquitto broker add-on, leave out the `mqtt:`
-   connection settings: the add-on gets the broker's host, port, username and
-   password from Home Assistant's Supervisor.
+3. Open the add-on's **Configuration** tab. Check the recompute interval, in
+   seconds, and add a pier: its ID, its latitude and longitude in degrees, and
+   its elevation in metres. Save.
 4. Start the add-on. Its log's first line ends with its version, and a device
    named `PierPressure <pier>` appears under **Settings → Devices & services →
-   MQTT** for each pier.
+   MQTT** for each pier. With the Mosquitto broker add-on, you enter no broker
+   settings: the add-on gets the broker's host, port, username and password from
+   Home Assistant's Supervisor.
 
-**To use another broker, set `mqtt.host`.** The add-on then takes the host, port,
-username and password from the file, all four together, and does not ask the
-Supervisor. An add-on cannot set environment variables, so
+**The form or the file, not both.** While the Configuration tab lists at least one
+pier, the add-on uses only the tab, and logs a warning if `config.yaml` exists.
+While the tab lists no piers, the add-on reads `config.yaml` from its config
+folder, `/addon_configs/<id>_pierpressure`, where `<id>` is a short code for this
+repository. The tab has only the interval and the piers so far. For any other
+setting, such as a horizon or your own broker, leave the tab's pier list empty
+and list your piers in `config.yaml` instead.
+
+**To use another broker, set `mqtt.host` in `config.yaml`.** The add-on then takes
+the host, port, username and password from the file, all four together, and does
+not ask the Supervisor. An add-on cannot set environment variables, so
 `${PIERPRESSURE_MQTT_PASSWORD}` is not replaced: write that password straight into
 `config.yaml`. Outside an add-on, `mqtt.host` is still required.
 
-The add-on's **Documentation** tab in Home Assistant repeats these steps, and
-explains each startup error ([`ha-addon/DOCS.md`](ha-addon/DOCS.md)). Home
-Assistant offers an update when a new release reaches the add-on.
+The add-on's **Documentation** tab in Home Assistant repeats these steps, says how
+to open the config folder, and explains each startup error
+([`ha-addon/DOCS.md`](ha-addon/DOCS.md)). Home Assistant offers an update when a
+new release reaches the add-on.
 
 ## ⚙️ Configuration
 
