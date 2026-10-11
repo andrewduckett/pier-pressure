@@ -20,6 +20,8 @@ This add-on runs the same image as a Docker install. You set it up on its
    - its **latitude** and **longitude** in degrees. North and east are positive.
    - its **elevation** above sea level, in metres.
    - optionally, its **horizon**. See [Set a pier's horizon](#set-a-piers-horizon).
+   - optionally, its **equipment**. See
+     [Set a pier's equipment](#set-a-piers-equipment).
 4. **Save, then start the add-on.** The add-on reads the tab only when it starts.
    If it is already running, restart it when Home Assistant offers to, or from
    the **Info** tab.
@@ -63,6 +65,52 @@ of them at most:
 cannot be read, the add-on skips that pier and logs an error that names it. The
 other piers still publish. To find the error, open the **Log** tab and look for
 `Skipping invalid pier`.
+
+## Set a pier's equipment
+
+A pier's equipment is your telescope and camera. With it, PierPressure also
+ranks targets on how well they fit your field of view, and says how the top
+pick fits. A pier with no equipment ranks targets without this.
+
+Each pier on the Configuration tab has four optional equipment fields:
+
+| Field | What to enter | Example |
+| --- | --- | --- |
+| **Focal length** | The telescope's focal length, in millimetres. | `400` |
+| **Sensor width** | The camera sensor's width, in millimetres. | `23.5` |
+| **Sensor height** | The camera sensor's height, in millimetres. | `15.7` |
+| **Reducer or barlow** | The factor of a focal reducer or barlow, with no unit. Leave it empty if you use neither. | `0.8` |
+
+**Set focal length, sensor width and sensor height together.** If a pier sets
+some equipment fields but not all three, the add-on skips that pier and logs an
+error. **An empty reducer means 1.0**, so a pier without a reducer or barlow
+needs only the other three. Every value must be above 0.
+
+The log names a field by its `config.yaml` name, not its label on the tab. For
+example, a pier with no sensor height logs these lines, shortened here:
+
+```text
+Skipping invalid pier 'backyard': 1 validation error for PierConfig
+equipment.sensor_height_mm
+  Field required [type=missing, ...]
+```
+
+To find the field to fix, match the log's name to the tab's label:
+
+| Label on the tab | Name in the log and in `config.yaml` |
+| --- | --- |
+| Focal length | `equipment.focal_length_mm` |
+| Sensor width | `equipment.sensor_width_mm` |
+| Sensor height | `equipment.sensor_height_mm` |
+| Reducer or barlow | `equipment.reducer` |
+
+The other piers still publish. When no pier is left, the add-on stops with a
+configuration error.
+
+**Before you go back to an older add-on version,** clear the four equipment
+fields and save. An older version does not know these fields, and might skip
+each pier that still holds them. After you upgrade again, enter the values
+again.
 
 ## The form or the file
 
@@ -189,8 +237,8 @@ once the broker is back.
 ## More settings
 
 The Configuration tab has only the interval and the piers, with their horizon
-floor or points, so far. For any other setting, such as a horizon file, set up
-with `config.yaml`. The file has the same format as a Docker install. Horizon
+floor or points and their equipment, so far. For any other setting, such as a
+horizon file, set up with `config.yaml`. The file has the same format as a Docker install. Horizon
 files can sit in the same folder, because a relative `file:` path is read from the folder that holds
 `config.yaml`. For every setting, see the
 [Configuration section of the README](https://github.com/andrewduckett/pier-pressure#️-configuration).

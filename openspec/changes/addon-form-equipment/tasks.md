@@ -36,8 +36,8 @@
 
 ## 4. Documentation
 
-- [ ] 4.1 Update `ha-addon/DOCS.md`. Describe the four equipment fields, with an example, and say the three sizes go together and an empty reducer means 1.0. List each form label beside its `config.yaml` name, such as "Sensor height" and `equipment.sensor_height_mm`, so a user can match a log line to a field. Remove equipment from any list of settings only `config.yaml` can hold. Verify by reading the rendered Markdown.
-- [ ] 4.2 Update the README's add-on section in `README.md` to match 4.1. Verify that it no longer sends a form user to `config.yaml` for equipment.
+- [x] 4.1 Update `ha-addon/DOCS.md`. Describe the four equipment fields, with an example, and say the three sizes go together and an empty reducer means 1.0. List each form label beside its `config.yaml` name, such as "Sensor height" and `equipment.sensor_height_mm`, so a user can match a log line to a field. Remove equipment from any list of settings only `config.yaml` can hold. Verify by reading the rendered Markdown.
+- [x] 4.2 Update the README's add-on section in `README.md` to match 4.1. Verify that it no longer sends a form user to `config.yaml` for equipment.
 
 ## 5. Live check
 
