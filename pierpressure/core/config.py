@@ -231,7 +231,10 @@ class ExplainerConfig(BaseModel):
     omitted, credentials are read from the provider's standard environment variable.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    # This block holds the API key, so its errors never show their input
+    # (config-secrets-hidden-in-errors D1). Its checks must not quote their input:
+    # build_config writes this block's errors from their messages.
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
 
     enabled: bool = False
     model: str = "anthropic:claude-opus-5"
@@ -292,10 +295,12 @@ class ConfigFile:
     file references. The add-on's form builds one too, in the file's shape.
 
     Construction enforces the broker connection rule for every source of settings
-    (addon-form-broker D3). It raises :class:`ConfigError` if the ``mqtt`` block is
-    not a mapping, or if it sets ``port``, ``username`` or ``password`` without
-    ``host`` — the connection settings come from one source, so a partial set
-    would be silently ignored otherwise.
+    (addon-form-broker D3). It raises :class:`ConfigError` if the ``mqtt`` or
+    ``explainer`` block is not a mapping, or if ``mqtt`` sets ``port``,
+    ``username`` or ``password`` without ``host`` — the connection settings come
+    from one source, so a partial set would be silently ignored otherwise. These
+    errors hold no value from the block, which can be a secret
+    (config-secrets-hidden-in-errors D3).
     """
 
     raw: dict[str, Any]
@@ -305,6 +310,11 @@ class ConfigFile:
         mqtt = self.raw.get("mqtt")
         if mqtt is not None and not isinstance(mqtt, dict):
             raise ConfigError("The mqtt block must be a mapping of settings, such as mqtt.host")
+        explainer = self.raw.get("explainer")
+        if explainer is not None and not isinstance(explainer, dict):
+            raise ConfigError(
+                "The explainer block must be a mapping of settings, such as explainer.enabled"
+            )
         if mqtt is not None and not self.names_broker_host:
             partial = [f"mqtt.{key}" for key in _CREDENTIAL_KEYS if mqtt.get(key) is not None]
             if partial:
@@ -429,15 +439,19 @@ def build_config(read: ConfigFile, broker: BrokerSettings | None = None) -> AppC
     # Assembling ``AppConfig`` re-runs each pier's after-validator, which re-reads
     # any horizon file, so the same ``base_dir`` context is threaded through here —
     # otherwise a relative horizon path would re-resolve against the process cwd.
-    # ``explainer`` is optional (absent -> disabled) and its ``${ENV}``-expanded
-    # api_key rides along already-expanded from ``raw``.
+    # ``explainer`` is optional (absent or empty -> disabled). It is validated here,
+    # on its own, so its error shows none of its text; ``AppConfig`` does not
+    # validate the built model again (config-secrets-hidden-in-errors D2).
     assembled: dict[str, Any] = {"mqtt": mqtt, "recompute": recompute, "piers": piers}
-    if "explainer" in raw:
-        assembled["explainer"] = raw["explainer"]
+    raw_explainer = raw.get("explainer")
+    if raw_explainer is not None:
+        try:
+            assembled["explainer"] = ExplainerConfig.model_validate(raw_explainer)
+        except ValidationError as exc:
+            raise _block_error("explainer", ExplainerConfig, raw_explainer, exc) from None
     try:
         # This re-runs each pier's after-validator (a horizon file may be re-read),
-        # so a failure here is not necessarily the explainer block — keep the label
-        # neutral rather than blaming the wrong section.
+        # so keep the label neutral rather than blaming one section.
         return AppConfig.model_validate(assembled, context={"base_dir": base_dir})
     except ValidationError as exc:
         raise ConfigError(f"Invalid configuration: {exc}") from exc

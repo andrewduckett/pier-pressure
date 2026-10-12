@@ -18,7 +18,7 @@
   - `explainer:` with no value, and `explainer: {}`, each load with the explainer disabled
 
   Verify the number, unknown key, list and traceback cases fail.
-- [ ] 2.2 In `pierpressure/core/config.py`, set `hide_input_in_errors=True` on `ExplainerConfig`, with the same comment as 1.2. Make `ConfigFile.__post_init__` reject an `explainer` value that is neither a mapping nor `None`, worded like its `mqtt` check. In `build_config`, validate a present, non-`None` `explainer` block directly with `ExplainerConfig.model_validate`, format its error as in 1.2, and pass the validated model into `AppConfig`. Reuse one formatter for both blocks. Verify the 2.1 tests and the existing explainer tests pass.
+- [x] 2.2 In `pierpressure/core/config.py`, set `hide_input_in_errors=True` on `ExplainerConfig`, with the same comment as 1.2. Make `ConfigFile.__post_init__` reject an `explainer` value that is neither a mapping nor `None`, worded like its `mqtt` check. In `build_config`, validate a present, non-`None` `explainer` block directly with `ExplainerConfig.model_validate`, format its error as in 1.2, and pass the validated model into `AppConfig`. Reuse one formatter for both blocks. Verify the 2.1 tests and the existing explainer tests pass.
 
 ## 3. Masking valid secrets
 

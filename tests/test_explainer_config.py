@@ -42,9 +42,8 @@ def test_absent_block_yields_a_disabled_explainer(tmp_path: Path) -> None:
 
 
 def test_malformed_explainer_block_raises_a_clean_config_error(tmp_path: Path) -> None:
-    # A structurally invalid explainer block fails only at final assembly (per-pier
-    # validation does not touch it). It must surface as a wrapped ConfigError, not a
-    # raw pydantic ValidationError.
+    # A structurally invalid explainer block must surface as a wrapped ConfigError,
+    # not a raw pydantic ValidationError.
     text = (
         _CONFIG_HEAD
         + """
@@ -57,9 +56,9 @@ explainer:
         load_config(_write(tmp_path, text))
 
 
-def test_assembly_error_label_does_not_hard_code_the_explainer(tmp_path: Path) -> None:
-    # The assembly-time re-validation covers piers as well as the explainer, so the
-    # error label must stay neutral rather than always blaming the explainer.
+def test_an_explainer_error_names_the_explainer_block(tmp_path: Path) -> None:
+    # The explainer block is validated on its own, before the final assembly, so
+    # its error names it (config-secrets-hidden-in-errors D2).
     text = (
         _CONFIG_HEAD
         + """
@@ -70,7 +69,7 @@ explainer:
     )
     with pytest.raises(ConfigError) as exc_info:
         load_config(_write(tmp_path, text))
-    assert "invalid explainer configuration" not in str(exc_info.value).lower()
+    assert str(exc_info.value).startswith("Invalid explainer configuration: ")
 
 
 def test_default_explainer_config_is_disabled() -> None:
