@@ -8,6 +8,7 @@ import logging
 import os
 import signal
 from collections.abc import Iterator
+from dataclasses import replace
 from datetime import UTC, datetime
 from functools import partial
 from pathlib import Path
@@ -18,10 +19,11 @@ import pytest
 
 import pierpressure
 from pierpressure import __main__ as entry
-from pierpressure.conditions.provider import assemble_snapshot
+from pierpressure.conditions.provider import SourceForecast, assemble_snapshot
 from pierpressure.core.clock import FixedClock
 from pierpressure.core.config import AppConfig, BrokerSettings, MqttConfig, RecomputeConfig
 from pierpressure.core.horizon import parse_horizon_text
+from pierpressure.core.model import Verdict
 from pierpressure.core.producer import produce_verdict
 from pierpressure.delivery.mqtt import (
     DeliveryError,
@@ -1254,6 +1256,150 @@ def test_a_form_pier_without_equipment_has_no_field_of_view_reason(
 
     assert document.targets
     assert not any("field of view" in r for r in document.reasons), document.reasons
+
+
+# --------------------------------------------------------------------------- #
+# addon-form-gates: the form sets each pier's GO threshold and wind-gust limit
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [{}, {"go_threshold": None, "max_gust": None}, {"go_threshold": "  ", "max_gust": "  "}],
+    ids=["absent", "null", "blank"],
+)
+def test_empty_gate_fields_use_the_defaults(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path, fields: dict[str, Any]
+) -> None:
+    [pier] = _form_piers(tmp_path, monkeypatch, options_file, {**BACKYARD, **fields}).piers
+
+    assert (pier.go_threshold, pier.max_gust) == (65, None)
+
+
+def test_config_yaml_fills_a_gate_field_the_form_left_empty(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _addon(monkeypatch, options_file, {**BACKYARD, "max_gust": None})
+    StartupStub(monkeypatch)
+
+    with caplog.at_level(logging.ERROR):
+        [pier] = _load(_config(tmp_path, "piers:\n  - id: backyard\n    max_gust: 40\n")).piers
+
+    assert pier.max_gust == 40
+    assert _errors(caplog) == []
+
+
+def test_a_go_threshold_on_the_form_and_in_config_yaml_stops_the_addon(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _addon(monkeypatch, options_file, {**BACKYARD, "go_threshold": 70})
+    StartupStub(monkeypatch)
+
+    with caplog.at_level(logging.ERROR, logger="pierpressure"):
+        assert (
+            entry.main([_config(tmp_path, "piers:\n  - id: backyard\n    go_threshold: 75\n")]) == 1
+        )
+
+    [error] = _errors(caplog)
+    assert error.startswith("Configuration error: ")
+    assert "go_threshold" in error
+    assert "'backyard'" in error
+    assert "is set on the Configuration tab and in config.yaml" in error
+
+
+@pytest.mark.parametrize(
+    "field_value", [("max_gust", 0), ("go_threshold", 101)], ids=["gust-zero", "threshold-101"]
+)
+def test_a_bad_gate_value_skips_only_its_pier(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+    field_value: tuple[str, int],
+) -> None:
+    # The Supervisor refuses a threshold over 100 on save; the service does not
+    # rely on it.
+    field, value = field_value
+
+    with caplog.at_level(logging.ERROR):
+        config = _form_piers(
+            tmp_path, monkeypatch, options_file, {**BACKYARD, field: value}, ROOF_FORM
+        )
+
+    assert [p.id for p in config.piers] == ["roof"]
+    assert field in _skip_error(caplog, "backyard")
+
+
+@pytest.mark.parametrize(
+    "fields", [{"max_gust": 0}, {"go_threshold": 101}], ids=["gust-zero", "threshold-101"]
+)
+def test_a_bad_gate_value_on_the_only_pier_stops_the_addon(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+    fields: dict[str, int],
+) -> None:
+    _addon(monkeypatch, options_file, {**BACKYARD, **fields})
+    StartupStub(monkeypatch)
+
+    with caplog.at_level(logging.ERROR):
+        assert entry.main([_no_file(tmp_path)]) == 1
+
+    errors = _errors(caplog)
+    assert any("Skipping invalid pier 'backyard'" in e for e in errors)
+    assert errors[-1].startswith("Configuration error: No valid pier")
+
+
+def test_form_gates_give_the_same_verdict_as_file_gates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    # The instant and conditions of tests/test_golden_verdict.py.
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    file_text = FILE_BROKER + PIERS + "    go_threshold: 75\n    max_gust: 40\n"
+    [file_pier] = _load(_config(tmp_path / "docker", file_text)).piers
+    form = {**BACKYARD, "go_threshold": 75, "max_gust": 40}
+    [form_pier] = _form_piers(tmp_path, monkeypatch, options_file, form).piers
+    conditions = assemble_snapshot(_base_full(), _secondary_full())
+
+    with no_network():
+        from_file = produce_verdict(file_pier, FixedClock(_INSTANT), conditions)
+        from_form = produce_verdict(form_pier, FixedClock(_INSTANT), conditions)
+
+    assert (form_pier.go_threshold, form_pier.max_gust) == (75, 40)
+    assert from_form.to_json() == from_file.to_json()
+
+
+def _with_gusts(forecast: SourceForecast, gust: float) -> SourceForecast:
+    """``forecast`` with every hour's gust set to ``gust``, its cloud unchanged."""
+    readings = {
+        time: replace(reading, wind_gust=gust) for time, reading in forecast.readings.items()
+    }
+    return SourceForecast(issued_at=forecast.issued_at, readings=readings)
+
+
+def test_a_gust_over_the_forms_limit_is_a_no_go(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    [gated] = _form_piers(tmp_path, monkeypatch, options_file, {**BACKYARD, "max_gust": 30}).piers
+    [open_pier] = _form_piers(tmp_path, monkeypatch, options_file, BACKYARD).piers
+    conditions = assemble_snapshot(_with_gusts(_base_full(), 45.0), _secondary_full())
+
+    with no_network():
+        document = produce_verdict(gated, FixedClock(_INSTANT), conditions)
+        without_gate = produce_verdict(open_pier, FixedClock(_INSTANT), conditions)
+
+    # Without the wind gate, no other gate fails.
+    assert without_gate.verdict is not Verdict.NO_GO
+    assert document.verdict is Verdict.NO_GO
+    assert document.score is None
+    assert any("30 km/h limit" in r for r in document.reasons), document.reasons
 
 
 # --------------------------------------------------------------------------- #
