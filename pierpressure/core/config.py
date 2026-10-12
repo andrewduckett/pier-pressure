@@ -286,11 +286,29 @@ class ConfigFile:
     """A config file read and ``${VAR}``-expanded, but not yet validated (D2).
 
     ``base_dir`` is the folder that holds the file, which anchors relative horizon
-    file references.
+    file references. The add-on's form builds one too, in the file's shape.
+
+    Construction enforces the broker connection rule for every source of settings
+    (addon-form-broker D3). It raises :class:`ConfigError` if the ``mqtt`` block is
+    not a mapping, or if it sets ``port``, ``username`` or ``password`` without
+    ``host`` — the connection settings come from one source, so a partial set
+    would be silently ignored otherwise.
     """
 
     raw: dict[str, Any]
     base_dir: Path
+
+    def __post_init__(self) -> None:
+        mqtt = self.raw.get("mqtt")
+        if mqtt is not None and not isinstance(mqtt, dict):
+            raise ConfigError("The mqtt block must be a mapping of settings, such as mqtt.host")
+        if mqtt is not None and not self.names_broker_host:
+            partial = [f"mqtt.{key}" for key in _CREDENTIAL_KEYS if mqtt.get(key) is not None]
+            if partial:
+                raise ConfigError(
+                    f"{', '.join(partial)} is set without mqtt.host; set mqtt.host too, "
+                    "or leave out all of the broker connection settings"
+                )
 
     @property
     def names_broker_host(self) -> bool:
@@ -303,10 +321,8 @@ def read_config(path: str | os.PathLike[str]) -> ConfigFile:
     """Read the YAML config at ``path`` and expand ``${VAR}`` (design D2, step 1).
 
     Reads only the file and the environment. Raises :class:`ConfigError` if the
-    file is not valid YAML, if the root or the ``mqtt`` block is not a mapping, or
-    if the file sets ``mqtt.port``, ``mqtt.username`` or ``mqtt.password`` without
-    ``mqtt.host`` — the connection settings come from one source, so a partial set
-    would be silently ignored otherwise.
+    file is not valid YAML or its root is not a mapping, or if its ``mqtt`` block
+    breaks the broker connection rule that :class:`ConfigFile` enforces.
     """
     config_path = Path(path)
     text = config_path.read_text(encoding="utf-8")
@@ -316,19 +332,7 @@ def read_config(path: str | os.PathLike[str]) -> ConfigFile:
         raise ConfigError(f"{config_path} is not valid YAML: {exc}") from exc
     if not isinstance(raw, dict):
         raise ConfigError("Configuration root must be a mapping")
-    read = ConfigFile(raw=_expand_env(raw), base_dir=config_path.resolve().parent)
-
-    mqtt = read.raw.get("mqtt")
-    if mqtt is not None and not isinstance(mqtt, dict):
-        raise ConfigError("The mqtt block must be a mapping of settings, such as mqtt.host")
-    if mqtt is not None and not read.names_broker_host:
-        partial = [f"mqtt.{key}" for key in _CREDENTIAL_KEYS if mqtt.get(key) is not None]
-        if partial:
-            raise ConfigError(
-                f"{', '.join(partial)} is set without mqtt.host; set mqtt.host too, "
-                "or leave out all of the broker connection settings"
-            )
-    return read
+    return ConfigFile(raw=_expand_env(raw), base_dir=config_path.resolve().parent)
 
 
 def load_config(path: str | os.PathLike[str]) -> AppConfig:
