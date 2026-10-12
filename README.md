@@ -77,7 +77,7 @@ uv run python -m pierpressure /path/to/config.yaml   # or name a file
 Home Assistant OS cannot run a container of your own, but it can run PierPressure
 as an add-on (Home Assistant now also calls these "apps"). The add-on runs the same
 release image as the Docker install. You set it up on its **Configuration** tab,
-or with the same `config.yaml` as a Docker install.
+and can add more settings in a `config.yaml` file.
 
 It runs on `amd64` and `aarch64` (64-bit ARM, such as a Raspberry Pi 4 or 5 on a
 64-bit Home Assistant OS). Home Assistant hides it on other systems, such as 32-bit
@@ -102,23 +102,34 @@ ARM.
    settings: the add-on gets the broker's host, port, username and password from
    Home Assistant's Supervisor.
 
-**The form or the file, not both.** While the Configuration tab lists at least one
-pier, the add-on uses only the tab, and logs a warning if `config.yaml` exists.
-While the tab lists no piers, the add-on reads `config.yaml` from its config
-folder, `/addon_configs/<id>_pierpressure`, where `<id>` is a short code for this
-repository. The tab has only the interval, the piers, with a horizon floor or
-points and equipment for each pier, and the broker. For any other setting, such
-as a horizon file, leave the tab's pier list empty and list your piers in
-`config.yaml` instead.
+**config.yaml adds the settings the tab leaves unset.** The tab has only the
+interval, the piers, with a horizon floor or points and equipment for each pier,
+and the broker. For any other setting, such as a horizon file, write a
+`config.yaml` in the add-on's config folder, `/addon_configs/<id>_pierpressure`,
+where `<id>` is a short code for this repository. List each pier there with the
+same `id` as on the tab, and only the settings you add:
+
+```yaml
+piers:
+  - id: backyard
+    horizon:
+      file: backyard.hrz   # in the same folder
+      format: nina
+```
+
+The tab must list every pier; the file cannot add one. A setting given on the
+tab and in the file stops the add-on with an error that names it. A pier's
+horizon, its equipment, the broker connection and the recompute interval each
+count as one setting.
 
 **To use another broker, fill in the MQTT broker fields on the Configuration
 tab.** Set its host, and its port, username and password if it needs them; an
 empty port means 1883. With a host, the add-on takes all four settings from the
-tab and does not ask the Supervisor. With no host, it uses the Mosquitto add-on,
-and the other three must stay empty. The fields apply only while the tab lists
-piers. The password field hides its value on the tab, and the Supervisor stores
-it with the add-on's settings, not in `config.yaml`. Outside an add-on,
-`mqtt.host` is still required.
+tab and does not ask the Supervisor. With no host, the other three must stay
+empty, and the add-on uses `mqtt.host` from `config.yaml` if the file sets it,
+or else the Mosquitto add-on. The password field hides its value on the tab, and
+the Supervisor stores it with the add-on's settings, not in `config.yaml`.
+Outside an add-on, `mqtt.host` is still required.
 
 The add-on's **Documentation** tab in Home Assistant repeats these steps, says how
 to open the config folder, and explains each startup error
