@@ -43,6 +43,22 @@ CHANGES_APPLIED: n/a
 
 ## Rebuttals
 
-1. **Moderate 1 — silent horizon overwrite: accepted by reviewer.** A **set** flattened horizon field is now specified to remain beside a saved `horizon` block, allowing the core to reject it. The unset-field regression above is a separate finding.
-2. **Moderate 2 — contradictory duplicate-azimuth scenario: accepted by reviewer.** The rejection scenario now requires different rounded altitudes, and a separate scenario covers equal-altitude deduplication.
-3. **Moderate 3 — ADR promise of identical messages: accepted by reviewer.** ADR-0022 now promises the same check and an error naming the same setting, without promising identical messages.
+Author responses to round 2, applied before round 3. The human chose the
+direction for both after the second REVISE.
+
+1. **Moderate 1 — the collision fix keeps unset fields: fixed.** Design D2 and D3
+   now drop each flat field that `is_set` counts as unset first. Only set fields
+   stay beside a `horizon` or `equipment` value. The ha-addon delta adds the
+   scenarios "A horizon mapping beside unset horizon fields is used" and "An
+   equipment mapping beside unset equipment fields is used". The ADDED
+   requirement states the unset-field rule.
+2. **Moderate 2 — unknown top-level keys disappear: fixed by narrowing.** The
+   proposal, the ADDED requirement and ADR-0022 now say the add-on passes on
+   unexpected values only for the settings the form declares, and ignores any
+   other top-level key, as the Supervisor does. The design lists this as a
+   non-goal and a trade-off.
+3. **Suggestion — "four cases" lists five: adopted.**
+4. **Suggestion — split the dense horizon paragraph: declined.** It is unchanged
+   text from the main spec.
+
+Round 1 rebuttals were all accepted by the reviewer in round 2.

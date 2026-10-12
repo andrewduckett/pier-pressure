@@ -34,8 +34,8 @@ The core is the only place that decides whether a setting's value is valid. This
 holds for every interface.
 
 An interface layer reads settings, renames them to the config file's names, and
-combines its sources. It passes on any value it does not expect, so the core can
-reject it. It keeps only the checks it needs to run, such as "the saved values
+combines its sources. For each setting it reads, it passes on any value it does
+not expect, so the core can reject it. It ignores keys it does not read. It keeps only the checks it needs to run, such as "the saved values
 are a mapping", and the rules about combining two sources, which only it has.
 
 A check made before the core, such as the Supervisor's save check, is a

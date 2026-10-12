@@ -5,8 +5,15 @@
 The core SHALL check every setting the add-on reads, as it checks the same
 setting in `config.yaml`. The add-on SHALL only read the saved form values,
 rename form fields to their `config.yaml` names, and combine them with
-`config.yaml`. It SHALL NOT decide whether a setting's value is valid. It SHALL
-pass on any value it does not expect, so the core can reject it.
+`config.yaml`. It SHALL NOT decide whether a setting's value is valid. For each
+setting the form declares, it SHALL pass on any value it does not expect, so the
+core can reject it. It SHALL ignore any other top-level key in the saved values,
+as the Supervisor does when it saves the form.
+
+A form field that is not set SHALL be left out before the core checks the pier,
+as the requirement "The add-on combines the Configuration form with config.yaml"
+describes. This rule says what an empty field means, not whether a value is
+valid.
 
 The Supervisor checks the form's values when the user saves them. That check is
 a convenience, not a guarantee. A pier SHALL get the same result, and an error
@@ -58,7 +65,7 @@ The service SHALL turn a form pier's horizon fields into that pier's horizon:
 The service SHALL treat empty or blank `horizon_points` text as unset.
 
 A pier whose horizon fails these rules SHALL be skipped with a logged error that
-names the pier. The other piers SHALL still be published. This covers four
+names the pier. The other piers SHALL still be published. This covers five
 cases:
 
 - `horizon_points` text that the core cannot read as a list of points. The
@@ -69,8 +76,8 @@ cases:
 - both `min_altitude` and `horizon_points` set. This breaks the rule that a
   horizon has exactly one source.
 - saved values that hold both a `horizon` value and a horizon field that is
-  set. The service SHALL leave that pier's horizon fields as they were saved,
-  and the core SHALL reject each set horizon field as a field it does not know.
+  set. The service SHALL leave each set horizon field in place, and the core
+  SHALL reject each one as a field it does not know.
   The error SHALL name each of those fields. The form has no `horizon` field, so
   this happens only when the saved values were written some other way.
 
@@ -140,6 +147,15 @@ it does for any setup with no valid pier.
 - **AND** the add-on reports no error of its own for that pier
 - **AND** it publishes a verdict for the other pier
 
+#### Scenario: A horizon mapping beside unset horizon fields is used
+
+- **WHEN** the saved form values list a pier that holds a `horizon` mapping
+  with `min_altitude` 15
+- **AND** the pier's `horizon_points` is blank text and its `min_altitude` is
+  null
+- **THEN** the pier passes the service's checks
+- **AND** its horizon altitude is 15 degrees at every azimuth
+
 #### Scenario: A bad horizon on the only pier stops the add-on
 
 - **WHEN** the form lists one pier, and its `horizon_points` cannot be read
@@ -171,8 +187,8 @@ cases:
   equipment field is set. The error SHALL name the missing field.
 - a value of 0 or less.
 - saved values that hold both an `equipment` value and any equipment field.
-  The service SHALL leave that pier's fields as they were saved, and the core
-  SHALL reject each set `equipment_*` field as a field it does not know. The
+  The service SHALL leave each set `equipment_*` field in place, and the core
+  SHALL reject each one as a field it does not know. The
   error SHALL name each of those fields. The form has no `equipment` field, so
   this happens only when the saved values were written some other way.
 
@@ -258,6 +274,14 @@ This holds for each of the four fields and both values.
   `equipment_focal_length_mm` as a field the core does not know
 - **AND** the add-on reports no error of its own for that pier
 - **AND** it publishes a verdict for the other pier
+
+#### Scenario: An equipment mapping beside unset equipment fields is used
+
+- **WHEN** the saved form values list a pier that holds a complete `equipment`
+  mapping
+- **AND** the pier's `equipment_focal_length_mm` is null
+- **THEN** the pier passes the service's checks
+- **AND** its equipment equals the `equipment` mapping
 
 #### Scenario: Incomplete equipment on the only pier stops the add-on
 
