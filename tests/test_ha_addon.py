@@ -1,8 +1,8 @@
 """ha-addon: the add-on files stay valid and pinned to the release (design D1-D3, D7).
 
 The Configuration form's options, schema and labels follow addon-options-form D5, D6,
-its horizon fields addon-form-horizon D4, D5, and its equipment fields
-addon-form-equipment D4, D5.
+its horizon fields addon-form-horizon D4, D5, its equipment fields
+addon-form-equipment D4, D5, and its broker fields addon-form-broker D1.
 """
 
 from __future__ import annotations
@@ -95,9 +95,25 @@ PIER_FIELDS = {
 }
 
 
+# Every field optional, and no port default, so an empty block sets no broker
+# (addon-form-broker D1).
+MQTT_FIELDS = {
+    "host": "str?",
+    "port": "port?",
+    "username": "str?",
+    "password": "password?",
+}
+
+
 def test_addon_form_defaults_to_the_interval_and_no_piers(addon: dict[str, Any]) -> None:
-    # No equipment default: a new pier starts with no equipment (D4).
-    assert addon["options"] == {"interval_seconds": 900, "piers": []}
+    # No equipment default: a new pier starts with no equipment (D4). The broker
+    # block must be in options, because the Supervisor cannot mark a block
+    # optional (addon-form-broker D1).
+    assert addon["options"] == {"interval_seconds": 900, "piers": [], "mqtt": {}}
+
+
+def test_addon_form_schema_declares_the_broker(addon: dict[str, Any]) -> None:
+    assert addon["schema"]["mqtt"] == MQTT_FIELDS
 
 
 def test_addon_form_schema_declares_the_interval_and_piers(addon: dict[str, Any]) -> None:
@@ -138,10 +154,16 @@ def test_every_form_field_has_a_label(addon: dict[str, Any]) -> None:
     for key in schema:
         assert labels[key]["name"], f"{key} has no name"
         assert labels[key]["description"], f"{key} has no description"
-    for field in schema["piers"][0]:
-        entry = labels["piers"]["fields"][field]
-        assert entry["name"], f"piers.{field} has no name"
-        assert entry["description"], f"piers.{field} has no description"
+    for block, fields in (("piers", schema["piers"][0]), ("mqtt", schema["mqtt"])):
+        for field in fields:
+            entry = labels[block]["fields"][field]
+            assert entry["name"], f"{block}.{field} has no name"
+            assert entry["description"], f"{block}.{field} has no description"
+
+
+def test_the_port_label_names_its_default() -> None:
+    port = _load(ADDON_TRANSLATIONS)["configuration"]["mqtt"]["fields"]["port"]
+    assert "1883" in port["description"]
 
 
 @pytest.mark.parametrize(
@@ -157,6 +179,7 @@ def test_every_form_field_has_a_label(addon: dict[str, Any]) -> None:
         (("piers", "fields", "equipment_sensor_width_mm"), "millimetres"),
         (("piers", "fields", "equipment_sensor_height_mm"), "millimetres"),
         (("piers", "fields", "equipment_reducer"), "no unit"),
+        (("mqtt", "fields", "port"), "no unit"),
     ],
 )
 def test_every_number_label_names_its_unit(path: tuple[str, ...], unit: str) -> None:
