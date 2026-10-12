@@ -16,6 +16,7 @@ from pierpressure.core.config import (
     build_config,
     load_config,
     read_config,
+    read_config_mapping,
     validate_piers,
 )
 
@@ -318,3 +319,52 @@ def test_config_file_rejects_an_mqtt_block_that_is_not_a_mapping(
     with pytest.raises(ConfigError) as read:
         read_config(_write(tmp_path, "mqtt: broker.lan\n" + NO_MQTT_CONFIG))
     assert str(built.value) == str(read.value)
+
+
+# --------------------------------------------------------------------------- #
+# addon-form-horizon-file: read_config_mapping (design D4)
+# --------------------------------------------------------------------------- #
+
+
+def test_read_config_mapping_returns_the_expanded_mapping(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PIERPRESSURE_MQTT_PASSWORD", "s3cr3t")
+    raw = read_config_mapping(_write(tmp_path, VALID_CONFIG))
+    assert raw["mqtt"]["password"] == "s3cr3t"
+    assert raw["piers"][0]["id"] == "backyard"
+
+
+def test_read_config_mapping_skips_the_broker_rule(tmp_path: Path) -> None:
+    raw = read_config_mapping(_write(tmp_path, "mqtt:\n  password: pw\n"))
+    assert raw == {"mqtt": {"password": "pw"}}
+
+
+@pytest.mark.parametrize("text", ["- a\n- b\n", "just text\n", ""])
+def test_read_config_mapping_rejects_a_root_that_is_not_a_mapping(
+    tmp_path: Path, text: str
+) -> None:
+    with pytest.raises(ConfigError, match="root must be a mapping"):
+        read_config_mapping(_write(tmp_path, text))
+
+
+SENTINEL = "pw-8c41f2"
+
+
+@pytest.mark.parametrize("value", [f"[{SENTINEL}", f"*{SENTINEL}"])
+@pytest.mark.parametrize("tail", ["", "recompute:\n  interval_seconds: 900\n"])
+def test_a_yaml_error_names_only_the_file_line_and_column(
+    tmp_path: Path, value: str, tail: str
+) -> None:
+    path = _write(tmp_path, f"mqtt:\n  host: broker.lan\n  password: {value}\n{tail}")
+    with pytest.raises(ConfigError) as error:
+        read_config_mapping(path)
+    assert str(error.value) == f"{path} is not valid YAML at line 3, column 13"
+    assert SENTINEL not in str(error.value)
+
+
+def test_read_config_reports_the_same_yaml_error(tmp_path: Path) -> None:
+    path = _write(tmp_path, f"mqtt:\n  password: *{SENTINEL}\n")
+    with pytest.raises(ConfigError) as error:
+        read_config(path)
+    assert str(error.value) == f"{path} is not valid YAML at line 2, column 13"
