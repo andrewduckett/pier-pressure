@@ -74,7 +74,7 @@ def read_addon_options(path: str | os.PathLike[str] = OPTIONS_PATH) -> dict[str,
     if "interval_seconds" in options:
         config["recompute"] = {"interval_seconds": options["interval_seconds"]}
     mqtt = _set_broker_fields(options.get("mqtt"))
-    if mqtt:
+    if mqtt is not None and mqtt != {}:
         config["mqtt"] = mqtt
     return config
 

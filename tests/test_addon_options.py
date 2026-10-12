@@ -306,3 +306,11 @@ def test_a_form_without_piers_ignores_its_broker(tmp_path: Path) -> None:
     options = {"interval_seconds": 900, "piers": [], "mqtt": BROKER}
 
     assert read_addon_options(_options(tmp_path, json.dumps(options))) is None
+
+
+@pytest.mark.parametrize("mqtt", [[], "", 0, False], ids=["list", "text", "zero", "false"])
+def test_a_broker_value_that_is_not_a_mapping_reaches_the_core(
+    tmp_path: Path, mqtt: object
+) -> None:
+    # The core rejects it; dropping it would silently use the Supervisor's broker.
+    assert _read_with_broker(tmp_path, mqtt)["mqtt"] == mqtt
