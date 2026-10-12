@@ -243,7 +243,7 @@ def test_a_file_pier_id_that_is_not_text_names_its_position(entry: dict[str, Any
     assert "id" in message
 
 
-@pytest.mark.parametrize("piers", ["backyard", {"id": "backyard"}, 5])
+@pytest.mark.parametrize("piers", ["backyard", {"id": "backyard"}, 5, None])
 def test_a_file_piers_that_is_not_a_list_is_an_error(piers: object) -> None:
     message = _error(_form(PIER), {"piers": piers})
 
@@ -319,14 +319,6 @@ def test_each_form_pier_with_a_repeated_id_is_checked_once() -> None:
     message = _error(form, {"piers": [{"id": "backyard", "horizon": {"min_altitude": 5}}]})
 
     assert message.count("horizon of pier 'backyard'") == 1
-
-
-def test_a_piers_key_with_no_entries_adds_nothing() -> None:
-    # "piers:" with nothing under it is YAML null.
-    combined = combine_settings(_form(PIER), {"piers": None})
-
-    assert combined.raw["piers"] == [PIER]
-    assert not combined.file_adds
 
 
 def test_an_empty_recompute_block_sets_no_interval() -> None:

@@ -317,16 +317,12 @@ class ConfigFile:
         return isinstance(mqtt, dict) and mqtt.get("host") not in (None, "")
 
 
-def read_config_mapping(
-    path: str | os.PathLike[str], *, allow_empty: bool = False
-) -> dict[str, Any]:
+def read_config_mapping(path: str | os.PathLike[str]) -> dict[str, Any]:
     """Read the YAML config at ``path`` as a ``${VAR}``-expanded mapping.
 
     Follows addon-form-horizon-file D4. Reads only the file and the environment,
     and checks no setting: the add-on combines this mapping with its form before
-    the broker rule runs. With ``allow_empty``, a file that holds nothing but
-    comments reads as an empty mapping; the add-on's file only adds settings, so
-    an empty one adds none. Raises :class:`ConfigError`, naming the file, if the
+    the broker rule runs. Raises :class:`ConfigError`, naming the file, if the
     file is not valid YAML or its root is not a mapping. A YAML error names only
     the file, lines and columns. It holds no text from the parser, which can
     quote the file, such as a broker password on the broken line.
@@ -337,8 +333,6 @@ def read_config_mapping(
         raw = yaml.safe_load(text)
     except yaml.YAMLError as exc:
         raise ConfigError(_yaml_error_message(config_path, exc)) from None
-    if raw is None and allow_empty:
-        return {}
     if not isinstance(raw, dict):
         raise ConfigError(f"Configuration root must be a mapping in {config_path}")
     expanded: dict[str, Any] = _expand_env(raw)
