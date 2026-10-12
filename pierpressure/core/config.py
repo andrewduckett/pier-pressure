@@ -54,7 +54,10 @@ class ConfigError(Exception):
 
 
 class MqttConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    # This block holds the broker password, so its errors never show their input
+    # (config-secrets-hidden-in-errors D1). Its checks must not quote their input:
+    # build_config writes this block's errors from their messages.
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
 
     host: str
     port: int = 1883
@@ -403,6 +406,10 @@ def build_config(read: ConfigFile, broker: BrokerSettings | None = None) -> AppC
 
     try:
         mqtt = MqttConfig.model_validate(raw_mqtt)
+    except ValidationError as exc:
+        # ``from None``, so a printed traceback cannot show the block's text either.
+        raise _block_error("mqtt", MqttConfig, raw_mqtt, exc) from None
+    try:
         recompute = RecomputeConfig.model_validate(raw.get("recompute"))
     except ValidationError as exc:
         raise ConfigError(f"Invalid mqtt/recompute configuration: {exc}") from exc
@@ -434,6 +441,36 @@ def build_config(read: ConfigFile, broker: BrokerSettings | None = None) -> AppC
         return AppConfig.model_validate(assembled, context={"base_dir": base_dir})
     except ValidationError as exc:
         raise ConfigError(f"Invalid configuration: {exc}") from exc
+
+
+def _block_error(
+    block: str, model: type[BaseModel], value: Any, exc: ValidationError
+) -> ConfigError:
+    """An error about a block that holds a secret, with none of the block's text (D1).
+
+    Built from each error's location and message, never from the error's text,
+    which quotes the input. A defined setting is named with the rule it broke. A
+    key the block does not define is not named, because a user can type a secret
+    where a key name belongs; the error lists the block's settings instead.
+    """
+    problems: list[str] = []
+    unknown = False
+    for error in exc.errors(include_url=False, include_input=False):
+        location = error["loc"]
+        if not location and value is None:
+            problems.append(f"the {block} block is missing")
+        elif not location:
+            problems.append(f"{block} must be a mapping of settings")
+        elif location[0] in model.model_fields:
+            problems.append(f"{block}.{location[0]}: {error['msg']}")
+        else:
+            unknown = True
+    if unknown:
+        settings = ", ".join(model.model_fields)
+        problems.append(
+            f"the {block} block holds a setting it does not know; its settings are {settings}"
+        )
+    return ConfigError(f"Invalid {block} configuration: " + "; ".join(problems))
 
 
 def validate_piers(raw_piers: list[Any], base_dir: Path | None = None) -> list[PierConfig]:

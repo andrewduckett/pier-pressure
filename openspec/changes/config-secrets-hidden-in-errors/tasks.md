@@ -7,7 +7,7 @@
   - a bad `recompute.interval_seconds` still shows its current error text
 
   Verify the number, unknown key and traceback cases fail.
-- [ ] 1.2 In `pierpressure/core/config.py`, set `hide_input_in_errors=True` on `MqttConfig`, with a comment that its checks must not quote their input. Validate `mqtt` and `recompute` in separate steps. Build the `mqtt` error from `exc.errors(include_input=False)`, as design D1 describes, and raise it `from None`. Verify the 1.1 tests and the existing tests in `tests/test_config.py` pass.
+- [x] 1.2 In `pierpressure/core/config.py`, set `hide_input_in_errors=True` on `MqttConfig`, with a comment that its checks must not quote their input. Validate `mqtt` and `recompute` in separate steps. Build the `mqtt` error from `exc.errors(include_input=False)`, as design D1 describes, and raise it `from None`. Verify the 1.1 tests and the existing tests in `tests/test_config.py` pass.
 
 ## 2. Errors about the explainer block
 

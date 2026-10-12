@@ -269,7 +269,9 @@ def test_build_config_without_a_host_or_broker_keeps_the_missing_host_error(
     tmp_path: Path,
 ) -> None:
     text = "mqtt:\n  base_topic: observatory\n" + NO_MQTT_CONFIG
-    with pytest.raises(ConfigError, match=r"(?s)^Invalid mqtt/recompute configuration: .*host"):
+    with pytest.raises(
+        ConfigError, match=r"^Invalid mqtt configuration: mqtt\.host: Field required$"
+    ):
         build_config(read_config(_write(tmp_path, text)))
 
 
