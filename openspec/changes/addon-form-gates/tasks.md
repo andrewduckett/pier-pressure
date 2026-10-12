@@ -5,14 +5,14 @@
 
 ## 2. Leaving out an unset gate field
 
-- [ ] 2.1 Write failing tests in `tests/test_addon_options.py` for `translate_form` (design D1):
+- [x] 2.1 Write failing tests in `tests/test_addon_options.py` for `translate_form` (design D1):
   - `go_threshold` 75 and `max_gust` 40 pass through unchanged.
   - `go_threshold` 0 passes through, because 0 counts as set.
   - Each field absent, saved as `null`, empty text or blank text is left out (parameterized).
   - A bad value, such as `max_gust` 0, passes through for the core to reject.
 
   Verify the `null` and blank-text cases fail.
-- [ ] 2.2 Change `pierpressure/addon_options.py` to leave out each unset gate field, with the two names in one constant beside `HORIZON_FIELDS` and `EQUIPMENT_FIELDS`. Update its module and `translate_form` docstrings to name the gate fields. Verify the 2.1 tests and the existing tests in the file pass.
+- [x] 2.2 Change `pierpressure/addon_options.py` to leave out each unset gate field, with the two names in one constant beside `HORIZON_FIELDS` and `EQUIPMENT_FIELDS`. Update its module and `translate_form` docstrings to name the gate fields. Verify the 2.1 tests and the existing tests in the file pass.
 - [ ] 2.3 Write a test in `tests/test_addon_options.py` that guards the risk in the design: for each optional pier field in the manifest's schema, a pier with that field saved as `null` translates to a pier without that field, or without the block it builds. Verify it passes.
 
 ## 3. The gate fields from the form, end to end
