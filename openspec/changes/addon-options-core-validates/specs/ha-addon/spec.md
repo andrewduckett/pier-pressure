@@ -68,6 +68,11 @@ cases:
 - points that fail the checks for inline points.
 - both `min_altitude` and `horizon_points` set. This breaks the rule that a
   horizon has exactly one source.
+- saved values that hold both a `horizon` value and a horizon field that is
+  set. The service SHALL leave that pier's horizon fields as they were saved,
+  and the core SHALL reject each set horizon field as a field it does not know.
+  The error SHALL name each of those fields. The form has no `horizon` field, so
+  this happens only when the saved values were written some other way.
 
 When every pier is skipped, the add-on SHALL stop with a configuration error, as
 it does for any setup with no valid pier.
@@ -124,6 +129,15 @@ it does for any setup with no valid pier.
 - **WHEN** the form lists two piers
 - **AND** one pier sets both `min_altitude` and `horizon_points`
 - **THEN** the service logs an error that names that pier
+- **AND** it publishes a verdict for the other pier
+
+#### Scenario: A horizon mapping beside horizon fields skips the pier
+
+- **WHEN** the saved form values list two piers
+- **AND** one pier holds a `horizon` mapping and sets `horizon_points`
+- **THEN** the service logs an error that names that pier and `horizon_points`
+  as a field the core does not know
+- **AND** the add-on reports no error of its own for that pier
 - **AND** it publishes a verdict for the other pier
 
 #### Scenario: A bad horizon on the only pier stops the add-on

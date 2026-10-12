@@ -31,8 +31,13 @@ reader's message, it SHALL keep that message on one line.
 
 #### Scenario: A duplicate azimuth is rejected
 
-- **WHEN** a pier configures two inline pairs with the same azimuth
+- **WHEN** a pier configures two inline pairs with the same azimuth and different rounded altitudes
 - **THEN** the pier's configuration is reported as invalid
+
+#### Scenario: A repeated pair is deduplicated
+
+- **WHEN** a pier configures two inline pairs with the same azimuth and equal rounded altitudes
+- **THEN** the resulting horizon answers queries identically to a pier that gives that pair once
 
 #### Scenario: Points written as text equal the same list
 
@@ -48,6 +53,6 @@ reader's message, it SHALL keep that message on one line.
 
 #### Scenario: Text that holds no list of points is rejected
 
-- **WHEN** a pier configures `horizon.points` as the text `"5"`, as empty text, or as the text `"# none"`
+- **WHEN** a pier configures `horizon.points` as the text `"5"`, as the text `"{a: 1}"`, as empty text, or as the text `"# none"`
 - **THEN** the pier's configuration is reported as invalid
 - **AND** the error names `horizon.points`
