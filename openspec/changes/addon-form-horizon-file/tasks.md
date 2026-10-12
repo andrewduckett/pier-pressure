@@ -53,11 +53,11 @@
   Replace the tests that expect the "config.yaml is ignored" warning, the empty-form fallback, or `FORM_NOTE`. Verify the new tests fail.
 - [x] 5.2 Change `load_app_config` in `pierpressure/__main__.py` to read the form and the file and combine them. Raise the "Nothing is set up" error for an empty form, naming the file's piers when it can. Remove `FORM_PLACE`, `FORM_NOTE`, `FORM_LOGIN_ADVICE`, `LoadedConfig.from_form` and the `from_form` parameter of `build_delivery_and_explainer`. Reword `SUPERVISOR_LOGIN_ADVICE`. Update the module and function docstrings. Verify the 5.1 tests and the rest of `tests/test_main.py` pass.
 - [x] 5.3 Update the comments in `ha-addon/config.yaml` that say `config.yaml` is read only while the form lists no piers. Verify `tests/test_ha_addon.py` passes.
-- [ ] 5.4 Run `just check` and verify that it is green.
+- [x] 5.4 Run `just check` and verify that it is green.
 
 ## 6. Documentation
 
-- [ ] 6.1 Update `ha-addon/DOCS.md` (design D9):
+- [x] 6.1 Update `ha-addon/DOCS.md` (design D9):
   - Replace "The form or the file" with a section on how they combine. Cover which settings each source owns, the four groups, the conflict rule, and a horizon file example.
   - Remove "Set up with config.yaml instead".
   - Point "More settings" to `config.yaml` for settings the form leaves unset.

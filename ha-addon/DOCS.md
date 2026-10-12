@@ -5,8 +5,9 @@ what to point at from your pier. It publishes its verdict to Home Assistant over
 MQTT, so you need an MQTT broker, such as the Mosquitto broker add-on.
 
 This add-on runs the same image as a Docker install. You set it up on its
-**Configuration** tab. For settings the tab does not have yet, you can write a
-`config.yaml` file instead.
+**Configuration** tab. For settings the tab does not show, such as a horizon
+file, you add a `config.yaml` file. See
+[Add settings with config.yaml](#add-settings-with-configyaml).
 
 ## Set up the add-on
 
@@ -113,41 +114,83 @@ fields and save. An older version does not know these fields, and might skip
 each pier that still holds them. After you upgrade again, enter the values
 again.
 
-## The form or the file
+## Add settings with config.yaml
 
-The add-on takes its settings from one place, never a mix of the two:
+The Configuration tab lists your piers. A `config.yaml` file can add the
+settings the tab leaves unset. The add-on combines the two each time it starts.
+The file is optional.
 
-- **When the Configuration tab lists at least one pier,** the add-on uses only
-  the tab. It does not read `config.yaml`. If that file exists, the log warns
-  that it is ignored, and the add-on starts as usual.
-- **When the Configuration tab lists no piers,** the add-on reads `config.yaml`,
-  and ignores the tab's interval and broker.
-
-So to use a setting the tab does not have, such as a horizon file, remove the
-piers from the tab, and list them in `config.yaml` with that setting.
-
-## Set up with config.yaml instead
+### Write the file
 
 1. **Find the add-on's config folder.** Home Assistant creates it when you
    install the add-on. It is `/addon_configs/<id>_pierpressure`, where `<id>` is
    a short code for this repository. Open it with an add-on that can reach the
    `addon_configs` folder, such as Samba share or Studio Code Server.
 2. **Write `config.yaml` in that folder.** Inside the add-on, the folder is
-   `/config`, and the add-on reads `/config/config.yaml`. With the Mosquitto
-   broker add-on, a minimal file needs no `mqtt:` block:
+   `/config`, and the add-on reads `/config/config.yaml`. The file uses the same
+   names as a Docker install, but holds only the settings you add.
+3. **Restart the add-on.** When the file adds a setting, the log says:
 
-   ```yaml
-   recompute:
-     interval_seconds: 900
-   piers:
-     - id: backyard
-       latitude: 51.50
-       longitude: -0.12
-       elevation_m: 30
+   ```text
+   Settings from the Configuration tab and config.yaml
    ```
 
-3. **Leave the Configuration tab's pier list empty, and start the add-on.** The
-   log says `Settings from config.yaml`.
+### What the file can add
+
+- **For a pier:** any pier setting the tab leaves unset. Examples are a horizon
+  file (`horizon` with `file` and `format`), `go_threshold` and `max_gust`.
+  List the pier under `piers:` with the same `id` as on the tab, and add only
+  the settings you want.
+- **For the whole add-on:** `explainer`, `mqtt.discovery_prefix` and
+  `mqtt.base_topic`. The file can also set the broker, when the tab's broker
+  fields are empty. See [With config.yaml](#with-configyaml).
+
+**The file cannot add a pier.** Every pier in `config.yaml` must also be on the
+tab, with the same ID. A file that lists piers while the tab lists none stops
+the add-on with "Nothing is set up".
+
+### Example: a horizon file
+
+Say the tab lists the pier `backyard` and leaves its horizon fields empty. You
+exported your horizon from NINA as `backyard.hrz`.
+
+1. Put `backyard.hrz` in the add-on's config folder, beside `config.yaml`.
+2. Write this `config.yaml`:
+
+   ```yaml
+   piers:
+     - id: backyard
+       horizon:
+         file: backyard.hrz
+         format: nina
+   ```
+
+3. Restart the add-on.
+
+A relative `file:` path is read from the folder that holds `config.yaml`.
+
+### Each setting comes from one place
+
+If the tab and the file both set the same setting, the add-on stops. Its
+configuration error names the setting and the pier. Clear the setting in one of
+the two places, then restart.
+
+A field you leave empty on the tab is not set. A value of 0 is set. Each row
+below counts as one setting, so set it in one place only:
+
+| Setting | On the Configuration tab | In `config.yaml` |
+| --- | --- | --- |
+| A pier's horizon | **Horizon floor** or **Horizon points** | the pier's `horizon` |
+| A pier's equipment | any of the four equipment fields | the pier's `equipment` |
+| The broker connection | **Host**, **Port**, **Username** or **Password** | `mqtt.host`, `mqtt.port`, `mqtt.username` or `mqtt.password` |
+| The recompute interval | **Recompute interval** | `recompute` |
+
+Every other setting, such as a pier's `latitude`, counts on its own. The tab
+always sets the recompute interval, so a `recompute` block in the file is always
+an error.
+
+The error lists every problem it finds, so you can fix them all before you
+restart. It names settings and piers, never their values.
 
 ## Use a different broker
 
@@ -163,12 +206,11 @@ fill in the **MQTT broker** fields on the Configuration tab:
 
 **The host decides where the broker comes from.** When you set a host, the
 add-on takes the host, port, username and password from the tab, all four
-together, and does not ask the Supervisor. When you leave the host empty, it uses
-the Mosquitto add-on, and you must leave the other three empty too. A port,
-username or password without a host stops the add-on with a configuration error.
-
-**The broker fields apply only while the tab lists piers.** With no piers on the
-tab, the add-on reads `config.yaml`, and ignores these fields.
+together, and does not ask the Supervisor. When you leave the host empty, you
+must leave the other three empty too. The add-on then uses the broker in
+`config.yaml`, if the file sets `mqtt.host`, or else the Mosquitto add-on. A
+port, username or password without a host stops the add-on with a
+configuration error.
 
 **The password field hides its value on the tab.** Home Assistant's Supervisor
 stores the value with the add-on's other saved settings. It is not written into
@@ -182,11 +224,14 @@ MQTT broker from the Configuration tab: broker.lan:1884
 
 ### With config.yaml
 
-When you set up with `config.yaml`, set `mqtt.host` in the file instead. The same
-rule applies: with a host, all four settings come from the file. The file is
-plain text that anyone who can open the add-on's config folder can read, and an
-add-on cannot replace `${PIERPRESSURE_MQTT_PASSWORD}` from its environment. For a
-broker that needs a password, set up on the Configuration tab instead.
+You can set the broker in `config.yaml` instead, with `mqtt.host`. Leave the
+tab's four broker fields empty; a broker set in both places stops the add-on.
+The same rule applies: with a host, all four settings come from the file. The
+log then says `MQTT broker from config.yaml`.
+
+The file is plain text that anyone who can open the add-on's config folder can
+read, and an add-on cannot replace `${PIERPRESSURE_MQTT_PASSWORD}` from its
+environment. For a broker that needs a password, use the Configuration tab.
 
 `mqtt.discovery_prefix` and `mqtt.base_topic` can be set only in the file. They
 come from the file, or from their defaults, whichever broker you use. You can set
@@ -197,17 +242,20 @@ them without setting `mqtt.host`.
 The add-on stops when it cannot start safely. Its log names the problem in a line
 that starts with `Configuration error` or `Startup delivery failure`.
 
-Some answers below say to set `mqtt.host`, or the broker settings. Set them
-where your settings come from: on the Configuration tab while it lists piers, or
-in `config.yaml` while it does not. The log names the place. See
+Some answers below say to set `mqtt.host`, or the broker settings. Set them on
+the Configuration tab or in `config.yaml`, not in both. See
 [Use a different broker](#use-a-different-broker).
 
 | The log says | What it means | What to do |
 | --- | --- | --- |
-| Nothing is set up | The Configuration tab lists no piers, and `/config/config.yaml` does not exist. | Add a pier on the Configuration tab, then restart the add-on. |
-| It names `/config/config.yaml` | The tab lists no piers, and the file is not valid YAML. | Fix `config.yaml`, or add your piers on the Configuration tab. |
+| Nothing is set up | The Configuration tab lists no piers. `config.yaml` cannot list piers on its own. | Add a pier on the Configuration tab, then restart the add-on. If the error names piers from `config.yaml`, add each one on the tab with the same ID, and keep only the extra settings in the file. |
+| `/config/config.yaml` is not valid YAML | The file has a mistake at the line and column the log names. | Fix `config.yaml` at that place, then restart. |
+| The Configuration tab and config.yaml do not combine | One or more problems, each named in the same line. | Fix each problem as the rows below say, then restart. |
+| … is set on the Configuration tab and in config.yaml | The tab and the file both set the named setting. See [Each setting comes from one place](#each-setting-comes-from-one-place). | Clear the setting in one of the two places. |
+| Pier … in config.yaml is not on the Configuration tab | The file lists a pier ID that the tab does not. | Add the pier on the tab with the same ID, or fix the ID in the file. |
+| Pier … is listed more than once in config.yaml, or it names an entry in the piers list | A file pier is repeated, is not a list of settings, or has no ID. | List each pier once, each with an `id`. |
 | It names `/data/options.json` | The saved Configuration tab values could not be read. This is rare. | Save the Configuration tab again. If the error stays, [report the problem](https://github.com/andrewduckett/pier-pressure/issues). |
-| `mqtt.port`, `mqtt.username` or `mqtt.password` is set without `mqtt.host` | The tab or the file sets part of a broker. The add-on takes the broker settings from one place. | Set `mqtt.host` too, or remove the other broker settings. |
+| `mqtt.port`, `mqtt.username` or `mqtt.password` is set without `mqtt.host` | The tab or the file sets part of a broker without a host. | Set `mqtt.host` too, or remove the other broker settings. |
 | No MQTT broker was found | No `mqtt.host` is set, and the Supervisor offered no broker within 60 seconds. | Install and start the Mosquitto broker add-on, or set `mqtt.host`. |
 | The Supervisor refused access to the mqtt service | Home Assistant would not give this add-on the broker settings. | Set `mqtt.host`, and [report the problem](https://github.com/andrewduckett/pier-pressure/issues). |
 | The broker requires TLS | The Supervisor's broker accepts only encrypted connections, which PierPressure does not support yet. | Set `mqtt.host` and `mqtt.port` to a broker listener without TLS. |
@@ -260,8 +308,8 @@ once the broker is back.
 ## More settings
 
 The Configuration tab has only the interval, the piers, with their horizon floor
-or points and their equipment, and the broker, so far. For any other setting,
-such as a horizon file, set up with `config.yaml`. The file has the same format as a Docker install. Horizon
-files can sit in the same folder, because a relative `file:` path is read from the folder that holds
-`config.yaml`. For every setting, see the
+or points and their equipment, and the broker, so far. Add any other setting,
+such as a horizon file, in `config.yaml`. See
+[Add settings with config.yaml](#add-settings-with-configyaml). For every
+setting, see the
 [Configuration section of the README](https://github.com/andrewduckett/pier-pressure#️-configuration).
