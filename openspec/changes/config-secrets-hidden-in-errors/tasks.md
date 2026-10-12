@@ -1,6 +1,6 @@
 ## 1. Errors about the mqtt block
 
-- [ ] 1.1 Write failing tests in `tests/test_config.py` for `build_config` (design D1, D6). Use a marker secret in each case, and check that the marker is in neither the `ConfigError` message nor any `caplog` record, and not in `traceback.format_exception` of the error:
+- [x] 1.1 Write failing tests in `tests/test_config.py` for `build_config` (design D1, D6). Use a marker secret in each case, and check that the marker is in neither the `ConfigError` message nor any `caplog` record, and not in `traceback.format_exception` of the error:
   - `mqtt.password` is a number; the error names `mqtt.password`
   - the `mqtt` block holds `pasword: <marker>`, and, as a separate case, a bare `<marker>:` key; the error says the block holds a setting it does not know, and lists the defined `mqtt` settings
   - `mqtt` is a list that holds the marker; the error says `mqtt` must be a mapping of settings
