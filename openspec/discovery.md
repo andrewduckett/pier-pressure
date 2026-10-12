@@ -52,7 +52,7 @@
 
 ## Journey Map
 
-Stage status checked against the code on 2026-10-10.
+Stage status checked against the code on 2026-10-12.
 
 ### People who use PierPressure
 
@@ -63,7 +63,7 @@ Stage status checked against the code on 2026-10-10.
  project      & run       to HA      my site     tonight's    told in     a target    through the
  (adopter)                (MQTT)                 verdict      time                    night
     │           │           │           │           │            │           │            │
- supported   supported   supported   partial    supported    supported   supported  supported
+ supported   supported   supported   supported  supported    supported   supported  supported
 ```
 
 1. **Find the project** (adopter) — the README explains what it does, how to set it
@@ -78,9 +78,10 @@ Stage status checked against the code on 2026-10-10.
 4. **Describe my site** — location, gates, equipment, and the optional explainer are all
    configurable in one file. A horizon can be inline points, a flat floor, or a NINA
    `.hrz` file; Stellarium and Telescopius exports are rejected as not yet
-   supported. On Home Assistant OS, writing the file needs a second add-on (Samba
-   share or Studio Code Server), because the add-on has no Configuration tab —
-   partial ([#69](https://github.com/andrewduckett/pier-pressure/issues/69), [#70](https://github.com/andrewduckett/pier-pressure/issues/70), [#71](https://github.com/andrewduckett/pier-pressure/issues/71), [#72](https://github.com/andrewduckett/pier-pressure/issues/72), [#73](https://github.com/andrewduckett/pier-pressure/issues/73))
+   supported. On Home Assistant OS, the add-on's Configuration tab sets the broker,
+   the interval, and each pier's location, horizon, equipment, and gates; the add-on's
+   `config.yaml` adds what the form cannot hold, such as a horizon file or the
+   explainer — supported
 5. **See tonight's verdict** — verdict, score, confidence, and reasons; a refresh
    button; an optional plain-language narrative — supported
 6. **Get told in time** — the README gives a Home Assistant automation that
