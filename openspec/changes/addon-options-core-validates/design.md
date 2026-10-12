@@ -10,6 +10,10 @@ Facts that shape the approach:
   `pierpressure/addon_options.py` calls `yaml.safe_load` on the text. It raises
   `ValueError` when the value is not text or not valid YAML. `_config_piers`
   catches that error, logs the core's skip message, and drops the pier.
+- **The add-on replaces a `horizon` value beside the horizon fields.** When a
+  pier holds a `horizon` value and sets `min_altitude` or `horizon_points`,
+  `_with_horizon_block` writes a new `horizon` block over the old one. No error
+  is logged.
 - **The add-on rejects an `equipment` value beside the `equipment_*` fields.**
   `_with_equipment_block` raises `ValueError` in that case, and `_config_piers`
   drops the pier. A null `equipment` beside the fields counts as unset, and the
@@ -83,8 +87,13 @@ Alternatives considered:
 
 ### D2: The add-on renames the horizon fields and nothing more
 
-`_with_horizon_block` keeps its rule for what is set: a field that `is_set`
-counts as unset is left out. A set `horizon_points` becomes `horizon.points`
+When a pier's `horizon` value is set, by the `is_set` test, the add-on leaves
+the pier's horizon fields as they were saved. The core's `PierConfig` forbids
+extra keys, so it rejects each set horizon field by name. This follows D3, and
+it ends the silent replacement of the `horizon` value.
+
+Otherwise, `_with_horizon_block` keeps its rule for what is set: a field that
+`is_set` counts as unset is left out. A set `horizon_points` becomes `horizon.points`
 with its value unchanged, whatever its type. A set `min_altitude` becomes
 `horizon.min_altitude`, as it does today. The function no longer raises.
 
@@ -92,7 +101,7 @@ A list in `horizon_points` now reaches the core and is accepted, as a list is in
 `config.yaml`. The Supervisor never saves a list there. This follows the rule
 that the add-on passes on what it does not expect.
 
-### D3: An `equipment` value that is set leaves the pier unchanged
+### D3: An `equipment` value that is set leaves the equipment fields unchanged
 
 When a pier's `equipment` value is set, by the `is_set` test, the add-on does
 not build an `equipment` block. It leaves the pier as it was saved, `equipment_*`
@@ -100,7 +109,7 @@ fields included. The core's `PierConfig` forbids extra keys, so it rejects each
 set `equipment_*` field by name, as "Extra inputs are not permitted".
 
 The add-on uses `is_set` here because `pier_settings` uses it to decide whether
-a pier sets `equipment`. One test then covers both places. A null `equipment`
+a pier sets `equipment` or `horizon`. One test then covers both places. A null `equipment`
 still counts as unset, and the fields build the block, as they do today.
 
 Alternative considered: **leave the pier unchanged whenever an `equipment` key
@@ -137,13 +146,15 @@ The tests follow the delta specs, test first:
 
 - **Core, in `tests/test_horizon_config.py`:** text points equal the same list.
   Unreadable text fails its pier, with `horizon.points` in the error and the
-  YAML message on one line. The texts `"5"`, `""`, `"   "` and `"# none"` each
-  fail their pier with `horizon.points` in the error.
+  YAML message on one line. The texts `"5"`, `"{a: 1}"`, `""`, `"   "` and
+  `"# none"` each fail their pier with `horizon.points` in the error.
 - **Add-on translation, in `tests/test_addon_options.py`:**
   - `horizon_points` text passes through unchanged as `horizon.points`.
   - A number in `horizon_points` passes through unchanged.
   - A pier with an `equipment` mapping beside `equipment_*` fields passes
     through unchanged.
+  - A pier with a `horizon` mapping beside `min_altitude` or `horizon_points`
+    passes through unchanged.
   - The tests for the removed checks go: the two `horizon_points` errors, the
     one-line YAML log, the empty list after every pier is skipped, and the
     `equipment` conflict error.
@@ -151,7 +162,9 @@ The tests follow the delta specs, test first:
   latitude of 95, a `go_threshold` of 101 and a numeric `horizon_points` each
   get the same error as a `config.yaml` pier with the same value. An `equipment`
   mapping beside `equipment_focal_length_mm` gives an error that names
-  `equipment_focal_length_mm`, and the add-on logs nothing of its own.
+  `equipment_focal_length_mm`, and the add-on logs nothing of its own. A
+  `horizon` mapping beside `horizon_points` gives an error that names
+  `horizon_points`.
 - **The test in `tests/test_addon_settings.py` that uses a skipped pier** still
   passes. Its form pier now reaches the core, which skips it.
 
@@ -165,6 +178,13 @@ The tests follow the delta specs, test first:
 - [An error about an `equipment` mapping no longer names `equipment`.] → It
   names each `equipment_*` field instead. The Supervisor never saves such a
   pier, so only someone who writes `options.json` by hand can see this.
+- [The YAML reader's message can quote part of the text it could not read.] →
+  Pier errors show their values on purpose, so a user can fix them, as
+  config-secrets-hidden-in-errors decided. The add-on logs the same message
+  today, so nothing new is exposed.
+- [A hand-written `horizon` block beside the horizon fields now fails the pier.]
+  → Today the add-on silently replaces the block. The Supervisor never saves
+  such a pier.
 - [`config.yaml` accepts a new form of `horizon.points`.] → This is additive.
   Every file that loads today still loads, and a list still means what it did.
 

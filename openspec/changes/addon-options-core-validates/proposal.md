@@ -7,7 +7,8 @@ on the Supervisor's check."
 
 We want a stronger rule: the core validates every setting, from every
 interface. Then the Supervisor's check does not matter. The add-on keeps less
-code, and an adopter on any install gets the same check and the same error.
+code. Users of every install get the same check, and an error that names the
+same setting.
 
 Story: #83 `addon-options-core-validates`.
 
@@ -31,8 +32,13 @@ Story: #83 `addon-options-core-validates`.
   - a pier entry that is not a mapping (passed on today)
   - an `mqtt` value that is not a mapping (passed on today)
   - a pier that holds an `equipment` value beside the `equipment_*` fields. The
-    add-on leaves that pier unchanged, and the core rejects the `equipment_*`
-    keys as fields it does not know. The add-on writes no error of its own.
+    add-on leaves that pier's equipment fields unchanged, and the core rejects
+    the `equipment_*` keys as fields it does not know. The add-on writes no
+    error of its own.
+  - a pier that holds a `horizon` value beside `min_altitude` or
+    `horizon_points`. The add-on leaves that pier's horizon fields unchanged,
+    and the core rejects them as fields it does not know. Today the add-on
+    silently replaces the `horizon` value.
 - **The add-on no longer drops a pier.** Every form pier reaches the core, which
   logs and skips a bad one as it does for a file pier.
 - **The add-on removes its own setting checks and their tests:**
@@ -79,8 +85,9 @@ None.
 
 - **Changed files:**
   - `pierpressure/core/config.py`: `HorizonConfig` parses text in `points`.
-  - `pierpressure/addon_options.py`: `_with_horizon_block` only renames,
-    `_with_equipment_block` leaves a pier with an `equipment` value unchanged,
+  - `pierpressure/addon_options.py`: `_with_horizon_block` only renames and
+    leaves a pier with a `horizon` value unchanged, `_with_equipment_block`
+    leaves a pier with an `equipment` value unchanged,
     and `_config_piers` no longer drops a pier.
   - `pierpressure/addon_settings.py`: docstrings that describe a pier the
     translation skipped.
@@ -91,6 +98,8 @@ None.
 - **Changed error text:** a bad `horizon_points` now gives the core's error,
   which names `horizon.points`, not `horizon_points`. An `equipment` value
   beside the `equipment_*` fields gives an unknown-field error that names each
-  `equipment_*` key, not `equipment`.
+  `equipment_*` key, not `equipment`. A `horizon` value beside the horizon
+  fields now fails the pier, with an unknown-field error that names each set
+  horizon field.
 - **Unchanged:** the add-on's form, every configuration that loads today, the
   verdict document, MQTT topics, entities and entity mapping.

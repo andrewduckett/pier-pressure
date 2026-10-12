@@ -3,7 +3,7 @@ id: adrs-adr0022
 date: 2026-10-12
 status: accepted
 title: 'ADR0022: The core is the only place that validates settings, whatever the interface'
-description: Architecture Decision Record for where PierPressure checks its settings. The pure core validates every setting from every interface. An interface layer, such as the Home Assistant add-on's form reader, only reads, renames and combines settings, and passes on any value it does not expect.
+description: Architecture Decision Record. The core validates every setting from every interface; an interface layer only reads, renames and combines settings.
 ---
 
 # ADR-0022: The core is the only place that validates settings, whatever the interface
@@ -43,8 +43,8 @@ convenience for the user. Nothing depends on it.
 
 ## Consequences
 
-- **Easier:** one rule, one error. A bad value gets the same check and the same
-  message from every interface.
+- **Easier:** one rule. A bad value gets the same check from every interface,
+  and an error that names the same setting.
 - **Easier:** an interface layer stays small. A new interface needs no copy of
   the setting rules.
 - **Easier:** the core's tests cover every setting rule once.
