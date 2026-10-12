@@ -11,6 +11,7 @@ from pierpressure.core.config import (
     DEFAULT_GO_THRESHOLD,
     BrokerSettings,
     ConfigError,
+    ConfigFile,
     PierConfig,
     build_config,
     load_config,
@@ -290,3 +291,30 @@ def test_read_config_ignores_blank_broker_settings(tmp_path: Path) -> None:
 def test_read_config_treats_an_empty_host_as_unset(tmp_path: Path) -> None:
     text = 'mqtt:\n  host: ""\n' + NO_MQTT_CONFIG
     assert not read_config(_write(tmp_path, text)).names_broker_host
+
+
+# --------------------------------------------------------------------------- #
+# addon-form-broker: the connection rule holds for every ConfigFile (design D3)
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(("key", "value"), [("port", 1884), ("username", "me"), ("password", "pw")])
+def test_config_file_rejects_broker_settings_without_a_host(
+    tmp_path: Path, key: str, value: object
+) -> None:
+    with pytest.raises(ConfigError) as built:
+        ConfigFile(raw={"mqtt": {key: value}}, base_dir=tmp_path)
+    with pytest.raises(ConfigError) as read:
+        read_config(_write(tmp_path, f"mqtt:\n  {key}: {value}\n" + NO_MQTT_CONFIG))
+    assert str(built.value) == str(read.value)
+
+
+@pytest.mark.parametrize("mqtt", ["broker.lan", ["broker.lan"]])
+def test_config_file_rejects_an_mqtt_block_that_is_not_a_mapping(
+    tmp_path: Path, mqtt: object
+) -> None:
+    with pytest.raises(ConfigError) as built:
+        ConfigFile(raw={"mqtt": mqtt}, base_dir=tmp_path)
+    with pytest.raises(ConfigError) as read:
+        read_config(_write(tmp_path, "mqtt: broker.lan\n" + NO_MQTT_CONFIG))
+    assert str(built.value) == str(read.value)

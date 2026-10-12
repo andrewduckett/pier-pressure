@@ -1,7 +1,7 @@
 ## 1. One connection rule for every source of settings
 
-- [ ] 1.1 Write failing tests in `tests/test_config.py` (design D3). Building a `ConfigFile` directly, with an `mqtt` block that sets `port`, `username` or `password` but no `host`, raises `ConfigError` with the same message `read_config` gives today (parameterized over the three keys). A `ConfigFile` whose `mqtt` is not a mapping raises the same error as today. Verify they fail.
-- [ ] 1.2 Move both checks from `read_config` into `ConfigFile.__post_init__` in `pierpressure/core/config.py`, and update the docstrings of both. Verify the 1.1 tests pass, and that the existing `read_config` tests pass without changes.
+- [x] 1.1 Write failing tests in `tests/test_config.py` (design D3). Building a `ConfigFile` directly, with an `mqtt` block that sets `port`, `username` or `password` but no `host`, raises `ConfigError` with the same message `read_config` gives today (parameterized over the three keys). A `ConfigFile` whose `mqtt` is not a mapping raises the same error as today. Verify they fail.
+- [x] 1.2 Move both checks from `read_config` into `ConfigFile.__post_init__` in `pierpressure/core/config.py`, and update the docstrings of both. Verify the 1.1 tests pass, and that the existing `read_config` tests pass without changes.
 
 ## 2. The add-on manifest and its labels
 
