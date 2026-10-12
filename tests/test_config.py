@@ -450,10 +450,11 @@ def test_an_unknown_mqtt_key_is_not_named(
         assert setting in message
 
 
-def test_an_mqtt_block_that_is_a_list_does_not_show_its_value(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
+@pytest.mark.parametrize("value", [f"[{MARKER}]", MARKER], ids=["list", "text"])
+def test_an_mqtt_block_that_is_not_a_mapping_does_not_show_its_value(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, value: str
 ) -> None:
-    text = f"mqtt: [{MARKER}]\n" + NO_MQTT_CONFIG
+    text = f"mqtt: {value}\n" + NO_MQTT_CONFIG
 
     message = _hidden_error(tmp_path, text, caplog, MARKER)
 
