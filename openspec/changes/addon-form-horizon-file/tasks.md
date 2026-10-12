@@ -30,7 +30,7 @@
   - The form's pier order is kept. When the form lists an id twice, the file entry applies to both.
 
   Verify they fail.
-- [ ] 3.2 Create `pierpressure/addon_settings.py` with the combine step. It takes the raw form values and the file's mapping. It returns one config-shaped mapping, or raises one `ConfigError` that lists every problem. Verify the 3.1 tests pass, and `just check` is green.
+- [x] 3.2 Create `pierpressure/addon_settings.py` with the combine step. It takes the raw form values and the file's mapping. It returns one config-shaped mapping, or raises one `ConfigError` that lists every problem. Verify the 3.1 tests pass, and `just check` is green.
 
 ## 4. One place to set the broker in Supervisor errors
 

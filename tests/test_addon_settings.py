@@ -311,3 +311,11 @@ def test_no_error_contains_a_setting_value() -> None:
     assert "broker connection" in message
     assert "max_gust" in message
     assert SENTINEL not in message
+
+
+def test_each_form_pier_with_a_repeated_id_is_checked_once() -> None:
+    form = _form(PIER, {**PIER, "min_altitude": 10}, {**PIER, "min_altitude": 20})
+
+    message = _error(form, {"piers": [{"id": "backyard", "horizon": {"min_altitude": 5}}]})
+
+    assert message.count("horizon of pier 'backyard'") == 1
