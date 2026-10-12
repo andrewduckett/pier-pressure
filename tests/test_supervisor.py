@@ -1,4 +1,7 @@
-"""ha-addon-mqtt-service: the Supervisor's mqtt service lookup (design D3-D5)."""
+"""ha-addon-mqtt-service: the Supervisor's mqtt service lookup (design D3-D5).
+
+Each error names where to set mqtt.host, as addon-form-broker D5 describes.
+"""
 
 from __future__ import annotations
 
@@ -81,10 +84,10 @@ class Supervisor:
             raise reply
         return reply
 
-    def fetch(self) -> BrokerSettings:
+    def fetch(self, **kwargs: Any) -> BrokerSettings:
         client = httpx.Client(transport=httpx.MockTransport(self.handle))
         return fetch_mqtt_broker(
-            TOKEN, client=client, sleep=self.time.sleep, monotonic=self.time.monotonic
+            TOKEN, client=client, sleep=self.time.sleep, monotonic=self.time.monotonic, **kwargs
         )
 
 
@@ -335,3 +338,36 @@ def test_the_client_it_creates_is_closed(time: FakeTime, monkeypatch: pytest.Mon
     monkeypatch.setattr(supervisor.httpx, "Client", make_client)
     fetch_mqtt_broker(TOKEN, sleep=time.sleep, monotonic=time.monotonic)
     assert [client.is_closed for client in created] == [True]
+
+
+# --------------------------------------------------------------------------- #
+# addon-form-broker D5: each error names where the settings come from
+# --------------------------------------------------------------------------- #
+
+_PLACED_FAILURES: list[Callable[[], list[Reply]]] = [
+    lambda: [_not_enabled()],
+    lambda: [httpx.Response(401)],
+    lambda: [_ok(ssl=True)],
+    lambda: [_ok(protocol="3.1")],
+]
+_PLACED_IDS = ["no-broker", "access-refused", "tls", "mqtt-version"]
+
+
+@pytest.mark.parametrize("replies", _PLACED_FAILURES, ids=_PLACED_IDS)
+def test_errors_name_config_yaml_by_default(
+    time: FakeTime, replies: Callable[[], list[Reply]]
+) -> None:
+    with pytest.raises(SupervisorError) as caught:
+        _supervisor(time, *replies()).fetch()
+    assert "in config.yaml" in str(caught.value)
+
+
+@pytest.mark.parametrize("replies", _PLACED_FAILURES, ids=_PLACED_IDS)
+def test_errors_name_the_configuration_tab_when_given(
+    time: FakeTime, replies: Callable[[], list[Reply]]
+) -> None:
+    with pytest.raises(SupervisorError) as caught:
+        _supervisor(time, *replies()).fetch(settings_place="on the Configuration tab")
+    message = str(caught.value)
+    assert "on the Configuration tab" in message
+    assert "config.yaml" not in message

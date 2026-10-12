@@ -21,8 +21,8 @@
 
 ## 4. Advice and log lines that name the right source
 
-- [ ] 4.1 Write failing tests in `tests/test_broker_wait.py` for `fetch_mqtt_broker` (design D5). By default, the "no MQTT broker was found", "access refused", TLS and MQTT version errors still name `config.yaml`. Given the Configuration tab as the place, each error names it and does not name `config.yaml`. Verify they fail.
-- [ ] 4.2 Add the keyword argument to `fetch_mqtt_broker` in `pierpressure/supervisor.py`, and use it in each error. Verify the 4.1 tests and the existing tests in the file pass.
+- [x] 4.1 Write failing tests in `tests/test_supervisor.py` for `fetch_mqtt_broker` (design D5). By default, the "no MQTT broker was found", "access refused", TLS and MQTT version errors still name `config.yaml`. Given the Configuration tab as the place, each error names it and does not name `config.yaml`. Verify they fail.
+- [x] 4.2 Add the keyword argument to `fetch_mqtt_broker` in `pierpressure/supervisor.py`, and use it in each error. Verify the 4.1 tests and the existing tests in the file pass.
 - [ ] 4.3 Write failing tests in `tests/test_main.py` for `load_app_config` and `build_delivery_and_explainer`, inside an add-on with a temporary `options.json` (design D4 to D6):
   - Each scenario in the requirement "The form sets the broker": the form's broker is used and the Supervisor is not asked; port 1883 by default; blank fields count as not set; a username without a host stops the add-on before the Supervisor is asked; a rejected login gives the adapter's default advice, with no mention of Mosquitto.
   - The log names the Configuration tab, `broker.lan` and the port, and contains no `pw-8c41f2`, at startup and after a rejected login.
