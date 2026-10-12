@@ -11,7 +11,7 @@
 
 ## 2. Errors about the explainer block
 
-- [ ] 2.1 Write failing tests in `tests/test_explainer_config.py` (design D1-D3, D6), with the same marker checks as 1.1:
+- [x] 2.1 Write failing tests in `tests/test_explainer_config.py` (design D1-D3, D6), with the same marker checks as 1.1:
   - `explainer.api_key` is a number; the error names `explainer.api_key`
   - the block holds `apikey: <marker>`, and, as a separate case, a bare `<marker>:` key; the error says the block holds a setting it does not know, and lists the defined `explainer` settings
   - `explainer` is a list, and, as a separate case, text, holding the marker; the error says `explainer` must be a mapping of settings
