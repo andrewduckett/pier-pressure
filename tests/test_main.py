@@ -1424,7 +1424,12 @@ def _form_with_broker(path: Path, mqtt: dict[str, Any], *piers: Any) -> None:
 
 def _connections(stub: StartupStub) -> list[tuple[str, int, str | None, str | None]]:
     return [
-        (m.host, m.port, m.username, m.password and m.password.get_secret_value())
+        (
+            m.host,
+            m.port,
+            m.username,
+            None if m.password is None else m.password.get_secret_value(),
+        )
         for m in stub.connected_to
     ]
 

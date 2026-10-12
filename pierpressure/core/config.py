@@ -390,9 +390,10 @@ def read_config(path: str | os.PathLike[str]) -> ConfigFile:
 def load_config(path: str | os.PathLike[str]) -> AppConfig:
     """Load and validate the YAML config at ``path``.
 
-    Raises :class:`ConfigError` if the file is missing/malformed, if ``mqtt`` or
-    ``recompute`` are invalid, or if no valid pier remains after per-pier
-    validation.
+    Raises :class:`ConfigError` if the file is missing/malformed, if ``mqtt``,
+    ``recompute`` or ``explainer`` are invalid, or if no valid pier remains after
+    per-pier validation. An ``mqtt`` or ``explainer`` error holds none of the
+    block's text (config-secrets-hidden-in-errors D1).
     """
     return build_config(read_config(path))
 
