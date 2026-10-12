@@ -266,7 +266,7 @@ def test_outside_an_addon_the_missing_host_error_is_unchanged(
     with caplog.at_level(logging.ERROR, logger="pierpressure"):
         entry.main([_config(tmp_path, PIERS)])
     [error] = _errors(caplog)
-    assert error.startswith("Configuration error: Invalid mqtt/recompute configuration")
+    assert error == "Configuration error: Invalid mqtt configuration: the mqtt block is missing"
 
 
 def test_a_supervisor_failure_is_a_configuration_error(
