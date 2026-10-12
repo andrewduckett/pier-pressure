@@ -43,7 +43,7 @@ from pierpressure.core.config import (
 from pierpressure.delivery.mqtt import DeliveryError, MqttDelivery
 from pierpressure.explain import Explainer, build_explainer
 from pierpressure.service import Service
-from pierpressure.supervisor import CONFIG_FILE_PLACE, SupervisorError, fetch_mqtt_broker
+from pierpressure.supervisor import SupervisorError, fetch_mqtt_broker
 
 logger = logging.getLogger("pierpressure")
 
@@ -139,9 +139,8 @@ def load_app_config(
 
     broker: BrokerSettings | None = None
     if token and not read.names_broker_host:
-        place = FORM_PLACE if form is not None else CONFIG_FILE_PLACE
         try:
-            broker = fetch_mqtt_broker(token, settings_place=place)
+            broker = fetch_mqtt_broker(token)
         except SupervisorError as exc:
             if form is None:
                 raise

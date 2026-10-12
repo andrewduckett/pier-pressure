@@ -8,8 +8,8 @@ The Mosquitto add-on withdraws its details for a few seconds each time it starts
 so a missing service is retried for a bounded time (D4). A refused token, a broker
 that requires TLS, or one that needs another MQTT version fails at once, because
 waiting cannot fix them. No error message or log line includes the token or the
-broker password. Each error names where to set ``mqtt.host`` instead: ``config.yaml``
-by default, or the add-on's Configuration tab (addon-form-broker D5).
+broker password. Each error says to set ``mqtt.host`` on the add-on's Configuration
+tab or in ``config.yaml`` instead (addon-form-horizon-file D7).
 """
 
 from __future__ import annotations
@@ -39,14 +39,14 @@ SUPPORTED_PROTOCOL = "3.1.1"
 
 ISSUES_URL = "https://github.com/andrewduckett/pier-pressure/issues"
 
-# Where the errors tell the user to set mqtt.host, unless the caller names another
-# place (addon-form-broker D5).
-CONFIG_FILE_PLACE = "in config.yaml"
+# Where the errors tell the user to set mqtt.host. Inside an add-on, the settings
+# always come from the form plus config.yaml (addon-form-horizon-file D7).
+SETTINGS_PLACE = "on the Configuration tab or in config.yaml"
 
 _NO_BROKER = (
     "No MQTT broker was found: the Supervisor gave no usable mqtt service "
     "(last answer: {reason}). "
-    "Install the Mosquitto broker add-on, or set mqtt.host {place}."
+    f"Install the Mosquitto broker add-on, or set mqtt.host {SETTINGS_PLACE}."
 )
 
 
@@ -64,7 +64,6 @@ def fetch_mqtt_broker(
     client: httpx.Client | None = None,
     sleep: Callable[[float], None] = time.sleep,
     monotonic: Callable[[], float] = time.monotonic,
-    settings_place: str = CONFIG_FILE_PLACE,
 ) -> BrokerSettings:
     """Ask the Supervisor for its ``mqtt`` service's broker settings.
 
@@ -72,15 +71,14 @@ def fetch_mqtt_broker(
     starts no request later than :data:`WAIT_SECONDS` after the first. Raises
     :class:`SupervisorError` when the wait runs out, when the Supervisor refuses
     access, or when the broker requires TLS or another MQTT version. Each error
-    tells the user to set ``mqtt.host`` at ``settings_place``, a phrase such as
-    ``"in config.yaml"`` or ``"on the Configuration tab"``.
+    tells the user to set ``mqtt.host`` :data:`SETTINGS_PLACE`.
     """
     if client is not None:
-        return _wait_for_broker(client, token, sleep, monotonic, settings_place)
+        return _wait_for_broker(client, token, sleep, monotonic)
     # trust_env=False: a proxy named in HTTP_PROXY or ALL_PROXY must never see the
     # Supervisor token (spec "Proxy settings do not reach the token").
     with httpx.Client(timeout=REQUEST_TIMEOUT_SECONDS, trust_env=False) as own_client:
-        return _wait_for_broker(own_client, token, sleep, monotonic, settings_place)
+        return _wait_for_broker(own_client, token, sleep, monotonic)
 
 
 def _wait_for_broker(
@@ -88,13 +86,12 @@ def _wait_for_broker(
     token: str,
     sleep: Callable[[float], None],
     monotonic: Callable[[], float],
-    place: str,
 ) -> BrokerSettings:
     deadline = monotonic() + WAIT_SECONDS
     waiting = False
     while True:
         try:
-            return _ask(client, token, place)
+            return _ask(client, token)
         except _NotYet as exc:
             reason = str(exc)
             if not waiting:
@@ -106,11 +103,11 @@ def _wait_for_broker(
                 )
         remaining = deadline - monotonic()
         if remaining <= 0:
-            raise SupervisorError(_NO_BROKER.format(reason=reason, place=place))
+            raise SupervisorError(_NO_BROKER.format(reason=reason))
         sleep(min(PAUSE_SECONDS, remaining))
 
 
-def _ask(client: httpx.Client, token: str, place: str) -> BrokerSettings:
+def _ask(client: httpx.Client, token: str) -> BrokerSettings:
     """Make one request; raise :class:`_NotYet` for anything worth retrying."""
     try:
         response = client.get(SERVICE_URL, headers={"Authorization": f"Bearer {token}"})
@@ -121,7 +118,7 @@ def _ask(client: httpx.Client, token: str, place: str) -> BrokerSettings:
     if response.status_code in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN):
         raise SupervisorError(
             f"The Supervisor refused access to the mqtt service "
-            f"(HTTP {response.status_code}). Set mqtt.host {place} to use "
+            f"(HTTP {response.status_code}). Set mqtt.host {SETTINGS_PLACE} to use "
             f"your broker directly, and report this problem at {ISSUES_URL}."
         )
     if response.status_code != HTTPStatus.OK:
@@ -134,10 +131,10 @@ def _ask(client: httpx.Client, token: str, place: str) -> BrokerSettings:
     data = body.get("data") if isinstance(body, dict) else None
     if not isinstance(data, dict):
         raise _NotYet("the response has no service details")
-    return _broker_from(data, place)
+    return _broker_from(data)
 
 
-def _broker_from(data: dict[str, Any], place: str) -> BrokerSettings:
+def _broker_from(data: dict[str, Any]) -> BrokerSettings:
     host = data.get("host")
     port = data.get("port")
     if not isinstance(host, str) or not host or not isinstance(port, int) or isinstance(port, bool):
@@ -146,7 +143,7 @@ def _broker_from(data: dict[str, Any], place: str) -> BrokerSettings:
     if data.get("ssl") is True:
         raise SupervisorError(
             "The Supervisor's MQTT broker requires TLS, which PierPressure does not "
-            f"support. Set mqtt.host and mqtt.port {place} to a broker listener "
+            f"support. Set mqtt.host and mqtt.port {SETTINGS_PLACE} to a broker listener "
             "that accepts connections without TLS."
         )
     # A missing or null protocol is the Supervisor's default (spec D5).
@@ -155,7 +152,7 @@ def _broker_from(data: dict[str, Any], place: str) -> BrokerSettings:
         raise SupervisorError(
             f"The Supervisor's MQTT broker asks for MQTT {protocol}, but PierPressure "
             f"supports only MQTT {SUPPORTED_PROTOCOL}. Set mqtt.host and mqtt.port "
-            f"{place} to a broker that accepts MQTT 3.1.1."
+            f"{SETTINGS_PLACE} to a broker that accepts MQTT 3.1.1."
         )
 
     username = data.get("username")
