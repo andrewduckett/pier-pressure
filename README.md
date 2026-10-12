@@ -106,16 +106,19 @@ ARM.
 pier, the add-on uses only the tab, and logs a warning if `config.yaml` exists.
 While the tab lists no piers, the add-on reads `config.yaml` from its config
 folder, `/addon_configs/<id>_pierpressure`, where `<id>` is a short code for this
-repository. The tab has only the interval and the piers, with a horizon floor or
-points and equipment for each pier. For any other setting, such as a horizon file or your own
-broker, leave the tab's pier list empty and list your piers in `config.yaml`
-instead.
+repository. The tab has only the interval, the piers, with a horizon floor or
+points and equipment for each pier, and the broker. For any other setting, such
+as a horizon file, leave the tab's pier list empty and list your piers in
+`config.yaml` instead.
 
-**To use another broker, set `mqtt.host` in `config.yaml`.** The add-on then takes
-the host, port, username and password from the file, all four together, and does
-not ask the Supervisor. An add-on cannot set environment variables, so
-`${PIERPRESSURE_MQTT_PASSWORD}` is not replaced: write that password straight into
-`config.yaml`. Outside an add-on, `mqtt.host` is still required.
+**To use another broker, fill in the MQTT broker fields on the Configuration
+tab.** Set its host, and its port, username and password if it needs them; an
+empty port means 1883. With a host, the add-on takes all four settings from the
+tab and does not ask the Supervisor. With no host, it uses the Mosquitto add-on,
+and the other three must stay empty. The fields apply only while the tab lists
+piers. The password field hides its value on the tab, and the Supervisor stores
+it with the add-on's settings, not in `config.yaml`. Outside an add-on,
+`mqtt.host` is still required.
 
 The add-on's **Documentation** tab in Home Assistant repeats these steps, says how
 to open the config folder, and explains each startup error

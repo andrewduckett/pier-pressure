@@ -35,7 +35,8 @@ This add-on runs the same image as a Docker install. You set it up on its
    ```
 
    The add-on asks Home Assistant's Supervisor for the Mosquitto add-on's broker,
-   and uses its host, port, username and password. You enter no password.
+   and uses its host, port, username and password. You enter no password. To use
+   another broker, see [Use a different broker](#use-a-different-broker).
 6. **Find the entities.** Open **Settings → Devices & services → MQTT**. A device
    named `PierPressure <pier>` appears for each pier.
 
@@ -120,11 +121,10 @@ The add-on takes its settings from one place, never a mix of the two:
   the tab. It does not read `config.yaml`. If that file exists, the log warns
   that it is ignored, and the add-on starts as usual.
 - **When the Configuration tab lists no piers,** the add-on reads `config.yaml`,
-  and ignores the tab's interval.
+  and ignores the tab's interval and broker.
 
-So to use a setting the tab does not have, such as a horizon file or your own
-broker, remove the piers from the tab, and list them in `config.yaml` with that
-setting.
+So to use a setting the tab does not have, such as a horizon file, remove the
+piers from the tab, and list them in `config.yaml` with that setting.
 
 ## Set up with config.yaml instead
 
@@ -151,45 +151,68 @@ setting.
 
 ## Use a different broker
 
-To use a broker other than the Mosquitto add-on, set up with `config.yaml`, and
-set `mqtt.host` in it. The add-on then takes the host, port, username and
-password from the file, all four together, and does not ask the Supervisor:
+By default, the add-on uses the Mosquitto broker add-on. To use another broker,
+fill in the **MQTT broker** fields on the Configuration tab:
 
-```yaml
-mqtt:
-  host: broker.lan
-  port: 1883
-  username: pierpressure
-  password: your-broker-password
+| Field | What to enter | Example |
+| --- | --- | --- |
+| **Host** | The broker's host name or IP address. | `broker.lan` |
+| **Port** | The broker's port. Leave it empty for 1883, the usual MQTT port. | `1884` |
+| **Username** | The name the add-on logs in with, if the broker needs a login. | `pierpressure` |
+| **Password** | The password for that name. | |
+
+**The host decides where the broker comes from.** When you set a host, the
+add-on takes the host, port, username and password from the tab, all four
+together, and does not ask the Supervisor. When you leave the host empty, it uses
+the Mosquitto add-on, and you must leave the other three empty too. A port,
+username or password without a host stops the add-on with a configuration error.
+
+**The broker fields apply only while the tab lists piers.** With no piers on the
+tab, the add-on reads `config.yaml`, and ignores these fields.
+
+**The password field hides its value on the tab.** Home Assistant's Supervisor
+stores the value with the add-on's other saved settings. It is not written into
+`config.yaml`.
+
+After you save and restart, the log names the tab as the broker's source:
+
+```text
+MQTT broker from the Configuration tab: broker.lan:1884
 ```
 
-Write the password straight into the file. An add-on cannot set its own
-environment variables, so `${PIERPRESSURE_MQTT_PASSWORD}` is not replaced. Anyone
-who can open the add-on's config folder can read the password.
+### With config.yaml
 
-`mqtt.discovery_prefix` and `mqtt.base_topic` always come from the file, whichever
-broker you use. You can set them without setting `mqtt.host`.
+When you set up with `config.yaml`, set `mqtt.host` in the file instead. The same
+rule applies: with a host, all four settings come from the file. The file is
+plain text that anyone who can open the add-on's config folder can read, and an
+add-on cannot replace `${PIERPRESSURE_MQTT_PASSWORD}` from its environment. For a
+broker that needs a password, set up on the Configuration tab instead.
+
+`mqtt.discovery_prefix` and `mqtt.base_topic` can be set only in the file. They
+come from the file, or from their defaults, whichever broker you use. You can set
+them without setting `mqtt.host`.
 
 ## If the add-on stops at startup
 
 The add-on stops when it cannot start safely. Its log names the problem in a line
 that starts with `Configuration error` or `Startup delivery failure`.
 
-Some answers below say to set `mqtt.host`. That setting lives in `config.yaml`,
-which is read only while the Configuration tab lists no piers. When you set up on
-the tab, the log says so, and tells you to move your piers into the file too.
+Some answers below say to set `mqtt.host`, or the broker settings. Set them
+where your settings come from: on the Configuration tab while it lists piers, or
+in `config.yaml` while it does not. The log names the place. See
+[Use a different broker](#use-a-different-broker).
 
 | The log says | What it means | What to do |
 | --- | --- | --- |
 | Nothing is set up | The Configuration tab lists no piers, and `/config/config.yaml` does not exist. | Add a pier on the Configuration tab, then restart the add-on. |
 | It names `/config/config.yaml` | The tab lists no piers, and the file is not valid YAML. | Fix `config.yaml`, or add your piers on the Configuration tab. |
 | It names `/data/options.json` | The saved Configuration tab values could not be read. This is rare. | Save the Configuration tab again. If the error stays, [report the problem](https://github.com/andrewduckett/pier-pressure/issues). |
-| `mqtt.port`, `mqtt.username` or `mqtt.password` is set without `mqtt.host` | The file sets part of a broker. The add-on takes the broker settings from one place. | Set `mqtt.host` too, or remove the other broker settings. |
+| `mqtt.port`, `mqtt.username` or `mqtt.password` is set without `mqtt.host` | The tab or the file sets part of a broker. The add-on takes the broker settings from one place. | Set `mqtt.host` too, or remove the other broker settings. |
 | No MQTT broker was found | No `mqtt.host` is set, and the Supervisor offered no broker within 60 seconds. | Install and start the Mosquitto broker add-on, or set `mqtt.host`. |
 | The Supervisor refused access to the mqtt service | Home Assistant would not give this add-on the broker settings. | Set `mqtt.host`, and [report the problem](https://github.com/andrewduckett/pier-pressure/issues). |
 | The broker requires TLS | The Supervisor's broker accepts only encrypted connections, which PierPressure does not support yet. | Set `mqtt.host` and `mqtt.port` to a broker listener without TLS. |
 | The broker asks for another MQTT version | The Supervisor's broker needs an MQTT version other than 3.1.1. | Set `mqtt.host` and `mqtt.port` to a broker that accepts MQTT 3.1.1. |
-| The MQTT broker rejected the login | The broker refused the username and password, or the user is not allowed to connect. | With the Mosquitto add-on, check that add-on. With your own broker, check `mqtt.username`, `mqtt.password`, and the user's permissions on the broker. |
+| The MQTT broker rejected the login | The broker refused the username and password, or the user is not allowed to connect. | With the Mosquitto add-on, check that add-on. With your own broker, check the username and password, and the user's permissions on the broker. |
 
 When the Mosquitto add-on is still starting, PierPressure waits up to 60 seconds
 for it, and logs one line while it waits.
@@ -236,9 +259,9 @@ once the broker is back.
 
 ## More settings
 
-The Configuration tab has only the interval and the piers, with their horizon
-floor or points and their equipment, so far. For any other setting, such as a
-horizon file, set up with `config.yaml`. The file has the same format as a Docker install. Horizon
+The Configuration tab has only the interval, the piers, with their horizon floor
+or points and their equipment, and the broker, so far. For any other setting,
+such as a horizon file, set up with `config.yaml`. The file has the same format as a Docker install. Horizon
 files can sit in the same folder, because a relative `file:` path is read from the folder that holds
 `config.yaml`. For every setting, see the
 [Configuration section of the README](https://github.com/andrewduckett/pier-pressure#️-configuration).
