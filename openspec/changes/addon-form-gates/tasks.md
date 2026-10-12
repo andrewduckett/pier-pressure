@@ -31,8 +31,8 @@
 
 ## 4. Documentation
 
-- [ ] 4.1 Update `ha-addon/DOCS.md`. Describe the two fields with the other pier fields: their range, their unit, and what an empty field means. List each form label beside its `config.yaml` name. In the list of what `config.yaml` can add, replace `go_threshold` and `max_gust` with other examples, such as a horizon file and `explainer`. Verify by reading the rendered Markdown.
-- [ ] 4.2 Update the README's add-on section in `README.md` to match 4.1. Verify that it no longer sends a form user to `config.yaml` for these two settings.
+- [x] 4.1 Update `ha-addon/DOCS.md`. Describe the two fields with the other pier fields: their range, their unit, and what an empty field means. List each form label beside its `config.yaml` name. In the list of what `config.yaml` can add, replace `go_threshold` and `max_gust` with other examples, such as a horizon file and `explainer`. Verify by reading the rendered Markdown.
+- [x] 4.2 Update the README's add-on section in `README.md` to match 4.1. Verify that it no longer sends a form user to `config.yaml` for these two settings.
 
 ## 5. Live check
 

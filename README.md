@@ -95,7 +95,10 @@ ARM.
    well they fit your field of view, also give the pier its equipment: focal
    length, sensor width and sensor height in millimetres, all three together,
    such as `400`, `23.5` and `15.7`. Add a reducer or barlow factor, such as
-   `0.8`, only if you use one; empty means 1.0. Save.
+   `0.8`, only if you use one; empty means 1.0. To change when a night is `GO`,
+   give the pier a GO threshold, a score from 0 to 100; empty means 65. To make
+   a windy night `NO-GO`, give it a wind-gust limit in km/h; empty means no wind
+   gate. Save.
 4. Start the add-on. Its log's first line ends with its version, and a device
    named `PierPressure <pier>` appears under **Settings → Devices & services →
    MQTT** for each pier. With the Mosquitto broker add-on, you enter no broker
@@ -103,11 +106,12 @@ ARM.
    Home Assistant's Supervisor.
 
 **config.yaml adds the settings the tab leaves unset.** The tab has only the
-interval, the piers, with a horizon floor or points and equipment for each pier,
-and the broker. For any other setting, such as a horizon file, write a
-`config.yaml` in the add-on's config folder, `/addon_configs/<id>_pierpressure`,
-where `<id>` is a short code for this repository. List each pier there with the
-same `id` as on the tab, and only the settings you add:
+interval, the piers, with a horizon floor or points, equipment, a GO threshold
+and a wind-gust limit for each pier, and the broker. For any other setting, such
+as a horizon file, write a `config.yaml` in the add-on's config folder,
+`/addon_configs/<id>_pierpressure`, where `<id>` is a short code for this
+repository. List each pier there with the same `id` as on the tab, and only the
+settings you add:
 
 ```yaml
 piers:
