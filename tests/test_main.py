@@ -1677,3 +1677,26 @@ def test_a_mapping_beside_its_form_fields_gets_the_cores_unknown_field_error(
     [error] = _errors(caplog)
     assert error.startswith("Skipping invalid pier 'backyard'")
     assert f"\n{name}\n  Extra inputs are not permitted" in error
+
+
+def test_a_mapping_beside_unset_form_fields_is_used(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    horizon = {
+        **BACKYARD,
+        "horizon": {"min_altitude": 15},
+        "horizon_points": "",
+        "min_altitude": None,
+    }
+    equipment = {**ROOF_FORM, "equipment": EQUIPMENT, "equipment_focal_length_mm": None}
+
+    backyard, roof = _form_piers(tmp_path, monkeypatch, options_file, horizon, equipment).piers
+
+    assert all(backyard.horizon_mask.alt_at(azimuth) == 15.0 for azimuth in range(360))
+    assert roof.equipment is not None
+    assert (
+        roof.equipment.focal_length_mm,
+        roof.equipment.sensor_width_mm,
+        roof.equipment.sensor_height_mm,
+        roof.equipment.reducer,
+    ) == tuple(EQUIPMENT.values())
