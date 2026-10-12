@@ -313,6 +313,14 @@ def test_no_error_contains_a_setting_value() -> None:
     assert SENTINEL not in message
 
 
+def test_the_combined_settings_are_masked_when_printed() -> None:
+    form = _form(PIER, mqtt={"host": "broker.lan", "password": SENTINEL})
+
+    combined = combine_settings(form, {"explainer": {"api_key": SENTINEL}})
+
+    assert SENTINEL not in repr(combined)
+
+
 def test_each_form_pier_with_a_repeated_id_is_checked_once() -> None:
     form = _form(PIER, {**PIER, "min_altitude": 10}, {**PIER, "min_altitude": 20})
 

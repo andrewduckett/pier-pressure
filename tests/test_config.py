@@ -465,3 +465,21 @@ def test_a_bad_recompute_interval_keeps_its_error_text(tmp_path: Path) -> None:
 
     with pytest.raises(ConfigError, match=r"(?s)^Invalid mqtt/recompute configuration: .*greater"):
         load_config(_write(tmp_path, text))
+
+
+def test_valid_secrets_are_masked_when_printed(tmp_path: Path) -> None:
+    from pierpressure.explain import NarrativeExplainer, build_explainer
+
+    text = (
+        f"mqtt:\n  host: broker.lan\n  username: pier\n  password: {MARKER}-pw\n"
+        + NO_MQTT_CONFIG
+        + f"explainer:\n  enabled: true\n  api_key: {MARKER}-key\n"
+    )
+    read = read_config(_write(tmp_path, text))
+    config = build_config(read)
+    explainer = build_explainer(config.explainer)
+    assert isinstance(explainer, NarrativeExplainer)
+    broker = BrokerSettings(host="core-mosquitto", port=1883, username="addons", password=MARKER)
+
+    for shown in (read, config, config.model_dump(), broker, explainer.provider):
+        assert MARKER not in repr(shown)
