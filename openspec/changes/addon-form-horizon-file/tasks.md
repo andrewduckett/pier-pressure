@@ -65,4 +65,4 @@
 
   Verify by reading the rendered Markdown, and check that no sentence says `config.yaml` is ignored or read only while the form is empty.
 - [x] 6.2 Update the add-on section of `README.md` to match 6.1. Verify that it no longer tells add-on users to set up with `config.yaml` alone.
-- [ ] 6.3 Run `just check` and verify that it is green.
+- [x] 6.3 Run `just check` and verify that it is green.
