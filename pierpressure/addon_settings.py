@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from pierpressure.addon_options import is_set, pier_settings, translate_form
-from pierpressure.core.config import AppConfig, ConfigError
+from pierpressure.core.config import AppConfig, ConfigError, MqttConfig
 
 # The ``mqtt`` keys that make up the broker connection, one setting as a group.
 CONNECTION_KEYS = ("host", "port", "username", "password")
@@ -130,7 +130,12 @@ def _check_piers(
 
 
 def _check_broker(form_mqtt: Any, file_mqtt: Any, problems: list[str]) -> None:
-    """Report a broker connection or another ``mqtt`` key given in both (D3)."""
+    """Report a broker connection or another ``mqtt`` setting given in both (D3).
+
+    A key the core does not define is not reported: a user can type a secret
+    where a key name belongs, and the core rejects the key without naming it
+    (config-secrets-hidden-in-errors D5).
+    """
     if file_mqtt is None:
         return
     if not isinstance(file_mqtt, dict):
@@ -144,8 +149,9 @@ def _check_broker(form_mqtt: Any, file_mqtt: Any, problems: list[str]) -> None:
     if form_keys & connection and file_keys & connection:
         names = ", ".join(f"mqtt.{key}" for key in CONNECTION_KEYS)
         problems.append(f"the broker connection ({names}) {_BOTH}")
-    for key in sorted((form_keys & file_keys) - connection, key=str):
-        problems.append(f"mqtt.{_name(key)} {_BOTH}")
+    defined = set(MqttConfig.model_fields) - connection
+    for key in sorted(form_keys & file_keys & defined):
+        problems.append(f"mqtt.{key} {_BOTH}")
 
 
 def _sets_interval(recompute: Any) -> bool:
