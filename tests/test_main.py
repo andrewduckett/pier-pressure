@@ -1373,6 +1373,7 @@ def test_form_gates_give_the_same_verdict_as_file_gates(
         from_form = produce_verdict(form_pier, FixedClock(_INSTANT), conditions)
 
     assert (form_pier.go_threshold, form_pier.max_gust) == (75, 40)
+    assert (file_pier.go_threshold, file_pier.max_gust) == (75, 40)
     assert from_form.to_json() == from_file.to_json()
 
 

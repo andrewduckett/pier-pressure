@@ -126,9 +126,15 @@ night is `GO` or `NO-GO`. Both start empty.
 | **GO threshold** | The score, from 0 to 100, that a night needs for `GO`. It has no unit. A lower score gives `MAYBE`. | The pier uses 65. | `75` |
 | **Wind-gust limit** | The wind gust, in km/h, above which the night is `NO-GO`. Use it to protect a long focal length from wind shake. | The pier has no wind gate, so no forecast gust makes the night `NO-GO`. | `30` |
 
-**The tab refuses a GO threshold above 100, or a negative wind-gust limit,** when
-you save. A wind-gust limit of 0 saves, but the add-on skips that pier and logs
-an error, because the limit must be above 0. The other piers still publish.
+**The tab refuses a GO threshold below 0 or above 100, or a negative wind-gust
+limit,** when you save. A wind-gust limit of 0 saves, but the add-on skips that
+pier and logs an error, because the limit must be above 0. The other piers still
+publish. To turn the wind gate off, leave the field empty.
+
+**A wind-gust limit needs gust data for the whole dark window.** If the forecast
+has no gust for some hours, PierPressure cannot confirm the night is calm enough.
+The verdict is then `MAYBE` at best, never `GO`, and its reasons say the wind
+data is unavailable.
 
 These fields have the same names in the log and in `config.yaml`:
 
