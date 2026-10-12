@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import traceback
 from pathlib import Path
 
 import pytest
@@ -396,3 +398,68 @@ def test_read_config_reports_the_same_yaml_error(tmp_path: Path) -> None:
     with pytest.raises(ConfigError) as error:
         read_config(path)
     assert str(error.value) == f"{path} is not valid YAML at line 2, column 13"
+
+
+# --------------------------------------------------------------------------- #
+# config-secrets-hidden-in-errors: an mqtt error shows none of the block's text (D1, D6)
+# --------------------------------------------------------------------------- #
+
+MARKER = "mk-5e3d91"
+MQTT_SETTINGS = ("host", "port", "username", "password", "discovery_prefix", "base_topic")
+
+
+def _hidden_error(tmp_path: Path, text: str, caplog: pytest.LogCaptureFixture, *hidden: str) -> str:
+    """Load ``text``, and check that no ``hidden`` text is in the error, log or traceback."""
+    with caplog.at_level(logging.DEBUG), pytest.raises(ConfigError) as error:
+        load_config(_write(tmp_path, text))
+    message = str(error.value)
+    shown = "".join(traceback.format_exception(error.value))
+    for text_ in hidden:
+        assert text_ not in message
+        assert text_ not in shown
+        assert text_ not in caplog.text
+    return message
+
+
+def test_an_mqtt_password_that_is_a_number_is_named_without_its_value(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    text = "mqtt:\n  host: broker.lan\n  password: 98765\n" + NO_MQTT_CONFIG
+
+    message = _hidden_error(tmp_path, text, caplog, "98765")
+
+    assert "mqtt.password" in message
+
+
+@pytest.mark.parametrize(
+    ("line", "hidden"),
+    [(f"pasword: {MARKER}", ("pasword", MARKER)), (f"{MARKER}:", (MARKER,))],
+    ids=["misspelled-key", "bare-key"],
+)
+def test_an_unknown_mqtt_key_is_not_named(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, line: str, hidden: tuple[str, ...]
+) -> None:
+    text = f"mqtt:\n  host: broker.lan\n  {line}\n" + NO_MQTT_CONFIG
+
+    message = _hidden_error(tmp_path, text, caplog, *hidden)
+
+    assert "the mqtt block holds a setting it does not know" in message
+    for setting in MQTT_SETTINGS:
+        assert setting in message
+
+
+def test_an_mqtt_block_that_is_a_list_does_not_show_its_value(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    text = f"mqtt: [{MARKER}]\n" + NO_MQTT_CONFIG
+
+    message = _hidden_error(tmp_path, text, caplog, MARKER)
+
+    assert "mqtt block must be a mapping of settings" in message
+
+
+def test_a_bad_recompute_interval_keeps_its_error_text(tmp_path: Path) -> None:
+    text = VALID_CONFIG.replace("interval_seconds: 900", "interval_seconds: 0")
+
+    with pytest.raises(ConfigError, match=r"(?s)^Invalid mqtt/recompute configuration: .*greater"):
+        load_config(_write(tmp_path, text))
