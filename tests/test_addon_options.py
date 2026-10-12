@@ -242,6 +242,24 @@ def test_an_equipment_block_beside_equipment_fields_skips_only_its_pier(
     assert "equipment and the equipment_* fields cannot both be set" in caplog.text
 
 
+def test_an_equipment_mapping_keeps_the_set_equipment_fields(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # The core rejects equipment_focal_length_mm as a key it does not know
+    # (addon-options-core-validates D3).
+    pier = {**PIER, "equipment": {"focal_length_mm": 400}, "equipment_focal_length_mm": 400}
+
+    assert _read_piers(tmp_path, [pier]) == [pier]
+    assert caplog.records == []
+
+
+def test_an_equipment_mapping_drops_the_unset_equipment_fields(tmp_path: Path) -> None:
+    equipment = {"focal_length_mm": 400, "sensor_width_mm": 23.5, "sensor_height_mm": 15.7}
+    pier = {**PIER, "equipment": equipment, "equipment_focal_length_mm": None}
+
+    assert _read_piers(tmp_path, [pier]) == [{**PIER, "equipment": equipment}]
+
+
 def test_an_equipment_block_alone_passes_through(tmp_path: Path) -> None:
     # The core checks it as it checks a file's block (D1).
     pier = {**PIER, "equipment": {"focal_length_mm": 400}}

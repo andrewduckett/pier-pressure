@@ -22,7 +22,7 @@
 
 ## 3. The equipment fields follow the same rule
 
-- [ ] 3.1 Write failing tests in `tests/test_addon_options.py` (design D3, D6):
+- [x] 3.1 Write failing tests in `tests/test_addon_options.py` (design D3, D6):
   - a pier with an `equipment` mapping and a set `equipment_focal_length_mm` keeps both unchanged, and nothing is logged
   - a pier with a complete `equipment` mapping and a null `equipment_focal_length_mm` keeps the mapping and loses the null field
 
