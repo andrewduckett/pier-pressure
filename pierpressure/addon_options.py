@@ -1,7 +1,7 @@
 """The add-on's Configuration form.
 
-Follows addon-options-form D1, D3; addon-form-horizon D1-D3; and
-addon-form-equipment D1-D3.
+Follows addon-options-form D1, D3; addon-form-horizon D1-D3;
+addon-form-equipment D1-D3; and addon-form-broker D2.
 
 When the user saves the form, the Supervisor writes its values to
 ``/data/options.json``. :func:`read_addon_options` turns them into the mapping a
@@ -9,6 +9,8 @@ When the user saves the form, the Supervisor writes its values to
 pier exactly as it validates a file pier. The core never sees the form's names:
 a pier's flat ``min_altitude`` and ``horizon_points`` fields become the file's
 ``horizon`` block, and its ``equipment_*`` fields become its ``equipment`` block.
+The form's ``mqtt`` block already uses the file's names, so it passes through
+without the fields the user left empty.
 """
 
 from __future__ import annotations
@@ -43,9 +45,10 @@ def read_addon_options(path: str | os.PathLike[str] = OPTIONS_PATH) -> dict[str,
     the service then reads ``config.yaml`` (D3). Each pier's horizon fields
     become its ``horizon`` block, and its equipment fields its ``equipment``
     block; its other keys pass through unchanged, because they are the file's
-    keys. A pier whose ``horizon_points`` cannot be parsed, or that holds both an
-    ``equipment`` block and equipment fields, is logged and left out, so the list
-    may end up empty. Raises
+    keys. The ``mqtt`` block passes through without its empty fields, and is left
+    out when none is set (addon-form-broker D2). A pier whose ``horizon_points``
+    cannot be parsed, or that holds both an ``equipment`` block and equipment
+    fields, is logged and left out, so the list may end up empty. Raises
     :class:`ConfigError`, naming the file, when it is not valid JSON, its root is
     not a mapping, or its ``piers`` is not a list.
     """
@@ -70,7 +73,26 @@ def read_addon_options(path: str | os.PathLike[str] = OPTIONS_PATH) -> dict[str,
     config: dict[str, Any] = {"piers": _config_piers(piers)}
     if "interval_seconds" in options:
         config["recompute"] = {"interval_seconds": options["interval_seconds"]}
+    mqtt = _set_broker_fields(options.get("mqtt"))
+    if mqtt:
+        config["mqtt"] = mqtt
     return config
+
+
+def _set_broker_fields(mqtt: Any) -> Any:
+    """The form's ``mqtt`` block without the fields left empty (addon-form-broker D2).
+
+    A field that is ``None``, empty text or blank text is unset, so a cleared
+    username neither sets an empty login nor counts as a username without a host.
+    A value that is not a mapping passes through, and the core rejects it.
+    """
+    if not isinstance(mqtt, dict):
+        return mqtt
+    return {
+        key: value
+        for key, value in mqtt.items()
+        if value is not None and not (isinstance(value, str) and not value.strip())
+    }
 
 
 def _config_piers(piers: list[Any]) -> list[Any]:

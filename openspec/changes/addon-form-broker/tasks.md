@@ -10,14 +10,14 @@
 
 ## 3. The form's broker reaches the settings
 
-- [ ] 3.1 Write failing tests in `tests/test_addon_options.py` for `read_addon_options` (design D2):
+- [x] 3.1 Write failing tests in `tests/test_addon_options.py` for `read_addon_options` (design D2):
   - A form with piers and a full `mqtt` block gives the same `mqtt` block in the result.
   - Fields that are `null`, empty text or blank text are left out of the block.
   - An empty `mqtt` block, or one whose fields are all left out, gives no `mqtt` key.
   - A form with no piers still returns `None`, whatever its `mqtt` block holds.
 
   Verify they fail.
-- [ ] 3.2 Change `pierpressure/addon_options.py` to copy the form's `mqtt` block, without empty fields, and update its module and function docstrings. Verify the 3.1 tests and the existing tests in the file pass.
+- [x] 3.2 Change `pierpressure/addon_options.py` to copy the form's `mqtt` block, without empty fields, and update its module and function docstrings. Verify the 3.1 tests and the existing tests in the file pass.
 
 ## 4. Advice and log lines that name the right source
 

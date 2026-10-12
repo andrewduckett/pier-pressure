@@ -1,7 +1,7 @@
 """addon-options-form D1, D3: the Configuration form's saved values become config.
 
-The horizon fields follow addon-form-horizon D1-D3, and the equipment fields
-addon-form-equipment D1-D3.
+The horizon fields follow addon-form-horizon D1-D3, the equipment fields
+addon-form-equipment D1-D3, and the broker fields addon-form-broker D2.
 """
 
 from __future__ import annotations
@@ -264,3 +264,45 @@ def test_a_null_equipment_key_beside_equipment_fields_counts_as_unset(tmp_path: 
     pier = {**PIER, "equipment": None, "equipment_focal_length_mm": 400}
 
     assert _read_piers(tmp_path, [pier]) == [{**PIER, "equipment": {"focal_length_mm": 400}}]
+
+
+# --------------------------------------------------------------------------- #
+# addon-form-broker D2: the form's broker block, without empty fields
+# --------------------------------------------------------------------------- #
+
+BROKER = {"host": "broker.lan", "port": 1884, "username": "pier", "password": "pw-8c41f2"}
+
+
+def _read_with_broker(tmp_path: Path, mqtt: object) -> dict[str, object]:
+    options = {"interval_seconds": 900, "piers": [PIER], "mqtt": mqtt}
+    read = read_addon_options(_options(tmp_path, json.dumps(options)))
+    assert read is not None
+    return read
+
+
+def test_the_form_broker_becomes_the_mqtt_block(tmp_path: Path) -> None:
+    assert _read_with_broker(tmp_path, BROKER)["mqtt"] == BROKER
+
+
+@pytest.mark.parametrize("empty", [None, "", "   "], ids=["null", "empty", "blank"])
+def test_empty_broker_fields_are_left_out(tmp_path: Path, empty: str | None) -> None:
+    mqtt = {"host": "broker.lan", "username": empty, "password": empty}
+
+    assert _read_with_broker(tmp_path, mqtt)["mqtt"] == {"host": "broker.lan"}
+
+
+@pytest.mark.parametrize(
+    "mqtt",
+    [{}, {"host": None, "port": None, "username": "", "password": "  "}],
+    ids=["empty-block", "every-field-empty"],
+)
+def test_a_broker_block_with_nothing_set_gives_no_mqtt_key(
+    tmp_path: Path, mqtt: dict[str, object]
+) -> None:
+    assert "mqtt" not in _read_with_broker(tmp_path, mqtt)
+
+
+def test_a_form_without_piers_ignores_its_broker(tmp_path: Path) -> None:
+    options = {"interval_seconds": 900, "piers": [], "mqtt": BROKER}
+
+    assert read_addon_options(_options(tmp_path, json.dumps(options))) is None
