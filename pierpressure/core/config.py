@@ -317,22 +317,52 @@ class ConfigFile:
         return isinstance(mqtt, dict) and mqtt.get("host") not in (None, "")
 
 
-def read_config(path: str | os.PathLike[str]) -> ConfigFile:
-    """Read the YAML config at ``path`` and expand ``${VAR}`` (design D2, step 1).
+def read_config_mapping(path: str | os.PathLike[str]) -> dict[str, Any]:
+    """Read the YAML config at ``path`` as a ``${VAR}``-expanded mapping.
 
-    Reads only the file and the environment. Raises :class:`ConfigError` if the
-    file is not valid YAML or its root is not a mapping, or if its ``mqtt`` block
-    breaks the broker connection rule that :class:`ConfigFile` enforces.
+    Follows addon-form-horizon-file D4. Reads only the file and the environment,
+    and checks no setting: the add-on combines this mapping with its form before
+    the broker rule runs. Raises :class:`ConfigError` if the file is not valid
+    YAML or its root is not a mapping. A YAML error names only the file, line and
+    column. It holds no text from the parser, which can quote the file, such as a
+    broker password on the broken line.
     """
     config_path = Path(path)
     text = config_path.read_text(encoding="utf-8")
     try:
         raw = yaml.safe_load(text)
     except yaml.YAMLError as exc:
-        raise ConfigError(f"{config_path} is not valid YAML: {exc}") from exc
+        raise ConfigError(_yaml_error_message(config_path, exc)) from None
     if not isinstance(raw, dict):
         raise ConfigError("Configuration root must be a mapping")
-    return ConfigFile(raw=_expand_env(raw), base_dir=config_path.resolve().parent)
+    expanded: dict[str, Any] = _expand_env(raw)
+    return expanded
+
+
+def _yaml_error_message(path: Path, exc: yaml.YAMLError) -> str:
+    """Where the YAML mistake is, without any of the file's text.
+
+    The context mark is where the broken construct starts, such as an unclosed
+    ``[``; the problem mark can fall on a later line. So the context mark is named
+    when the parser gives one.
+    """
+    mark = None
+    if isinstance(exc, yaml.MarkedYAMLError):
+        mark = exc.context_mark or exc.problem_mark
+    if mark is None:
+        return f"{path} is not valid YAML"
+    return f"{path} is not valid YAML at line {mark.line + 1}, column {mark.column + 1}"
+
+
+def read_config(path: str | os.PathLike[str]) -> ConfigFile:
+    """Read the YAML config at ``path`` and expand ``${VAR}`` (design D2, step 1).
+
+    Reads only the file and the environment, through :func:`read_config_mapping`.
+    Raises :class:`ConfigError` as that function does, or if the file's ``mqtt``
+    block breaks the broker connection rule that :class:`ConfigFile` enforces.
+    """
+    config_path = Path(path)
+    return ConfigFile(raw=read_config_mapping(config_path), base_dir=config_path.resolve().parent)
 
 
 def load_config(path: str | os.PathLike[str]) -> AppConfig:

@@ -1,7 +1,7 @@
 ## 1. A file reader that keeps file content out of errors
 
 - [x] 1.1 Write failing tests in `tests/test_config.py` for a new `read_config_mapping` (design D4). It returns the parsed, `${VAR}`-expanded mapping without building a `ConfigFile`, so a file that sets `mqtt.password` without `mqtt.host` reads without error. A root that is not a mapping raises `ConfigError`. A YAML mistake raises `ConfigError` that names the file, line and column. For `password: [pw-8c41f2` and `password: *pw-8c41f2`, the message does not contain `pw-8c41f2`, and holds no PyYAML text. Verify they fail.
-- [ ] 1.2 Add `read_config_mapping` to `pierpressure/core/config.py`, and make `read_config` build its `ConfigFile` from it. Update both docstrings. Verify the 1.1 tests pass, the existing `read_config` and `load_config` tests pass without other changes, and `tests/test_core_boundary.py` still passes.
+- [x] 1.2 Add `read_config_mapping` to `pierpressure/core/config.py`, and make `read_config` build its `ConfigFile` from it. Update both docstrings. Verify the 1.1 tests pass, the existing `read_config` and `load_config` tests pass without other changes, and `tests/test_core_boundary.py` still passes.
 
 ## 2. One "set" rule for the form
 
