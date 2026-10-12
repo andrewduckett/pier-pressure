@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from pierpressure.addon_settings import combine_settings
+from pierpressure.addon_settings import combine_settings, file_pier_ids
 from pierpressure.core.config import ConfigError
 
 PIER = {"id": "backyard", "latitude": 51.5, "longitude": -0.12, "elevation_m": 30.0}
@@ -243,7 +243,7 @@ def test_a_file_pier_id_that_is_not_text_names_its_position(entry: dict[str, Any
     assert "id" in message
 
 
-@pytest.mark.parametrize("piers", ["backyard", {"id": "backyard"}, 5, None])
+@pytest.mark.parametrize("piers", ["backyard", {"id": "backyard"}, 5])
 def test_a_file_piers_that_is_not_a_list_is_an_error(piers: object) -> None:
     message = _error(_form(PIER), {"piers": piers})
 
@@ -319,3 +319,43 @@ def test_each_form_pier_with_a_repeated_id_is_checked_once() -> None:
     message = _error(form, {"piers": [{"id": "backyard", "horizon": {"min_altitude": 5}}]})
 
     assert message.count("horizon of pier 'backyard'") == 1
+
+
+def test_a_piers_key_with_no_entries_adds_nothing() -> None:
+    # "piers:" with nothing under it is YAML null.
+    combined = combine_settings(_form(PIER), {"piers": None})
+
+    assert combined.raw["piers"] == [PIER]
+    assert not combined.file_adds
+
+
+def test_an_empty_recompute_block_sets_no_interval() -> None:
+    combined = combine_settings(_form(PIER), {"recompute": {}})
+
+    assert combined.raw["recompute"] == {"interval_seconds": 900}
+    assert not combined.file_adds
+
+
+def test_an_unknown_top_level_key_is_not_an_added_setting() -> None:
+    # The core drops a misspelled top-level key, so the log must not claim the file
+    # added a setting (D3, D8).
+    combined = combine_settings(_form(PIER), {"explanier": {"enabled": True}})
+
+    assert not combined.file_adds
+
+
+@pytest.mark.parametrize(
+    ("file", "ids"),
+    [
+        (
+            {"piers": [{"id": "roof"}, {"id": "shed"}, {"id": "roof"}, 7, {"id": 5}]},
+            ["roof", "shed"],
+        ),
+        ({"piers": None}, []),
+        ({"piers": "roof"}, []),
+        ({}, []),
+    ],
+    ids=["mixed", "null", "not-a-list", "no-key"],
+)
+def test_file_pier_ids_names_the_usable_ids_once(file: dict[str, Any], ids: list[str]) -> None:
+    assert file_pier_ids(file) == ids

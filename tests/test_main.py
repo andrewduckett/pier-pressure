@@ -574,6 +574,24 @@ def test_one_error_lists_every_problem(
     assert "'roof'" in error
 
 
+@pytest.mark.parametrize("text", ["", "# Extra settings go here.\n"], ids=["empty", "comments"])
+def test_an_empty_config_yaml_adds_nothing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+    text: str,
+) -> None:
+    _addon(monkeypatch, options_file, BACKYARD)
+    StartupStub(monkeypatch)
+
+    with caplog.at_level(logging.INFO, logger="pierpressure"):
+        [pier] = _load(_config(tmp_path, text)).piers
+
+    assert pier.id == "backyard"
+    assert "Settings from the Configuration tab" in [r.getMessage() for r in caplog.records]
+
+
 def test_a_skipped_form_pier_still_counts_as_listed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -626,7 +644,8 @@ def test_a_config_yaml_that_is_not_valid_yaml_stops_the_addon(
         assert entry.main([path]) == 1
 
     [error] = _errors(caplog)
-    assert error == f"Configuration error: {path} is not valid YAML at line 3, column 13"
+    assert error.startswith(f"Configuration error: {path} is not valid YAML at line ")
+    assert "line 3, column 13" in error
     assert SECRET not in caplog.text
 
 

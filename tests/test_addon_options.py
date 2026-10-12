@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -17,11 +18,19 @@ from pierpressure.addon_options import (
     HORIZON_FIELDS,
     is_set,
     pier_settings,
-    read_addon_options,
+    read_form_values,
+    translate_form,
 )
 from pierpressure.core.config import ConfigError
 
 ADDON_CONFIG = Path(__file__).resolve().parent.parent / "ha-addon" / "config.yaml"
+
+
+def read_addon_options(path: Path) -> dict[str, Any] | None:
+    """The saved form values at ``path``, translated as the add-on's startup does."""
+    options = read_form_values(path)
+    return None if options is None else translate_form(options)
+
 
 PIER = {"id": "backyard", "latitude": 51.5, "longitude": -0.12, "elevation_m": 30.0}
 

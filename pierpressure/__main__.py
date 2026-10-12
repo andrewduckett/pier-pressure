@@ -29,7 +29,7 @@ from typing import NamedTuple
 
 from pierpressure import __version__
 from pierpressure.addon_options import OPTIONS_PATH, is_set, read_form_values
-from pierpressure.addon_settings import combine_settings
+from pierpressure.addon_settings import combine_settings, file_pier_ids
 from pierpressure.conditions import build_provider
 from pierpressure.core.clock import SystemClock
 from pierpressure.core.config import (
@@ -148,7 +148,7 @@ def _read_addon_settings(
     if options is None or not options.get("piers"):
         raise ConfigError(_nothing_set_up(path))
 
-    file = read_config_mapping(path) if path.exists() else None
+    file = read_config_mapping(path, allow_empty=True) if path.exists() else None
     combined = combine_settings(options, file)
     if combined.file_adds:
         logger.info("Settings from the Configuration tab and %s", path.name)
@@ -182,14 +182,9 @@ def _nothing_set_up(path: Path) -> str:
 def _file_pier_ids(path: Path) -> list[str]:
     """The text ids of the file's piers, or none when the file cannot be read."""
     try:
-        raw = read_config_mapping(path)
+        return file_pier_ids(read_config_mapping(path, allow_empty=True))
     except ConfigError, OSError:
         return []
-    piers = raw.get("piers")
-    if not isinstance(piers, list):
-        return []
-    ids = [p["id"] for p in piers if isinstance(p, dict) and isinstance(p.get("id"), str)]
-    return list(dict.fromkeys(ids))
 
 
 def main(argv: list[str] | None = None) -> int:

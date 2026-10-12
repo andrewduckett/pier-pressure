@@ -75,17 +75,6 @@ def pier_settings(pier: dict[str, Any]) -> set[str]:
     return settings
 
 
-def read_addon_options(path: str | os.PathLike[str] = OPTIONS_PATH) -> dict[str, Any] | None:
-    """Read the saved form values at ``path`` as a config-shaped mapping.
-
-    Returns ``None`` when the form lists no piers, or when the file is missing.
-    :func:`read_form_values` reads the file, and :func:`translate_form` builds the
-    mapping; both raise as they describe.
-    """
-    options = read_form_values(path)
-    return None if options is None else translate_form(options)
-
-
 def read_form_values(path: str | os.PathLike[str] = OPTIONS_PATH) -> dict[str, Any] | None:
     """Read the raw saved form values at ``path``, or ``None`` when the file is missing.
 

@@ -317,15 +317,19 @@ class ConfigFile:
         return isinstance(mqtt, dict) and mqtt.get("host") not in (None, "")
 
 
-def read_config_mapping(path: str | os.PathLike[str]) -> dict[str, Any]:
+def read_config_mapping(
+    path: str | os.PathLike[str], *, allow_empty: bool = False
+) -> dict[str, Any]:
     """Read the YAML config at ``path`` as a ``${VAR}``-expanded mapping.
 
     Follows addon-form-horizon-file D4. Reads only the file and the environment,
     and checks no setting: the add-on combines this mapping with its form before
-    the broker rule runs. Raises :class:`ConfigError` if the file is not valid
-    YAML or its root is not a mapping. A YAML error names only the file, line and
-    column. It holds no text from the parser, which can quote the file, such as a
-    broker password on the broken line.
+    the broker rule runs. With ``allow_empty``, a file that holds nothing but
+    comments reads as an empty mapping; the add-on's file only adds settings, so
+    an empty one adds none. Raises :class:`ConfigError`, naming the file, if the
+    file is not valid YAML or its root is not a mapping. A YAML error names only
+    the file, lines and columns. It holds no text from the parser, which can
+    quote the file, such as a broker password on the broken line.
     """
     config_path = Path(path)
     text = config_path.read_text(encoding="utf-8")
@@ -333,8 +337,10 @@ def read_config_mapping(path: str | os.PathLike[str]) -> dict[str, Any]:
         raw = yaml.safe_load(text)
     except yaml.YAMLError as exc:
         raise ConfigError(_yaml_error_message(config_path, exc)) from None
+    if raw is None and allow_empty:
+        return {}
     if not isinstance(raw, dict):
-        raise ConfigError("Configuration root must be a mapping")
+        raise ConfigError(f"Configuration root must be a mapping in {config_path}")
     expanded: dict[str, Any] = _expand_env(raw)
     return expanded
 
@@ -342,16 +348,21 @@ def read_config_mapping(path: str | os.PathLike[str]) -> dict[str, Any]:
 def _yaml_error_message(path: Path, exc: yaml.YAMLError) -> str:
     """Where the YAML mistake is, without any of the file's text.
 
-    The context mark is where the broken construct starts, such as an unclosed
-    ``[``; the problem mark can fall on a later line. So the context mark is named
-    when the parser gives one.
+    Names the problem mark first. When the parser also gives a context mark on
+    another line, such as the ``[`` an unclosed list starts with, it is named as
+    where the broken part starts.
     """
-    mark = None
-    if isinstance(exc, yaml.MarkedYAMLError):
-        mark = exc.context_mark or exc.problem_mark
-    if mark is None:
+    if not isinstance(exc, yaml.MarkedYAMLError) or exc.problem_mark is None:
         return f"{path} is not valid YAML"
-    return f"{path} is not valid YAML at line {mark.line + 1}, column {mark.column + 1}"
+    problem, context = exc.problem_mark, exc.context_mark
+    message = f"{path} is not valid YAML at {_place(problem)}"
+    if context is not None and context.line != problem.line:
+        message += f", in the part that starts at {_place(context)}"
+    return message
+
+
+def _place(mark: yaml.Mark) -> str:
+    return f"line {mark.line + 1}, column {mark.column + 1}"
 
 
 def read_config(path: str | os.PathLike[str]) -> ConfigFile:
