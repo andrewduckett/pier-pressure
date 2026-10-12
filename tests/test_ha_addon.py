@@ -2,7 +2,8 @@
 
 The Configuration form's options, schema and labels follow addon-options-form D5, D6,
 its horizon fields addon-form-horizon D4, D5, its equipment fields
-addon-form-equipment D4, D5, and its broker fields addon-form-broker D1.
+addon-form-equipment D4, D5, its broker fields addon-form-broker D1, and its
+gate fields addon-form-gates D2, D4.
 """
 
 from __future__ import annotations
@@ -92,6 +93,10 @@ PIER_FIELDS = {
     "equipment_sensor_width_mm": "float(0,)?",
     "equipment_sensor_height_mm": "float(0,)?",
     "equipment_reducer": "float(0,)?",
+    # Optional, so a new pier starts with neither set. The core rejects a
+    # max_gust of 0 itself (addon-form-gates D2).
+    "go_threshold": "int(0,100)?",
+    "max_gust": "float(0,)?",
 }
 
 
@@ -161,6 +166,17 @@ def test_every_form_field_has_a_label(addon: dict[str, Any]) -> None:
             assert entry["description"], f"{block}.{field} has no description"
 
 
+@pytest.mark.parametrize(
+    ("field", "meaning"),
+    [("go_threshold", "65"), ("max_gust", "no wind gate")],
+)
+def test_the_gate_labels_say_what_an_empty_field_means(field: str, meaning: str) -> None:
+    # The form shows both fields empty, so the label carries the default
+    # (addon-form-gates D3, D4).
+    entry = _load(ADDON_TRANSLATIONS)["configuration"]["piers"]["fields"][field]
+    assert meaning in entry["description"]
+
+
 def test_the_port_label_names_its_default() -> None:
     port = _load(ADDON_TRANSLATIONS)["configuration"]["mqtt"]["fields"]["port"]
     assert "1883" in port["description"]
@@ -179,6 +195,8 @@ def test_the_port_label_names_its_default() -> None:
         (("piers", "fields", "equipment_sensor_width_mm"), "millimetres"),
         (("piers", "fields", "equipment_sensor_height_mm"), "millimetres"),
         (("piers", "fields", "equipment_reducer"), "no unit"),
+        (("piers", "fields", "go_threshold"), "no unit"),
+        (("piers", "fields", "max_gust"), "km/h"),
         (("mqtt", "fields", "port"), "no unit"),
     ],
 )

@@ -1,7 +1,7 @@
 ## 1. The add-on manifest and its labels
 
-- [ ] 1.1 Write failing tests in `tests/test_ha_addon.py` (design D2, D4). Extend the schema test: each pier item has `go_threshold: int(0,100)?` and `max_gust: float(0,)?`, and `options` sets neither. Add both fields to the unit test: `go_threshold` says "no unit" and `max_gust` says "km/h". Add a test that their descriptions say what an empty field means: 65 for `go_threshold`, and no wind gate for `max_gust`. Verify they fail.
-- [ ] 1.2 Add the two fields to the pier schema in `ha-addon/config.yaml`, with a comment naming this change's D2. Add their names and descriptions under `piers.fields` in `ha-addon/translations/en.yaml` (design D4). Verify the 1.1 tests pass, and that the existing label test covers both new fields.
+- [x] 1.1 Write failing tests in `tests/test_ha_addon.py` (design D2, D4). Extend the schema test: each pier item has `go_threshold: int(0,100)?` and `max_gust: float(0,)?`, and `options` sets neither. Add both fields to the unit test: `go_threshold` says "no unit" and `max_gust` says "km/h". Add a test that their descriptions say what an empty field means: 65 for `go_threshold`, and no wind gate for `max_gust`. Verify they fail.
+- [x] 1.2 Add the two fields to the pier schema in `ha-addon/config.yaml`, with a comment naming this change's D2. Add their names and descriptions under `piers.fields` in `ha-addon/translations/en.yaml` (design D4). Verify the 1.1 tests pass, and that the existing label test covers both new fields.
 
 ## 2. Leaving out an unset gate field
 

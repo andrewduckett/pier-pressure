@@ -48,6 +48,11 @@ schema:
       equipment_sensor_width_mm: float(0,)?
       equipment_sensor_height_mm: float(0,)?
       equipment_reducer: float(0,)?
+      # The pier's gates, with config.yaml's names. Neither is in options, so a
+      # new pier starts with both empty; the service leaves out an empty one. The
+      # save check allows a max_gust of 0; the service rejects it (addon-form-gates D2).
+      go_threshold: int(0,100)?
+      max_gust: float(0,)?
   # The broker, with config.yaml's names. Setting host takes all four from the
   # form; leaving it empty takes them from config.yaml, or else from the
   # Supervisor (addon-form-broker D1, addon-form-horizon-file).

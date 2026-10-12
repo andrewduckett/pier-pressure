@@ -57,6 +57,16 @@ configuration:
         description: >-
           Optional. The factor of a focal reducer or barlow, with no unit, such
           as 0.8 or 2. Leave it empty for 1.0, when you use neither.
+      go_threshold:
+        name: GO threshold
+        description: >-
+          Optional. The score from 0 to 100, with no unit, that a night needs for
+          GO. Leave it empty for 65.
+      max_gust:
+        name: Wind-gust limit
+        description: >-
+          Optional. The wind gust, in km/h, above which the night is NO-GO. Leave
+          it empty for no wind gate, so no forecast gust makes the night NO-GO.
   mqtt:
     name: MQTT broker
     description: >-
