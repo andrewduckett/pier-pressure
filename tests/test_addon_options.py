@@ -10,9 +10,18 @@ import json
 from pathlib import Path
 
 import pytest
+import yaml
 
-from pierpressure.addon_options import read_addon_options
+from pierpressure.addon_options import (
+    EQUIPMENT_FIELDS,
+    HORIZON_FIELDS,
+    is_set,
+    pier_settings,
+    read_addon_options,
+)
 from pierpressure.core.config import ConfigError
+
+ADDON_CONFIG = Path(__file__).resolve().parent.parent / "ha-addon" / "config.yaml"
 
 PIER = {"id": "backyard", "latitude": 51.5, "longitude": -0.12, "elevation_m": 30.0}
 
@@ -314,3 +323,76 @@ def test_a_broker_value_that_is_not_a_mapping_reaches_the_core(
 ) -> None:
     # The core rejects it; dropping it would silently use the Supervisor's broker.
     assert _read_with_broker(tmp_path, mqtt)["mqtt"] == mqtt
+
+
+# --------------------------------------------------------------------------- #
+# addon-form-horizon-file D2: one "set" rule, and the settings a form pier sets
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize("blank", ["", "   "], ids=["empty", "blank"])
+def test_blank_min_altitude_counts_as_unset(tmp_path: Path, blank: str) -> None:
+    assert _read_piers(tmp_path, [{**PIER, "min_altitude": blank}]) == [PIER]
+
+
+@pytest.mark.parametrize("blank", ["", "   "], ids=["empty", "blank"])
+@pytest.mark.parametrize("field", list(EQUIPMENT_FORM_VALUES))
+def test_blank_equipment_fields_count_as_unset(tmp_path: Path, field: str, blank: str) -> None:
+    assert _read_piers(tmp_path, [{**PIER, field: blank}]) == [PIER]
+
+
+def test_a_min_altitude_of_zero_counts_as_set(tmp_path: Path) -> None:
+    assert _read_piers(tmp_path, [{**PIER, "min_altitude": 0}]) == [
+        {**PIER, "horizon": {"min_altitude": 0}}
+    ]
+
+
+@pytest.mark.parametrize("value", [0, 0.0, 15, "text", False, [], {}])
+def test_is_set_counts_any_value_but_none_and_blank_text(value: object) -> None:
+    assert is_set(value)
+
+
+@pytest.mark.parametrize("value", [None, "", "   ", "\t\n"])
+def test_is_set_rejects_none_and_blank_text(value: object) -> None:
+    assert not is_set(value)
+
+
+@pytest.mark.parametrize(
+    ("pier", "settings"),
+    [
+        ({"min_altitude": 10}, {"horizon"}),
+        ({"min_altitude": 0}, {"horizon"}),
+        ({"horizon_points": "[[0, 10]]"}, {"horizon"}),
+        ({"horizon": {"file": "a.hrz"}}, {"horizon"}),
+        ({"equipment_focal_length_mm": 400}, {"equipment"}),
+        ({"equipment_reducer": 0.8}, {"equipment"}),
+        ({"equipment": {"focal_length_mm": 400}}, {"equipment"}),
+        ({"id": "backyard"}, set()),
+        ({"latitude": 51.5, "go_threshold": 70}, {"latitude", "go_threshold"}),
+        ({"min_altitude": "", "horizon_points": "  ", "equipment_reducer": None}, set()),
+        ({"latitude": None, "max_gust": ""}, set()),
+    ],
+)
+def test_pier_settings_names_what_a_raw_pier_sets(
+    pier: dict[str, object], settings: set[str]
+) -> None:
+    assert pier_settings(pier) == settings
+
+
+def test_every_form_pier_field_has_a_known_setting() -> None:
+    # A flattened field the conflict check does not know would be compared under
+    # its own name, and miss its block in config.yaml (design D2).
+    addon = yaml.safe_load(ADDON_CONFIG.read_text(encoding="utf-8"))
+    fields = addon["schema"]["piers"][0]
+    for field in fields:
+        settings = pier_settings({field: 1})
+        if field in HORIZON_FIELDS:
+            assert settings == {"horizon"}, field
+        elif field in EQUIPMENT_FIELDS:
+            assert settings == {"equipment"}, field
+        elif field == "id":
+            assert settings == set()
+        else:
+            assert settings == {field}, field
+    # The flattened fields that build a block are all on the form.
+    assert set(HORIZON_FIELDS) | set(EQUIPMENT_FIELDS) <= set(fields)
