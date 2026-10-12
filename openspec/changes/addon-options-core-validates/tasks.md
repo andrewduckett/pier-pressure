@@ -45,7 +45,7 @@
 
 ## 6. Documentation
 
-- [ ] 6.1 Add one line to the "Set a pier's horizon" section of `ha-addon/DOCS.md`: an error about `horizon.points` refers to the form's `horizon_points` field. Verify the add-on docs tests pass.
+- [x] 6.1 Add one line to the "Set a pier's horizon" section of `ha-addon/DOCS.md`: an error about `horizon.points` refers to the form's `horizon_points` field. Verify the add-on docs tests pass.
 - [ ] 6.2 Check that ADR-0022 is in `docs/decisions/` and that its status is `accepted`.
 
 ## 7. Check

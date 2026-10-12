@@ -70,6 +70,8 @@ cannot be read, the add-on skips that pier and logs an error that names it. The
 other piers still publish. To find the error, open the **Log** tab and look for
 `Skipping invalid pier`.
 
+An error about `horizon.points` refers to the **Horizon points** field.
+
 ## Set a pier's equipment
 
 A pier's equipment is your telescope and camera. With it, PierPressure also
