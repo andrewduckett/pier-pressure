@@ -97,7 +97,7 @@ Supervisor's MQTT broker when the file names none" describes.
 
 ### Requirement: The add-on offers a Configuration form for the interval and piers
 
-The add-on SHALL declare a Configuration form in Home Assistant with two
+The add-on SHALL declare a Configuration form in Home Assistant with three
 settings:
 
 - `interval_seconds`: the recompute interval in seconds, a whole number of at
@@ -105,6 +105,16 @@ settings:
 - `piers`: a list of piers. Each pier SHALL have an `id` (text), a `latitude`
   (from −90 to 90 degrees), a `longitude` (from −180 to 180 degrees) and an
   `elevation_m` (metres). The default SHALL be an empty list.
+- `mqtt`: the broker, as a block of four optional fields. The default SHALL be
+  an empty block.
+
+The `mqtt` block SHALL have these fields:
+
+- `host`: the broker's host name or address, as text.
+- `port`: the broker's port, from 1 to 65535. It SHALL have no default on the
+  form.
+- `username`: the login name, as text.
+- `password`: the login password, in a field that hides its value.
 
 Each pier SHALL also have two optional horizon fields:
 
@@ -135,8 +145,8 @@ none.
 #### Scenario: Add-on config declares the form
 
 - **WHEN** the test suite reads the add-on config file
-- **THEN** its `options` set `interval_seconds` to 900 and `piers` to an empty
-  list
+- **THEN** its `options` set `interval_seconds` to 900, `piers` to an empty
+  list, and `mqtt` to an empty block
 - **AND** its `schema` declares `interval_seconds` as a whole number, and `piers`
   as a list whose items have `id`, `latitude`, `longitude` and `elevation_m`
 - **AND** each pier item has an optional `min_altitude` from 0 to 90 and an
@@ -144,6 +154,9 @@ none.
 - **AND** each pier item has optional `equipment_focal_length_mm`,
   `equipment_sensor_width_mm`, `equipment_sensor_height_mm` and
   `equipment_reducer`, each a number of at least 0
+- **AND** its `schema` declares `mqtt` with an optional text `host`, an optional
+  `port`, an optional text `username`, and an optional `password` of the
+  password type
 
 #### Scenario: The save check on horizon points
 
@@ -158,26 +171,30 @@ none.
 - **THEN** it gives a name and a description for `interval_seconds`, `piers`, and
   each field of a pier, including `min_altitude`, `horizon_points` and the four
   equipment fields
+- **AND** it gives a name and a description for `mqtt` and each of its four
+  fields
 
 ### Requirement: The add-on reads the Configuration form before the config file
 
 Inside an add-on, the service SHALL read the values the user saved on the
 Configuration form at startup. The rule for which source it uses is:
 
-- When the form lists at least one pier, the service SHALL take the interval and
-  the piers from the form only. It SHALL NOT read settings from `config.yaml`.
+- When the form lists at least one pier, the service SHALL take the interval,
+  the piers and the broker from the form only. It SHALL NOT read settings from
+  `config.yaml`.
 - When the form lists no piers, the service SHALL read `config.yaml` as the
   requirement "The add-on reads config from its own config folder" describes. It
-  SHALL ignore the form's interval.
+  SHALL ignore the form's interval and broker.
 
-When the service uses the form, it SHALL take the broker from the Supervisor's
-`mqtt` service. The broker's host, port, username and password all come from
-there. The discovery prefix and base topic SHALL take their defaults.
+When the service uses the form, it SHALL choose the broker as the requirement
+"The form sets the broker" describes. The discovery prefix and base topic SHALL
+take their defaults.
 
-When the service uses the form and stops with a broker error, the error SHALL
-say that `config.yaml` is not read while the form lists piers. It SHALL NOT tell
-the user only to set `mqtt.host` in `config.yaml`. This covers the "no MQTT
-broker was found", "access refused", TLS, MQTT version and rejected-login
+When the service uses the form and stops with an error about the Supervisor's
+broker, the error SHALL say that `config.yaml` is not read while the form lists
+piers. It SHALL tell the user to set the broker on the Configuration tab. It
+SHALL NOT name `config.yaml` as the place to set the broker. This covers the "no
+MQTT broker was found", "access refused", TLS, MQTT version and rejected-login
 errors.
 
 The service SHALL check each pier from the form exactly as it checks a pier from
@@ -197,6 +214,7 @@ as it did before this change.
 #### Scenario: Form setup gives a verdict without a file
 
 - **WHEN** the user saves an interval and one pier on the Configuration tab
+- **AND** the form sets no broker host
 - **AND** the add-on's config folder holds no `config.yaml`
 - **AND** the Supervisor provides an `mqtt` service
 - **THEN** the service connects to the Supervisor's broker
@@ -210,6 +228,14 @@ as it did before this change.
 - **AND** the add-on's config folder holds a valid `config.yaml`
 - **THEN** the service loads that file and publishes a verdict for each of its
   piers
+
+#### Scenario: An empty form's broker is not used
+
+- **WHEN** the form lists no piers and sets `mqtt.host` to `broker.lan`
+- **AND** the add-on's config folder holds a valid `config.yaml` with no
+  `mqtt.host`
+- **AND** the Supervisor provides an `mqtt` service
+- **THEN** the service connects to the Supervisor's broker, not to `broker.lan`
 
 #### Scenario: The form wins over an existing file
 
@@ -230,11 +256,13 @@ each pier, because it does not rely on the Supervisor's check.
 
 #### Scenario: A form user's broker error does not point only to the file
 
-- **WHEN** the form lists a pier
+- **WHEN** the form lists a pier and sets no broker host
 - **AND** the Supervisor provides no `mqtt` service within the wait
 - **THEN** the add-on stops
 - **AND** its log says no MQTT broker was found
 - **AND** it says `config.yaml` is not read while the form lists piers
+- **AND** it tells the user to set `mqtt.host` on the Configuration tab
+- **AND** it does not name `config.yaml` as the place to set `mqtt.host`
 
 #### Scenario: Nothing is set up
 
@@ -474,6 +502,10 @@ The add-on SHALL ask Home Assistant's Supervisor for the `mqtt` service, as a
 service it wants but does not need. So the add-on SHALL install and start when no
 other add-on provides the service.
 
+This requirement applies when the service uses settings from `config.yaml`. When
+the service uses the Configuration form, the requirement "The form sets the
+broker" applies instead.
+
 The connection settings are the broker's host, port, username and password. The
 service SHALL take all four from one source:
 
@@ -569,12 +601,15 @@ These cases count as "not provided yet":
 If no request started within those 60 seconds returns usable details, the add-on
 SHALL stop with an error. The
 error SHALL say that no MQTT broker was found. It SHALL tell the user to install
-the Mosquitto broker add-on, or to set `mqtt.host` in `config.yaml`.
+the Mosquitto broker add-on, or to set `mqtt.host` where the settings come from.
 
 If the Supervisor refuses the add-on access to the service, the add-on SHALL stop
 at once, without waiting. Its error SHALL say that the Supervisor refused access
-to the `mqtt` service. It SHALL tell the user to set `mqtt.host` in `config.yaml`,
-and to report the problem.
+to the `mqtt` service. It SHALL tell the user to set `mqtt.host` where the
+settings come from, and to report the problem.
+
+"Where the settings come from" is `config.yaml` when the service uses the file,
+and the Configuration tab when it uses the form.
 
 #### Scenario: Mosquitto is still starting
 
@@ -614,8 +649,9 @@ and to report the problem.
 PierPressure does not support TLS connections. If the Supervisor's `mqtt` service
 says its broker requires TLS, the add-on SHALL stop with an error. The error SHALL
 say that the broker requires TLS, which PierPressure does not support. It SHALL tell
-the user to set `mqtt.host` and `mqtt.port` in `config.yaml` to a broker listener
-that accepts connections without TLS. The service SHALL NOT connect to that broker
+the user to set `mqtt.host` and `mqtt.port` to a broker listener that accepts
+connections without TLS. It SHALL name `config.yaml` when the service uses the
+file, and the Configuration tab when it uses the form. The service SHALL NOT connect to that broker
 without TLS.
 
 #### Scenario: The Supervisor's broker requires TLS
@@ -627,13 +663,22 @@ without TLS.
   support, and tells the user to set a broker listener without TLS in
   `config.yaml`
 
+#### Scenario: A form user's TLS error names the Configuration tab
+
+- **WHEN** the form lists a pier and sets no `mqtt.host`
+- **AND** the Supervisor's `mqtt` service says its broker requires TLS
+- **THEN** the add-on stops without connecting to the broker
+- **AND** its log tells the user to set a broker listener without TLS on the
+  Configuration tab, and does not name `config.yaml` as the place to set it
+
 ### Requirement: The add-on refuses a Supervisor broker that needs another MQTT version
 
 PierPressure speaks MQTT version 3.1.1. If the Supervisor's `mqtt` service names
 any other protocol version, the add-on SHALL stop with an error. The error SHALL
 name the version the broker asked for, and say that PierPressure supports only
-3.1.1. It SHALL tell the user to set `mqtt.host` and `mqtt.port` in `config.yaml`
-to a broker that accepts 3.1.1. A response that names no protocol SHALL count as
+3.1.1. It SHALL tell the user to set `mqtt.host` and `mqtt.port` to a broker that
+accepts 3.1.1. It SHALL name `config.yaml` when the service uses the file, and
+the Configuration tab when it uses the form. A response that names no protocol SHALL count as
 3.1.1, which is the Supervisor's default.
 
 #### Scenario: The Supervisor's broker asks for MQTT 3.1
@@ -642,3 +687,76 @@ to a broker that accepts 3.1.1. A response that names no protocol SHALL count as
 - **AND** the Supervisor's `mqtt` service names protocol `3.1`
 - **THEN** the add-on stops without connecting to the broker
 - **AND** its log names protocol `3.1`, and says PierPressure supports only 3.1.1
+
+### Requirement: The form sets the broker
+
+When the service uses the form, it SHALL take the broker's four connection
+settings from one source, as it does for `config.yaml`:
+
+- When the form sets `mqtt.host`, the host, port, username and password SHALL
+  all come from the form. The service SHALL NOT ask the Supervisor for the
+  broker. A port the form does not set SHALL be 1883.
+- When the form does not set `mqtt.host`, all four SHALL come from the
+  Supervisor's `mqtt` service.
+
+A form field that is empty or blank SHALL count as not set. A form that sets
+`mqtt.port`, `mqtt.username` or `mqtt.password` without `mqtt.host` SHALL be
+rejected with the same configuration error that `config.yaml` gets. The error
+SHALL say to set `mqtt.host` too.
+
+When the broker rejects a login from the form, the error SHALL tell the user to
+check the username and password. It SHALL NOT tell the user to restart the
+Mosquitto add-on.
+
+The log SHALL say that the broker came from the Configuration tab, and SHALL
+name its host and port. The service SHALL NOT read or insert `mqtt.password`
+when it builds a log line or an error message. The log may still show the host,
+even when the user enters the same text as the host and the password.
+
+#### Scenario: The form's broker is used
+
+- **WHEN** the form lists a pier and sets `mqtt.host` to `broker.lan`,
+  `mqtt.port` to 1884, `mqtt.username` to `pier`, and `mqtt.password`
+- **THEN** the service connects to `broker.lan` on port 1884
+- **AND** it logs in with the username `pier` and the form's password
+- **AND** it does not ask the Supervisor for the broker
+
+#### Scenario: The form's broker uses port 1883 by default
+
+- **WHEN** the form lists a pier and sets `mqtt.host` but not `mqtt.port`
+- **THEN** the service connects to that host on port 1883
+
+#### Scenario: Blank broker fields count as not set
+
+- **WHEN** the form lists a pier and sets `mqtt.host`
+- **AND** its `mqtt.username` and `mqtt.password` are empty text
+- **THEN** the service connects to that host without a username or password
+
+#### Scenario: Credentials on the form without a host are rejected
+
+- **WHEN** the form lists a pier and sets `mqtt.username` but not `mqtt.host`
+- **THEN** the add-on stops without asking the Supervisor for the broker
+- **AND** its log contains a configuration error that says to set `mqtt.host`
+
+#### Scenario: A rejected login from the form points to the form's login
+
+- **WHEN** the form lists a pier and sets `mqtt.host`
+- **AND** the broker rejects the login
+- **THEN** the add-on stops
+- **AND** its log tells the user to check the username and password
+- **AND** it does not tell the user to restart the Mosquitto add-on
+
+#### Scenario: The log names the form as the broker's source
+
+- **WHEN** the form lists a pier, sets `mqtt.host` to `broker.lan`, and sets
+  `mqtt.password` to `pw-8c41f2`
+- **THEN** the log says the broker came from the Configuration tab, and names
+  `broker.lan` and port 1883
+- **AND** no log line contains `pw-8c41f2`
+
+#### Scenario: A rejected login does not reveal the form's password
+
+- **WHEN** the form lists a pier, sets `mqtt.host` to `broker.lan`, and sets
+  `mqtt.password` to `pw-8c41f2`
+- **AND** the broker rejects the login
+- **THEN** no log line or error message contains `pw-8c41f2`
