@@ -186,6 +186,23 @@ def test_a_broker_connection_in_both_names_the_broker_connection(
     assert SENTINEL not in message
 
 
+def test_an_unknown_mqtt_key_in_both_is_not_a_conflict() -> None:
+    # The core rejects the key without naming it (config-secrets-hidden-in-errors D5).
+    combined = combine_settings(_form(PIER, mqtt={SENTINEL: SENTINEL}), {"mqtt": {SENTINEL: 1}})
+
+    assert SENTINEL in combined.raw["mqtt"]
+
+
+def test_a_conflict_error_does_not_name_an_unknown_mqtt_key() -> None:
+    form_mqtt = {"base_topic": "observatory", SENTINEL: SENTINEL}
+    file_mqtt = {"base_topic": "pier", SENTINEL: SENTINEL}
+
+    message = _error(_form(PIER, mqtt=form_mqtt), {"mqtt": file_mqtt})
+
+    assert "mqtt.base_topic is set on the Configuration tab" in message
+    assert SENTINEL not in message
+
+
 def test_an_interval_in_the_file_names_the_recompute_interval() -> None:
     message = _error(_form(PIER), {"recompute": {"interval_seconds": 600}})
 
