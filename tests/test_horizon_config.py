@@ -232,3 +232,57 @@ def test_relative_horizon_file_is_not_found_via_process_cwd(
 
     with pytest.raises(ConfigError):
         load_config(config_path)
+
+
+# --------------------------------------------------------------------------- #
+# addon-options-core-validates D1 — horizon points written as YAML text
+# --------------------------------------------------------------------------- #
+
+_GOOD_PIER = {"id": "good", "latitude": 51.5, "longitude": -0.12, "elevation_m": 30}
+_POINTS = [[0, 10], [90, 25], [180, 5]]
+
+
+def _pier_with_points(points: object) -> dict[str, object]:
+    return {**_GOOD_PIER, "id": "backyard", "horizon": {"points": points}}
+
+
+def _skipped_error(points: object, caplog: pytest.LogCaptureFixture) -> str:
+    """Validate a pier with ``points`` beside a valid pier; return its logged error."""
+    valid = validate_piers([_pier_with_points(points), _GOOD_PIER])
+
+    assert [pier.id for pier in valid] == ["good"]
+    [record] = caplog.records
+    assert "Skipping invalid pier 'backyard'" in record.getMessage()
+    return record.getMessage()
+
+
+def test_points_written_as_text_equal_the_same_list() -> None:
+    from_text, from_list = validate_piers(
+        [_pier_with_points("[[0, 10], [90, 25], [180, 5]]"), _pier_with_points(_POINTS)]
+    )
+
+    for azimuth in range(360):
+        assert from_text.horizon_mask.alt_at(azimuth) == from_list.horizon_mask.alt_at(azimuth)
+
+
+def test_unreadable_points_text_names_horizon_points_on_one_line(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    error = _skipped_error("[[0, 10], [90", caplog)
+
+    assert "horizon.points" in error
+    # The YAML reader's message spans several lines; the error keeps it on one.
+    assert any(
+        "while parsing a flow sequence" in line and "but got" in line for line in error.splitlines()
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["5", "{a: 1}", "", "   ", "# none"],
+    ids=["number", "mapping", "empty", "blank", "comment"],
+)
+def test_points_text_without_a_list_of_points_skips_the_pier(
+    caplog: pytest.LogCaptureFixture, text: str
+) -> None:
+    assert "horizon.points" in _skipped_error(text, caplog)
