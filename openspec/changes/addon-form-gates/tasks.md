@@ -17,7 +17,7 @@
 
 ## 3. The gate fields from the form, end to end
 
-- [ ] 3.1 Write tests in `tests/test_main.py` for `load_app_config`. Use a temporary `options.json` inside an add-on, and cover each scenario in the requirement "The form sets each pier's GO threshold and wind-gust limit":
+- [x] 3.1 Write tests in `tests/test_main.py` for `load_app_config`. Use a temporary `options.json` inside an add-on, and cover each scenario in the requirement "The form sets each pier's GO threshold and wind-gust limit":
   - empty fields (absent, `null`, blank text) give a checked pier with a `go_threshold` of 65 and no `max_gust`
   - `config.yaml` fills a `max_gust` saved as `null`, with no "set in both places" error
   - a `go_threshold` set on the form and in `config.yaml` stops the add-on, naming `go_threshold` and `backyard`
@@ -25,9 +25,9 @@
   - a bad value on the only pier stops the add-on with "No valid pier"
 
   Verify any that fail, and fix the code until they pass.
-- [ ] 3.2 Write a test that a form pier and a `config.yaml` pier get the same verdict, with `go_threshold` 75 and `max_gust` 40. Use a pinned instant and fixed conditions, following `tests/test_verdict_eval.py`. Verify both produce the same verdict JSON.
-- [ ] 3.3 Write a test that a form pier with `max_gust` 30 gets a `NO-GO` when the conditions hold a 45 km/h gust in the dark window and no other gate fails. Verify the score is null and `reasons[]` names the 30 km/h limit.
-- [ ] 3.4 Run `just check` and verify that it is green.
+- [x] 3.2 Write a test that a form pier and a `config.yaml` pier get the same verdict, with `go_threshold` 75 and `max_gust` 40. Use a pinned instant and fixed conditions, following `tests/test_verdict_eval.py`. Verify both produce the same verdict JSON.
+- [x] 3.3 Write a test that a form pier with `max_gust` 30 gets a `NO-GO` when the conditions hold a 45 km/h gust in the dark window and no other gate fails. Verify the score is null and `reasons[]` names the 30 km/h limit.
+- [x] 3.4 Run `just check` and verify that it is green.
 
 ## 4. Documentation
 
