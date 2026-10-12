@@ -196,16 +196,18 @@ def _with_equipment_block(pier: dict[str, Any]) -> dict[str, Any]:
 
     A field that :func:`is_set` counts as unset is left out: absent, ``None``,
     or empty or blank text (D3, addon-form-horizon-file D2). The block holds only the
-    fields that are set; the core rejects an incomplete one (D2). Raises
-    :class:`ValueError` when the pier also holds an ``equipment`` value, rather
-    than merging the two.
+    fields that are set; the core rejects an incomplete one (D2). When the pier
+    also holds a set ``equipment`` value, the set fields stay where they are, and
+    the core rejects each one by name (addon-options-core-validates D3).
     """
-    rebuilt = {key: value for key, value in pier.items() if key not in EQUIPMENT_FIELDS}
+    rebuilt = {
+        key: value for key, value in pier.items() if key not in EQUIPMENT_FIELDS or is_set(value)
+    }
+    if is_set(pier.get("equipment")):
+        return rebuilt
     equipment = {
-        key: pier[field] for field, key in EQUIPMENT_FIELDS.items() if is_set(pier.get(field))
+        key: rebuilt.pop(field) for field, key in EQUIPMENT_FIELDS.items() if field in rebuilt
     }
     if equipment:
-        if pier.get("equipment") is not None:
-            raise ValueError("equipment and the equipment_* fields cannot both be set")
         rebuilt["equipment"] = equipment
     return rebuilt

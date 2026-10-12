@@ -230,18 +230,6 @@ def test_null_equipment_fields_count_as_unset(tmp_path: Path) -> None:
     ]
 
 
-def test_an_equipment_block_beside_equipment_fields_skips_only_its_pier(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    # D1: the edge does not merge the two.
-    both = {**PIER, "equipment": {"focal_length_mm": 400}, "equipment_focal_length_mm": 400}
-    other = {**PIER, "id": "roof"}
-
-    assert _read_piers(tmp_path, [both, other]) == [other]
-    assert "Skipping invalid pier 'backyard'" in caplog.text
-    assert "equipment and the equipment_* fields cannot both be set" in caplog.text
-
-
 def test_an_equipment_mapping_keeps_the_set_equipment_fields(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
