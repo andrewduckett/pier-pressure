@@ -5,7 +5,7 @@
 
 ## 2. One "set" rule for the form
 
-- [ ] 2.1 Write failing tests in `tests/test_addon_options.py` (design D2):
+- [x] 2.1 Write failing tests in `tests/test_addon_options.py` (design D2):
   - `min_altitude` saved as empty or blank text counts as unset, so the pier gets no `horizon` block.
   - Each equipment field saved as empty or blank text counts as unset.
   - `min_altitude` of 0 still counts as set.
