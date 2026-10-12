@@ -4,7 +4,7 @@ Follows addon-options-form D1, D3; addon-form-horizon D1-D3;
 addon-form-equipment D1-D3; and addon-form-broker D2.
 
 When the user saves the form, the Supervisor writes its values to
-``/data/options.json``. :func:`read_addon_options` turns them into the mapping a
+``/data/options.json``. :func:`translate_form` turns them into the mapping a
 ``config.yaml`` with the same settings would hold, so the core validates a form
 pier exactly as it validates a file pier. The core never sees the form's names:
 a pier's flat ``min_altitude`` and ``horizon_points`` fields become the file's
@@ -78,16 +78,19 @@ def pier_settings(pier: dict[str, Any]) -> set[str]:
 def read_addon_options(path: str | os.PathLike[str] = OPTIONS_PATH) -> dict[str, Any] | None:
     """Read the saved form values at ``path`` as a config-shaped mapping.
 
-    Returns ``None`` when the form lists no piers, or when the file is missing:
-    the service then reads ``config.yaml`` (D3). Each pier's horizon fields
-    become its ``horizon`` block, and its equipment fields its ``equipment``
-    block; its other keys pass through unchanged, because they are the file's
-    keys. The ``mqtt`` block passes through without its empty fields, and is left
-    out when none is set (addon-form-broker D2). A pier whose ``horizon_points``
-    cannot be parsed, or that holds both an ``equipment`` block and equipment
-    fields, is logged and left out, so the list may end up empty. Raises
-    :class:`ConfigError`, naming the file, when it is not valid JSON, its root is
-    not a mapping, or its ``piers`` is not a list.
+    Returns ``None`` when the form lists no piers, or when the file is missing.
+    :func:`read_form_values` reads the file, and :func:`translate_form` builds the
+    mapping; both raise as they describe.
+    """
+    options = read_form_values(path)
+    return None if options is None else translate_form(options)
+
+
+def read_form_values(path: str | os.PathLike[str] = OPTIONS_PATH) -> dict[str, Any] | None:
+    """Read the raw saved form values at ``path``, or ``None`` when the file is missing.
+
+    Raises :class:`ConfigError`, naming the file, when it is not valid JSON, its
+    root is not a mapping, or its ``piers`` is not a list.
     """
     options_path = Path(path)
     try:
@@ -100,10 +103,23 @@ def read_addon_options(path: str | os.PathLike[str] = OPTIONS_PATH) -> dict[str,
         raise ConfigError(f"{options_path} is not valid JSON: {exc}") from exc
     if not isinstance(options, dict):
         raise ConfigError(f"{options_path} must hold a mapping of settings")
-
-    piers = options.get("piers", [])
-    if not isinstance(piers, list):
+    if not isinstance(options.get("piers", []), list):
         raise ConfigError(f"{options_path}: piers must be a list")
+    return options
+
+
+def translate_form(options: dict[str, Any]) -> dict[str, Any] | None:
+    """Turn raw saved form values into a config-shaped mapping.
+
+    Returns ``None`` when the form lists no piers. Each pier's horizon fields
+    become its ``horizon`` block, and its equipment fields its ``equipment``
+    block; its other keys pass through unchanged, because they are the file's
+    keys. The ``mqtt`` block passes through without its empty fields, and is left
+    out when none is set (addon-form-broker D2). A pier whose ``horizon_points``
+    cannot be parsed, or that holds both an ``equipment`` block and equipment
+    fields, is logged and left out, so the list may end up empty.
+    """
+    piers = options.get("piers", [])
     if not piers:
         return None
 
