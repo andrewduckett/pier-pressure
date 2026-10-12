@@ -17,7 +17,7 @@
 
 ## 3. Combining the form and the file
 
-- [ ] 3.1 Write failing tests in a new `tests/test_addon_settings.py` for the combine step, one per scenario of the requirement "The add-on combines the Configuration form with config.yaml" that does not need the service (design D1 to D3, D5):
+- [x] 3.1 Write failing tests in a new `tests/test_addon_settings.py` for the combine step, one per scenario of the requirement "The add-on combines the Configuration form with config.yaml" that does not need the service (design D1 to D3, D5):
   - The file adds a horizon file, `go_threshold`, `max_gust`, `explainer` and `mqtt.base_topic`, and file horizon points when the form sets none.
   - A file pier with only an `id` adds nothing.
   - Each conflict stops with an error that names the setting and the pier: horizon, horizon with a floor of 0, equipment, a plain pier key such as `latitude`, the broker connection, and the recompute interval.
