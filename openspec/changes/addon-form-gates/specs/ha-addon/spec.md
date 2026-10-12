@@ -112,9 +112,9 @@ pier without that setting:
 A field that is absent, saved as null, or saved as empty or blank text SHALL
 count as not set. A `go_threshold` of 0 SHALL count as set.
 
-A pier whose value fails these checks SHALL be skipped with a logged error that
-names the pier and the field. The other piers SHALL still be published. This
-covers a `go_threshold` below 0, above 100 or not a whole number, and a
+When a pier's value fails these checks, the service SHALL skip that pier and
+log an error that names the pier and the field. It SHALL still publish the other
+piers. This covers a `go_threshold` below 0, above 100 or not a whole number, and a
 `max_gust` of 0 or less. When every pier is skipped, the add-on SHALL stop with
 a configuration error, as it does for any setup with no valid pier.
 
@@ -141,16 +141,15 @@ a configuration error, as it does for any setup with no valid pier.
 - **WHEN** the saved form values list a pier with `go_threshold` and `max_gust`
   each absent, saved as null, or saved as blank text
 - **AND** `config.yaml` does not set them for that pier
-- **THEN** the pier gets a verdict
-- **AND** it uses a GO threshold of 65
-- **AND** it has no wind gate
+- **THEN** the pier passes the service's checks
+- **AND** its checked settings hold a `go_threshold` of 65 and no `max_gust`
 
 #### Scenario: config.yaml fills an empty field
 
 - **WHEN** the saved form values list the pier `backyard` with `max_gust` saved
   as null
 - **AND** `config.yaml` lists `backyard` with `max_gust` set to 40
-- **THEN** the pier's wind gate uses a gust limit of 40
+- **THEN** the pier's checked settings hold a `max_gust` of 40
 - **AND** the add-on does not report a setting given in both places
 
 #### Scenario: A value set in both places stops the add-on

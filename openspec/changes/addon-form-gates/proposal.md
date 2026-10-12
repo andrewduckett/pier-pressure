@@ -16,13 +16,13 @@ Story: #74 `addon-form-gates`, part of epic #67.
     the pier uses the default of 65.
   - `max_gust`: the wind-gust limit, in km/h. Without it, the pier has no wind
     gate, so no forecast gust can cause a `NO-GO`.
-- **The file's rules check the form's values.** The service passes both values
-  to the core unchanged. The core checks them exactly as it checks a
-  `config.yaml` pier. A pier whose value fails a check is skipped with a logged
-  error that names the pier. The other piers are still published.
-- **An empty field counts as not set.** A field the user clears is treated as
-  absent, not as an empty value. The pier then uses the default, or the value
-  `config.yaml` gives it. This rule covers only these two fields.
+- **The file's rules check the form's values.** The service passes a set value
+  to the core unchanged. The core checks it exactly as it checks a `config.yaml`
+  pier. When a value fails a check, the service skips that pier and logs an
+  error that names it. It still publishes the other piers.
+- **An empty field counts as not set.** The service leaves out a field the user
+  cleared before the core checks the pier. The pier then uses the default, or
+  the value `config.yaml` gives it. This rule covers only these two fields.
 - **A setting comes from one place.** When the form and `config.yaml` both set
   `go_threshold` or `max_gust` for the same pier, the add-on stops with a
   configuration error. This is the existing rule from story #73.
