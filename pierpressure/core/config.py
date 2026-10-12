@@ -114,6 +114,9 @@ class HorizonConfig(BaseModel):
             # The reader's message spans several lines; keep it to one.
             message = " ".join(str(exc).split())
             raise ValueError(f"is not valid YAML: {message}") from exc
+        except RecursionError as exc:
+            # The reader recurses once per level; one pier must not stop the rest.
+            raise ValueError("is nested too deeply to read") from exc
         if points is None:
             raise ValueError("text holds no list of points")
         return points

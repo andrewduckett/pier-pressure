@@ -279,10 +279,16 @@ def test_unreadable_points_text_names_horizon_points_on_one_line(
 
 @pytest.mark.parametrize(
     "text",
-    ["5", "{a: 1}", "", "   ", "# none"],
-    ids=["number", "mapping", "empty", "blank", "comment"],
+    ["5", "{a: 1}", "", "   ", "# none", "null", "~"],
+    ids=["number", "mapping", "empty", "blank", "comment", "null", "tilde"],
 )
 def test_points_text_without_a_list_of_points_skips_the_pier(
     caplog: pytest.LogCaptureFixture, text: str
 ) -> None:
     assert "horizon.points" in _skipped_error(text, caplog)
+
+
+def test_deeply_nested_points_text_skips_only_its_pier(caplog: pytest.LogCaptureFixture) -> None:
+    # The YAML reader recurses once per level; too deep a text must not stop the
+    # other piers (per-pier isolation).
+    assert "horizon.points" in _skipped_error("[" * 3000 + "]" * 3000, caplog)
