@@ -65,28 +65,36 @@ for: `amd64` for `linux/amd64` and `aarch64` for `linux/arm64`.
 
 ### Requirement: The add-on reads config from its own config folder
 
-When the Configuration form lists no piers, the add-on SHALL run the service with
-the config file `config.yaml` in the add-on's own config folder. The requirement
-"The add-on reads the Configuration form before the config file" describes when
-the form is used instead. In Home Assistant, the user finds that folder as
-`/addon_configs/<repository-id>_pierpressure`. The file SHALL have the same format
-as outside Home Assistant. Inside the add-on, the file MAY leave out the MQTT
+Inside an add-on, the service SHALL read `config.yaml` from the add-on's own
+config folder when that file exists. The file adds settings to the Configuration
+form, as the requirement "The add-on combines the Configuration form with
+config.yaml" describes. In Home Assistant, the user finds that folder as
+`/addon_configs/<repository-id>_pierpressure`.
+
+The file SHALL use the same keys and values as outside Home Assistant. Inside the
+add-on, it holds only the settings the form leaves unset. So each of its piers
+needs only an `id` and the settings it adds. The file MAY leave out the MQTT
 broker's connection settings, as the requirement "The add-on uses the
-Supervisor's MQTT broker when the file names none" describes.
+Supervisor's MQTT broker when the settings name none" describes.
+
+The file is optional. When the form lists a pier and the file does not exist, the
+add-on SHALL start with the form's settings only.
 
 #### Scenario: Config file present
 
-- **WHEN** the form lists no piers
-- **AND** the user has written a valid `config.yaml` in the add-on's config
-  folder and starts the add-on
-- **THEN** the service loads that file and publishes a verdict for each pier
+- **WHEN** the form lists the pier `backyard`
+- **AND** the user has written a `config.yaml` in the add-on's config folder that
+  sets `go_threshold` to 75 for `backyard`
+- **AND** the user starts the add-on
+- **THEN** the service publishes a verdict for `backyard` with a GO threshold of
+  75
 
 #### Scenario: Config file missing
 
-- **WHEN** the form lists no piers
-- **AND** the user starts the add-on before writing `config.yaml`
-- **THEN** the add-on stops
-- **AND** its log contains a configuration error that names the missing file
+- **WHEN** the form lists a pier
+- **AND** the add-on's config folder holds no `config.yaml`
+- **THEN** the add-on starts
+- **AND** it publishes a verdict for that pier
 
 #### Scenario: Add-on config mounts the folder
 
@@ -174,111 +182,6 @@ none.
 - **AND** it gives a name and a description for `mqtt` and each of its four
   fields
 
-### Requirement: The add-on reads the Configuration form before the config file
-
-Inside an add-on, the service SHALL read the values the user saved on the
-Configuration form at startup. The rule for which source it uses is:
-
-- When the form lists at least one pier, the service SHALL take the interval,
-  the piers and the broker from the form only. It SHALL NOT read settings from
-  `config.yaml`.
-- When the form lists no piers, the service SHALL read `config.yaml` as the
-  requirement "The add-on reads config from its own config folder" describes. It
-  SHALL ignore the form's interval and broker.
-
-When the service uses the form, it SHALL choose the broker as the requirement
-"The form sets the broker" describes. The discovery prefix and base topic SHALL
-take their defaults.
-
-When the service uses the form and stops with an error about the Supervisor's
-broker, the error SHALL say that `config.yaml` is not read while the form lists
-piers. It SHALL tell the user to set the broker on the Configuration tab. It
-SHALL NOT name `config.yaml` as the place to set the broker. This covers the "no
-MQTT broker was found", "access refused", TLS, MQTT version and rejected-login
-errors.
-
-The service SHALL check each pier from the form exactly as it checks a pier from
-`config.yaml`. A pier that fails the check SHALL be skipped with a logged error,
-and the other piers SHALL still be published.
-
-When the service uses the form and `config.yaml` also exists, the service SHALL
-log a warning that names the ignored file. It SHALL then start as usual.
-
-When the form lists no piers and `config.yaml` is missing, the add-on SHALL stop.
-Its configuration error SHALL name the missing file, and SHALL tell the user to
-add a pier on the Configuration tab.
-
-Outside an add-on, the service SHALL NOT read the form's values, and SHALL behave
-as it did before this change.
-
-#### Scenario: Form setup gives a verdict without a file
-
-- **WHEN** the user saves an interval and one pier on the Configuration tab
-- **AND** the form sets no broker host
-- **AND** the add-on's config folder holds no `config.yaml`
-- **AND** the Supervisor provides an `mqtt` service
-- **THEN** the service connects to the Supervisor's broker
-- **AND** it publishes a verdict for that pier under the default discovery prefix
-  and base topic
-- **AND** it recomputes at the interval from the form
-
-#### Scenario: An empty form falls back to the file
-
-- **WHEN** the form lists no piers
-- **AND** the add-on's config folder holds a valid `config.yaml`
-- **THEN** the service loads that file and publishes a verdict for each of its
-  piers
-
-#### Scenario: An empty form's broker is not used
-
-- **WHEN** the form lists no piers and sets `mqtt.host` to `broker.lan`
-- **AND** the add-on's config folder holds a valid `config.yaml` with no
-  `mqtt.host`
-- **AND** the Supervisor provides an `mqtt` service
-- **THEN** the service connects to the Supervisor's broker, not to `broker.lan`
-
-#### Scenario: The form wins over an existing file
-
-- **WHEN** the form lists the pier `backyard`
-- **AND** the add-on's config folder holds a `config.yaml` that lists the pier
-  `roof`
-- **THEN** the service publishes a verdict for `backyard` only
-- **AND** its log contains a warning that names `/config/config.yaml` as ignored
-
-#### Scenario: A bad pier in the saved form values is skipped
-
-- **WHEN** the saved form values list two piers, and one has a latitude of 95
-- **THEN** the service logs an error that names the skipped pier
-- **AND** it publishes a verdict for the other pier
-
-The Supervisor normally refuses to save such a value. The service still checks
-each pier, because it does not rely on the Supervisor's check.
-
-#### Scenario: A form user's broker error does not point only to the file
-
-- **WHEN** the form lists a pier and sets no broker host
-- **AND** the Supervisor provides no `mqtt` service within the wait
-- **THEN** the add-on stops
-- **AND** its log says no MQTT broker was found
-- **AND** it says `config.yaml` is not read while the form lists piers
-- **AND** it tells the user to set `mqtt.host` on the Configuration tab
-- **AND** it does not name `config.yaml` as the place to set `mqtt.host`
-
-#### Scenario: Nothing is set up
-
-- **WHEN** the form lists no piers
-- **AND** the add-on's config folder holds no `config.yaml`
-- **THEN** the add-on stops
-- **AND** its log contains a configuration error that names
-  `/config/config.yaml` and tells the user to add a pier on the Configuration
-  tab
-
-#### Scenario: Outside an add-on, the form is not read
-
-- **WHEN** the service runs outside an add-on
-- **THEN** it does not read the form's values
-- **AND** it loads `config.yaml` exactly as before this change
-
 ### Requirement: The form sets each pier's horizon
 
 The service SHALL turn a form pier's horizon fields into that pier's horizon:
@@ -289,7 +192,10 @@ The service SHALL turn a form pier's horizon fields into that pier's horizon:
   parser it uses for `config.yaml`. The result SHALL be the pier's inline
   horizon points. The service SHALL then check them exactly as it checks a
   file's `horizon.points`.
-- When neither is set, the pier's horizon SHALL be flat at 0 degrees.
+- When neither is set, the pier's horizon SHALL come from `config.yaml`, as the
+  requirement "The add-on combines the Configuration form with config.yaml"
+  describes. When the file gives the pier no horizon either, the pier's horizon
+  SHALL be flat at 0 degrees.
 
 The service SHALL treat empty or blank `horizon_points` text as unset.
 
@@ -323,6 +229,7 @@ it does for any setup with no valid pier.
 #### Scenario: No horizon fields means open sky
 
 - **WHEN** the form lists a pier with neither horizon field set
+- **AND** `config.yaml` gives that pier no horizon
 - **THEN** the pier's horizon altitude is 0 degrees at every azimuth
 
 #### Scenario: Blank horizon points are ignored
@@ -379,8 +286,11 @@ equipment:
 - When at least one equipment field is set, the service SHALL build the pier's
   equipment from the fields that are set. It SHALL then check the equipment
   exactly as it checks a file's `equipment` block.
-- When no equipment field is set, the pier SHALL have no equipment. It SHALL
-  rank targets without a field-of-view term.
+- When no equipment field is set, the pier's equipment SHALL come from
+  `config.yaml`, as the requirement "The add-on combines the Configuration form
+  with config.yaml" describes. When the file gives the pier no equipment either,
+  the pier SHALL have no equipment. It SHALL rank targets without a
+  field-of-view term.
 
 When `equipment_reducer` is not set, the reducer SHALL be 1.0, as in the file.
 
@@ -415,14 +325,16 @@ it does for any setup with no valid pier.
 #### Scenario: No equipment fields means no equipment
 
 - **WHEN** the form lists a pier with no equipment field set
+- **AND** `config.yaml` gives that pier no equipment
 - **THEN** the pier has no equipment
 - **AND** no field-of-view term contributes to any of its targets' scores
 
 #### Scenario: Equipment from the form ranks like file equipment
 
-- **WHEN** the form lists a pier with all four equipment fields set
-- **AND** a `config.yaml` pier has the same id, location, elevation and horizon,
-  and the same four values in its `equipment` block
+- **WHEN** an add-on's form lists a pier with all four equipment fields set
+- **AND** a separate `config.yaml`, used outside an add-on, lists a pier with the
+  same id, location, elevation and horizon, and the same four values in its
+  `equipment` block
 - **AND** the top pick at the chosen evaluation instant has a known catalog size
 - **THEN** at that instant and with the same conditions, both piers get the same
   verdict document
@@ -487,37 +399,39 @@ not rely on the Supervisor's check.
 ### Requirement: The add-on behaves like the container
 
 The add-on SHALL publish the same entities, topics and verdict documents as the
-same image run with Docker and the same config file. It SHALL NOT add, remove or
+same image run with Docker and the same settings. It SHALL NOT add, remove or
 rename any entity or topic.
 
 #### Scenario: Same entities as a Docker install
 
-- **WHEN** a user runs the add-on with a config file that works under Docker
+- **WHEN** a user sets up the add-on with the settings of a working Docker
+  install, split between the Configuration tab and `config.yaml`
 - **THEN** Home Assistant shows the same PierPressure device and entities as it
   does for the Docker install
 
-### Requirement: The add-on uses the Supervisor's MQTT broker when the file names none
+### Requirement: The add-on uses the Supervisor's MQTT broker when the settings name none
 
 The add-on SHALL ask Home Assistant's Supervisor for the `mqtt` service, as a
 service it wants but does not need. So the add-on SHALL install and start when no
 other add-on provides the service.
 
-This requirement applies when the service uses settings from `config.yaml`. When
-the service uses the Configuration form, the requirement "The form sets the
-broker" applies instead.
+The connection settings are the broker's host, port, username and password.
+Inside the add-on, the service SHALL take all four from one source:
 
-The connection settings are the broker's host, port, username and password. The
-service SHALL take all four from one source:
-
+- When the form sets `mqtt.host`, all four SHALL come from the form, as the
+  requirement "The form sets the broker" describes.
 - When `config.yaml` sets `mqtt.host`, all four SHALL come from the file. The
   service SHALL NOT ask the Supervisor for the broker.
-- When `config.yaml` does not set `mqtt.host`, all four SHALL come from the
-  Supervisor's `mqtt` service.
+- When neither the form nor `config.yaml` sets `mqtt.host`, all four SHALL come
+  from the Supervisor's `mqtt` service.
 
-`mqtt.discovery_prefix` and `mqtt.base_topic` SHALL always come from the file, or
-from their defaults. A file that sets `mqtt.port`, `mqtt.username` or
-`mqtt.password` without `mqtt.host` SHALL be rejected with a configuration error
-that says to set `mqtt.host` too.
+The form and the file cannot both set connection settings, as the requirement
+"The add-on combines the Configuration form with config.yaml" describes.
+
+`mqtt.discovery_prefix` and `mqtt.base_topic` SHALL always come from
+`config.yaml`, or from their defaults. A file that sets `mqtt.port`,
+`mqtt.username` or `mqtt.password` without `mqtt.host` SHALL be rejected with a
+configuration error that says to set `mqtt.host` too.
 
 The service SHALL ask the Supervisor only when it runs inside an add-on. Outside an
 add-on, `mqtt.host` SHALL stay required, and the service SHALL behave as it did
@@ -530,7 +444,9 @@ environment names one.
 #### Scenario: Mosquitto user leaves out the broker settings
 
 - **WHEN** the Mosquitto add-on provides the `mqtt` service
-- **AND** the user's `config.yaml` has no `mqtt:` block
+- **AND** the form lists a pier and sets no broker field
+- **AND** the add-on's config folder holds no `config.yaml`, or one with no
+  `mqtt:` block
 - **THEN** the service connects to the broker host and port the Supervisor gave
 - **AND** it logs in with the username and password the Supervisor gave
 - **AND** it publishes under the default discovery prefix and base topic
@@ -538,6 +454,7 @@ environment names one.
 #### Scenario: The file's broker wins
 
 - **WHEN** the Supervisor provides an `mqtt` service
+- **AND** the form lists a pier and sets no broker field
 - **AND** the user's `config.yaml` sets `mqtt.host`
 - **THEN** the service connects with the host, port, username and password from
   the file
@@ -546,13 +463,15 @@ environment names one.
 #### Scenario: The file sets only its topics
 
 - **WHEN** the Supervisor provides an `mqtt` service
+- **AND** the form lists a pier and sets no broker field
 - **AND** the user's `config.yaml` sets `mqtt.base_topic` but not `mqtt.host`
 - **THEN** the service connects with the Supervisor's connection settings
 - **AND** it publishes under the file's base topic
 
 #### Scenario: Credentials without a host are rejected
 
-- **WHEN** the user's `config.yaml` sets `mqtt.username` but not `mqtt.host`
+- **WHEN** the form lists a pier and sets no broker field
+- **AND** the user's `config.yaml` sets `mqtt.username` but not `mqtt.host`
 - **THEN** the add-on stops
 - **AND** its log contains a configuration error that says to set `mqtt.host`
 
@@ -599,17 +518,16 @@ These cases count as "not provided yet":
 - The response has no usable host and port.
 
 If no request started within those 60 seconds returns usable details, the add-on
-SHALL stop with an error. The
-error SHALL say that no MQTT broker was found. It SHALL tell the user to install
-the Mosquitto broker add-on, or to set `mqtt.host` where the settings come from.
+SHALL stop with an error. The error SHALL say that no MQTT broker was found. It
+SHALL tell the user to install the Mosquitto broker add-on, or to set `mqtt.host`
+on the Configuration tab or in `config.yaml`.
 
 If the Supervisor refuses the add-on access to the service, the add-on SHALL stop
 at once, without waiting. Its error SHALL say that the Supervisor refused access
-to the `mqtt` service. It SHALL tell the user to set `mqtt.host` where the
-settings come from, and to report the problem.
+to the `mqtt` service. It SHALL tell the user to set `mqtt.host` on the
+Configuration tab or in `config.yaml`, and to report the problem.
 
-"Where the settings come from" is `config.yaml` when the service uses the file,
-and the Configuration tab when it uses the form.
+Neither error SHALL say that `config.yaml` is not read.
 
 #### Scenario: Mosquitto is still starting
 
@@ -622,12 +540,14 @@ and the Configuration tab when it uses the form.
 
 #### Scenario: No broker add-on is installed
 
-- **WHEN** the user's `config.yaml` has no `mqtt.host`
+- **WHEN** neither the form nor `config.yaml` sets `mqtt.host`
 - **AND** no request started within 60 seconds of the first returns usable broker
   details
 - **THEN** the add-on stops
-- **AND** its log says no MQTT broker was found, and tells the user to install the
-  Mosquitto broker add-on or to set `mqtt.host`
+- **AND** its log says no MQTT broker was found
+- **AND** it tells the user to install the Mosquitto broker add-on, or to set
+  `mqtt.host` on the Configuration tab or in `config.yaml`
+- **AND** it does not say that `config.yaml` is not read
 
 #### Scenario: The wait ends on time
 
@@ -638,38 +558,41 @@ and the Configuration tab when it uses the form.
 
 #### Scenario: The Supervisor refuses access
 
-- **WHEN** the user's `config.yaml` has no `mqtt.host`
+- **WHEN** neither the form nor `config.yaml` sets `mqtt.host`
 - **AND** the Supervisor refuses the add-on access to the `mqtt` service
 - **THEN** the add-on stops at once, without waiting
-- **AND** its log says the Supervisor refused access to the `mqtt` service, and
-  tells the user to set `mqtt.host` and to report the problem
+- **AND** its log says the Supervisor refused access to the `mqtt` service
+- **AND** it tells the user to set `mqtt.host` on the Configuration tab or in
+  `config.yaml`, and to report the problem
 
 ### Requirement: The add-on refuses a Supervisor broker that requires TLS
 
 PierPressure does not support TLS connections. If the Supervisor's `mqtt` service
 says its broker requires TLS, the add-on SHALL stop with an error. The error SHALL
-say that the broker requires TLS, which PierPressure does not support. It SHALL tell
-the user to set `mqtt.host` and `mqtt.port` to a broker listener that accepts
-connections without TLS. It SHALL name `config.yaml` when the service uses the
-file, and the Configuration tab when it uses the form. The service SHALL NOT connect to that broker
-without TLS.
+say that the broker requires TLS, which PierPressure does not support. It SHALL
+tell the user to set `mqtt.host` and `mqtt.port` to a broker listener that accepts
+connections without TLS, on the Configuration tab or in `config.yaml`. The service
+SHALL NOT connect to that broker without TLS.
 
 #### Scenario: The Supervisor's broker requires TLS
 
-- **WHEN** the user's `config.yaml` has no `mqtt.host`
+- **WHEN** neither the form nor `config.yaml` sets `mqtt.host`
 - **AND** the Supervisor's `mqtt` service says its broker requires TLS
 - **THEN** the add-on stops without connecting to the broker
 - **AND** its log says the broker requires TLS, which PierPressure does not
-  support, and tells the user to set a broker listener without TLS in
-  `config.yaml`
+  support
+- **AND** it tells the user to set a broker listener without TLS on the
+  Configuration tab or in `config.yaml`
 
 #### Scenario: A form user's TLS error names the Configuration tab
 
 - **WHEN** the form lists a pier and sets no `mqtt.host`
+- **AND** `config.yaml` sets no `mqtt.host`
 - **AND** the Supervisor's `mqtt` service says its broker requires TLS
 - **THEN** the add-on stops without connecting to the broker
-- **AND** its log tells the user to set a broker listener without TLS on the
-  Configuration tab, and does not name `config.yaml` as the place to set it
+- **AND** its log names the Configuration tab as a place to set the broker
+  listener
+- **AND** it does not say that `config.yaml` is not read
 
 ### Requirement: The add-on refuses a Supervisor broker that needs another MQTT version
 
@@ -677,27 +600,28 @@ PierPressure speaks MQTT version 3.1.1. If the Supervisor's `mqtt` service names
 any other protocol version, the add-on SHALL stop with an error. The error SHALL
 name the version the broker asked for, and say that PierPressure supports only
 3.1.1. It SHALL tell the user to set `mqtt.host` and `mqtt.port` to a broker that
-accepts 3.1.1. It SHALL name `config.yaml` when the service uses the file, and
-the Configuration tab when it uses the form. A response that names no protocol SHALL count as
-3.1.1, which is the Supervisor's default.
+accepts 3.1.1, on the Configuration tab or in `config.yaml`. A response that names
+no protocol SHALL count as 3.1.1, which is the Supervisor's default.
 
 #### Scenario: The Supervisor's broker asks for MQTT 3.1
 
-- **WHEN** the user's `config.yaml` has no `mqtt.host`
+- **WHEN** neither the form nor `config.yaml` sets `mqtt.host`
 - **AND** the Supervisor's `mqtt` service names protocol `3.1`
 - **THEN** the add-on stops without connecting to the broker
 - **AND** its log names protocol `3.1`, and says PierPressure supports only 3.1.1
+- **AND** it tells the user to set `mqtt.host` on the Configuration tab or in
+  `config.yaml`
 
 ### Requirement: The form sets the broker
 
-When the service uses the form, it SHALL take the broker's four connection
-settings from one source, as it does for `config.yaml`:
+Inside an add-on, the form's broker fields SHALL work as follows:
 
 - When the form sets `mqtt.host`, the host, port, username and password SHALL
   all come from the form. The service SHALL NOT ask the Supervisor for the
   broker. A port the form does not set SHALL be 1883.
-- When the form does not set `mqtt.host`, all four SHALL come from the
-  Supervisor's `mqtt` service.
+- When the form does not set `mqtt.host`, the requirement "The add-on uses the
+  Supervisor's MQTT broker when the settings name none" decides where all four
+  come from.
 
 A form field that is empty or blank SHALL count as not set. A form that sets
 `mqtt.port`, `mqtt.username` or `mqtt.password` without `mqtt.host` SHALL be
@@ -760,3 +684,293 @@ even when the user enters the same text as the host and the password.
   `mqtt.password` to `pw-8c41f2`
 - **AND** the broker rejects the login
 - **THEN** no log line or error message contains `pw-8c41f2`
+
+### Requirement: The add-on combines the Configuration form with config.yaml
+
+Inside an add-on, the service SHALL read the values the user saved on the
+Configuration form at startup. The form SHALL list at least one pier. The service
+SHALL also read `config.yaml` from the add-on's config folder when that file
+exists. The file MAY add any setting the form leaves unset. The service SHALL
+build one set of settings from the two sources. It SHALL then check those
+settings exactly as it checks a `config.yaml` on its own.
+
+A form field that is absent, saved as null, or saved as empty or blank text SHALL
+count as not set. This rule SHALL hold for number fields too. A value of 0 SHALL
+count as set. The form always sets `interval_seconds`.
+
+A file pier SHALL add its settings to the form pier with the same `id`. A pier's
+`id` only matches the two sources. It SHALL NOT count as a setting, and the
+combined pier SHALL keep the form's `id`.
+
+Each setting SHALL come from the form or from the file, never from both. Each of
+these groups SHALL count as one setting:
+
+- a pier's horizon: the form's `min_altitude` or `horizon_points`, or the file's
+  `horizon` block.
+- a pier's equipment: any of the form's four equipment fields, or the file's
+  `equipment` block.
+- the broker connection: any of `mqtt.host`, `mqtt.port`, `mqtt.username` and
+  `mqtt.password`.
+- the recompute interval: the form's `interval_seconds`, or the file's
+  `recompute` block.
+
+Every other setting, such as a pier's `go_threshold` or `mqtt.base_topic`, SHALL
+count as a setting of its own.
+
+The add-on SHALL stop with a configuration error in each of these cases:
+
+- A setting is given in both sources. The error SHALL name the setting, and the
+  pier when it is a pier's setting. It SHALL NOT contain the setting's value.
+- The file lists a pier `id` that the form does not list. The error SHALL name
+  the `id`. A pier the form lists SHALL count as listed, even when the service
+  skips it as invalid.
+- The file lists the same pier `id` more than once. The error SHALL name the
+  `id`.
+- A pier in the file is not a mapping, or its `id` is missing or is not text.
+  The error SHALL name the entry's position in the file's `piers` list.
+- The file's `piers` is not a list.
+- The file is not valid YAML, or its root is not a mapping. The error SHALL name
+  the file. For a YAML mistake, it SHALL also name the line and column, and
+  SHALL hold no other detail from the YAML parser.
+
+The error SHALL list every such problem it finds, not only the first. No error
+SHALL quote the content of `config.yaml` or the value of any setting. An `id` or
+key name in an error SHALL be shown with any line break or other control
+character escaped, so the error stays on one line.
+
+A relative horizon `file` path in `config.yaml` SHALL be read from the add-on's
+config folder.
+
+The service SHALL check each pier after the file's settings are added to it. A
+pier that fails the check SHALL be skipped with a logged error, and the other
+piers SHALL still be published.
+
+When the form lists no piers, the add-on SHALL stop with a configuration error.
+The error SHALL say that nothing is set up, and SHALL tell the user to add a pier
+on the Configuration tab. When `config.yaml` lists piers, the error SHALL also
+name them. It SHALL say that `config.yaml` cannot list piers on its own. It SHALL
+tell the user to add each of those piers on the Configuration tab with the same
+`id`, and to keep only the extra settings in `config.yaml`.
+
+When the file adds at least one setting, the log SHALL say that the settings came
+from the Configuration tab and `config.yaml`. Otherwise, it SHALL say that they
+came from the Configuration tab.
+
+Outside an add-on, the service SHALL NOT read the form's values. It SHALL load
+`config.yaml` on its own, as it did before this change.
+
+#### Scenario: Form setup gives a verdict without a file
+
+- **WHEN** the user saves an interval and one pier on the Configuration tab
+- **AND** the form sets no broker field
+- **AND** the add-on's config folder holds no `config.yaml`
+- **AND** the Supervisor provides an `mqtt` service
+- **THEN** the service connects to the Supervisor's broker
+- **AND** it publishes a verdict for that pier under the default discovery prefix
+  and base topic
+- **AND** it recomputes at the interval from the form
+- **AND** its log says the settings came from the Configuration tab
+
+#### Scenario: A form pier takes its horizon file from config.yaml
+
+- **WHEN** the form lists the pier `backyard` with no horizon field set
+- **AND** `config.yaml` lists the pier `backyard` with a `horizon` block whose
+  `file` is `backyard.hrz` and whose `format` is `nina`
+- **AND** `backyard.hrz` is a valid NINA horizon file in the add-on's config
+  folder
+- **THEN** the pier's horizon equals the horizon read from `backyard.hrz`
+- **AND** the service publishes a verdict for `backyard`
+- **AND** its log says the settings came from the Configuration tab and
+  `config.yaml`
+
+#### Scenario: The file adds pier settings the form does not show
+
+- **WHEN** the form lists the pier `backyard`
+- **AND** `config.yaml` lists the pier `backyard` with `go_threshold` set to 75
+  and `max_gust` set to 40
+- **THEN** the pier's GO threshold is 75
+- **AND** the pier's wind gate uses a gust limit of 40
+
+#### Scenario: The file adds the topic names
+
+- **WHEN** the form lists a pier
+- **AND** `config.yaml` sets `mqtt.base_topic` to `observatory` and sets no other
+  `mqtt` field
+- **THEN** the service publishes under the base topic `observatory`
+
+#### Scenario: A file pier with only an id adds nothing
+
+- **WHEN** the form lists the pier `backyard`
+- **AND** `config.yaml` lists the pier `backyard` with no other key
+- **THEN** the add-on starts, and reports no conflict for `id`
+- **AND** the service publishes a verdict for `backyard`
+- **AND** its log says the settings came from the Configuration tab
+
+#### Scenario: Blank number fields count as not set
+
+- **WHEN** the saved form values list the pier `backyard` with `min_altitude`
+  saved as empty text, and each equipment field saved as blank text
+- **AND** `config.yaml` gives `backyard` no horizon and no equipment
+- **THEN** the pier's horizon altitude is 0 degrees at every azimuth
+- **AND** the pier has no equipment
+- **AND** the service publishes a verdict for `backyard`
+
+#### Scenario: A horizon floor of 0 counts as set
+
+- **WHEN** the form lists the pier `backyard` with `min_altitude` set to 0
+- **AND** `config.yaml` gives `backyard` a `horizon` block
+- **THEN** the add-on stops
+- **AND** its configuration error names `horizon` and `backyard`
+
+#### Scenario: A file pier id that is not text stops the add-on
+
+- **WHEN** the form lists the pier `backyard`
+- **AND** the first pier in `config.yaml` has an `id` that is null, a number, a
+  list or a mapping
+- **THEN** the add-on stops
+- **AND** its configuration error names the first entry of the file's `piers`
+  list
+
+This holds for each of the four kinds of value.
+
+#### Scenario: A YAML error does not quote the file
+
+- **WHEN** the form lists a pier
+- **AND** line 3 of `config.yaml` is `  password: [pw-8c41f2` or
+  `  password: *pw-8c41f2`, either of which is not valid YAML
+- **THEN** the add-on stops
+- **AND** its configuration error names `/config/config.yaml` and line 3
+- **AND** no log line or error message contains `pw-8c41f2`
+
+This holds for both lines.
+
+#### Scenario: A control character in an id stays escaped
+
+- **WHEN** the form lists the pier `backyard`
+- **AND** `config.yaml` lists a pier whose `id` holds a line break
+- **THEN** the add-on stops with one configuration error
+- **AND** that error is a single line, with the line break shown escaped
+
+#### Scenario: Horizon points from the file are used
+
+- **WHEN** the form lists the pier `backyard` with no horizon field set
+- **AND** `config.yaml` lists the pier `backyard` with `horizon.points` set to
+  `[[0, 10], [180, 20]]`
+- **THEN** the pier's horizon equals the horizon of those two points
+
+#### Scenario: A horizon in both stops the add-on
+
+- **WHEN** the form lists the pier `backyard` with `min_altitude` set to 10
+- **AND** `config.yaml` gives the pier `backyard` a `horizon` block
+- **THEN** the add-on stops
+- **AND** its configuration error names `horizon` and `backyard`
+
+#### Scenario: Equipment in both stops the add-on
+
+- **WHEN** the form lists the pier `backyard` with `equipment_focal_length_mm`
+  set
+- **AND** `config.yaml` gives the pier `backyard` an `equipment` block
+- **THEN** the add-on stops
+- **AND** its configuration error names `equipment` and `backyard`
+
+#### Scenario: A pier key in both stops the add-on
+
+- **WHEN** the form lists the pier `backyard`
+- **AND** `config.yaml` sets `latitude` for the pier `backyard`
+- **THEN** the add-on stops
+- **AND** its configuration error names `latitude` and `backyard`
+
+#### Scenario: A broker connection split across both stops the add-on
+
+- **WHEN** the form lists a pier and sets `mqtt.host` to `broker.lan`
+- **AND** `config.yaml` sets `mqtt.password` to `pw-8c41f2`
+- **THEN** the add-on stops without connecting to a broker
+- **AND** its configuration error names the broker connection
+- **AND** no log line or error message contains `pw-8c41f2`
+
+#### Scenario: An interval in the file stops the add-on
+
+- **WHEN** the form lists a pier
+- **AND** `config.yaml` sets `recompute.interval_seconds` to 600
+- **THEN** the add-on stops
+- **AND** its configuration error names the recompute interval
+
+#### Scenario: A file pier the form does not list stops the add-on
+
+- **WHEN** the form lists the pier `backyard`
+- **AND** `config.yaml` lists the pier `roof`
+- **THEN** the add-on stops
+- **AND** its configuration error names `roof`
+
+#### Scenario: A skipped form pier still counts as listed
+
+- **WHEN** the form lists the piers `backyard` and `roof`
+- **AND** the `horizon_points` of `backyard` cannot be read
+- **AND** `config.yaml` lists the pier `backyard` with `go_threshold` set
+- **THEN** the service logs an error that names `backyard` and `horizon_points`
+- **AND** no error says that `backyard` is not on the Configuration tab
+- **AND** the service publishes a verdict for `roof`
+
+#### Scenario: A pier listed twice in the file stops the add-on
+
+- **WHEN** the form lists the pier `backyard`
+- **AND** `config.yaml` lists the pier `backyard` twice
+- **THEN** the add-on stops
+- **AND** its configuration error names `backyard`
+
+#### Scenario: One error lists every problem
+
+- **WHEN** the form lists the pier `backyard` with `min_altitude` set
+- **AND** `config.yaml` gives `backyard` a `horizon` block, and lists the pier
+  `roof`
+- **THEN** the add-on stops with one configuration error
+- **AND** that error names the `horizon` of `backyard`, and names `roof`
+
+#### Scenario: An unreadable horizon file skips only its pier
+
+- **WHEN** the form lists the piers `backyard` and `roof`
+- **AND** `config.yaml` gives `backyard` a horizon `file` that does not exist in
+  the add-on's config folder
+- **THEN** the service logs an error that names `backyard`
+- **AND** it publishes a verdict for `roof`
+
+#### Scenario: A config.yaml that is not valid YAML stops the add-on
+
+- **WHEN** the form lists a pier
+- **AND** `config.yaml` is not valid YAML
+- **THEN** the add-on stops
+- **AND** its configuration error names `/config/config.yaml`
+
+#### Scenario: Nothing is set up
+
+- **WHEN** the form lists no piers
+- **AND** the add-on's config folder holds no `config.yaml`
+- **THEN** the add-on stops
+- **AND** its configuration error says that nothing is set up, and tells the user
+  to add a pier on the Configuration tab
+
+#### Scenario: An empty form names the file's piers
+
+- **WHEN** the form lists no piers
+- **AND** `config.yaml` lists the piers `roof` and `shed`
+- **THEN** the add-on stops without publishing a verdict
+- **AND** its configuration error says that nothing is set up, and names `roof`
+  and `shed`
+- **AND** it says that `config.yaml` cannot list piers on its own
+- **AND** it tells the user to add each pier on the Configuration tab with the
+  same `id`, and to keep only the extra settings in `config.yaml`
+
+#### Scenario: A bad pier in the saved form values is skipped
+
+- **WHEN** the saved form values list two piers, and one has a latitude of 95
+- **THEN** the service logs an error that names the skipped pier
+- **AND** it publishes a verdict for the other pier
+
+The Supervisor normally refuses to save such a value. The service still checks
+each pier, because it does not rely on the Supervisor's check.
+
+#### Scenario: Outside an add-on, the form is not read
+
+- **WHEN** the service runs outside an add-on
+- **THEN** it does not read the form's values
+- **AND** it loads `config.yaml` on its own, exactly as before this change
