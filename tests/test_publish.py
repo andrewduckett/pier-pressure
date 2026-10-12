@@ -184,3 +184,13 @@ def test_refusals_in_a_row_log_one_warning_until_a_publish_succeeds(
 
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
     assert len(warnings) == 2
+
+
+def test_connect_logs_in_with_the_plain_password() -> None:
+    """config-secrets-hidden-in-errors D4: the masked password is read only to log in."""
+    client = FakeMqttClient()
+    delivery = MqttDelivery(make_mqtt_config(username="pp", password=PASSWORD), client=client)
+
+    delivery.connect()
+
+    assert client.credentials == ("pp", PASSWORD)

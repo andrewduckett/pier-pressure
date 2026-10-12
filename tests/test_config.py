@@ -7,7 +7,7 @@ import traceback
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 
 from pierpressure.core.config import (
     DEFAULT_GO_THRESHOLD,
@@ -54,7 +54,7 @@ def test_valid_single_pier_config_is_accepted(tmp_path: Path) -> None:
 def test_env_override_expands_password(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PIERPRESSURE_MQTT_PASSWORD", "s3cr3t")
     config = load_config(_write(tmp_path, VALID_CONFIG))
-    assert config.mqtt.password == "s3cr3t"
+    assert config.mqtt.password == SecretStr("s3cr3t")
 
 
 def test_missing_field_is_rejected_and_yields_no_verdict(tmp_path: Path) -> None:
@@ -234,7 +234,7 @@ def test_build_config_ignores_the_broker_when_the_file_names_a_host(
         "192.168.1.10",
         1883,
         "pierpressure",
-        "file-secret",
+        SecretStr("file-secret"),
     )
 
 
@@ -246,7 +246,7 @@ def test_build_config_takes_the_connection_from_the_broker(tmp_path: Path) -> No
         "core-mosquitto",
         1883,
         "addons",
-        "supervisor-secret",
+        SecretStr("supervisor-secret"),
     )
 
 

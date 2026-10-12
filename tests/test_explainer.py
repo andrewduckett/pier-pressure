@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+from pydantic import SecretStr
 
 from pierpressure.core.model import (
     Band,
@@ -303,7 +304,7 @@ def test_pydantic_provider_with_missing_key_degrades_to_none() -> None:
     # A real model spec with no usable key reaches Pydantic AI, which raises before
     # any network under the offline guard; the wrapper turns that into no narrative.
     provider = PydanticAIProvider(
-        model="anthropic:claude-opus-5", api_key="${PIERPRESSURE_LLM_KEY_UNSET}"
+        model="anthropic:claude-opus-5", api_key=SecretStr("${PIERPRESSURE_LLM_KEY_UNSET}")
     )
     explainer = NarrativeExplainer(provider)
     with no_network():
@@ -325,7 +326,7 @@ def test_pydantic_provider_scopes_the_key_to_the_call(monkeypatch: pytest.Monkey
     from pydantic_ai.models.function import FunctionModel
 
     provider = PydanticAIProvider(
-        model="openai:gpt-4o", api_key="sk-openai-test", model_obj=FunctionModel(respond)
+        model="openai:gpt-4o", api_key=SecretStr("sk-openai-test"), model_obj=FunctionModel(respond)
     )
     with no_network():
         provider.generate(build_prompt_input(_document()))

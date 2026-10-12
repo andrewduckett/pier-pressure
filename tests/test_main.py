@@ -495,9 +495,7 @@ def test_the_files_broker_wins(
         entry.main([_config(tmp_path, FILE_BROKER)])
 
     assert stub.supervisor_calls == []
-    assert [(m.host, m.port, m.username, m.password) for m in stub.connected_to] == [
-        ("broker.lan", 1883, "me", "file-secret")
-    ]
+    assert _connections(stub) == [("broker.lan", 1883, "me", "file-secret")]
     assert "Settings from the Configuration tab and config.yaml" in [
         r.getMessage() for r in caplog.records
     ]
@@ -1419,7 +1417,10 @@ def _form_with_broker(path: Path, mqtt: dict[str, Any], *piers: Any) -> None:
 
 
 def _connections(stub: StartupStub) -> list[tuple[str, int, str | None, str | None]]:
-    return [(m.host, m.port, m.username, m.password) for m in stub.connected_to]
+    return [
+        (m.host, m.port, m.username, m.password and m.password.get_secret_value())
+        for m in stub.connected_to
+    ]
 
 
 def test_the_forms_broker_is_used(

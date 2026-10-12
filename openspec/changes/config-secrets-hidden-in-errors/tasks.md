@@ -23,10 +23,10 @@
 ## 3. Masking valid secrets
 
 - [x] 3.1 Write failing tests (design D4, D6). For a valid configuration with a marker password and a marker API key, check that the marker is not in the `repr` of `ConfigFile`, `AppConfig`, `BrokerSettings` and `PydanticAIProvider`, nor in `AppConfig.model_dump()`. Add the same check for `CombinedSettings` in `tests/test_addon_settings.py`. Verify they fail.
-- [ ] 3.2 Make `MqttConfig.password` and `ExplainerConfig.api_key` `SecretStr | None`. Give `ConfigFile.raw`, `CombinedSettings.raw` and `BrokerSettings.password` `field(repr=False)`. Verify the 3.1 tests pass.
-- [ ] 3.3 Read the password with `get_secret_value()` where `pierpressure/delivery/mqtt.py` calls `username_pw_set`. Verify a test with a stub client in `tests/test_publish.py` or `tests/test_main.py` still receives the plain password.
-- [ ] 3.4 Make `PydanticAIProvider.api_key` a `SecretStr | None`, and pass it from `build_explainer` unchanged. Read its value only in `_key_is_usable` and `_provider_key_env`. Verify the tests in `tests/test_explainer.py` pass, including the ones that check the key variable is set only during the call and that an unexpanded `${VAR}` counts as no key.
-- [ ] 3.5 Update the existing tests that compare a secret to plain text, in `tests/test_config.py`, `tests/test_explainer_config.py`, `tests/test_explainer_docs.py`, `tests/test_explainer.py` and `tests/test_main.py`, to read the value with `get_secret_value()` or build a `SecretStr`. Verify that `uv run mypy` reports no errors.
+- [x] 3.2 Make `MqttConfig.password` and `ExplainerConfig.api_key` `SecretStr | None`. Give `ConfigFile.raw`, `CombinedSettings.raw` and `BrokerSettings.password` `field(repr=False)`. Verify the 3.1 tests pass.
+- [x] 3.3 Read the password with `get_secret_value()` where `pierpressure/delivery/mqtt.py` calls `username_pw_set`. Verify a test with a stub client in `tests/test_publish.py` or `tests/test_main.py` still receives the plain password.
+- [x] 3.4 Make `PydanticAIProvider.api_key` a `SecretStr | None`, and pass it from `build_explainer` unchanged. Read its value only in `_key_is_usable` and `_provider_key_env`. Verify the tests in `tests/test_explainer.py` pass, including the ones that check the key variable is set only during the call and that an unexpanded `${VAR}` counts as no key.
+- [x] 3.5 Update the existing tests that compare a secret to plain text, in `tests/test_config.py`, `tests/test_explainer_config.py`, `tests/test_explainer_docs.py`, `tests/test_explainer.py` and `tests/test_main.py`, to read the value with `get_secret_value()` or build a `SecretStr`. Verify that `uv run mypy` reports no errors.
 
 ## 4. The add-on's combined settings
 

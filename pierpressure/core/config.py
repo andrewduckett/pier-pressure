@@ -17,7 +17,7 @@ import logging
 import math
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +27,7 @@ from pydantic import (
     ConfigDict,
     Field,
     PrivateAttr,
+    SecretStr,
     ValidationError,
     ValidationInfo,
     model_validator,
@@ -62,7 +63,8 @@ class MqttConfig(BaseModel):
     host: str
     port: int = 1883
     username: str | None = None
-    password: str | None = None
+    # Masked when printed; read only to log in to the broker (D4).
+    password: SecretStr | None = None
     discovery_prefix: str = "homeassistant"
     base_topic: str = "pierpressure"
 
@@ -238,7 +240,8 @@ class ExplainerConfig(BaseModel):
 
     enabled: bool = False
     model: str = "anthropic:claude-opus-5"
-    api_key: str | None = None
+    # Masked when printed; read only to call the LLM provider (D4).
+    api_key: SecretStr | None = None
 
 
 class AppConfig(BaseModel):
@@ -278,7 +281,7 @@ class BrokerSettings:
     host: str
     port: int
     username: str | None = None
-    password: str | None = None
+    password: str | None = field(default=None, repr=False)
 
 
 # The ``mqtt`` keys that make up the broker connection. They come from one source
@@ -303,7 +306,8 @@ class ConfigFile:
     (config-secrets-hidden-in-errors D3).
     """
 
-    raw: dict[str, Any]
+    # Not printed: it holds the settings as read, secrets included (D4).
+    raw: dict[str, Any] = field(repr=False)
     base_dir: Path
 
     def __post_init__(self) -> None:

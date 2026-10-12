@@ -629,7 +629,11 @@ class MqttDelivery:
             # paho accepts username/password before connect.
             set_creds = getattr(self._client, "username_pw_set", None)
             if callable(set_creds):
-                set_creds(self._config.username, self._config.password)
+                password = self._config.password
+                set_creds(
+                    self._config.username,
+                    None if password is None else password.get_secret_value(),
+                )
         self._client.will_set(status, PAYLOAD_OFFLINE, qos=1, retain=True)
         self._client.on_pre_connect = self._on_pre_connect
         self._client.on_connect = self._on_connect
