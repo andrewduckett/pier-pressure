@@ -13,7 +13,7 @@
   - Every pier field in the `schema` of `ha-addon/config.yaml` is either a known horizon or equipment field, `id`, or maps to itself.
 
   Verify they fail.
-- [ ] 2.2 In `pierpressure/addon_options.py`, add one shared "is set" function, and use it for the horizon and equipment fields. Add the function that names a raw pier's settings, beside `EQUIPMENT_FIELDS`. Update the module and function docstrings. Verify the 2.1 tests and the existing tests in the file pass.
+- [x] 2.2 In `pierpressure/addon_options.py`, add one shared "is set" function, and use it for the horizon and equipment fields. Add the function that names a raw pier's settings, beside `EQUIPMENT_FIELDS`. Update the module and function docstrings. Verify the 2.1 tests and the existing tests in the file pass.
 
 ## 3. Combining the form and the file
 
