@@ -13,7 +13,7 @@
 
   Verify the `null` and blank-text cases fail.
 - [x] 2.2 Change `pierpressure/addon_options.py` to leave out each unset gate field, with the two names in one constant beside `HORIZON_FIELDS` and `EQUIPMENT_FIELDS`. Update its module and `translate_form` docstrings to name the gate fields. Verify the 2.1 tests and the existing tests in the file pass.
-- [ ] 2.3 Write a test in `tests/test_addon_options.py` that guards the risk in the design: for each optional pier field in the manifest's schema, a pier with that field saved as `null` translates to a pier without that field, or without the block it builds. Verify it passes.
+- [x] 2.3 Write a test in `tests/test_addon_options.py` that guards the risk in the design: for each optional pier field in the manifest's schema, a pier with that field saved as `null` translates to a pier without that field, or without the block it builds. Verify it passes.
 
 ## 3. The gate fields from the form, end to end
 
