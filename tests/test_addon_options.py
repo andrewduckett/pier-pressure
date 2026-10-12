@@ -441,3 +441,16 @@ def test_a_bad_gate_value_reaches_the_core(tmp_path: Path) -> None:
     pier = {**PIER, "max_gust": 0}
 
     assert _read_piers(tmp_path, [pier]) == [pier]
+
+
+def _optional_pier_fields() -> list[str]:
+    addon = yaml.safe_load(ADDON_CONFIG.read_text(encoding="utf-8"))
+    fields: dict[str, str] = addon["schema"]["piers"][0]
+    return [field for field, rule in fields.items() if rule.endswith("?")]
+
+
+@pytest.mark.parametrize("field", _optional_pier_fields())
+def test_every_optional_pier_field_saved_as_null_is_left_out(tmp_path: Path, field: str) -> None:
+    # A future flat field missing from GATE_FIELDS would reach the core as None
+    # and fail its check, rather than taking its default (design risk, D1).
+    assert _read_piers(tmp_path, [{**PIER, field: None}]) == [PIER]
