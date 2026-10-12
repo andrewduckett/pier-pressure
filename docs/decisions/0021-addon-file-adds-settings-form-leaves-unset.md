@@ -2,11 +2,11 @@
 id: adrs-adr0021
 date: 2026-10-12
 status: accepted
-title: 'ADR0021: Inside an add-on, the form owns the settings it shows, and the config file adds the rest'
-description: Architecture Decision Record for how a Home Assistant add-on combines its Configuration form with its config file. The form owns every setting it shows, the file adds settings the form does not show, and a setting given in both is a startup error.
+title: 'ADR0021: Inside an add-on, the config file adds the settings the form leaves unset'
+description: Architecture Decision Record for how a Home Assistant add-on combines its Configuration form with its config file. The file adds settings the form leaves unset, and a setting given in both is a startup error.
 ---
 
-# ADR-0021: Inside an add-on, the form owns the settings it shows, and the config file adds the rest
+# ADR-0021: Inside an add-on, the config file adds the settings the form leaves unset
 
 ## Context
 
@@ -30,8 +30,9 @@ explain, and a mistake must never pass silently.
 
 ## Decision
 
-Inside an add-on, the form owns every setting it shows. The config file adds only
-settings the form leaves unset. A file pier adds its settings to the form pier
+Inside an add-on, the config file adds only settings the form leaves unset. This
+includes optional settings the form shows but the user left empty, such as a
+pier's horizon. A file pier adds its settings to the form pier
 with the same id. The file cannot add a pier of its own.
 
 A setting given in both places stops the add-on at startup, with an error that
@@ -47,8 +48,8 @@ its own. Outside an add-on, the service reads the config file alone, as before.
 
 - **Easier:** a user keeps the form for everyday settings, and puts a horizon
   file, or any setting the form lacks, in the config file.
-- **Easier:** a new form field needs no new rule. Once the form shows a setting,
-  giving it in the file too becomes an error by itself.
+- **Easier:** a new form field needs no new rule. Once the user fills it in,
+  giving the same setting in the file becomes an error by itself.
 - **Easier:** a mistake is loud. A user who sets a value in both places learns
   at startup, not by noticing that one value was quietly ignored.
 - **Easier:** the broker connection still comes from one source, so a password

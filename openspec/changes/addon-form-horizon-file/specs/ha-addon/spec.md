@@ -9,10 +9,13 @@ exists. The file MAY add any setting the form leaves unset. The service SHALL
 build one set of settings from the two sources. It SHALL then check those
 settings exactly as it checks a `config.yaml` on its own.
 
-A form field that is absent, saved as null, empty or blank SHALL count as not
-set. The form always sets `interval_seconds`.
+A form field that is absent, saved as null, or saved as empty or blank text SHALL
+count as not set. This rule SHALL hold for number fields too. A value of 0 SHALL
+count as set. The form always sets `interval_seconds`.
 
-A file pier SHALL add its settings to the form pier with the same `id`.
+A file pier SHALL add its settings to the form pier with the same `id`. A pier's
+`id` only matches the two sources. It SHALL NOT count as a setting, and the
+combined pier SHALL keep the form's `id`.
 
 Each setting SHALL come from the form or from the file, never from both. Each of
 these groups SHALL count as one setting:
@@ -38,12 +41,17 @@ The add-on SHALL stop with a configuration error in each of these cases:
   skips it as invalid.
 - The file lists the same pier `id` more than once. The error SHALL name the
   `id`.
-- A pier in the file is not a mapping, or has no `id`.
+- A pier in the file is not a mapping, or its `id` is missing or is not text.
+  The error SHALL name the entry's position in the file's `piers` list.
 - The file's `piers` is not a list.
 - The file is not valid YAML, or its root is not a mapping. The error SHALL name
-  the file.
+  the file. For a YAML mistake, it SHALL also name the line and column, and
+  SHALL hold no other detail from the YAML parser.
 
-The error SHALL list every such problem it finds, not only the first.
+The error SHALL list every such problem it finds, not only the first. No error
+SHALL quote the content of `config.yaml` or the value of any setting. An `id` or
+key name in an error SHALL be shown with any line break or other control
+character escaped, so the error stays on one line.
 
 A relative horizon `file` path in `config.yaml` SHALL be read from the add-on's
 config folder.
@@ -104,6 +112,59 @@ Outside an add-on, the service SHALL NOT read the form's values. It SHALL load
 - **AND** `config.yaml` sets `mqtt.base_topic` to `observatory` and sets no other
   `mqtt` field
 - **THEN** the service publishes under the base topic `observatory`
+
+#### Scenario: A file pier with only an id adds nothing
+
+- **WHEN** the form lists the pier `backyard`
+- **AND** `config.yaml` lists the pier `backyard` with no other key
+- **THEN** the add-on starts, and reports no conflict for `id`
+- **AND** the service publishes a verdict for `backyard`
+- **AND** its log says the settings came from the Configuration tab
+
+#### Scenario: Blank number fields count as not set
+
+- **WHEN** the saved form values list the pier `backyard` with `min_altitude`
+  saved as empty text, and each equipment field saved as blank text
+- **AND** `config.yaml` gives `backyard` no horizon and no equipment
+- **THEN** the pier's horizon altitude is 0 degrees at every azimuth
+- **AND** the pier has no equipment
+- **AND** the service publishes a verdict for `backyard`
+
+#### Scenario: A horizon floor of 0 counts as set
+
+- **WHEN** the form lists the pier `backyard` with `min_altitude` set to 0
+- **AND** `config.yaml` gives `backyard` a `horizon` block
+- **THEN** the add-on stops
+- **AND** its configuration error names `horizon` and `backyard`
+
+#### Scenario: A file pier id that is not text stops the add-on
+
+- **WHEN** the form lists the pier `backyard`
+- **AND** the first pier in `config.yaml` has an `id` that is null, a number, a
+  list or a mapping
+- **THEN** the add-on stops
+- **AND** its configuration error names the first entry of the file's `piers`
+  list
+
+This holds for each of the four kinds of value.
+
+#### Scenario: A YAML error does not quote the file
+
+- **WHEN** the form lists a pier
+- **AND** line 3 of `config.yaml` is `  password: [pw-8c41f2` or
+  `  password: *pw-8c41f2`, either of which is not valid YAML
+- **THEN** the add-on stops
+- **AND** its configuration error names `/config/config.yaml` and line 3
+- **AND** no log line or error message contains `pw-8c41f2`
+
+This holds for both lines.
+
+#### Scenario: A control character in an id stays escaped
+
+- **WHEN** the form lists the pier `backyard`
+- **AND** `config.yaml` lists a pier whose `id` holds a line break
+- **THEN** the add-on stops with one configuration error
+- **AND** that error is a single line, with the line break shown escaped
 
 #### Scenario: Horizon points from the file are used
 
@@ -420,9 +481,10 @@ it does for any setup with no valid pier.
 
 #### Scenario: Equipment from the form ranks like file equipment
 
-- **WHEN** the form lists a pier with all four equipment fields set
-- **AND** a `config.yaml` pier has the same id, location, elevation and horizon,
-  and the same four values in its `equipment` block
+- **WHEN** an add-on's form lists a pier with all four equipment fields set
+- **AND** a separate `config.yaml`, used outside an add-on, lists a pier with the
+  same id, location, elevation and horizon, and the same four values in its
+  `equipment` block
 - **AND** the top pick at the chosen evaluation instant has a known catalog size
 - **THEN** at that instant and with the same conditions, both piers get the same
   verdict document
