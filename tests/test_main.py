@@ -21,6 +21,7 @@ from pierpressure import __main__ as entry
 from pierpressure.conditions.provider import assemble_snapshot
 from pierpressure.core.clock import FixedClock
 from pierpressure.core.config import AppConfig, BrokerSettings, MqttConfig, RecomputeConfig
+from pierpressure.core.horizon import parse_horizon_text
 from pierpressure.core.producer import produce_verdict
 from pierpressure.delivery.mqtt import (
     DeliveryError,
@@ -193,24 +194,52 @@ def _config(tmp_path: Path, text: str) -> str:
     return str(path)
 
 
-def test_in_an_addon_main_uses_the_supervisor_broker(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+BACKYARD = {"id": "backyard", "latitude": 51.5, "longitude": -0.12, "elevation_m": 30.0}
+ROOF = """
+recompute:
+  interval_seconds: 900
+piers:
+  - id: roof
+    latitude: 48.85
+    longitude: 2.35
+    elevation_m: 35
+"""
+NINA_FIXTURE = Path(__file__).parent / "fixtures" / "nina_horizon.hrz"
+SECRET = "pw-8c41f2"
+
+
+def _form(path: Path, *piers: Any, interval_seconds: int = 600) -> None:
+    path.write_text(
+        json.dumps({"interval_seconds": interval_seconds, "piers": list(piers)}), encoding="utf-8"
+    )
+
+
+def _addon(monkeypatch: pytest.MonkeyPatch, options_file: Path, *piers: Any) -> None:
+    """Run inside an add-on whose form lists ``piers``."""
     monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _form(options_file, *piers)
+
+
+def _load(config_path: str) -> AppConfig:
+    return entry.load_app_config(config_path).config
+
+
+def _errors(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+
+
+def _no_file(tmp_path: Path) -> str:
+    return str(tmp_path / "config.yaml")
+
+
+def test_in_an_addon_main_uses_the_supervisor_broker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    _addon(monkeypatch, options_file, BACKYARD)
     stub = StartupStub(monkeypatch)
-    entry.main([_config(tmp_path, PIERS)])
+    entry.main([_no_file(tmp_path)])
     assert stub.supervisor_calls == ["token-1"]
     assert [(m.host, m.username) for m in stub.connected_to] == [("core-mosquitto", "addons")]
-
-
-def test_a_file_host_means_main_never_asks_the_supervisor(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
-    stub = StartupStub(monkeypatch)
-    entry.main([_config(tmp_path, FILE_BROKER + PIERS)])
-    assert stub.supervisor_calls == []
-    assert [m.host for m in stub.connected_to] == ["broker.lan"]
 
 
 @pytest.mark.parametrize("token", [None, ""], ids=["unset", "empty"])
@@ -233,102 +262,102 @@ def test_outside_an_addon_the_missing_host_error_is_unchanged(
     StartupStub(monkeypatch)
     with caplog.at_level(logging.ERROR, logger="pierpressure"):
         entry.main([_config(tmp_path, PIERS)])
-    [error] = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+    [error] = _errors(caplog)
     assert error.startswith("Configuration error: Invalid mqtt/recompute configuration")
 
 
 def test_a_supervisor_failure_is_a_configuration_error(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _addon(monkeypatch, options_file, BACKYARD)
     stub = StartupStub(monkeypatch, supervisor=SupervisorError("No MQTT broker was found."))
     with caplog.at_level(logging.ERROR, logger="pierpressure"):
-        assert entry.main([_config(tmp_path, PIERS)]) == 1
-    errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
-    assert errors == ["Configuration error: No MQTT broker was found."]
+        assert entry.main([_no_file(tmp_path)]) == 1
+    assert _errors(caplog) == ["Configuration error: No MQTT broker was found."]
     assert stub.connected_to == []
-
-
-def test_credentials_without_a_host_stop_before_asking_the_supervisor(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
-    stub = StartupStub(monkeypatch)
-    assert entry.main([_config(tmp_path, "mqtt:\n  username: me\n" + PIERS)]) == 1
-    assert stub.supervisor_calls == []
 
 
 @pytest.mark.parametrize(
     ("text", "token", "expected"),
     [
-        (PIERS, "token-1", "MQTT broker from the Supervisor's mqtt service: core-mosquitto:1883"),
+        (None, "token-1", "MQTT broker from the Supervisor's mqtt service: core-mosquitto:1883"),
+        (FILE_BROKER, "token-1", "MQTT broker from config.yaml: broker.lan:1883"),
         (FILE_BROKER + PIERS, None, "MQTT broker from config.yaml: broker.lan:1883"),
     ],
-    ids=["supervisor", "file"],
+    ids=["supervisor", "addon-file", "outside-addon-file"],
 )
 def test_main_logs_the_broker_source(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
     caplog: pytest.LogCaptureFixture,
-    text: str,
+    text: str | None,
     token: str | None,
     expected: str,
 ) -> None:
+    _form(options_file, BACKYARD)
     if token is None:
         monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
     else:
         monkeypatch.setenv("SUPERVISOR_TOKEN", token)
     StartupStub(monkeypatch)
     with caplog.at_level(logging.DEBUG):
-        entry.main([_config(tmp_path, text)])
+        entry.main([_no_file(tmp_path) if text is None else _config(tmp_path, text)])
     assert expected in [r.getMessage() for r in caplog.records]
     assert SUPERVISOR_PASSWORD not in caplog.text
     assert "file-secret" not in caplog.text
 
 
 def test_a_supervisor_broker_gets_the_mosquitto_login_advice(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
 ) -> None:
-    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _addon(monkeypatch, options_file, BACKYARD)
     stub = StartupStub(monkeypatch)
-    entry.main([_config(tmp_path, PIERS)])
+    entry.main([_no_file(tmp_path)])
     assert stub.login_advice == [entry.SUPERVISOR_LOGIN_ADVICE]
 
 
 def test_a_file_broker_gets_the_default_login_advice(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
 ) -> None:
-    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _addon(monkeypatch, options_file, BACKYARD)
     stub = StartupStub(monkeypatch)
-    entry.main([_config(tmp_path, FILE_BROKER + PIERS)])
+    entry.main([_config(tmp_path, FILE_BROKER)])
     assert stub.login_advice == [None]
 
 
 def test_a_rejected_supervisor_login_points_to_the_mosquitto_addon(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _addon(monkeypatch, options_file, BACKYARD)
     StartupStub(monkeypatch, reject_login=True)
     with caplog.at_level(logging.ERROR, logger="pierpressure"):
-        assert entry.main([_config(tmp_path, PIERS)]) == 1
-    errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
-    assert errors == [
+        assert entry.main([_no_file(tmp_path)]) == 1
+    assert _errors(caplog) == [
         "Startup delivery failure: The MQTT broker at core-mosquitto:1883 rejected the "
         "login: not authorized. The username and password came from the Supervisor's "
-        "mqtt service, so restart the Mosquitto broker add-on, or set mqtt.host to use "
-        "your own broker login."
+        "mqtt service, so restart the Mosquitto broker add-on, or set mqtt.host on the "
+        "Configuration tab or in config.yaml to use your own broker login."
     ]
 
 
 def test_a_rejected_file_login_names_the_file_settings(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _addon(monkeypatch, options_file, BACKYARD)
     StartupStub(monkeypatch, reject_login=True)
     with caplog.at_level(logging.ERROR, logger="pierpressure"):
-        assert entry.main([_config(tmp_path, FILE_BROKER + PIERS)]) == 1
-    errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
-    assert errors == [
+        assert entry.main([_config(tmp_path, FILE_BROKER)]) == 1
+    assert _errors(caplog) == [
         "Startup delivery failure: The MQTT broker at core-mosquitto:1883 rejected the "
         "login: not authorized. Check mqtt.username and mqtt.password, and the user's "
         "permissions on the broker."
@@ -348,47 +377,29 @@ def test_main_listens_for_reconnects_before_it_connects(
 def test_ctrl_c_while_waiting_for_the_broker_shuts_down_cleanly(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
     stub = StartupStub(monkeypatch, connect_error=KeyboardInterrupt())
     assert entry.main([_config(tmp_path, FILE_BROKER + PIERS)]) == 0
     assert stub.closed
 
 
 # --------------------------------------------------------------------------- #
-# addon-options-form D2, D4: the Configuration form before the config file
+# addon-form-horizon-file D4, D6-D8: the form combined with config.yaml
 # --------------------------------------------------------------------------- #
 
-BACKYARD = {"id": "backyard", "latitude": 51.5, "longitude": -0.12, "elevation_m": 30.0}
-ROOF = """
-recompute:
-  interval_seconds: 900
-piers:
-  - id: roof
-    latitude: 48.85
-    longitude: 2.35
-    elevation_m: 35
-"""
 
-
-def _form(path: Path, *piers: Any, interval_seconds: int = 600) -> None:
-    path.write_text(
-        json.dumps({"interval_seconds": interval_seconds, "piers": list(piers)}), encoding="utf-8"
-    )
-
-
-def _load(config_path: str) -> AppConfig:
-    return entry.load_app_config(config_path).config
-
-
-def test_a_form_setup_without_a_file_uses_the_form_and_the_supervisor_broker(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+def test_form_setup_gives_a_verdict_without_a_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
-    _form(options_file, BACKYARD, interval_seconds=600)
+    _addon(monkeypatch, options_file, BACKYARD)
     stub = StartupStub(monkeypatch)
-    missing = str(tmp_path / "config.yaml")
 
-    config = _load(missing)
-    entry.main([missing])
+    with caplog.at_level(logging.INFO, logger="pierpressure"):
+        config = _load(_no_file(tmp_path))
+        entry.main([_no_file(tmp_path)])
 
     assert [p.id for p in config.piers] == ["backyard"]
     assert config.recompute.interval_seconds == 600
@@ -398,42 +409,224 @@ def test_a_form_setup_without_a_file_uses_the_form_and_the_supervisor_broker(
     )
     assert stub.supervisor_calls == ["token-1", "token-1"]
     assert [m.host for m in stub.connected_to] == ["core-mosquitto"]
+    messages = [r.getMessage() for r in caplog.records]
+    assert "Settings from the Configuration tab" in messages
+    assert not any("ignored" in m for m in messages)
 
 
-def test_an_empty_form_falls_back_to_the_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+def test_a_form_pier_takes_its_horizon_file_from_config_yaml(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
-    _form(options_file, interval_seconds=60)
+    _addon(monkeypatch, options_file, BACKYARD)
+    StartupStub(monkeypatch)
+    (tmp_path / "backyard.hrz").write_bytes(NINA_FIXTURE.read_bytes())
+    text = "piers:\n  - id: backyard\n    horizon:\n      file: backyard.hrz\n      format: nina\n"
+    expected = parse_horizon_text("nina", NINA_FIXTURE.read_text(encoding="utf-8"))
+
+    # A relative path is read from the config folder, not the working directory.
+    monkeypatch.chdir(options_file.root)
+    with caplog.at_level(logging.INFO, logger="pierpressure"):
+        [pier] = _load(_config(tmp_path, text)).piers
+
+    assert pier.id == "backyard"
+    assert pier.horizon_mask == expected
+    assert "Settings from the Configuration tab and config.yaml" in [
+        r.getMessage() for r in caplog.records
+    ]
+
+
+def test_a_file_pier_with_only_an_id_adds_nothing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _addon(monkeypatch, options_file, BACKYARD)
     StartupStub(monkeypatch)
 
-    config = _load(_config(tmp_path, PIERS))
+    with caplog.at_level(logging.INFO, logger="pierpressure"):
+        [pier] = _load(_config(tmp_path, "piers:\n  - id: backyard\n")).piers
 
-    assert [p.id for p in config.piers] == ["backyard"]
-    # The form's interval is ignored along with its empty pier list.
-    assert config.recompute.interval_seconds == 900
+    assert pier.id == "backyard"
+    assert "Settings from the Configuration tab" in [r.getMessage() for r in caplog.records]
 
 
-def test_the_form_wins_over_an_existing_file_and_warns(
+def test_the_file_adds_pier_settings_the_form_does_not_show(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    _addon(monkeypatch, options_file, BACKYARD)
+    StartupStub(monkeypatch)
+    text = "piers:\n  - id: backyard\n    go_threshold: 75\n    max_gust: 40\n"
+
+    [pier] = _load(_config(tmp_path, text)).piers
+
+    assert (pier.go_threshold, pier.max_gust) == (75, 40)
+
+
+def test_blank_number_fields_count_as_not_set(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    blank = {**BACKYARD, "min_altitude": "", **dict.fromkeys(EQUIPMENT_FORM, "  ")}
+    _addon(monkeypatch, options_file, blank)
+    StartupStub(monkeypatch)
+
+    [pier] = _load(_no_file(tmp_path)).piers
+
+    assert {pier.horizon_mask.alt_at(az) for az in range(0, 360, 15)} == {0.0}
+    assert pier.equipment is None
+
+
+def test_the_files_broker_wins(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _addon(monkeypatch, options_file, BACKYARD)
+    stub = StartupStub(monkeypatch)
+
+    with caplog.at_level(logging.INFO, logger="pierpressure"):
+        entry.main([_config(tmp_path, FILE_BROKER)])
+
+    assert stub.supervisor_calls == []
+    assert [(m.host, m.port, m.username, m.password) for m in stub.connected_to] == [
+        ("broker.lan", 1883, "me", "file-secret")
+    ]
+    assert "Settings from the Configuration tab and config.yaml" in [
+        r.getMessage() for r in caplog.records
+    ]
+
+
+def test_the_file_sets_only_its_topics(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    _addon(monkeypatch, options_file, BACKYARD)
+    stub = StartupStub(monkeypatch)
+
+    entry.main([_config(tmp_path, "mqtt:\n  base_topic: observatory\n")])
+
+    assert stub.supervisor_calls == ["token-1"]
+    assert [(m.host, m.base_topic) for m in stub.connected_to] == [
+        ("core-mosquitto", "observatory")
+    ]
+
+
+def test_credentials_without_a_host_are_rejected(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _addon(monkeypatch, options_file, BACKYARD)
+    stub = StartupStub(monkeypatch)
+
+    with caplog.at_level(logging.ERROR, logger="pierpressure"):
+        assert entry.main([_config(tmp_path, "mqtt:\n  username: me\n")]) == 1
+
+    assert stub.supervisor_calls == []
+    [error] = _errors(caplog)
+    assert error.startswith("Configuration error: mqtt.username is set without mqtt.host")
+
+
+def test_a_broker_connection_split_across_both_stops_the_addon(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     options_file: Path,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
-    _form(options_file, BACKYARD)
+    options_file.write_text(
+        json.dumps({"interval_seconds": 600, "piers": [BACKYARD], "mqtt": {"host": "broker.lan"}}),
+        encoding="utf-8",
+    )
+    stub = StartupStub(monkeypatch)
+
+    with caplog.at_level(logging.DEBUG):
+        assert entry.main([_config(tmp_path, f"mqtt:\n  password: {SECRET}\n")]) == 1
+
+    assert stub.connected_to == []
+    [error] = _errors(caplog)
+    assert "broker connection" in error
+    assert "set without mqtt.host" not in error
+    assert SECRET not in caplog.text
+
+
+def test_one_error_lists_every_problem(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _addon(monkeypatch, options_file, {**BACKYARD, "min_altitude": 10})
     StartupStub(monkeypatch)
-    config_path = _config(tmp_path, FILE_BROKER + ROOF)
+    text = "piers:\n  - id: backyard\n    horizon:\n      min_altitude: 5\n  - id: roof\n"
 
-    with caplog.at_level(logging.WARNING, logger="pierpressure"):
-        config = _load(config_path)
+    with caplog.at_level(logging.ERROR, logger="pierpressure"):
+        assert entry.main([_config(tmp_path, text)]) == 1
 
-    assert [p.id for p in config.piers] == ["backyard"]
-    # The file's broker is ignored too: the form always uses the Supervisor's.
-    assert config.mqtt.host == "core-mosquitto"
-    [warning] = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
-    assert config_path in warning
-    assert "ignored" in warning
+    [error] = _errors(caplog)
+    assert error.startswith("Configuration error: ")
+    assert "horizon of pier 'backyard'" in error
+    assert "'roof'" in error
+
+
+def test_a_skipped_form_pier_still_counts_as_listed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    broken = {**BACKYARD, "horizon_points": "[[0, 10], [90"}
+    _addon(monkeypatch, options_file, broken, ROOF_FORM)
+    StartupStub(monkeypatch)
+
+    with caplog.at_level(logging.ERROR):
+        config = _load(_config(tmp_path, "piers:\n  - id: backyard\n    go_threshold: 70\n"))
+
+    assert [p.id for p in config.piers] == ["roof"]
+    errors = _errors(caplog)
+    assert any("'backyard'" in e and "horizon_points" in e for e in errors)
+    assert not any("not on the Configuration tab" in e for e in errors)
+
+
+def test_an_unreadable_horizon_file_skips_only_its_pier(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _addon(monkeypatch, options_file, BACKYARD, ROOF_FORM)
+    StartupStub(monkeypatch)
+    text = "piers:\n  - id: backyard\n    horizon:\n      file: missing.hrz\n      format: nina\n"
+
+    with caplog.at_level(logging.ERROR):
+        config = _load(_config(tmp_path, text))
+
+    assert [p.id for p in config.piers] == ["roof"]
+    assert any("Skipping invalid pier 'backyard'" in e for e in _errors(caplog))
+
+
+@pytest.mark.parametrize("value", [f"[{SECRET}", f"*{SECRET}"], ids=["unclosed", "alias"])
+def test_a_config_yaml_that_is_not_valid_yaml_stops_the_addon(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+    value: str,
+) -> None:
+    _addon(monkeypatch, options_file, BACKYARD)
+    StartupStub(monkeypatch)
+    path = _config(tmp_path, f"mqtt:\n  host: broker.lan\n  password: {value}\n")
+
+    with caplog.at_level(logging.DEBUG):
+        assert entry.main([path]) == 1
+
+    [error] = _errors(caplog)
+    assert error == f"Configuration error: {path} is not valid YAML at line 3, column 13"
+    assert SECRET not in caplog.text
 
 
 def test_a_bad_pier_in_the_saved_form_is_skipped(
@@ -442,37 +635,99 @@ def test_a_bad_pier_in_the_saved_form_is_skipped(
     options_file: Path,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
-    _form(options_file, {**BACKYARD, "id": "north", "latitude": 95.0}, BACKYARD)
+    _addon(monkeypatch, options_file, {**BACKYARD, "id": "north", "latitude": 95.0}, BACKYARD)
     StartupStub(monkeypatch)
 
     with caplog.at_level(logging.ERROR):
-        config = _load(str(tmp_path / "config.yaml"))
+        config = _load(_no_file(tmp_path))
 
     assert [p.id for p in config.piers] == ["backyard"]
-    errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
-    assert any("Skipping invalid pier 'north'" in error for error in errors)
+    assert any("Skipping invalid pier 'north'" in error for error in _errors(caplog))
 
 
-def test_with_nothing_set_up_the_error_names_the_file_and_the_configuration_tab(
+@pytest.mark.parametrize(
+    "file_text",
+    [None, "mqtt:\n  host: broker.lan\n", "piers: [unclosed\n", "piers:\n  - id: [roof]\n"],
+    ids=["no-file", "no-piers", "broken-file", "no-text-ids"],
+)
+def test_nothing_is_set_up(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+    file_text: str | None,
+) -> None:
+    _addon(monkeypatch, options_file)
+    stub = StartupStub(monkeypatch)
+    path = _no_file(tmp_path) if file_text is None else _config(tmp_path, file_text)
+
+    with caplog.at_level(logging.ERROR, logger="pierpressure"):
+        assert entry.main([path]) == 1
+
+    [error] = _errors(caplog)
+    assert error.startswith("Configuration error: Nothing is set up")
+    assert "Add a pier on the add-on's Configuration tab" in error
+    assert "cannot list piers on its own" not in error
+    assert "not valid YAML" not in error
+    assert stub.supervisor_calls == []
+
+
+def test_a_missing_options_file_counts_as_an_empty_form(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    StartupStub(monkeypatch)
+
+    with caplog.at_level(logging.ERROR, logger="pierpressure"):
+        assert entry.main([_config(tmp_path, PIERS)]) == 1
+
+    [error] = _errors(caplog)
+    assert error.startswith("Configuration error: Nothing is set up")
+
+
+def test_an_empty_form_names_the_files_piers(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _addon(monkeypatch, options_file)
+    stub = StartupStub(monkeypatch)
+    text = "piers:\n  - id: roof\n    latitude: 1\n  - id: shed\n  - 7\n"
+
+    with caplog.at_level(logging.ERROR, logger="pierpressure"):
+        assert entry.main([_config(tmp_path, text)]) == 1
+
+    [error] = _errors(caplog)
+    assert error.startswith("Configuration error: Nothing is set up")
+    assert "'roof', 'shed'" in error
+    assert "config.yaml cannot list piers on its own" in error
+    assert "same id" in error
+    assert "keep only the extra settings in config.yaml" in error
+    assert stub.connected_to == []
+
+
+def test_an_empty_forms_broker_is_not_used(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     options_file: Path,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
-    _form(options_file)
+    options_file.write_text(
+        json.dumps({"interval_seconds": 600, "piers": [], "mqtt": {"host": "broker.lan"}}),
+        encoding="utf-8",
+    )
     stub = StartupStub(monkeypatch)
-    missing = str(tmp_path / "config.yaml")
 
     with caplog.at_level(logging.ERROR, logger="pierpressure"):
-        assert entry.main([missing]) == 1
+        assert entry.main([_config(tmp_path, PIERS)]) == 1
 
-    [error] = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
-    assert error.startswith("Configuration error: ")
-    assert missing in error
-    assert "Configuration tab" in error
     assert stub.supervisor_calls == []
+    assert stub.connected_to == []
+    assert _errors(caplog)[0].startswith("Configuration error: Nothing is set up")
 
 
 def test_outside_an_addon_the_form_is_never_read(
@@ -499,30 +754,16 @@ def test_outside_an_addon_a_broken_form_is_never_read(
     assert [p.id for p in config.piers] == ["roof"]
 
 
-@pytest.mark.parametrize(
-    ("form", "expected"),
-    [
-        ([BACKYARD], "Settings from the Configuration tab"),
-        ([], "Settings from config.yaml"),
-    ],
-    ids=["form", "file"],
-)
-def test_main_logs_the_settings_source(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    options_file: Path,
-    caplog: pytest.LogCaptureFixture,
-    form: list[dict[str, Any]],
-    expected: str,
+def test_outside_an_addon_the_settings_come_from_the_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
-    _form(options_file, *form)
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
     StartupStub(monkeypatch)
 
     with caplog.at_level(logging.INFO, logger="pierpressure"):
-        entry.main([_config(tmp_path, PIERS)])
+        entry.main([_config(tmp_path, FILE_BROKER + PIERS)])
 
-    assert expected in [r.getMessage() for r in caplog.records]
+    assert "Settings from config.yaml" in [r.getMessage() for r in caplog.records]
 
 
 def test_load_app_config_reads_the_supervisors_options_file_by_default() -> None:
@@ -530,31 +771,6 @@ def test_load_app_config_reads_the_supervisors_options_file_by_default() -> None
     original = entry.load_app_config.func  # type: ignore[attr-defined]
     default = inspect.signature(original).parameters["options_path"].default
     assert default == "/data/options.json"
-
-
-# A form user's broker errors must not point only to config.yaml, which is not
-# read while the form lists piers (design "Risks / Trade-offs").
-FORM_NOTE = "config.yaml is not read while the Configuration tab lists piers"
-
-
-@pytest.mark.parametrize(
-    ("form", "from_form"), [([BACKYARD], True), ([], False)], ids=["form", "file"]
-)
-def test_load_app_config_reports_whether_the_form_was_the_source(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    options_file: Path,
-    form: list[dict[str, Any]],
-    from_form: bool,
-) -> None:
-    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
-    _form(options_file, *form)
-    StartupStub(monkeypatch)
-
-    loaded = entry.load_app_config(_config(tmp_path, PIERS))
-
-    assert loaded.from_form is from_form
-    assert loaded.broker_from_supervisor
 
 
 # A Supervisor that provides no broker, and one whose broker requires TLS.
@@ -569,106 +785,36 @@ TLS_REPLY = httpx.Response(
     [(NO_BROKER_REPLY, "No MQTT broker was found"), (TLS_REPLY, "The Supervisor's MQTT broker")],
     ids=["no-broker", "tls"],
 )
-def test_a_form_users_supervisor_error_names_the_configuration_tab(
+@pytest.mark.parametrize(
+    "file_text", [None, "mqtt:\n  base_topic: observatory\n"], ids=["no-file", "topics-file"]
+)
+def test_supervisor_errors_name_the_configuration_tab_and_config_yaml(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     options_file: Path,
     caplog: pytest.LogCaptureFixture,
     reply: httpx.Response,
     opening: str,
+    file_text: str | None,
 ) -> None:
-    # addon-form-broker D5: set mqtt.host on the form, not in config.yaml.
-    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
-    _form(options_file, BACKYARD)
+    _addon(monkeypatch, options_file, BACKYARD)
     StartupStub(monkeypatch, supervisor=reply)
+    path = _no_file(tmp_path) if file_text is None else _config(tmp_path, file_text)
 
     with caplog.at_level(logging.ERROR, logger="pierpressure"):
-        assert entry.main([str(tmp_path / "config.yaml")]) == 1
+        assert entry.main([path]) == 1
 
-    [error] = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+    [error] = _errors(caplog)
     assert error.startswith(f"Configuration error: {opening}")
-    assert "on the Configuration tab" in error
-    assert FORM_NOTE in error
-    assert "in config.yaml" not in error
-    assert "into config.yaml" not in error
+    assert "on the Configuration tab or in config.yaml" in error
+    assert "not read" not in error
 
 
-@pytest.mark.parametrize("reply", [NO_BROKER_REPLY, TLS_REPLY], ids=["no-broker", "tls"])
-def test_a_file_users_supervisor_error_names_config_yaml(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    options_file: Path,
-    caplog: pytest.LogCaptureFixture,
-    reply: httpx.Response,
-) -> None:
-    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
-    _form(options_file)
-    StartupStub(monkeypatch, supervisor=reply)
-
-    with caplog.at_level(logging.ERROR, logger="pierpressure"):
-        assert entry.main([_config(tmp_path, PIERS)]) == 1
-
-    [error] = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
-    assert "in config.yaml" in error
-    assert "Configuration tab" not in error
-
-
-def test_a_file_users_supervisor_error_keeps_its_wording(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    options_file: Path,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
-    _form(options_file)
-    StartupStub(monkeypatch, supervisor=SupervisorError("No MQTT broker was found."))
-
-    with caplog.at_level(logging.ERROR, logger="pierpressure"):
-        assert entry.main([_config(tmp_path, PIERS)]) == 1
-
-    errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
-    assert errors == ["Configuration error: No MQTT broker was found."]
-
-
-def test_a_form_users_rejected_login_says_the_file_is_not_read(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    options_file: Path,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
-    _form(options_file, BACKYARD)
-    stub = StartupStub(monkeypatch, reject_login=True)
-
-    with caplog.at_level(logging.ERROR, logger="pierpressure"):
-        assert entry.main([str(tmp_path / "config.yaml")]) == 1
-
-    # The adapter keeps this advice for a login rejected during a reconnect too.
-    assert stub.login_advice == [entry.FORM_LOGIN_ADVICE]
-    [error] = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
-    assert error.startswith("Startup delivery failure: The MQTT broker at core-mosquitto:1883")
-    assert "restart the Mosquitto broker add-on" in error
-    assert FORM_NOTE in error
-
-
-def test_a_form_users_supervisor_login_advice_names_the_configuration_tab() -> None:
-    # addon-form-broker D4: the broker can now be set on the form itself.
-    assert "set mqtt.host on the Configuration tab" in entry.FORM_LOGIN_ADVICE
-    assert FORM_NOTE in entry.FORM_LOGIN_ADVICE
-    assert "move your piers" not in entry.FORM_LOGIN_ADVICE
-    assert "into config.yaml" not in entry.FORM_LOGIN_ADVICE
-
-
-def test_a_file_users_rejected_supervisor_login_keeps_its_advice(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
-) -> None:
-    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
-    _form(options_file)
-    stub = StartupStub(monkeypatch, reject_login=True)
-
-    entry.main([_config(tmp_path, PIERS)])
-
-    assert stub.login_advice == [entry.SUPERVISOR_LOGIN_ADVICE]
+def test_the_supervisor_login_advice_names_the_configuration_tab_and_config_yaml() -> None:
+    advice = entry.SUPERVISOR_LOGIN_ADVICE
+    assert "restart the Mosquitto broker add-on" in advice
+    assert "set mqtt.host on the Configuration tab or in config.yaml" in advice
+    assert "not read" not in advice
 
 
 # --------------------------------------------------------------------------- #
@@ -1203,16 +1349,3 @@ def test_the_log_names_the_form_as_the_brokers_source(
     messages = [r.getMessage() for r in caplog.records]
     assert "MQTT broker from the Configuration tab: broker.lan:1883" in messages
     assert FORM_PASSWORD not in caplog.text
-
-
-def test_an_empty_forms_broker_is_not_used(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
-) -> None:
-    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
-    _form_with_broker(options_file, {"host": "broker.lan"})
-    stub = StartupStub(monkeypatch)
-
-    entry.main([_config(tmp_path, PIERS)])
-
-    assert stub.supervisor_calls == ["token-1"]
-    assert [m.host for m in stub.connected_to] == ["core-mosquitto"]
