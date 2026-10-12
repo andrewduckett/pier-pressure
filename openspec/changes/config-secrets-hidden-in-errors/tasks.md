@@ -30,7 +30,7 @@
 
 ## 4. The add-on's combined settings
 
-- [ ] 4.1 Write failing tests in `tests/test_addon_settings.py` (design D5). The form and the file's `mqtt` blocks both set a key the core does not define, with a marker as its name and value; check that `combine_settings` does not report it as a conflict, and that the marker is not in any error. Verify it fails.
+- [x] 4.1 Write failing tests in `tests/test_addon_settings.py` (design D5). The form and the file's `mqtt` blocks both set a key the core does not define, with a marker as its name and value; check that `combine_settings` does not report it as a conflict, and that the marker is not in any error. Verify it fails.
 - [ ] 4.2 Change `_check_broker` in `pierpressure/addon_settings.py` to report a non-connection key in both sources only when `MqttConfig` defines it. Verify the 4.1 test and the existing conflict tests pass.
 - [ ] 4.3 Write tests in `tests/test_main.py` for `load_app_config` inside an add-on, covering the `ha-delivery` scenarios for the combined path, with a marker password set on the form:
   - the file's `mqtt` block holds `pasword: <marker>`; the add-on stops with an error that says the block holds a setting it does not know
