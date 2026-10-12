@@ -189,6 +189,7 @@ def _replay_supervisor(reply: httpx.Response, token: str, **kwargs: Any) -> Brok
 
 
 def _config(tmp_path: Path, text: str) -> str:
+    tmp_path.mkdir(parents=True, exist_ok=True)
     path = tmp_path / "config.yaml"
     path.write_text(text, encoding="utf-8")
     return str(path)
@@ -963,7 +964,7 @@ def test_form_points_match_the_same_points_in_the_file(
 ) -> None:
     monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
     file_text = FILE_BROKER + PIERS + f"    horizon:\n      points: {POINTS}\n"
-    [file_pier] = _load(_config(tmp_path, file_text)).piers
+    [file_pier] = _load(_config(tmp_path / "docker", file_text)).piers
 
     form = {**BACKYARD, "horizon_points": json.dumps(POINTS)}
     [form_pier] = _form_piers(tmp_path, monkeypatch, options_file, form).piers
@@ -1072,7 +1073,7 @@ def test_form_equipment_matches_the_same_equipment_in_the_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
 ) -> None:
     monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
-    [file_pier] = _load(_config(tmp_path, _equipment_file(EQUIPMENT))).piers
+    [file_pier] = _load(_config(tmp_path / "docker", _equipment_file(EQUIPMENT))).piers
 
     [form_pier] = _form_piers(
         tmp_path, monkeypatch, options_file, {**BACKYARD, **EQUIPMENT_FORM}
@@ -1207,7 +1208,7 @@ def test_form_equipment_ranks_like_file_equipment(
     # still has a known size.
     monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
     file_text = _equipment_file(EQUIPMENT) + "    horizon:\n      min_altitude: 15\n"
-    [file_pier] = _load(_config(tmp_path, file_text)).piers
+    [file_pier] = _load(_config(tmp_path / "docker", file_text)).piers
     form = {**BACKYARD, **EQUIPMENT_FORM, "min_altitude": 15}
     [form_pier] = _form_piers(tmp_path, monkeypatch, options_file, form).piers
     conditions = assemble_snapshot(_base_full(), _secondary_full())
