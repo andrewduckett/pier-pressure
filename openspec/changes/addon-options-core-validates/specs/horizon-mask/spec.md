@@ -16,8 +16,8 @@ such as `"[[0, 10], [90, 20]]"`. The system SHALL read the text and SHALL then t
 the result exactly as an inline list. The pier's configuration SHALL be invalid, with
 an error that names `horizon.points`, when the text cannot be read as YAML, or when
 it does not hold a list of points. Text that holds nothing, such as empty text, blank
-text or only a comment, does not hold a list of points. Any error SHALL stay on one
-line.
+text or only a comment, does not hold a list of points. When the error quotes the YAML
+reader's message, it SHALL keep that message on one line.
 
 #### Scenario: Unordered pairs are accepted and ordered
 
@@ -44,7 +44,7 @@ line.
 - **WHEN** a pier configures `horizon.points` as the text `"[[0, 10], [90"`
 - **THEN** the pier's configuration is reported as invalid
 - **AND** the error names `horizon.points`
-- **AND** the error is one line
+- **AND** the YAML reader's message in the error is on one line
 
 #### Scenario: Text that holds no list of points is rejected
 
