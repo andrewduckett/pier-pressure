@@ -1600,3 +1600,80 @@ def test_main_logs_a_block_error_without_its_secret(
     [error] = _errors(caplog)
     assert error.startswith(f"Configuration error: Invalid {named} configuration: ")
     assert marker not in caplog.text
+
+
+# --------------------------------------------------------------------------- #
+# addon-options-core-validates: the core checks every saved setting (D6)
+# --------------------------------------------------------------------------- #
+
+# Values the Supervisor would refuse on save, by pier id: each form field, the
+# same value as a config.yaml pier holds it, and the setting the error names.
+REFUSED_VALUES = {
+    "lat": ({"latitude": 95}, {"latitude": 95}, "latitude"),
+    "threshold": ({"go_threshold": 101}, {"go_threshold": 101}, "go_threshold"),
+    "points": ({"horizon_points": 5}, {"horizon": {"points": 5}}, "horizon.points"),
+}
+
+
+def test_values_the_supervisor_would_refuse_get_the_cores_errors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    file = {
+        "mqtt": {"host": "broker.lan"},
+        "recompute": {"interval_seconds": 900},
+        "piers": [
+            {**BACKYARD, "id": pier_id, **file_value}
+            for pier_id, (_, file_value, _) in REFUSED_VALUES.items()
+        ]
+        + [BACKYARD],
+    }
+    with caplog.at_level(logging.ERROR):
+        _load(_config(tmp_path / "docker", json.dumps(file)))
+    file_errors = {pier_id: _skip_error(caplog, pier_id) for pier_id in REFUSED_VALUES}
+    caplog.clear()
+
+    form_piers = [
+        {**BACKYARD, "id": pier_id, **form_value}
+        for pier_id, (form_value, _, _) in REFUSED_VALUES.items()
+    ]
+    with caplog.at_level(logging.ERROR):
+        config = _form_piers(tmp_path, monkeypatch, options_file, *form_piers, BACKYARD)
+
+    assert [p.id for p in config.piers] == ["backyard"]
+    for pier_id, (_, _, setting) in REFUSED_VALUES.items():
+        error = _skip_error(caplog, pier_id)
+        assert error == file_errors[pier_id]
+        assert f"\n{setting}\n" in error
+
+
+@pytest.mark.parametrize(
+    ("block", "field"),
+    [
+        ({"equipment": {"focal_length_mm": 400}}, {"equipment_focal_length_mm": 400}),
+        ({"horizon": {"min_altitude": 15}}, {"horizon_points": "[[0, 10]]"}),
+    ],
+    ids=["equipment", "horizon"],
+)
+def test_a_mapping_beside_its_form_fields_gets_the_cores_unknown_field_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+    block: dict[str, Any],
+    field: dict[str, Any],
+) -> None:
+    with caplog.at_level(logging.ERROR):
+        config = _form_piers(
+            tmp_path, monkeypatch, options_file, {**BACKYARD, **block, **field}, ROOF_FORM
+        )
+
+    assert [p.id for p in config.piers] == ["roof"]
+    [name] = field
+    # The core's error is the only one: the add-on logs none of its own.
+    [error] = _errors(caplog)
+    assert error.startswith("Skipping invalid pier 'backyard'")
+    assert f"\n{name}\n  Extra inputs are not permitted" in error

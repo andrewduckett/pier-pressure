@@ -35,7 +35,7 @@
 
 ## 5. End to end through the add-on
 
-- [ ] 5.1 Write tests in `tests/test_main.py` or `tests/test_addon_settings.py` that run the saved form values through `combine_settings` and the core (design D6, the `ha-addon` delta):
+- [x] 5.1 Write tests in `tests/test_main.py` or `tests/test_addon_settings.py` that run the saved form values through `combine_settings` and the core (design D6, the `ha-addon` delta):
   - piers with a latitude of 95, a `go_threshold` of 101 and a `horizon_points` of 5 each skip with an error that names the same setting as the error for a `config.yaml` pier with the same value; a fourth pier validates
   - an `equipment` mapping beside `equipment_focal_length_mm` skips the pier with an error that names `equipment_focal_length_mm`, and the add-on logs no error of its own
   - a `horizon` mapping beside `horizon_points` skips the pier with an error that names `horizon_points`
