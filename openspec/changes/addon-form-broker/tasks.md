@@ -37,8 +37,8 @@
 
 ## 5. Documentation
 
-- [ ] 5.1 Update `ha-addon/DOCS.md`. Describe the four broker fields, and say they apply only while the form lists piers. Say that a host makes the add-on take all four settings from the form, and that leaving it empty uses the Mosquitto add-on. Say that the password field hides its value on the form, and that the Supervisor stores it, not `config.yaml`; do not say it is encrypted. Remove the advice to write the password into `config.yaml`. Update the troubleshooting table so a form user is told to set `mqtt.host` on the Configuration tab. Verify by reading the rendered Markdown.
-- [ ] 5.2 Update the README's add-on section in `README.md` to match 5.1. Verify that it no longer advises writing the broker password into `config.yaml` in the add-on.
+- [x] 5.1 Update `ha-addon/DOCS.md`. Describe the four broker fields, and say they apply only while the form lists piers. Say that a host makes the add-on take all four settings from the form, and that leaving it empty uses the Mosquitto add-on. Say that the password field hides its value on the form, and that the Supervisor stores it, not `config.yaml`; do not say it is encrypted. Remove the advice to write the password into `config.yaml`. Update the troubleshooting table so a form user is told to set `mqtt.host` on the Configuration tab. Verify by reading the rendered Markdown.
+- [x] 5.2 Update the README's add-on section in `README.md` to match 5.1. Verify that it no longer advises writing the broker password into `config.yaml` in the add-on.
 
 ## 6. Live check
 
