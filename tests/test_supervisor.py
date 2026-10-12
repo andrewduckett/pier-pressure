@@ -341,7 +341,7 @@ def test_the_client_it_creates_is_closed(time: FakeTime, monkeypatch: pytest.Mon
 
 
 # --------------------------------------------------------------------------- #
-# addon-form-broker D5: each error names where the settings come from
+# addon-form-horizon-file D7: each error names both places to set the broker
 # --------------------------------------------------------------------------- #
 
 _PLACED_FAILURES: list[Callable[[], list[Reply]]] = [
@@ -354,20 +354,12 @@ _PLACED_IDS = ["no-broker", "access-refused", "tls", "mqtt-version"]
 
 
 @pytest.mark.parametrize("replies", _PLACED_FAILURES, ids=_PLACED_IDS)
-def test_errors_name_config_yaml_by_default(
+def test_errors_name_the_configuration_tab_and_config_yaml(
     time: FakeTime, replies: Callable[[], list[Reply]]
 ) -> None:
     with pytest.raises(SupervisorError) as caught:
         _supervisor(time, *replies()).fetch()
-    assert "in config.yaml" in str(caught.value)
-
-
-@pytest.mark.parametrize("replies", _PLACED_FAILURES, ids=_PLACED_IDS)
-def test_errors_name_the_configuration_tab_when_given(
-    time: FakeTime, replies: Callable[[], list[Reply]]
-) -> None:
-    with pytest.raises(SupervisorError) as caught:
-        _supervisor(time, *replies()).fetch(settings_place="on the Configuration tab")
     message = str(caught.value)
-    assert "on the Configuration tab" in message
-    assert "config.yaml" not in message
+    assert "mqtt.host" in message
+    assert "on the Configuration tab or in config.yaml" in message
+    assert "not read" not in message
