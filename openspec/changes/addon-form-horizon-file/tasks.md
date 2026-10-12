@@ -64,5 +64,5 @@
   - Add rows to the troubleshooting table for a conflict, a file pier not on the form, and an empty form. Update the rows that name `config.yaml`.
 
   Verify by reading the rendered Markdown, and check that no sentence says `config.yaml` is ignored or read only while the form is empty.
-- [ ] 6.2 Update the add-on section of `README.md` to match 6.1. Verify that it no longer tells add-on users to set up with `config.yaml` alone.
+- [x] 6.2 Update the add-on section of `README.md` to match 6.1. Verify that it no longer tells add-on users to set up with `config.yaml` alone.
 - [ ] 6.3 Run `just check` and verify that it is green.
