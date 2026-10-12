@@ -28,8 +28,6 @@ import os
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from pierpressure.core.config import SKIP_PIER_MESSAGE, ConfigError
 
 logger = logging.getLogger(__name__)
@@ -168,28 +166,26 @@ def _without_unset_gates(pier: dict[str, Any]) -> dict[str, Any]:
 
 
 def _with_horizon_block(pier: dict[str, Any]) -> dict[str, Any]:
-    """Move ``min_altitude`` and ``horizon_points`` into a ``horizon`` block (D1).
+    """Rename ``min_altitude`` and ``horizon_points`` into a ``horizon`` block (D1).
 
     A field that :func:`is_set` counts as unset is left out, so blank text in
-    ``min_altitude`` gives no block (addon-form-horizon-file D2). When both are
-    set, the block holds both, and the core's "exactly one source" rule rejects
-    the pier. Raises :class:`ValueError` when ``horizon_points`` is
-    not text or not valid YAML.
+    ``min_altitude`` gives no block (addon-form-horizon-file D2). A set field's
+    value passes through unchanged, whatever its type: the core parses and checks
+    it (addon-options-core-validates D2). When both are set, the block holds both,
+    and the core's "exactly one source" rule rejects the pier. When the pier also
+    holds a set ``horizon`` value, the set fields stay where they are, and the
+    core rejects each one by name.
     """
-    rebuilt = {key: value for key, value in pier.items() if key not in HORIZON_FIELDS}
+    rebuilt = {
+        key: value for key, value in pier.items() if key not in HORIZON_FIELDS or is_set(value)
+    }
+    if is_set(pier.get("horizon")):
+        return rebuilt
     horizon: dict[str, Any] = {}
-    if is_set(pier.get("min_altitude")):
-        horizon["min_altitude"] = pier["min_altitude"]
-    points_text = pier.get("horizon_points")
-    if is_set(points_text):
-        if not isinstance(points_text, str):
-            raise ValueError("horizon_points must be text")
-        try:
-            horizon["points"] = yaml.safe_load(points_text)
-        except yaml.YAMLError as exc:
-            # The parser's message spans several lines; keep the log to one.
-            message = " ".join(str(exc).split())
-            raise ValueError(f"horizon_points is not valid YAML: {message}") from exc
+    if "min_altitude" in rebuilt:
+        horizon["min_altitude"] = rebuilt.pop("min_altitude")
+    if "horizon_points" in rebuilt:
+        horizon["points"] = rebuilt.pop("horizon_points")
     if horizon:
         rebuilt["horizon"] = horizon
     return rebuilt
