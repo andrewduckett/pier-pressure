@@ -36,7 +36,9 @@ Out of scope:
   see it in that pier's error.
 - How secrets are supplied, such as `${ENV}` in `config.yaml` or the form's
   `password` field.
-- Moving the add-on's own checks into the core. Story #83 does that.
+- Moving the add-on's own checks into the core. Story #83 does that. This
+  includes the add-on dropping an `mqtt` key with no value before the core sees
+  it. Nothing leaks in that case, because no error names the key.
 
 ## Capabilities
 
@@ -46,8 +48,10 @@ None.
 
 ### Modified Capabilities
 
-- `ha-delivery`: a configuration error never shows the broker password.
-- `verdict-narrative`: a configuration error never shows the explainer's API key.
+- `ha-delivery`: an error about the `mqtt` block never shows the broker
+  password or any other text from the block.
+- `verdict-narrative`: an error about the `explainer` block never shows the API
+  key or any other text from the block.
 
 ## Impact
 
@@ -55,7 +59,8 @@ None.
   - `pierpressure/core/config.py`: `MqttConfig`, `ExplainerConfig`,
     `ConfigFile`, `BrokerSettings` and `build_config`.
   - `pierpressure/addon_settings.py`: the broker conflict error names only
-    defined `mqtt` settings.
+    defined `mqtt` settings, and the combined settings print without their
+    values.
   - `pierpressure/explain/explainer.py` and `pierpressure/explain/provider.py`:
     read the API key's value where the provider is built.
   - `pierpressure/delivery/mqtt.py`: read the password's value where the MQTT
