@@ -27,7 +27,7 @@
   - a pier with a complete `equipment` mapping and a null `equipment_focal_length_mm` keeps the mapping and loses the null field
 
   Verify that they fail.
-- [ ] 3.2 Rewrite `_with_equipment_block` as design D3 describes, so it no longer raises. Remove the test for the `equipment` conflict error. Verify the 3.1 tests and the existing null-`equipment` test pass.
+- [x] 3.2 Rewrite `_with_equipment_block` as design D3 describes, so it no longer raises. Remove the test for the `equipment` conflict error. Verify the 3.1 tests and the existing null-`equipment` test pass.
 
 ## 4. The translation keeps every pier
 
