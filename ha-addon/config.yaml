@@ -13,8 +13,8 @@ arch:
   - aarch64
 image: ghcr.io/andrewduckett/pier-pressure
 # The add-on's own config folder, mounted at /config, holds the user's
-# config.yaml (design D3). It is read only while the form below lists no piers
-# (addon-options-form D2).
+# optional config.yaml (design D3). The form below lists the piers; config.yaml
+# adds the settings the form leaves unset (addon-form-horizon-file).
 map:
   - addon_config
 environment:
@@ -49,7 +49,8 @@ schema:
       equipment_sensor_height_mm: float(0,)?
       equipment_reducer: float(0,)?
   # The broker, with config.yaml's names. Setting host takes all four from the
-  # form; leaving it empty asks the Supervisor (addon-form-broker D1).
+  # form; leaving it empty takes them from config.yaml, or else from the
+  # Supervisor (addon-form-broker D1, addon-form-horizon-file).
   mqtt:
     host: str?
     port: port?

@@ -7,8 +7,9 @@ configuration:
   piers:
     name: Piers
     description: >-
-      The places you observe from. Each pier gets its own verdict device. While
-      this list is empty, the add-on reads config.yaml instead.
+      The places you observe from. Each pier gets its own verdict device. List
+      at least one. For a setting this form does not show, such as a horizon
+      file, add the pier to config.yaml with the same ID and only that setting.
     fields:
       id:
         name: Pier ID
@@ -59,8 +60,8 @@ configuration:
   mqtt:
     name: MQTT broker
     description: >-
-      Optional. The broker to publish to, used only while the pier list is not
-      empty. Leave the host empty to use the Mosquitto broker add-on.
+      Optional. The broker to publish to. Leave the host empty to use the broker
+      set in config.yaml, or else the Mosquitto broker add-on.
     fields:
       host:
         name: Host
