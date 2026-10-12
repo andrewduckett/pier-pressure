@@ -56,3 +56,30 @@ configuration:
         description: >-
           Optional. The factor of a focal reducer or barlow, with no unit, such
           as 0.8 or 2. Leave it empty for 1.0, when you use neither.
+  mqtt:
+    name: MQTT broker
+    description: >-
+      Optional. The broker to publish to, used only while the pier list is not
+      empty. Leave the host empty to use the Mosquitto broker add-on.
+    fields:
+      host:
+        name: Host
+        description: >-
+          The broker's host name or IP address, such as 192.168.1.10. When you set
+          it, the add-on takes the host, port, username and password from this
+          form only.
+      port:
+        name: Port
+        description: >-
+          Optional. The broker's port, a number from 1 to 65535 with no unit.
+          Leave it empty for 1883, the usual MQTT port. Set it only with a host.
+      username:
+        name: Username
+        description: >-
+          Optional. The name the add-on logs in with, if your broker needs a
+          login. Set it only with a host.
+      password:
+        name: Password
+        description: >-
+          Optional. The password the add-on logs in with. The form hides it as
+          you type. Set it only with a host.

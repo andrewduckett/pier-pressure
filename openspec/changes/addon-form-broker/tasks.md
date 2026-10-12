@@ -5,8 +5,8 @@
 
 ## 2. The add-on manifest and its labels
 
-- [ ] 2.1 Write failing tests in `tests/test_ha_addon.py` (design D1). `options` sets `mqtt` to an empty mapping. `schema` declares `mqtt` as a mapping of `host: str?`, `port: port?`, `username: str?` and `password: password?`. Verify they fail.
-- [ ] 2.2 Add the `mqtt` block to `options` and `schema` in `ha-addon/config.yaml`, with a comment naming this change's D1. Add names and descriptions for `mqtt` and its four fields in `ha-addon/translations/en.yaml`. The `port` description says the default is 1883. Verify the 2.1 tests pass, and extend the label test so it covers the `mqtt` fields.
+- [x] 2.1 Write failing tests in `tests/test_ha_addon.py` (design D1). `options` sets `mqtt` to an empty mapping. `schema` declares `mqtt` as a mapping of `host: str?`, `port: port?`, `username: str?` and `password: password?`. Verify they fail.
+- [x] 2.2 Add the `mqtt` block to `options` and `schema` in `ha-addon/config.yaml`, with a comment naming this change's D1. Add names and descriptions for `mqtt` and its four fields in `ha-addon/translations/en.yaml`. The `port` description says the default is 1883. Verify the 2.1 tests pass, and extend the label test so it covers the `mqtt` fields.
 
 ## 3. The form's broker reaches the settings
 
