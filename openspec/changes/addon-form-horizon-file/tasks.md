@@ -35,7 +35,7 @@
 ## 4. One place to set the broker in Supervisor errors
 
 - [x] 4.1 Change the tests in `tests/test_supervisor.py` (design D7). The "no MQTT broker was found", "access refused", TLS and MQTT version errors each say to set `mqtt.host` "on the Configuration tab or in config.yaml". Remove the tests for a caller-supplied place. Verify they fail.
-- [ ] 4.2 In `pierpressure/supervisor.py`, replace `CONFIG_FILE_PLACE` with one constant for that phrase, and remove the `settings_place` parameter. Verify the 4.1 tests pass.
+- [x] 4.2 In `pierpressure/supervisor.py`, replace `CONFIG_FILE_PLACE` with one constant for that phrase, and remove the `settings_place` parameter. Verify the 4.1 tests pass.
 
 ## 5. Startup reads both sources
 
