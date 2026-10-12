@@ -1564,3 +1564,34 @@ def test_an_addon_error_does_not_show_the_forms_password(
     for text in (FORM_PASSWORD, *hidden):
         assert text not in message
         assert text not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("block", "named", "marker"),
+    [
+        ("mqtt:\n  host: broker.lan\n  password: 4815162342\n", "mqtt", "4815162342"),
+        (
+            "mqtt:\n  host: broker.lan\nexplainer:\n  enabled: true\n  sk-5e3d91: 1\n",
+            "explainer",
+            "sk-5e3d91",
+        ),
+    ],
+    ids=["mqtt-password-number", "explainer-unknown-key"],
+)
+def test_main_logs_a_block_error_without_its_secret(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    block: str,
+    named: str,
+    marker: str,
+) -> None:
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    StartupStub(monkeypatch)
+
+    with caplog.at_level(logging.DEBUG):
+        assert entry.main([_config(tmp_path, block + PIERS)]) == 1
+
+    [error] = _errors(caplog)
+    assert error.startswith(f"Configuration error: Invalid {named} configuration: ")
+    assert marker not in caplog.text

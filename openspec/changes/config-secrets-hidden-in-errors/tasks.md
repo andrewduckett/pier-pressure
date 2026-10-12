@@ -40,5 +40,5 @@
 
 ## 5. End to end
 
-- [ ] 5.1 Write a parameterized test in `tests/test_main.py` that runs `main()` with a `config.yaml` that fails in one way per case: `mqtt.password` is a marker number, or the `explainer` block holds an unknown key named after a marker. Check that `main()` returns 1, that the `Configuration error` log line names the block, and that no `caplog` record holds the marker. Verify it passes.
+- [x] 5.1 Write a parameterized test in `tests/test_main.py` that runs `main()` with a `config.yaml` that fails in one way per case: `mqtt.password` is a marker number, or the `explainer` block holds an unknown key named after a marker. Check that `main()` returns 1, that the `Configuration error` log line names the block, and that no `caplog` record holds the marker. Verify it passes.
 - [ ] 5.2 Run `just check` and verify that it is green.
