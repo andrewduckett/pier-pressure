@@ -33,8 +33,9 @@ only to log in to the broker.
 
 #### Scenario: An unknown key in the mqtt block is not named
 
-- **WHEN** the `mqtt` block in `config.yaml` holds a key it does not define, such
-  as `pasword: hunter2`, or a bare key `hunter2`
+- **WHEN** the process loads `config.yaml` on its own, outside the add-on
+- **AND** the `mqtt` block holds a key it does not define, such as
+  `pasword: hunter2`, or a bare key `hunter2`
 - **THEN** the process stops with a configuration error that says the `mqtt`
   block holds a setting it does not know
 - **AND** the error lists the settings the `mqtt` block defines
@@ -46,6 +47,15 @@ only to log in to the broker.
 - **THEN** the process stops with a configuration error that says `mqtt` must be
   a mapping of settings
 - **AND** neither the error nor the log contains the secret
+
+#### Scenario: An unknown key with a value is not named in the add-on
+
+- **WHEN** the add-on combines its Configuration form with `config.yaml`
+- **AND** the file's `mqtt` block holds a key it does not define, with a value,
+  such as `pasword: hunter2`
+- **THEN** the add-on stops with a configuration error that says the `mqtt`
+  block holds a setting it does not know
+- **AND** neither the error nor the log contains `pasword` or `hunter2`
 
 #### Scenario: The add-on's combined settings do not show the password
 
