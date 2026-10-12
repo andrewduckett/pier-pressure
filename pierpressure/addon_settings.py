@@ -8,8 +8,9 @@ from the two, so the core checks it exactly as it checks a file on its own.
 
 A setting given in both is an error. These groups count as one setting each: a
 pier's horizon, a pier's equipment, the broker connection, and the recompute
-interval. Conflicts are found on the raw form values, before the translation
-skips any pier, so a file entry for a skipped pier still matches it (D2).
+interval. Conflicts are found on the raw form values. The translation keeps
+every form pier, so a file entry matches its form pier even when the core will
+skip that pier (D2, addon-options-core-validates D4).
 
 Every problem goes into one :class:`ConfigError`, on one line. A problem names
 settings by their ``config.yaml`` names and piers by their ids, escaped so a line
@@ -173,8 +174,8 @@ def _merge(
 ) -> dict[str, Any]:
     """The plain union of the two sources, once no setting is given in both (D3).
 
-    A file entry whose form pier the translation skipped is dropped, because that
-    pier is not published.
+    Each file entry is added to the form pier with its ``id``, even one the core
+    will skip, which changes no result (addon-options-core-validates D4).
     """
     combined = {key: value for key, value in translated.items() if key != "piers"}
     combined["piers"] = [_merge_pier(pier, file_piers) for pier in translated["piers"]]

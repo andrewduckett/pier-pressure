@@ -38,8 +38,8 @@ from .horizon import Horizon, flat, from_points, open_sky, parse_horizon_text
 
 logger = logging.getLogger(__name__)
 
-# The log line for a skipped pier. The add-on's form uses it too, and its docs tell
-# users to search the log for it (addon-form-horizon D2).
+# The log line for a skipped pier, from any interface. The add-on's docs tell users
+# to search the log for it (addon-form-horizon D2).
 SKIP_PIER_MESSAGE = "Skipping invalid pier %r: %s"
 
 _ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
