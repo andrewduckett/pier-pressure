@@ -31,7 +31,7 @@
 
 ## 4. The translation keeps every pier
 
-- [ ] 4.1 Make `_config_piers` stop catching `ValueError`, and remove the imports and `logger` that nothing uses any more (design D4). Remove the test that expects an empty list after every pier is skipped. Update the docstrings of the module, `translate_form`, `_config_piers` and `_merge`, and the module docstring of `pierpressure/addon_settings.py`, so they no longer describe a pier the translation skipped. Verify the tests in `tests/test_addon_options.py` and `tests/test_addon_settings.py` pass, and that `uv run ruff check` reports no unused import.
+- [x] 4.1 Make `_config_piers` stop catching `ValueError`, and remove the imports and `logger` that nothing uses any more (design D4). Remove the test that expects an empty list after every pier is skipped. Update the docstrings of the module, `translate_form`, `_config_piers` and `_merge`, and the module docstring of `pierpressure/addon_settings.py`, so they no longer describe a pier the translation skipped. Verify the tests in `tests/test_addon_options.py` and `tests/test_addon_settings.py` pass, and that `uv run ruff check` reports no unused import.
 
 ## 5. End to end through the add-on
 

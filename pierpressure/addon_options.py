@@ -1,7 +1,8 @@
 """The add-on's Configuration form.
 
 Follows addon-options-form D1, D3; addon-form-horizon D1-D3;
-addon-form-equipment D1-D3; addon-form-broker D2; and addon-form-gates D1.
+addon-form-equipment D1-D3; addon-form-broker D2; addon-form-gates D1; and
+addon-options-core-validates D2-D4 and ADR-0022.
 
 When the user saves the form, the Supervisor writes its values to
 ``/data/options.json``. :func:`translate_form` turns them into the mapping a
@@ -14,6 +15,11 @@ when set and is left out when not, so the core's default applies.
 The form's ``mqtt`` block already uses the file's names, so it passes through
 without the fields the user left empty.
 
+The translation only reads, renames and drops unset fields. It never decides
+whether a value is valid: any value it does not expect passes through, and the
+core rejects it. So every form pier reaches the core, which logs and skips a bad
+one as it does a file pier.
+
 One rule decides whether a form value is set: :func:`is_set`. The translation
 uses it, and so does :func:`pier_settings`, which names the settings a raw form
 pier sets so the add-on can find a setting given in both the form and
@@ -23,14 +29,11 @@ pier sets so the add-on can find a setting given in both the form and
 from __future__ import annotations
 
 import json
-import logging
 import os
 from pathlib import Path
 from typing import Any
 
-from pierpressure.core.config import SKIP_PIER_MESSAGE, ConfigError
-
-logger = logging.getLogger(__name__)
+from pierpressure.core.config import ConfigError
 
 OPTIONS_PATH = "/data/options.json"
 
@@ -109,9 +112,8 @@ def translate_form(options: dict[str, Any]) -> dict[str, Any] | None:
     block. Its gate fields, ``go_threshold`` and ``max_gust``, are left out when
     not set (addon-form-gates D1). Its other keys pass through unchanged, because
     they are the file's keys. The ``mqtt`` block passes through without its empty
-    fields, and is left out when none is set (addon-form-broker D2). A pier whose
-    ``horizon_points`` cannot be parsed, or that holds both an ``equipment`` block
-    and equipment fields, is logged and left out, so the list may end up empty.
+    fields, and is left out when none is set (addon-form-broker D2). Every form
+    pier is kept, and the core checks it (addon-options-core-validates D4).
     """
     piers = options.get("piers", [])
     if not piers:
@@ -141,20 +143,16 @@ def _set_broker_fields(mqtt: Any) -> Any:
 def _config_piers(piers: list[Any]) -> list[Any]:
     """Rebuild each form pier's horizon and equipment, and drop its unset gate fields.
 
-    Leaves out the piers that cannot be rebuilt.
+    Keeps every pier, in order (addon-options-core-validates D4). An entry that
+    is not a mapping passes through, and the core's per-pier check skips it
+    (addon-form-horizon D3).
     """
-    rebuilt: list[Any] = []
-    for pier in piers:
-        if not isinstance(pier, dict):
-            # The core's per-pier check skips it (addon-form-horizon D3).
-            rebuilt.append(pier)
-            continue
-        try:
-            rebuilt.append(_with_equipment_block(_with_horizon_block(_without_unset_gates(pier))))
-        except ValueError as exc:
-            # The core's skip wording, so both read alike in the log (D2).
-            logger.error(SKIP_PIER_MESSAGE, pier.get("id"), exc)
-    return rebuilt
+    return [
+        _with_equipment_block(_with_horizon_block(_without_unset_gates(pier)))
+        if isinstance(pier, dict)
+        else pier
+        for pier in piers
+    ]
 
 
 def _without_unset_gates(pier: dict[str, Any]) -> dict[str, Any]:
