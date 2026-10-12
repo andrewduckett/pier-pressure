@@ -110,12 +110,25 @@ def test_a_horizon_floor_becomes_a_horizon_block(tmp_path: Path) -> None:
     ]
 
 
-def test_horizon_points_text_becomes_points(tmp_path: Path) -> None:
-    pier = {**PIER, "horizon_points": "[[0, 10], [90, 25], [180, 5]]"}
+@pytest.mark.parametrize("points", ["[[0, 10], [90, 25], [180, 5]]", 5], ids=["text", "number"])
+def test_horizon_points_pass_through_unchanged_as_points(tmp_path: Path, points: object) -> None:
+    # The core parses and checks the value (addon-options-core-validates D2).
+    pier = {**PIER, "horizon_points": points}
 
-    assert _read_piers(tmp_path, [pier]) == [
-        {**PIER, "horizon": {"points": [[0, 10], [90, 25], [180, 5]]}}
-    ]
+    assert _read_piers(tmp_path, [pier]) == [{**PIER, "horizon": {"points": points}}]
+
+
+def test_a_horizon_mapping_keeps_the_set_horizon_fields(tmp_path: Path) -> None:
+    # The core rejects horizon_points as a key it does not know (D2).
+    pier = {**PIER, "horizon": {"min_altitude": 15}, "horizon_points": "[[0, 10]]"}
+
+    assert _read_piers(tmp_path, [pier]) == [pier]
+
+
+def test_a_horizon_mapping_drops_the_unset_horizon_fields(tmp_path: Path) -> None:
+    pier = {**PIER, "horizon": {"min_altitude": 15}, "horizon_points": "  ", "min_altitude": None}
+
+    assert _read_piers(tmp_path, [pier]) == [{**PIER, "horizon": {"min_altitude": 15}}]
 
 
 def test_a_pier_without_horizon_fields_has_no_horizon(tmp_path: Path) -> None:

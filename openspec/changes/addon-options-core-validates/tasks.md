@@ -11,7 +11,7 @@
 
 ## 2. The add-on renames the horizon fields and nothing more
 
-- [ ] 2.1 Write failing tests in `tests/test_addon_options.py` (design D2, D6):
+- [x] 2.1 Write failing tests in `tests/test_addon_options.py` (design D2, D6):
   - `horizon_points` text passes through unchanged as `horizon.points`
   - a number in `horizon_points` passes through unchanged as `horizon.points`
   - a pier with a `horizon` mapping and a set `horizon_points` keeps the mapping and `horizon_points` unchanged
