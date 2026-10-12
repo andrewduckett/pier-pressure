@@ -79,9 +79,8 @@ def _file_piers(file: dict[str, Any], problems: list[str]) -> dict[str, dict[str
     An entry that is not a mapping, or whose ``id`` is missing or not text, is
     reported by its position. Only entries with a text ``id`` are returned, so no
     other value is ever used as a key. A repeated ``id`` keeps its first entry.
-    A ``piers`` key with no entries, which YAML reads as null, lists no piers.
     """
-    if file.get("piers") is None:
+    if "piers" not in file:
         return {}
     raw_piers = file["piers"]
     if not isinstance(raw_piers, list):

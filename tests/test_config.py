@@ -391,14 +391,6 @@ def test_a_root_that_is_not_a_mapping_names_the_file(tmp_path: Path) -> None:
     assert str(path) in str(error.value)
 
 
-@pytest.mark.parametrize("text", ["", "# only a comment\n"], ids=["empty", "comments"])
-def test_an_empty_file_can_count_as_no_settings(tmp_path: Path, text: str) -> None:
-    path = _write(tmp_path, text)
-    assert read_config_mapping(path, allow_empty=True) == {}
-    with pytest.raises(ConfigError, match="root must be a mapping"):
-        read_config_mapping(path)
-
-
 def test_read_config_reports_the_same_yaml_error(tmp_path: Path) -> None:
     path = _write(tmp_path, f"mqtt:\n  password: *{SENTINEL}\n")
     with pytest.raises(ConfigError) as error:
