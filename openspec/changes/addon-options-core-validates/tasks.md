@@ -18,7 +18,7 @@
   - a pier with a `horizon` mapping, blank `horizon_points` and a null `min_altitude` keeps the mapping and loses both flat fields
 
   Verify that they fail.
-- [ ] 2.2 Rewrite `_with_horizon_block` in `pierpressure/addon_options.py` as design D2 describes: drop unset horizon fields; when `horizon` is set, leave the set fields in place; otherwise rename them without parsing. Remove the tests for the two `horizon_points` errors and the one-line YAML log. Verify the 2.1 tests and the remaining tests in `tests/test_addon_options.py` pass.
+- [x] 2.2 Rewrite `_with_horizon_block` in `pierpressure/addon_options.py` as design D2 describes: drop unset horizon fields; when `horizon` is set, leave the set fields in place; otherwise rename them without parsing. Remove the tests for the two `horizon_points` errors and the one-line YAML log. Verify the 2.1 tests and the remaining tests in `tests/test_addon_options.py` pass.
 
 ## 3. The equipment fields follow the same rule
 

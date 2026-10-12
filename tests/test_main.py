@@ -612,7 +612,7 @@ def test_a_skipped_form_pier_still_counts_as_listed(
 
     assert [p.id for p in config.piers] == ["roof"]
     errors = _errors(caplog)
-    assert any("'backyard'" in e and "horizon_points" in e for e in errors)
+    assert any("'backyard'" in e and "horizon.points" in e for e in errors)
     assert not any("not on the Configuration tab" in e for e in errors)
 
 
@@ -1021,7 +1021,7 @@ def test_a_bad_form_horizon_skips_only_its_pier(
     assert [p.id for p in config.piers] == ["roof"]
     errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
     [error] = [e for e in errors if "Skipping invalid pier 'backyard'" in e]
-    assert ("horizon_points" in error) is names_field
+    assert ("horizon.points" in error) is names_field
 
 
 def test_malformed_saved_values_skip_only_their_pier(
@@ -1030,7 +1030,7 @@ def test_malformed_saved_values_skip_only_their_pier(
     options_file: Path,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    # The Supervisor normally refuses these; the service does not rely on it.
+    # The Supervisor normally refuses these; the core rejects them anyway.
     with caplog.at_level(logging.ERROR):
         config = _form_piers(
             tmp_path,
@@ -1045,7 +1045,7 @@ def test_malformed_saved_values_skip_only_their_pier(
     errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
     skips = [e for e in errors if e.startswith("Skipping invalid pier")]
     assert len(skips) == 2
-    assert any("'backyard'" in e and "horizon_points" in e for e in skips)
+    assert any("'backyard'" in e and "horizon.points" in e for e in skips)
 
 
 def test_a_bad_horizon_on_the_only_pier_stops_the_addon(
@@ -1062,7 +1062,7 @@ def test_a_bad_horizon_on_the_only_pier_stops_the_addon(
         assert entry.main([str(tmp_path / "config.yaml")]) == 1
 
     errors = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
-    assert any("'backyard'" in e and "horizon_points" in e for e in errors)
+    assert any("'backyard'" in e and "horizon.points" in e for e in errors)
     assert errors[-1].startswith("Configuration error: No valid pier")
 
 

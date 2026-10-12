@@ -131,15 +131,19 @@ def test_a_file_entry_applies_to_each_form_pier_with_its_id() -> None:
     assert combined.raw["piers"] == [{**PIER, "max_gust": 40}, {**PIER, "max_gust": 40}]
 
 
-def test_a_file_entry_for_a_skipped_form_pier_is_dropped() -> None:
-    # The translation skips backyard for its unreadable points; its file entry
-    # still matches, so no "not on the Configuration tab" error (D2).
+def test_a_file_entry_applies_to_a_form_pier_the_core_will_skip() -> None:
+    # backyard reaches the core, which skips it for its unreadable points; its
+    # file entry still matches, so no "not on the Configuration tab" error (D2,
+    # addon-options-core-validates D4).
     broken = {**PIER, "horizon_points": "[[0, 10], [90"}
     file = {"piers": [{"id": "backyard", "go_threshold": 70}]}
 
     combined = combine_settings(_form(broken, ROOF), file)
 
-    assert combined.raw["piers"] == [ROOF]
+    assert combined.raw["piers"] == [
+        {**PIER, "horizon": {"points": "[[0, 10], [90"}, "go_threshold": 70},
+        ROOF,
+    ]
 
 
 # --------------------------------------------------------------------------- #

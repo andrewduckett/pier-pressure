@@ -148,47 +148,13 @@ def test_both_horizon_fields_reach_the_core_together(tmp_path: Path) -> None:
     pier = {**PIER, "min_altitude": 15, "horizon_points": "[[0, 10]]"}
 
     assert _read_piers(tmp_path, [pier]) == [
-        {**PIER, "horizon": {"min_altitude": 15, "points": [[0, 10]]}}
+        {**PIER, "horizon": {"min_altitude": 15, "points": "[[0, 10]]"}}
     ]
-
-
-@pytest.mark.parametrize(
-    ("points", "message"),
-    [
-        ("[[0, 10], [90", "horizon_points is not valid YAML"),
-        (5, "horizon_points must be text"),
-    ],
-    ids=["invalid-yaml", "not-text"],
-)
-def test_unusable_horizon_points_skip_only_their_pier(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture, points: object, message: str
-) -> None:
-    other = {**PIER, "id": "roof"}
-
-    piers = _read_piers(tmp_path, [{**PIER, "horizon_points": points}, other])
-
-    assert piers == [other]
-    assert "Skipping invalid pier 'backyard'" in caplog.text
-    assert message in caplog.text
 
 
 def test_a_pier_that_is_not_a_mapping_passes_through(tmp_path: Path) -> None:
     # The core's per-pier check skips it (D3).
     assert _read_piers(tmp_path, ["backyard", PIER]) == ["backyard", PIER]
-
-
-def test_a_form_whose_every_pier_is_skipped_keeps_an_empty_list(tmp_path: Path) -> None:
-    # The form did list piers, so config.yaml is not read; the core reports
-    # "No valid pier" (D2).
-    assert _read_piers(tmp_path, [{**PIER, "horizon_points": "[[0"}]) == []
-
-
-def test_a_yaml_error_logs_on_one_line(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
-    # The parser's message spans several lines; the Log tab shows one per record.
-    _read_piers(tmp_path, [{**PIER, "horizon_points": "[[0, 10], [90"}])
-
-    [record] = caplog.records
-    assert "\n" not in record.getMessage()
 
 
 EQUIPMENT_FORM_VALUES = {
