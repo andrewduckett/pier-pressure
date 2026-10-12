@@ -23,6 +23,8 @@ file, you add a `config.yaml` file. See
    - optionally, its **horizon**. See [Set a pier's horizon](#set-a-piers-horizon).
    - optionally, its **equipment**. See
      [Set a pier's equipment](#set-a-piers-equipment).
+   - optionally, its **GO threshold** and **wind-gust limit**. See
+     [Set a pier's GO threshold and wind-gust limit](#set-a-piers-go-threshold-and-wind-gust-limit).
 4. **Save, then start the add-on.** The add-on reads the tab only when it starts.
    If it is already running, restart it when Home Assistant offers to, or from
    the **Info** tab.
@@ -114,6 +116,27 @@ fields and save. An older version does not know these fields, and might skip
 each pier that still holds them. After you upgrade again, enter the values
 again.
 
+## Set a pier's GO threshold and wind-gust limit
+
+Each pier on the Configuration tab has two optional fields that decide when a
+night is `GO` or `NO-GO`. Both start empty.
+
+| Field | What to enter | If you leave it empty | Example |
+| --- | --- | --- | --- |
+| **GO threshold** | The score, from 0 to 100, that a night needs for `GO`. It has no unit. A lower score gives `MAYBE`. | The pier uses 65. | `75` |
+| **Wind-gust limit** | The wind gust, in km/h, above which the night is `NO-GO`. Use it to protect a long focal length from wind shake. | The pier has no wind gate, so no forecast gust makes the night `NO-GO`. | `30` |
+
+**The tab refuses a GO threshold above 100, or a negative wind-gust limit,** when
+you save. A wind-gust limit of 0 saves, but the add-on skips that pier and logs
+an error, because the limit must be above 0. The other piers still publish.
+
+These fields have the same names in the log and in `config.yaml`:
+
+| Label on the tab | Name in the log and in `config.yaml` |
+| --- | --- |
+| GO threshold | `go_threshold` |
+| Wind-gust limit | `max_gust` |
+
 ## Add settings with config.yaml
 
 The Configuration tab lists your piers. A `config.yaml` file can add the
@@ -137,10 +160,10 @@ The file is optional.
 
 ### What the file can add
 
-- **For a pier:** any pier setting the tab leaves unset. Examples are a horizon
-  file (`horizon` with `file` and `format`), `go_threshold` and `max_gust`.
-  List the pier under `piers:` with the same `id` as on the tab, and add only
-  the settings you want.
+- **For a pier:** a horizon file (`horizon` with `file` and `format`), which the
+  tab does not show, or any other pier setting the tab leaves empty. List the
+  pier under `piers:` with the same `id` as on the tab, and add only the settings
+  you want.
 - **For the whole add-on:** `explainer`, `mqtt.discovery_prefix` and
   `mqtt.base_topic`. The file can also set the broker, when the tab's broker
   fields are empty. See [With config.yaml](#with-configyaml).
@@ -308,8 +331,9 @@ once the broker is back.
 ## More settings
 
 The Configuration tab has only the interval, the piers, with their horizon floor
-or points and their equipment, and the broker, so far. Add any other setting,
-such as a horizon file, in `config.yaml`. See
+or points, their equipment, their GO threshold and their wind-gust limit, and the
+broker, so far. Add any other setting, such as a horizon file or `explainer`, in
+`config.yaml`. See
 [Add settings with config.yaml](#add-settings-with-configyaml). For every
 setting, see the
 [Configuration section of the README](https://github.com/andrewduckett/pier-pressure#️-configuration).
