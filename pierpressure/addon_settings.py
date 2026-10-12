@@ -18,7 +18,7 @@ break cannot split the log line. It never holds a setting's value (D5).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from pierpressure.addon_options import is_set, pier_settings, translate_form
@@ -34,7 +34,9 @@ _BOTH = "is set on the Configuration tab and in config.yaml"
 class CombinedSettings:
     """The combined config-shaped mapping, and whether the file added a setting (D8)."""
 
-    raw: dict[str, Any]
+    # Not printed: it holds the settings, secrets included
+    # (config-secrets-hidden-in-errors D4).
+    raw: dict[str, Any] = field(repr=False)
     file_adds: bool
 
 

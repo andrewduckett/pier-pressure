@@ -25,6 +25,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from pydantic import SecretStr
+
 from .prompt import PromptInput
 
 logger = logging.getLogger(__name__)
@@ -85,18 +87,21 @@ class FakeProvider:
         return self.text
 
 
-def _key_is_usable(api_key: str | None) -> bool:
+def _key_is_usable(api_key: SecretStr | None) -> bool:
     """An API key is usable only if it is non-empty and fully expanded.
 
     An unset ``${ENV}`` reference is left as its literal ``${VAR}`` placeholder by
     the config's env expansion, so a key still containing ``${`` means the secret
     was never provided (design D7).
     """
-    return bool(api_key) and "${" not in (api_key or "")
+    if api_key is None:
+        return False
+    value = api_key.get_secret_value()
+    return bool(value) and "${" not in value
 
 
 @contextmanager
-def _provider_key_env(model: str, api_key: str | None) -> Iterator[None]:
+def _provider_key_env(model: str, api_key: SecretStr | None) -> Iterator[None]:
     """Expose a configured key to the provider only for the duration of one call.
 
     Pydantic AI reads each provider's key from its standard environment variable.
@@ -120,7 +125,7 @@ def _provider_key_env(model: str, api_key: str | None) -> Iterator[None]:
         return
     assert api_key is not None  # narrowed by _key_is_usable above
     previous = os.environ.get(env_name)
-    os.environ[env_name] = api_key
+    os.environ[env_name] = api_key.get_secret_value()
     try:
         yield
     finally:
@@ -144,7 +149,9 @@ class PydanticAIProvider:
     """
 
     model: str
-    api_key: str | None = None
+    # Masked when printed; its value is read only to set the key variable
+    # (config-secrets-hidden-in-errors D4).
+    api_key: SecretStr | None = None
     timeout: float = PROVIDER_TIMEOUT
     max_tokens: int = MAX_TOKENS
     model_obj: Any | None = None

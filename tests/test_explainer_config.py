@@ -13,7 +13,7 @@ import traceback
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 
 from pierpressure.core.config import ConfigError, ExplainerConfig, load_config
 
@@ -108,7 +108,7 @@ explainer:
     assert config.explainer is not None
     assert config.explainer.enabled is True
     assert config.explainer.model == "anthropic:claude-opus-5"
-    assert config.explainer.api_key == "sk-test-123"
+    assert config.explainer.api_key == SecretStr("sk-test-123")
 
 
 def test_missing_api_key_env_leaves_a_visible_placeholder(tmp_path: Path) -> None:
@@ -123,7 +123,7 @@ explainer:
     config = load_config(_write(tmp_path, text))
     assert config.explainer is not None
     # A missing secret stays a visible placeholder rather than an empty string.
-    assert config.explainer.api_key == "${PIERPRESSURE_LLM_KEY_UNSET}"
+    assert config.explainer.api_key == SecretStr("${PIERPRESSURE_LLM_KEY_UNSET}")
 
 
 def test_unknown_explainer_field_is_rejected() -> None:

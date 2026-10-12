@@ -11,6 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from pydantic import SecretStr
 
 from pierpressure.core.config import load_config
 
@@ -52,4 +53,4 @@ def test_sample_config_loads_and_enables_the_explainer(monkeypatch: pytest.Monke
     assert config.explainer.enabled is True
     assert config.explainer.model == "anthropic:claude-opus-5"
     # The unset ${ENV} key stays a visible placeholder rather than a blank secret.
-    assert config.explainer.api_key == "${ANTHROPIC_API_KEY}"
+    assert config.explainer.api_key == SecretStr("${ANTHROPIC_API_KEY}")
