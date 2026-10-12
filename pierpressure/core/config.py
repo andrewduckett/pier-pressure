@@ -30,6 +30,7 @@ from pydantic import (
     SecretStr,
     ValidationError,
     ValidationInfo,
+    field_validator,
     model_validator,
 )
 
@@ -82,6 +83,11 @@ class HorizonConfig(BaseModel):
     floor; ``file``/``format`` reference an exported horizon. The mutual-exclusivity
     and range rules are enforced when :class:`PierConfig` resolves the block to a
     canonical :class:`~pierpressure.core.horizon.Horizon`.
+
+    ``points`` may also be YAML text holding that list, such as the add-on form's
+    ``horizon_points`` (addon-options-core-validates D1). The text is parsed here,
+    so a bad value gets an error located at ``horizon.points`` whatever the
+    interface.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -90,6 +96,27 @@ class HorizonConfig(BaseModel):
     min_altitude: float | None = None
     file: str | None = None
     format: str | None = None
+
+    @field_validator("points", mode="before")
+    @classmethod
+    def _parse_points_text(cls, value: Any) -> Any:
+        """Parse text in ``points`` as YAML; pass any other value through (D1).
+
+        Text that holds nothing, such as blank text or only a comment, parses to
+        ``None``. It is rejected rather than read as "no points", so a typo never
+        silently gives the pier another horizon source or open sky.
+        """
+        if not isinstance(value, str):
+            return value
+        try:
+            points = yaml.safe_load(value)
+        except yaml.YAMLError as exc:
+            # The reader's message spans several lines; keep it to one.
+            message = " ".join(str(exc).split())
+            raise ValueError(f"is not valid YAML: {message}") from exc
+        if points is None:
+            raise ValueError("text holds no list of points")
+        return points
 
 
 def _resolve_horizon(spec: HorizonConfig | None, base_dir: Path | None) -> Horizon:

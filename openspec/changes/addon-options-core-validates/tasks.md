@@ -7,7 +7,7 @@
   - the other pier still validates in every case
 
   Verify that the text cases fail.
-- [ ] 1.2 In `pierpressure/core/config.py`, add a `field_validator("points", mode="before")` to `HorizonConfig`. It parses text with `yaml.safe_load`, raises `ValueError` when the YAML is invalid (with the reader's message on one line) or parses to `None`, and passes any other value through. Update the class docstring. Verify the 1.1 tests and the existing tests in `tests/test_horizon_config.py` and `tests/test_config.py` pass.
+- [x] 1.2 In `pierpressure/core/config.py`, add a `field_validator("points", mode="before")` to `HorizonConfig`. It parses text with `yaml.safe_load`, raises `ValueError` when the YAML is invalid (with the reader's message on one line) or parses to `None`, and passes any other value through. Update the class docstring. Verify the 1.1 tests and the existing tests in `tests/test_horizon_config.py` and `tests/test_config.py` pass.
 
 ## 2. The add-on renames the horizon fields and nothing more
 
