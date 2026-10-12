@@ -62,9 +62,23 @@ For the `mqtt` and `explainer` blocks, `build_config` does not copy the
   block holds a setting it does not know". The message then lists the model's
   defined fields once.
 
+Today one `try` block validates `mqtt` and `recompute` together. `build_config`
+splits it, so only the `mqtt` error uses this format. A `recompute` error keeps
+its current text, because that block holds no secret.
+
+`build_config` raises the block's `ConfigError` with `from None`, as
+`read_config_mapping` already does for a YAML error. The original
+`ValidationError` is then not attached as the cause, so a printed traceback
+cannot show an unknown key's name or a value.
+
 `MqttConfig` and `ExplainerConfig` also set `hide_input_in_errors=True`. This is
 a second guard: code that prints the `ValidationError` itself still shows no
 value.
+
+This relies on one assumption: Pydantic's `msg` holds no input. That holds for
+Pydantic's built-in checks, which are the only checks these two models use. A
+custom validator whose message quotes its input would break it. The D6 tests
+guard this, and a code comment on both models states the rule.
 
 *Alternative:* rely on `hide_input_in_errors` alone. Rejected: it leaves an
 unknown key's name in the text.
@@ -113,6 +127,8 @@ The two dataclasses that hold settings before validation get
 `field(repr=False)`:
 
 - `ConfigFile.raw`, which holds the whole read mapping, both secrets included.
+- `CombinedSettings.raw` in `pierpressure/addon_settings.py`, which holds the
+  add-on's combined form-and-file mapping.
 - `BrokerSettings.password`, the broker password from the Supervisor.
 
 *Alternative:* leave the valid secrets as `str`, and rely only on D1 to D3.
@@ -124,6 +140,11 @@ would leak a secret again.
 `_check_broker` reports a non-connection key that both the form and the file set
 only when `MqttConfig` defines it. A key the core does not define is not reported
 as a conflict there. The core then rejects it as D1 describes, without its name.
+
+One case stays as it is. The add-on's merge drops any key with no value, so a
+bare `hunter2:` key in the file's `mqtt` block never reaches the core. Nothing
+leaks: no error names it. The add-on deciding this instead of the core is the
+problem story #83 handles, so this change leaves it there.
 
 ### D6: Test with a marker secret on every path
 
@@ -137,8 +158,10 @@ is in neither the `ConfigError` message nor any `caplog` record. The paths are:
 - the add-on's combined form-and-file path, through `load_app_config`, with a
   failing `mqtt` block and with a broker conflict
 - `main()`, end to end, so the `Configuration error` log line is checked too
-- `repr` of `ConfigFile`, `BrokerSettings`, `AppConfig` and `PydanticAIProvider`
-  for a valid configuration
+- the traceback of each `ConfigError`, rendered with `traceback.format_exception`,
+  so a chained cause cannot hold the marker
+- `repr` of `ConfigFile`, `CombinedSettings`, `BrokerSettings`, `AppConfig` and
+  `PydanticAIProvider` for a valid configuration
 
 Each failure test also checks that the error still names the setting, or lists
 the defined settings. A test then cannot pass because the error is empty.

@@ -13,10 +13,11 @@ The error SHALL still say what is wrong:
   and state the rule the value broke.
 - For a key the block does not define, it SHALL say that the block holds a
   setting it does not know, and list the settings the block defines.
-- For an `explainer` value that is not a mapping or empty, it SHALL say that
+- For an `explainer` value that is a list, text or a number, it SHALL say that
   `explainer` must be a mapping of settings.
 
-An empty `explainer` block SHALL still mean that the explainer is disabled.
+An `explainer` key with no value, and an `explainer` block with no settings, SHALL
+each still mean that the explainer is disabled.
 
 Once the configuration is valid, the process SHALL show the API key as a mask
 whenever it prints or logs its settings. It SHALL use the key's value only to
@@ -47,7 +48,8 @@ call the LLM provider.
 
 #### Scenario: An empty explainer block still disables the explainer
 
-- **WHEN** `config.yaml` has an `explainer` key with no value
+- **WHEN** `config.yaml` has an `explainer` key with no value, or sets
+  `explainer` to an empty mapping
 - **THEN** the configuration loads
 - **AND** no narrative is produced
 
