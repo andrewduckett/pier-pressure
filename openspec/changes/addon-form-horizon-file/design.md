@@ -75,18 +75,30 @@ mapping. A small function names the settings a raw form pier sets:
 
 - `min_altitude` or `horizon_points` set → `horizon`
 - any field in `EQUIPMENT_FIELDS`, or an `equipment` value → `equipment`
+- `id` → nothing, because it only matches the two sources
 - any other key that is set → that key
 
-"Set" uses the rule the translation already uses: not absent, not `None`, and
-not empty or blank text. The function lives in `addon_options.py`, beside
-`EQUIPMENT_FIELDS`, so the field lists are not duplicated.
+One shared function decides whether a form value is set: not absent, not
+`None`, and not empty or blank text. A value of 0 is set. Today the translation
+checks only for `None` on number fields, so blank text in `min_altitude` or an
+equipment field reaches the core and skips the pier. The translation switches
+to the shared function, so the conflict check and the translation agree. Both
+functions live in `addon_options.py`, beside `EQUIPMENT_FIELDS`, so the field
+lists are not duplicated.
 
 The listed ids also come from the raw values. Every raw pier that is a mapping
-with a text `id` counts as listed. So a pier the translation skips still
+with a text `id` counts as listed.
+
+The file's piers get a structure check before any matching. Each entry must be
+a mapping with a text `id`. An entry that fails is reported by its position,
+such as "the first pier in config.yaml", and the check moves on to the next
+entry. Only entries with a text `id` take part in matching and the duplicate
+check, so an `id` such as a list never reaches a set or a dictionary key. So a pier the translation skips still
 matches its file entry, as the spec's "A skipped form pier still counts as
 listed" scenario requires.
 
-After the checks pass, the translation runs as today. A file entry whose form
+After the checks pass, the translation runs as today, apart from the shared
+"set" function. A file entry whose form
 pier was skipped is then dropped silently, because its pier is not published.
 
 Alternatives considered:
@@ -123,8 +135,13 @@ When nothing conflicts, the merge is a plain union at each level:
 
 The form's piers keep their order. The file cannot add a pier.
 
-An unknown key from the file passes through. The core rejects it as it does
-today, because its models forbid extra keys.
+An unknown key from the file passes through. Inside a pier or the `mqtt`
+block, the core rejects it, because those models forbid extra keys. An unknown
+top-level key, such as a misspelled `explanier`, is dropped without a message.
+`build_config` already does this today for every install type, because it
+copies only the keys it knows. This change keeps that behaviour. A stricter
+check of top-level keys would also change Docker installs, so it belongs in its
+own story.
 
 When the form lists the same id twice, the file entry for that id applies to
 both piers. This keeps today's behaviour for duplicate form ids until #86
@@ -135,7 +152,20 @@ decides the rule.
 The core gains `read_config_mapping(path)`. It parses the YAML, checks that the
 root is a mapping, and expands `${VAR}`. `read_config` then becomes
 `ConfigFile(raw=read_config_mapping(path), base_dir=...)`, so Docker and source
-installs behave exactly as before.
+installs read files exactly as before.
+
+`read_config_mapping` also changes how it reports a YAML mistake. Today the
+error carries PyYAML's full message, which quotes the broken line. A broken
+line such as `password: [pw-8c41f2` would then put the password in the log. PyYAML's
+short problem text is not safe either: an undefined alias such as
+`*pw-8c41f2` puts the alias name in it. So the new error holds only the file
+and the line and column of the problem mark, such as
+`/config/config.yaml is not valid YAML at line 3, column 13`. It holds no text
+from PyYAML and nothing from the file.
+
+Docker and source installs get the same message, because they share the
+helper. This is the one change those installs see. No spec fixes the old
+wording, and every file that loads today still loads the same way.
 
 The add-on path reads the file with `read_config_mapping`. It builds the
 `ConfigFile` only after the merge, so the broker rule checks the combined
@@ -164,16 +194,20 @@ the list is not empty. The problems are joined with `; ` so the existing log
 line stays on one line, as earlier changes keep it.
 
 Each problem names a setting by its `config.yaml` name, and names the pier by
-its id. For example:
+its id. Ids and key names are shown with `repr`-style escaping, so a line break
+inside a YAML id cannot split the log line. For example:
 
 - `horizon of pier 'backyard' is set on the Configuration tab and in config.yaml`
 - `pier 'roof' in config.yaml is not on the Configuration tab`
 - `pier 'backyard' is listed more than once in config.yaml`
 - `the broker connection (mqtt.host, mqtt.port, mqtt.username, mqtt.password) is set on the Configuration tab and in config.yaml`
 
-The code that builds a problem receives only key names and ids, never values.
-So no message can contain the broker password or an explainer API key. A test
-puts a sentinel password in both sources and checks every log line and error.
+The code that builds a problem receives only key names, ids and list
+positions, never values. So no message the combine step builds can contain the
+broker password or an explainer API key. The YAML error is the other message
+that reads the file, and D4 keeps it free of the file's content. Tests put a
+sentinel password in both sources, and on a broken YAML line, then check every
+log line and error.
 
 The exact wording above is a sketch. The spec fixes only what each message
 names.
@@ -240,7 +274,7 @@ combine. That section covers:
 - a horizon file example.
 
 It drops "Set up with config.yaml instead". "More settings" points to
-`config.yaml` for settings the form does not show. The error table gains rows
+`config.yaml` for settings the form leaves unset. The error table gains rows
 for a conflict, an unknown pier and an empty form.
 
 The README's add-on section follows the same rule. Comments in
@@ -257,7 +291,7 @@ are updated.
   or maps to itself.
 - [The form always sets `interval_seconds`, so a file `recompute` block is
   always an error] → The error names the recompute interval and both places, so
-  the fix is plain. This is the "form owns what it shows" rule, applied as is.
+  the fix is plain. This is the "set in both is an error" rule, applied as is.
 - [A file entry for a skipped form pier is dropped without a message] → The
   pier's own skip error is already logged. A second message would add noise
   without a new fix.

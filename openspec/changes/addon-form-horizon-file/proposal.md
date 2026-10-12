@@ -9,8 +9,11 @@ The same split hides every other setting the form does not show yet. Today,
 `go_threshold`, `max_gust`, the explainer and the topic names are reachable only
 by moving every pier into `config.yaml`.
 
-This story sets the final rule from epic #67: the form owns every setting it
-shows, and `config.yaml` adds the settings it does not show.
+This story sets the final rule from epic #67: `config.yaml` adds the settings
+the form leaves unset. The epic and issue #73 say "settings the form does not
+show". This change reads that as "settings the form leaves unset", so it also
+covers optional fields the form shows but the user left empty, such as a
+pier's horizon.
 
 Story: #73 `addon-form-horizon-file`, part of epic #67.
 
@@ -18,9 +21,10 @@ Story: #73 `addon-form-horizon-file`, part of epic #67.
 
 - **`config.yaml` adds to the form.** Inside the add-on, when the form lists
   piers, the service also reads `config.yaml` if it exists. The file may add any
-  setting the form does not show:
+  setting the form leaves unset:
   - per pier: a horizon file (`horizon.file` and `format`), `go_threshold`,
-    `max_gust`, or any other pier key the form leaves unset;
+    `max_gust`, or any other pier key the form leaves unset. A pier's `id`
+    only matches the two sources, so it is not a setting;
   - overall: `explainer`, and `mqtt.discovery_prefix` and `mqtt.base_topic`.
 
   A file pier matches a form pier by `id`. A relative horizon `file:` path is
@@ -41,6 +45,9 @@ Story: #73 `addon-form-horizon-file`, part of epic #67.
   also a startup error.
 - **One error lists every problem.** The user can fix them all before the next
   restart.
+- **Errors never quote setting values.** An error names settings, piers and, for
+  a YAML mistake, the line and column. It never quotes the file, so a broker
+  password on a broken line stays out of the log.
 - **BREAKING (add-on only): the file alone no longer sets up the add-on.** When
   the form lists no piers, the service stops with "Nothing is set up", even if
   `config.yaml` exists. When the file lists piers, the error names them, and
@@ -92,8 +99,13 @@ None.
   - `ha-addon/DOCS.md` and `README.md`: how the form and the file combine.
 - **New decision record:** ADR-0020 left "letting the file add settings to a
   form setup" as a separate decision. This change records it.
-- **Unchanged:** the pure core, the `config.yaml` format, and Docker and source
-  installs. The core still validates one settings object.
+- **Core change:** the core gains one file-reading helper with no Home
+  Assistant code. Its YAML error names only the file, line and column. Docker
+  and source installs see this safer error message too. It is their only
+  change.
+- **Unchanged:** the `config.yaml` format. A file that loads today loads the
+  same way on Docker and source installs, and the core still validates one
+  settings object.
 - **Tests:** the merge, each conflict, unknown and duplicate pier ids, a skipped
   form pier with a file entry, the empty-form error, and a form pier with a
   horizon file end to end.

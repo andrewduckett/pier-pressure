@@ -54,4 +54,4 @@ ADR-0006 is deprecated and was not considered.
 
 ## New Durable ADRs Created
 
-- ADR-0021: Inside an add-on, the form owns the settings it shows, and the config file adds the rest (`docs/decisions/0021-addon-form-owns-its-settings-file-adds-the-rest.md`)
+- ADR-0021: Inside an add-on, the config file adds the settings the form leaves unset (`docs/decisions/0021-addon-file-adds-settings-form-leaves-unset.md`)
