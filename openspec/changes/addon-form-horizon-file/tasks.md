@@ -39,7 +39,7 @@
 
 ## 5. Startup reads both sources
 
-- [ ] 5.1 Write failing tests in `tests/test_main.py` for `load_app_config`, inside an add-on with a temporary `options.json` and `config.yaml` (design D4, D6 to D8):
+- [x] 5.1 Write failing tests in `tests/test_main.py` for `load_app_config`, inside an add-on with a temporary `options.json` and `config.yaml` (design D4, D6 to D8):
   - "Form setup gives a verdict without a file": settings from the form only, and the log says `Settings from the Configuration tab`.
   - "A form pier takes its horizon file from config.yaml": a relative `.hrz` path is read from the config folder, and the log says `Settings from the Configuration tab and config.yaml`.
   - "The file's broker wins", "The file sets only its topics" and "Credentials without a host are rejected", with a form that sets no broker field.
