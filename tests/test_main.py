@@ -21,7 +21,13 @@ import pierpressure
 from pierpressure import __main__ as entry
 from pierpressure.conditions.provider import SourceForecast, assemble_snapshot
 from pierpressure.core.clock import FixedClock
-from pierpressure.core.config import AppConfig, BrokerSettings, MqttConfig, RecomputeConfig
+from pierpressure.core.config import (
+    AppConfig,
+    BrokerSettings,
+    ConfigError,
+    MqttConfig,
+    RecomputeConfig,
+)
 from pierpressure.core.horizon import parse_horizon_text
 from pierpressure.core.model import Verdict
 from pierpressure.core.producer import produce_verdict
@@ -1516,3 +1522,45 @@ def test_the_log_names_the_form_as_the_brokers_source(
     messages = [r.getMessage() for r in caplog.records]
     assert "MQTT broker from the Configuration tab: broker.lan:1883" in messages
     assert FORM_PASSWORD not in caplog.text
+
+
+# --------------------------------------------------------------------------- #
+# config-secrets-hidden-in-errors: the add-on's combined path (D5, D6)
+# --------------------------------------------------------------------------- #
+
+UNKNOWN_KEY_VALUE = "hunter2-5e3d91"
+
+
+@pytest.mark.parametrize(
+    ("file_text", "expected", "hidden"),
+    [
+        (
+            f"mqtt:\n  pasword: {UNKNOWN_KEY_VALUE}\n",
+            "the mqtt block holds a setting it does not know",
+            ("pasword", UNKNOWN_KEY_VALUE),
+        ),
+        ("mqtt:\n  host: file.lan\n", "the broker connection", ()),
+    ],
+    ids=["unknown-key", "broker-conflict"],
+)
+def test_an_addon_error_does_not_show_the_forms_password(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+    file_text: str,
+    expected: str,
+    hidden: tuple[str, ...],
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _form_with_broker(options_file, FORM_BROKER, BACKYARD)
+    StartupStub(monkeypatch)
+
+    with caplog.at_level(logging.DEBUG), pytest.raises(ConfigError) as error:
+        _load(_config(tmp_path, file_text))
+
+    message = str(error.value)
+    assert expected in message
+    for text in (FORM_PASSWORD, *hidden):
+        assert text not in message
+        assert text not in caplog.text
