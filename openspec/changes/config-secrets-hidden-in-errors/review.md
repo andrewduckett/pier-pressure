@@ -38,7 +38,7 @@ The remaining defect has one specific spec edit. The reviewer needs to re-check 
 
 1. In `specs/ha-delivery/spec.md`, limit the bare unknown key scenario’s **WHEN** to a standalone `config.yaml` load. Keep the add-on’s dropped bare key outside that scenario, consistent with proposal.md and design D5. The unknown key with a value must still be covered on the combined add-on path.
 
-CHANGES_APPLIED: no
+CHANGES_APPLIED: yes
 
 ## Rebuttals
 
@@ -49,3 +49,11 @@ Round 2 findings, re-checked against the revised artifacts:
 3. **Moderate — add-on merge drops a bare unknown MQTT key: partly resolved.** The proposal and design now state the behavior and its scope. The ha-delivery scenario still implies rejection on that path; Required Change 1 addresses the remaining mismatch.
 4. **Moderate — Pydantic `msg` assumed input-free: resolved.** Design D1 limits the assumption to the models’ present built-in checks and calls for a code comment and marker tests.
 5. **Moderate — empty explainer wording contradicted itself: resolved.** The verdict-narrative spec now names rejected shapes and separately requires both a null block and an empty mapping to disable the explainer.
+Round 3 required change:
+
+1. **Required Change 1 — fixed.** The bare unknown key scenario in
+   `specs/ha-delivery/spec.md` now applies only when `config.yaml` loads on its
+   own. A new scenario covers an unknown key with a value on the add-on's
+   combined path. Re-checked by the reviewer (Codex, read-only): PASS — "The
+   bare unknown key is limited to a standalone config.yaml load, and an unknown
+   key with a value remains covered on the combined add-on path."
