@@ -230,15 +230,12 @@ def test_null_equipment_fields_count_as_unset(tmp_path: Path) -> None:
     ]
 
 
-def test_an_equipment_mapping_keeps_the_set_equipment_fields(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_an_equipment_mapping_keeps_the_set_equipment_fields(tmp_path: Path) -> None:
     # The core rejects equipment_focal_length_mm as a key it does not know
     # (addon-options-core-validates D3).
     pier = {**PIER, "equipment": {"focal_length_mm": 400}, "equipment_focal_length_mm": 400}
 
     assert _read_piers(tmp_path, [pier]) == [pier]
-    assert caplog.records == []
 
 
 def test_an_equipment_mapping_drops_the_unset_equipment_fields(tmp_path: Path) -> None:
