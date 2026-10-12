@@ -1,7 +1,7 @@
 """The add-on's Configuration form.
 
 Follows addon-options-form D1, D3; addon-form-horizon D1-D3;
-addon-form-equipment D1-D3; and addon-form-broker D2.
+addon-form-equipment D1-D3; addon-form-broker D2; and addon-form-gates D1.
 
 When the user saves the form, the Supervisor writes its values to
 ``/data/options.json``. :func:`translate_form` turns them into the mapping a
@@ -9,6 +9,8 @@ When the user saves the form, the Supervisor writes its values to
 pier exactly as it validates a file pier. The core never sees the form's names:
 a pier's flat ``min_altitude`` and ``horizon_points`` fields become the file's
 ``horizon`` block, and its ``equipment_*`` fields become its ``equipment`` block.
+Its ``go_threshold`` and ``max_gust`` keep the file's names. Each passes through
+when set and is left out when not, so the core's default applies.
 The form's ``mqtt`` block already uses the file's names, so it passes through
 without the fields the user left empty.
 
@@ -44,6 +46,10 @@ EQUIPMENT_FIELDS = {
     "equipment_sensor_height_mm": "sensor_height_mm",
     "equipment_reducer": "reducer",
 }
+
+# The flat pier fields that are left out when not set, so the core's default
+# applies instead of a null (addon-form-gates D1).
+GATE_FIELDS = ("go_threshold", "max_gust")
 
 
 def is_set(value: Any) -> bool:
@@ -102,11 +108,12 @@ def translate_form(options: dict[str, Any]) -> dict[str, Any] | None:
 
     Returns ``None`` when the form lists no piers. Each pier's horizon fields
     become its ``horizon`` block, and its equipment fields its ``equipment``
-    block; its other keys pass through unchanged, because they are the file's
-    keys. The ``mqtt`` block passes through without its empty fields, and is left
-    out when none is set (addon-form-broker D2). A pier whose ``horizon_points``
-    cannot be parsed, or that holds both an ``equipment`` block and equipment
-    fields, is logged and left out, so the list may end up empty.
+    block. Its gate fields, ``go_threshold`` and ``max_gust``, are left out when
+    not set (addon-form-gates D1). Its other keys pass through unchanged, because
+    they are the file's keys. The ``mqtt`` block passes through without its empty
+    fields, and is left out when none is set (addon-form-broker D2). A pier whose
+    ``horizon_points`` cannot be parsed, or that holds both an ``equipment`` block
+    and equipment fields, is logged and left out, so the list may end up empty.
     """
     piers = options.get("piers", [])
     if not piers:
@@ -134,7 +141,10 @@ def _set_broker_fields(mqtt: Any) -> Any:
 
 
 def _config_piers(piers: list[Any]) -> list[Any]:
-    """Rebuild each form pier's horizon and equipment, leaving out piers that cannot be."""
+    """Rebuild each form pier's horizon and equipment, and drop its unset gate fields.
+
+    Leaves out the piers that cannot be rebuilt.
+    """
     rebuilt: list[Any] = []
     for pier in piers:
         if not isinstance(pier, dict):
@@ -142,11 +152,19 @@ def _config_piers(piers: list[Any]) -> list[Any]:
             rebuilt.append(pier)
             continue
         try:
-            rebuilt.append(_with_equipment_block(_with_horizon_block(pier)))
+            rebuilt.append(_with_equipment_block(_with_horizon_block(_without_unset_gates(pier))))
         except ValueError as exc:
             # The core's skip wording, so both read alike in the log (D2).
             logger.error(SKIP_PIER_MESSAGE, pier.get("id"), exc)
     return rebuilt
+
+
+def _without_unset_gates(pier: dict[str, Any]) -> dict[str, Any]:
+    """The pier without the gate fields that :func:`is_set` counts as unset (addon-form-gates D1).
+
+    A set value, even 0 or one the core will reject, passes through unchanged.
+    """
+    return {key: value for key, value in pier.items() if key not in GATE_FIELDS or is_set(value)}
 
 
 def _with_horizon_block(pier: dict[str, Any]) -> dict[str, Any]:

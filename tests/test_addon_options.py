@@ -1,7 +1,8 @@
 """addon-options-form D1, D3: the Configuration form's saved values become config.
 
 The horizon fields follow addon-form-horizon D1-D3, the equipment fields
-addon-form-equipment D1-D3, and the broker fields addon-form-broker D2.
+addon-form-equipment D1-D3, the broker fields addon-form-broker D2, and the gate
+fields addon-form-gates D1.
 """
 
 from __future__ import annotations
@@ -405,3 +406,38 @@ def test_every_form_pier_field_has_a_known_setting() -> None:
             assert settings == {field}, field
     # The flattened fields that build a block are all on the form.
     assert set(HORIZON_FIELDS) | set(EQUIPMENT_FIELDS) <= set(fields)
+
+
+# --------------------------------------------------------------------------- #
+# addon-form-gates D1: an unset gate field is left out
+# --------------------------------------------------------------------------- #
+
+
+def test_set_gate_fields_pass_through_unchanged(tmp_path: Path) -> None:
+    pier = {**PIER, "go_threshold": 75, "max_gust": 40}
+
+    assert _read_piers(tmp_path, [pier]) == [pier]
+
+
+def test_a_go_threshold_of_zero_counts_as_set(tmp_path: Path) -> None:
+    pier = {**PIER, "go_threshold": 0}
+
+    assert _read_piers(tmp_path, [pier]) == [pier]
+
+
+@pytest.mark.parametrize("unset", [None, "", "   "], ids=["null", "empty", "blank"])
+@pytest.mark.parametrize("field", ["go_threshold", "max_gust"])
+def test_an_unset_gate_field_is_left_out(tmp_path: Path, field: str, unset: str | None) -> None:
+    # The core then uses its default, or config.yaml's value (D1).
+    assert _read_piers(tmp_path, [{**PIER, field: unset}]) == [PIER]
+
+
+def test_an_absent_gate_field_stays_absent(tmp_path: Path) -> None:
+    assert _read_piers(tmp_path, [PIER]) == [PIER]
+
+
+def test_a_bad_gate_value_reaches_the_core(tmp_path: Path) -> None:
+    # The core rejects it, as it rejects the same value in config.yaml (D1).
+    pier = {**PIER, "max_gust": 0}
+
+    assert _read_piers(tmp_path, [pier]) == [pier]
