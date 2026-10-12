@@ -1,6 +1,6 @@
 ## 1. The core reads horizon points written as text
 
-- [ ] 1.1 Write failing tests in `tests/test_horizon_config.py` (design D1, D6), each through `validate_piers` beside a valid second pier:
+- [x] 1.1 Write failing tests in `tests/test_horizon_config.py` (design D1, D6), each through `validate_piers` beside a valid second pier:
   - `horizon.points` as the text `"[[0, 10], [90, 25], [180, 5]]"` gives the same horizon as the same list
   - the text `"[[0, 10], [90"` skips its pier; the logged error names `horizon.points`, and the YAML reader's message in it holds no line break
   - the texts `"5"`, `"{a: 1}"`, `""`, `"   "` and `"# none"` each skip their pier, with `horizon.points` in the logged error
