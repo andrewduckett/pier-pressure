@@ -22,23 +22,22 @@ Story: #83 `addon-options-core-validates`.
   - does not hold a list of points
   - holds nothing, such as empty text or only a comment
 
-  This adds to the `config.yaml` format. Every file that loads today still
-  loads.
+  A list still works as before.
 - **The add-on only renames the horizon fields.** `horizon_points` becomes
   `horizon.points`, and `min_altitude` becomes `horizon.min_altitude`. The
   add-on does not parse or type-check either value.
-- **The add-on passes on any value it does not expect,** and the core rejects
-  it. This covers:
+- **The add-on passes on any value it does not expect** in the settings the
+  form declares, and the core rejects it. The add-on reads only those settings
+  and ignores any other top-level key, as the Supervisor does. This covers:
   - a pier entry that is not a mapping (passed on today)
   - an `mqtt` value that is not a mapping (passed on today)
   - a pier that holds an `equipment` value beside the `equipment_*` fields. The
-    add-on leaves that pier's equipment fields unchanged, and the core rejects
-    the `equipment_*` keys as fields it does not know. The add-on writes no
-    error of its own.
+    add-on leaves the set `equipment_*` fields in place, and the core rejects
+    them as fields it does not know. The add-on writes no error of its own.
   - a pier that holds a `horizon` value beside `min_altitude` or
-    `horizon_points`. The add-on leaves that pier's horizon fields unchanged,
-    and the core rejects them as fields it does not know. Today the add-on
-    silently replaces the `horizon` value.
+    `horizon_points`. The add-on leaves the set horizon fields in place, and
+    the core rejects them as fields it does not know. Today the add-on silently
+    replaces the `horizon` value.
 - **The add-on no longer drops a pier.** Every form pier reaches the core, which
   logs and skips a bad one as it does for a file pier.
 - **The add-on removes its own setting checks and their tests:**
@@ -56,7 +55,8 @@ Story: #83 `addon-options-core-validates`.
   form's `horizon_points` field.**
 - **An ADR records the rule:** the core is the only place that validates
   settings, whatever the interface. An interface layer reads, renames and
-  combines settings. It passes on any value it does not expect.
+  combines settings. For the settings it reads, it passes on any value it does
+  not expect.
 
 Out of scope:
 
@@ -101,5 +101,5 @@ None.
   `equipment_*` key, not `equipment`. A `horizon` value beside the horizon
   fields now fails the pier, with an unknown-field error that names each set
   horizon field.
-- **Unchanged:** the add-on's form, every configuration that loads today, the
-  verdict document, MQTT topics, entities and entity mapping.
+- **Unchanged:** the add-on's form, the verdict document, MQTT topics,
+  entities and entity mapping.

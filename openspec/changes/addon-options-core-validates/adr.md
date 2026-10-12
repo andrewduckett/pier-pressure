@@ -17,8 +17,9 @@ The other decisions are cheap to reverse and are guarded by specs and tests:
 
 - Parsing text in `horizon.points` with a before-validator (design D1) is a
   local choice. The `horizon-mask` delta spec requires the behaviour.
-- Using `is_set` to decide when an `equipment` value leaves a pier unchanged
-  (design D3) matches an existing rule, and a test covers it.
+- Using `is_set` to decide when a `horizon` or `equipment` value keeps the set
+  flat fields in place (design D2, D3) matches an existing rule, and tests cover
+  it.
 
 This change applies these ADRs without changing them:
 
