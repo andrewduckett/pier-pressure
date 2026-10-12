@@ -200,10 +200,9 @@ The service SHALL turn a form pier's horizon fields into that pier's horizon:
 
 - When `min_altitude` is set, the pier's horizon SHALL be a flat floor at that
   altitude.
-- When `horizon_points` is set, the service SHALL read the text with the same
-  parser it uses for `config.yaml`. The result SHALL be the pier's inline
-  horizon points. The service SHALL then check them exactly as it checks a
-  file's `horizon.points`.
+- When `horizon_points` is set, the service SHALL pass its value unchanged as
+  the pier's `horizon.points`. The core SHALL then read and check it exactly as
+  it reads and checks `horizon.points` in `config.yaml`.
 - When neither is set, the pier's horizon SHALL come from `config.yaml`, as the
   requirement "The add-on combines the Configuration form with config.yaml"
   describes. When the file gives the pier no horizon either, the pier's horizon
@@ -212,16 +211,21 @@ The service SHALL turn a form pier's horizon fields into that pier's horizon:
 The service SHALL treat empty or blank `horizon_points` text as unset.
 
 A pier whose horizon fails these rules SHALL be skipped with a logged error that
-names the pier. The other piers SHALL still be published. This covers four
+names the pier. The other piers SHALL still be published. This covers five
 cases:
 
-- `horizon_points` text that the parser cannot read. The error SHALL name
-  `horizon_points`.
-- a saved `horizon_points` value that is not text. The error SHALL name
-  `horizon_points`.
+- `horizon_points` text that the core cannot read as a list of points. The
+  error SHALL name `horizon.points`.
+- a saved `horizon_points` value that is neither text nor a list of points. The
+  error SHALL name `horizon.points`.
 - points that fail the checks for inline points.
 - both `min_altitude` and `horizon_points` set. This breaks the rule that a
   horizon has exactly one source.
+- saved values that hold both a `horizon` value and a horizon field that is
+  set. The service SHALL leave each set horizon field in place, and the core
+  SHALL reject each one as a field it does not know.
+  The error SHALL name each of those fields. The form has no `horizon` field, so
+  this happens only when the saved values were written some other way.
 
 When every pier is skipped, the add-on SHALL stop with a configuration error, as
 it does for any setup with no valid pier.
@@ -254,7 +258,7 @@ it does for any setup with no valid pier.
 
 - **WHEN** the form lists two piers
 - **AND** one pier's `horizon_points` is `[[0, 10], [90`
-- **THEN** the service logs an error that names that pier and `horizon_points`
+- **THEN** the service logs an error that names that pier and `horizon.points`
 - **AND** it publishes a verdict for the other pier
 
 #### Scenario: Malformed saved values skip only their pier
@@ -263,11 +267,8 @@ it does for any setup with no valid pier.
 - **AND** one pier's `horizon_points` is the number 5, not text
 - **AND** another entry in `piers` is not a mapping
 - **THEN** the service logs an error for each of those two entries, naming
-  `horizon_points` for the first
+  `horizon.points` for the first
 - **AND** it publishes a verdict for the third pier
-
-The Supervisor normally refuses to save such values. The service still checks
-them, because it does not rely on the Supervisor's check.
 
 #### Scenario: An out-of-range point skips only that pier
 
@@ -283,10 +284,28 @@ them, because it does not rely on the Supervisor's check.
 - **THEN** the service logs an error that names that pier
 - **AND** it publishes a verdict for the other pier
 
+#### Scenario: A horizon mapping beside horizon fields skips the pier
+
+- **WHEN** the saved form values list two piers
+- **AND** one pier holds a `horizon` mapping and sets `horizon_points`
+- **THEN** the service logs an error that names that pier and `horizon_points`
+  as a field the core does not know
+- **AND** the add-on reports no error of its own for that pier
+- **AND** it publishes a verdict for the other pier
+
+#### Scenario: A horizon mapping beside unset horizon fields is used
+
+- **WHEN** the saved form values list a pier that holds a `horizon` mapping
+  with `min_altitude` 15
+- **AND** the pier's `horizon_points` is blank text and its `min_altitude` is
+  null
+- **THEN** the pier passes the service's checks
+- **AND** its horizon altitude is 15 degrees at every azimuth
+
 #### Scenario: A bad horizon on the only pier stops the add-on
 
 - **WHEN** the form lists one pier, and its `horizon_points` cannot be read
-- **THEN** the service logs an error that names the pier and `horizon_points`
+- **THEN** the service logs an error that names the pier and `horizon.points`
 - **AND** the add-on stops with a configuration error that says no valid pier
   remains
 
@@ -313,9 +332,11 @@ cases:
 - a missing focal length, sensor width or sensor height, while another
   equipment field is set. The error SHALL name the missing field.
 - a value of 0 or less.
-- saved values that hold both an `equipment` mapping and any equipment field.
-  The error SHALL name `equipment`. The form has no `equipment` field, so this
-  happens only when the saved values were written some other way.
+- saved values that hold both an `equipment` value and any equipment field.
+  The service SHALL leave each set `equipment_*` field in place, and the core
+  SHALL reject each one as a field it does not know. The
+  error SHALL name each of those fields. The form has no `equipment` field, so
+  this happens only when the saved values were written some other way.
 
 When every pier is skipped, the add-on SHALL stop with a configuration error, as
 it does for any setup with no valid pier.
@@ -388,17 +409,25 @@ it does for any setup with no valid pier.
   `equipment` key, such as `focal_length_mm`
 - **AND** it publishes a verdict for the other pier
 
-This holds for each of the four fields and both values. The Supervisor normally
-refuses to save a negative value. The service still checks it, because it does
-not rely on the Supervisor's check.
+This holds for each of the four fields and both values.
 
 #### Scenario: An equipment mapping beside equipment fields skips the pier
 
 - **WHEN** the saved form values list two piers
 - **AND** one pier holds an `equipment` mapping and sets
   `equipment_focal_length_mm`
-- **THEN** the service logs an error that names that pier and `equipment`
+- **THEN** the service logs an error that names that pier and
+  `equipment_focal_length_mm` as a field the core does not know
+- **AND** the add-on reports no error of its own for that pier
 - **AND** it publishes a verdict for the other pier
+
+#### Scenario: An equipment mapping beside unset equipment fields is used
+
+- **WHEN** the saved form values list a pier that holds a complete `equipment`
+  mapping
+- **AND** the pier's `equipment_focal_length_mm` is null
+- **THEN** the pier passes the service's checks
+- **AND** its equipment equals the `equipment` mapping
 
 #### Scenario: Incomplete equipment on the only pier stops the add-on
 
@@ -479,9 +508,6 @@ a configuration error, as it does for any setup with no valid pier.
 - **AND** one pier sets `max_gust` to 0, or `go_threshold` to 101
 - **THEN** the service logs an error that names that pier and the field
 - **AND** it publishes a verdict for the other pier
-
-The Supervisor normally refuses to save a `go_threshold` over 100. The service
-still checks it, because it does not rely on the Supervisor's check.
 
 ### Requirement: The add-on behaves like the container
 
@@ -994,7 +1020,7 @@ This holds for both lines.
 - **WHEN** the form lists the piers `backyard` and `roof`
 - **AND** the `horizon_points` of `backyard` cannot be read
 - **AND** `config.yaml` lists the pier `backyard` with `go_threshold` set
-- **THEN** the service logs an error that names `backyard` and `horizon_points`
+- **THEN** the service logs an error that names `backyard` and `horizon.points`
 - **AND** no error says that `backyard` is not on the Configuration tab
 - **AND** the service publishes a verdict for `roof`
 
@@ -1053,11 +1079,54 @@ This holds for both lines.
 - **THEN** the service logs an error that names the skipped pier
 - **AND** it publishes a verdict for the other pier
 
-The Supervisor normally refuses to save such a value. The service still checks
-each pier, because it does not rely on the Supervisor's check.
-
 #### Scenario: Outside an add-on, the form is not read
 
 - **WHEN** the service runs outside an add-on
 - **THEN** it does not read the form's values
 - **AND** it loads `config.yaml` on its own, exactly as before this change
+
+### Requirement: The core checks every saved setting
+
+The core SHALL check every setting the add-on reads, as it checks the same
+setting in `config.yaml`. The add-on SHALL only read the saved form values,
+rename form fields to their `config.yaml` names, and combine them with
+`config.yaml`. It SHALL NOT decide whether a setting's value is valid. For each
+setting the form declares, it SHALL pass on any value it does not expect, so the
+core can reject it. It SHALL ignore any other top-level key in the saved values,
+as the Supervisor does when it saves the form.
+
+A form field that is not set SHALL be left out before the core checks the pier,
+as the requirement "The add-on combines the Configuration form with config.yaml"
+describes. This rule says what an empty field means, not whether a value is
+valid.
+
+The Supervisor checks the form's values when the user saves them. That check is
+a convenience, not a guarantee. A pier SHALL get the same result, and an error
+that names the same setting, whether or not the Supervisor checked its values.
+
+The add-on SHALL still stop with a configuration error when the saved values do
+not have the shape it needs to run:
+
+- The saved values are not valid JSON, or their root is not a mapping.
+- Their `piers` is not a list.
+
+The rules for combining the form with `config.yaml` stay with the add-on, as the
+requirement "The add-on combines the Configuration form with config.yaml"
+describes, because only the add-on has two sources.
+
+#### Scenario: Values the Supervisor would refuse get the core's errors
+
+- **WHEN** the saved form values list four piers
+- **AND** one pier has a latitude of 95
+- **AND** one pier has a `go_threshold` of 101
+- **AND** one pier has `horizon_points` saved as the number 5
+- **THEN** the service logs an error for each of those three piers
+- **AND** each error names the same setting as the error for a `config.yaml`
+  pier with the same value: `latitude`, `go_threshold` and `horizon.points`
+- **AND** it publishes a verdict for the fourth pier
+
+#### Scenario: Saved values that are not a mapping stop the add-on
+
+- **WHEN** the saved form values are a list, not a mapping
+- **THEN** the add-on stops with a configuration error that names the file of
+  saved values
