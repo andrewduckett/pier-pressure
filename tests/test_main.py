@@ -13,6 +13,7 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
 
 import pierpressure
@@ -29,7 +30,7 @@ from pierpressure.delivery.mqtt import (
     verdict_state_topic,
 )
 from pierpressure.service import Service
-from pierpressure.supervisor import SupervisorError
+from pierpressure.supervisor import SupervisorError, fetch_mqtt_broker
 
 from .conftest import FakeMqttClient, make_mqtt_config, make_pier
 from .offline_guard import no_network
@@ -123,6 +124,8 @@ class StartupStub:
     ``connected_to`` records the MQTT config the delivery was built with; its
     ``connect`` then fails, so ``main`` stops right after config loading.
     ``supervisor_calls`` records each token the Supervisor was asked with.
+    ``supervisor`` is the broker to return, an error to raise, or a Supervisor
+    reply that the real lookup turns into its error (addon-form-broker D5).
     """
 
     def __init__(
@@ -160,15 +163,28 @@ class StartupStub:
             def close(self) -> None:
                 stub.closed = True
 
-        def fake_fetch(token: str) -> BrokerSettings:
+        def fake_fetch(token: str, **kwargs: Any) -> BrokerSettings:
             stub.supervisor_calls.append(token)
             if isinstance(supervisor, Exception):
                 raise supervisor
+            if isinstance(supervisor, httpx.Response):
+                return _replay_supervisor(supervisor, token, **kwargs)
             assert isinstance(supervisor, BrokerSettings)
             return supervisor
 
         monkeypatch.setattr(entry, "MqttDelivery", FakeDelivery)
         monkeypatch.setattr(entry, "fetch_mqtt_broker", fake_fetch)
+
+
+def _replay_supervisor(reply: httpx.Response, token: str, **kwargs: Any) -> BrokerSettings:
+    """Run the real lookup against a Supervisor that always gives ``reply``, with no wait."""
+    now = [0.0]
+
+    def sleep(seconds: float) -> None:
+        now[0] += seconds
+
+    client = httpx.Client(transport=httpx.MockTransport(lambda _request: reply))
+    return fetch_mqtt_broker(token, client=client, sleep=sleep, monotonic=lambda: now[0], **kwargs)
 
 
 def _config(tmp_path: Path, text: str) -> str:
@@ -541,32 +557,60 @@ def test_load_app_config_reports_whether_the_form_was_the_source(
     assert loaded.broker_from_supervisor
 
 
+# A Supervisor that provides no broker, and one whose broker requires TLS.
+NO_BROKER_REPLY = httpx.Response(400, json={"result": "error", "message": "Service not enabled"})
+TLS_REPLY = httpx.Response(
+    200, json={"result": "ok", "data": {"host": "core-mosquitto", "port": 8883, "ssl": True}}
+)
+
+
 @pytest.mark.parametrize(
-    "message",
-    [
-        "No MQTT broker was found. Install the Mosquitto broker add-on, or set mqtt.host "
-        "in config.yaml.",
-        "The Supervisor's MQTT broker requires TLS. Set mqtt.host and mqtt.port in config.yaml.",
-    ],
+    ("reply", "opening"),
+    [(NO_BROKER_REPLY, "No MQTT broker was found"), (TLS_REPLY, "The Supervisor's MQTT broker")],
     ids=["no-broker", "tls"],
 )
-def test_a_form_users_supervisor_error_says_the_file_is_not_read(
+def test_a_form_users_supervisor_error_names_the_configuration_tab(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     options_file: Path,
     caplog: pytest.LogCaptureFixture,
-    message: str,
+    reply: httpx.Response,
+    opening: str,
 ) -> None:
+    # addon-form-broker D5: set mqtt.host on the form, not in config.yaml.
     monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
     _form(options_file, BACKYARD)
-    StartupStub(monkeypatch, supervisor=SupervisorError(message))
+    StartupStub(monkeypatch, supervisor=reply)
 
     with caplog.at_level(logging.ERROR, logger="pierpressure"):
         assert entry.main([str(tmp_path / "config.yaml")]) == 1
 
     [error] = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
-    assert error.startswith(f"Configuration error: {message}")
+    assert error.startswith(f"Configuration error: {opening}")
+    assert "on the Configuration tab" in error
     assert FORM_NOTE in error
+    assert "in config.yaml" not in error
+    assert "into config.yaml" not in error
+
+
+@pytest.mark.parametrize("reply", [NO_BROKER_REPLY, TLS_REPLY], ids=["no-broker", "tls"])
+def test_a_file_users_supervisor_error_names_config_yaml(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+    reply: httpx.Response,
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _form(options_file)
+    StartupStub(monkeypatch, supervisor=reply)
+
+    with caplog.at_level(logging.ERROR, logger="pierpressure"):
+        assert entry.main([_config(tmp_path, PIERS)]) == 1
+
+    [error] = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+    assert "in config.yaml" in error
+    assert "Configuration tab" not in error
 
 
 def test_a_file_users_supervisor_error_keeps_its_wording(
@@ -605,6 +649,14 @@ def test_a_form_users_rejected_login_says_the_file_is_not_read(
     assert error.startswith("Startup delivery failure: The MQTT broker at core-mosquitto:1883")
     assert "restart the Mosquitto broker add-on" in error
     assert FORM_NOTE in error
+
+
+def test_a_form_users_supervisor_login_advice_names_the_configuration_tab() -> None:
+    # addon-form-broker D4: the broker can now be set on the form itself.
+    assert "set mqtt.host on the Configuration tab" in entry.FORM_LOGIN_ADVICE
+    assert FORM_NOTE in entry.FORM_LOGIN_ADVICE
+    assert "move your piers" not in entry.FORM_LOGIN_ADVICE
+    assert "into config.yaml" not in entry.FORM_LOGIN_ADVICE
 
 
 def test_a_file_users_rejected_supervisor_login_keeps_its_advice(
@@ -1037,3 +1089,130 @@ def test_a_form_pier_without_equipment_has_no_field_of_view_reason(
 
     assert document.targets
     assert not any("field of view" in r for r in document.reasons), document.reasons
+
+
+# --------------------------------------------------------------------------- #
+# addon-form-broker: the form sets the broker (design D2, D4-D6)
+# --------------------------------------------------------------------------- #
+
+FORM_PASSWORD = "pw-8c41f2"
+FORM_BROKER = {"host": "broker.lan", "port": 1884, "username": "pier", "password": FORM_PASSWORD}
+
+
+def _form_with_broker(path: Path, mqtt: dict[str, Any], *piers: Any) -> None:
+    path.write_text(
+        json.dumps({"interval_seconds": 600, "piers": list(piers), "mqtt": mqtt}),
+        encoding="utf-8",
+    )
+
+
+def _connections(stub: StartupStub) -> list[tuple[str, int, str | None, str | None]]:
+    return [(m.host, m.port, m.username, m.password) for m in stub.connected_to]
+
+
+def test_the_forms_broker_is_used(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _form_with_broker(options_file, FORM_BROKER, BACKYARD)
+    stub = StartupStub(monkeypatch)
+
+    entry.main([str(tmp_path / "config.yaml")])
+
+    assert stub.supervisor_calls == []
+    assert _connections(stub) == [("broker.lan", 1884, "pier", FORM_PASSWORD)]
+
+
+def test_the_forms_broker_uses_port_1883_by_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _form_with_broker(options_file, {"host": "broker.lan"}, BACKYARD)
+    stub = StartupStub(monkeypatch)
+
+    entry.main([str(tmp_path / "config.yaml")])
+
+    assert _connections(stub) == [("broker.lan", 1883, None, None)]
+
+
+def test_blank_broker_fields_on_the_form_count_as_not_set(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _form_with_broker(
+        options_file, {"host": "broker.lan", "username": "", "password": ""}, BACKYARD
+    )
+    stub = StartupStub(monkeypatch)
+
+    entry.main([str(tmp_path / "config.yaml")])
+
+    assert _connections(stub) == [("broker.lan", 1883, None, None)]
+
+
+def test_a_username_on_the_form_without_a_host_stops_before_asking_the_supervisor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _form_with_broker(options_file, {"username": "pier"}, BACKYARD)
+    stub = StartupStub(monkeypatch)
+
+    with caplog.at_level(logging.ERROR, logger="pierpressure"):
+        assert entry.main([str(tmp_path / "config.yaml")]) == 1
+
+    assert stub.supervisor_calls == []
+    [error] = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+    assert error.startswith("Configuration error: mqtt.username is set without mqtt.host")
+
+
+def test_a_rejected_login_from_the_form_gets_the_default_advice(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _form_with_broker(options_file, FORM_BROKER, BACKYARD)
+    stub = StartupStub(monkeypatch, reject_login=True)
+
+    with caplog.at_level(logging.DEBUG):
+        assert entry.main([str(tmp_path / "config.yaml")]) == 1
+
+    assert stub.login_advice == [None]
+    [error] = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+    assert "Check mqtt.username and mqtt.password" in error
+    assert "Mosquitto" not in error
+    assert FORM_PASSWORD not in caplog.text
+
+
+def test_the_log_names_the_form_as_the_brokers_source(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _form_with_broker(options_file, {"host": "broker.lan", "password": FORM_PASSWORD}, BACKYARD)
+    StartupStub(monkeypatch)
+
+    with caplog.at_level(logging.DEBUG):
+        entry.main([str(tmp_path / "config.yaml")])
+
+    messages = [r.getMessage() for r in caplog.records]
+    assert "MQTT broker from the Configuration tab: broker.lan:1883" in messages
+    assert FORM_PASSWORD not in caplog.text
+
+
+def test_an_empty_forms_broker_is_not_used(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    _form_with_broker(options_file, {"host": "broker.lan"})
+    stub = StartupStub(monkeypatch)
+
+    entry.main([_config(tmp_path, PIERS)])
+
+    assert stub.supervisor_calls == ["token-1"]
+    assert [m.host for m in stub.connected_to] == ["core-mosquitto"]

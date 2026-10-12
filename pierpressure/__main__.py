@@ -15,7 +15,8 @@ the retained ``offline`` first, and exits 0 (stop-goes-offline).
 Inside a Home Assistant add-on, a config file that names no broker host uses the
 broker from the Supervisor's ``mqtt`` service (ha-addon-mqtt-service D1, D2). When
 the add-on's Configuration form lists a pier, the form replaces the config file
-(addon-options-form D2).
+(addon-options-form D2), and the form's broker host, when set, replaces the
+Supervisor's broker (addon-form-broker).
 """
 
 from __future__ import annotations
@@ -42,7 +43,7 @@ from pierpressure.core.config import (
 from pierpressure.delivery.mqtt import DeliveryError, MqttDelivery
 from pierpressure.explain import Explainer, build_explainer
 from pierpressure.service import Service
-from pierpressure.supervisor import SupervisorError, fetch_mqtt_broker
+from pierpressure.supervisor import CONFIG_FILE_PLACE, SupervisorError, fetch_mqtt_broker
 
 logger = logging.getLogger("pierpressure")
 
@@ -58,13 +59,14 @@ _RESTART_MOSQUITTO = (
 )
 SUPERVISOR_LOGIN_ADVICE = f"{_RESTART_MOSQUITTO}, or set mqtt.host to use your own broker login."
 
-# On the form path, config.yaml is not read, so setting mqtt.host there does nothing
-# until the piers move into it too (addon-options-form, "Risks / Trade-offs").
-FORM_NOTE = (
-    "config.yaml is not read while the Configuration tab lists piers. To set mqtt.host "
-    "there, move your piers from the Configuration tab into config.yaml as well."
+# On the form path, the Supervisor's errors and login advice name the Configuration
+# tab as the place to set mqtt.host, and add this note, because config.yaml is not
+# read there (addon-form-broker D4, D5).
+FORM_PLACE = "on the Configuration tab"
+FORM_NOTE = "config.yaml is not read while the Configuration tab lists piers."
+FORM_LOGIN_ADVICE = (
+    f"{_RESTART_MOSQUITTO}, or set mqtt.host {FORM_PLACE} to use your own broker login. {FORM_NOTE}"
 )
-FORM_LOGIN_ADVICE = f"{_RESTART_MOSQUITTO}. {FORM_NOTE}"
 
 
 class LoadedConfig(NamedTuple):
@@ -86,16 +88,16 @@ def build_delivery_and_explainer(
     does not manage the entity — so no provider is constructed and no narrative entity
     appears.
 
-    A broker from the Supervisor gets the Supervisor's login advice, which names the
-    form when the settings came from it; a broker from the file gets the adapter's
-    default (reconnect-restores-delivery D5, addon-options-form).
+    The login advice follows where the broker came from, not the settings
+    (addon-form-broker D4). A broker from the Supervisor gets the Supervisor's
+    advice, which names the Configuration tab when the settings came from the form.
+    A broker from the file or the form gets the adapter's default, which says to
+    check the username and password (reconnect-restores-delivery D5).
     """
     manage_narrative = config.explainer is not None and config.explainer.enabled
     login_advice: str | None = None
-    if from_form:
-        login_advice = FORM_LOGIN_ADVICE
-    elif broker_from_supervisor:
-        login_advice = SUPERVISOR_LOGIN_ADVICE
+    if broker_from_supervisor:
+        login_advice = FORM_LOGIN_ADVICE if from_form else SUPERVISOR_LOGIN_ADVICE
     delivery = MqttDelivery(
         config.mqtt,
         manage_narrative=manage_narrative,
@@ -113,12 +115,13 @@ def load_app_config(
     Inside an add-on (``SUPERVISOR_TOKEN`` is set), the Configuration form saved at
     ``options_path`` is read first. When it lists a pier, it replaces the config
     file, which is then not read (addon-options-form D2). The Supervisor is asked
-    for the broker only inside an add-on, and only when the settings name no
-    ``mqtt.host``; a form never does. Logs where the settings and the broker came
-    from, never the broker's password (D6). Returns the config, whether the broker
-    came from the Supervisor, and whether the settings came from the form. Raises
-    :class:`ConfigError`, :class:`OSError` or :class:`SupervisorError`; on the form
-    path, a :class:`SupervisorError` notes that the file is not read.
+    for the broker only inside an add-on, and only when the settings, from the
+    file or the form, name no ``mqtt.host``. Logs where the settings and the broker
+    came from, never the broker's password (D6, addon-form-broker D6). Returns the
+    config, whether the broker came from the Supervisor, and whether the settings
+    came from the form. Raises :class:`ConfigError`, :class:`OSError` or
+    :class:`SupervisorError`; on the form path, a :class:`SupervisorError` names the
+    Configuration tab and notes that the file is not read (addon-form-broker D5).
     """
     token = os.environ.get("SUPERVISOR_TOKEN")
     form = read_addon_options(options_path) if token else None
@@ -136,15 +139,21 @@ def load_app_config(
 
     broker: BrokerSettings | None = None
     if token and not read.names_broker_host:
+        place = FORM_PLACE if form is not None else CONFIG_FILE_PLACE
         try:
-            broker = fetch_mqtt_broker(token)
+            broker = fetch_mqtt_broker(token, settings_place=place)
         except SupervisorError as exc:
             if form is None:
                 raise
             raise SupervisorError(f"{exc} {FORM_NOTE}") from exc
     config = build_config(read, broker)
 
-    source = "the Supervisor's mqtt service" if broker is not None else Path(config_path).name
+    if broker is not None:
+        source = "the Supervisor's mqtt service"
+    elif form is not None:
+        source = "the Configuration tab"
+    else:
+        source = Path(config_path).name
     logger.info("MQTT broker from %s: %s:%d", source, config.mqtt.host, config.mqtt.port)
     return LoadedConfig(
         config, broker_from_supervisor=broker is not None, from_form=form is not None
