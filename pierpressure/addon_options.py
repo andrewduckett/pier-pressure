@@ -11,6 +11,11 @@ a pier's flat ``min_altitude`` and ``horizon_points`` fields become the file's
 ``horizon`` block, and its ``equipment_*`` fields become its ``equipment`` block.
 The form's ``mqtt`` block already uses the file's names, so it passes through
 without the fields the user left empty.
+
+One rule decides whether a form value is set: :func:`is_set`. The translation
+uses it, and so does :func:`pier_settings`, which names the settings a raw form
+pier sets so the add-on can find a setting given in both the form and
+``config.yaml`` (addon-form-horizon-file D2).
 """
 
 from __future__ import annotations
@@ -29,6 +34,9 @@ logger = logging.getLogger(__name__)
 
 OPTIONS_PATH = "/data/options.json"
 
+# The form fields that become the pier's ``horizon`` block.
+HORIZON_FIELDS = ("min_altitude", "horizon_points")
+
 # Each form field and the key it becomes in the pier's ``equipment`` block.
 EQUIPMENT_FIELDS = {
     "equipment_focal_length_mm": "focal_length_mm",
@@ -36,6 +44,35 @@ EQUIPMENT_FIELDS = {
     "equipment_sensor_height_mm": "sensor_height_mm",
     "equipment_reducer": "reducer",
 }
+
+
+def is_set(value: Any) -> bool:
+    """Whether a saved form value is set: not ``None``, and not empty or blank text.
+
+    A value of 0 is set (addon-form-horizon-file D2).
+    """
+    return value is not None and not (isinstance(value, str) and not value.strip())
+
+
+def pier_settings(pier: dict[str, Any]) -> set[str]:
+    """The settings a raw form pier sets, by their ``config.yaml`` names (D2).
+
+    The horizon fields name ``horizon``, and the equipment fields or an
+    ``equipment`` value name ``equipment``. ``id`` names nothing, because it only
+    matches a form pier to its ``config.yaml`` entry. Any other key names itself.
+    A value that is not set names nothing.
+    """
+    settings: set[str] = set()
+    for key, value in pier.items():
+        if key == "id" or not is_set(value):
+            continue
+        if key in HORIZON_FIELDS:
+            settings.add("horizon")
+        elif key in EQUIPMENT_FIELDS:
+            settings.add("equipment")
+        else:
+            settings.add(key)
+    return settings
 
 
 def read_addon_options(path: str | os.PathLike[str] = OPTIONS_PATH) -> dict[str, Any] | None:
@@ -88,11 +125,7 @@ def _set_broker_fields(mqtt: Any) -> Any:
     """
     if not isinstance(mqtt, dict):
         return mqtt
-    return {
-        key: value
-        for key, value in mqtt.items()
-        if value is not None and not (isinstance(value, str) and not value.strip())
-    }
+    return {key: value for key, value in mqtt.items() if is_set(value)}
 
 
 def _config_piers(piers: list[Any]) -> list[Any]:
@@ -114,27 +147,26 @@ def _config_piers(piers: list[Any]) -> list[Any]:
 def _with_horizon_block(pier: dict[str, Any]) -> dict[str, Any]:
     """Move ``min_altitude`` and ``horizon_points`` into a ``horizon`` block (D1).
 
-    When both are set, the block holds both, and the core's "exactly one source"
-    rule rejects the pier. Raises :class:`ValueError` when ``horizon_points`` is
+    A field that :func:`is_set` counts as unset is left out, so blank text in
+    ``min_altitude`` gives no block (addon-form-horizon-file D2). When both are
+    set, the block holds both, and the core's "exactly one source" rule rejects
+    the pier. Raises :class:`ValueError` when ``horizon_points`` is
     not text or not valid YAML.
     """
-    rebuilt = {
-        key: value for key, value in pier.items() if key not in ("min_altitude", "horizon_points")
-    }
+    rebuilt = {key: value for key, value in pier.items() if key not in HORIZON_FIELDS}
     horizon: dict[str, Any] = {}
-    if pier.get("min_altitude") is not None:
+    if is_set(pier.get("min_altitude")):
         horizon["min_altitude"] = pier["min_altitude"]
     points_text = pier.get("horizon_points")
-    if points_text is not None:
+    if is_set(points_text):
         if not isinstance(points_text, str):
             raise ValueError("horizon_points must be text")
-        if points_text.strip():
-            try:
-                horizon["points"] = yaml.safe_load(points_text)
-            except yaml.YAMLError as exc:
-                # The parser's message spans several lines; keep the log to one.
-                message = " ".join(str(exc).split())
-                raise ValueError(f"horizon_points is not valid YAML: {message}") from exc
+        try:
+            horizon["points"] = yaml.safe_load(points_text)
+        except yaml.YAMLError as exc:
+            # The parser's message spans several lines; keep the log to one.
+            message = " ".join(str(exc).split())
+            raise ValueError(f"horizon_points is not valid YAML: {message}") from exc
     if horizon:
         rebuilt["horizon"] = horizon
     return rebuilt
@@ -143,14 +175,15 @@ def _with_horizon_block(pier: dict[str, Any]) -> dict[str, Any]:
 def _with_equipment_block(pier: dict[str, Any]) -> dict[str, Any]:
     """Move the set ``equipment_*`` fields into an ``equipment`` block (addon-form-equipment D1).
 
-    A field that is absent or ``None`` is unset (D3). The block holds only the
+    A field that :func:`is_set` counts as unset is left out: absent, ``None``,
+    or empty or blank text (D3, addon-form-horizon-file D2). The block holds only the
     fields that are set; the core rejects an incomplete one (D2). Raises
     :class:`ValueError` when the pier also holds an ``equipment`` value, rather
     than merging the two.
     """
     rebuilt = {key: value for key, value in pier.items() if key not in EQUIPMENT_FIELDS}
     equipment = {
-        key: pier[field] for field, key in EQUIPMENT_FIELDS.items() if pier.get(field) is not None
+        key: pier[field] for field, key in EQUIPMENT_FIELDS.items() if is_set(pier.get(field))
     }
     if equipment:
         if pier.get("equipment") is not None:
