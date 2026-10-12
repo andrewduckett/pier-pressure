@@ -351,16 +351,52 @@ def test_read_config_mapping_rejects_a_root_that_is_not_a_mapping(
 SENTINEL = "pw-8c41f2"
 
 
-@pytest.mark.parametrize("value", [f"[{SENTINEL}", f"*{SENTINEL}"])
-@pytest.mark.parametrize("tail", ["", "recompute:\n  interval_seconds: 900\n"])
+@pytest.mark.parametrize(
+    ("value", "tail", "where"),
+    [
+        (f"[{SENTINEL}", "", "line 4, column 1, in the part that starts at line 3, column 13"),
+        (
+            f"[{SENTINEL}",
+            "recompute:\n  interval_seconds: 900\n",
+            "line 4, column 10, in the part that starts at line 3, column 13",
+        ),
+        (f"*{SENTINEL}", "", "line 3, column 13"),
+    ],
+    ids=["unclosed-at-end", "unclosed-before-more", "undefined-alias"],
+)
 def test_a_yaml_error_names_only_the_file_line_and_column(
-    tmp_path: Path, value: str, tail: str
+    tmp_path: Path, value: str, tail: str, where: str
 ) -> None:
     path = _write(tmp_path, f"mqtt:\n  host: broker.lan\n  password: {value}\n{tail}")
     with pytest.raises(ConfigError) as error:
         read_config_mapping(path)
-    assert str(error.value) == f"{path} is not valid YAML at line 3, column 13"
+    assert str(error.value) == f"{path} is not valid YAML at {where}"
     assert SENTINEL not in str(error.value)
+
+
+def test_a_yaml_error_names_the_broken_line_first(tmp_path: Path) -> None:
+    # The problem is on line 7; the mapping it breaks starts on line 5.
+    text = "mqtt:\n  host: b\nrecompute:\npiers:\n  - id: a\n    latitude: 1\n   bad: 3\n"
+    with pytest.raises(ConfigError) as error:
+        read_config_mapping(_write(tmp_path, text))
+    assert str(error.value).endswith(
+        "is not valid YAML at line 7, column 4, in the part that starts at line 5, column 3"
+    )
+
+
+def test_a_root_that_is_not_a_mapping_names_the_file(tmp_path: Path) -> None:
+    path = _write(tmp_path, "- a\n")
+    with pytest.raises(ConfigError, match="root must be a mapping") as error:
+        read_config_mapping(path)
+    assert str(path) in str(error.value)
+
+
+@pytest.mark.parametrize("text", ["", "# only a comment\n"], ids=["empty", "comments"])
+def test_an_empty_file_can_count_as_no_settings(tmp_path: Path, text: str) -> None:
+    path = _write(tmp_path, text)
+    assert read_config_mapping(path, allow_empty=True) == {}
+    with pytest.raises(ConfigError, match="root must be a mapping"):
+        read_config_mapping(path)
 
 
 def test_read_config_reports_the_same_yaml_error(tmp_path: Path) -> None:

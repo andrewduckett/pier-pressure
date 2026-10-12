@@ -18,18 +18,14 @@ break cannot split the log line. It never holds a setting's value (D5).
 
 from __future__ import annotations
 
-from collections import Counter
 from dataclasses import dataclass
 from typing import Any
 
 from pierpressure.addon_options import is_set, pier_settings, translate_form
-from pierpressure.core.config import ConfigError
+from pierpressure.core.config import AppConfig, ConfigError
 
 # The ``mqtt`` keys that make up the broker connection, one setting as a group.
 CONNECTION_KEYS = ("host", "port", "username", "password")
-
-# The top-level keys the combine step handles itself; any other passes through.
-_HANDLED_KEYS = ("piers", "mqtt", "recompute")
 
 _BOTH = "is set on the Configuration tab and in config.yaml"
 
@@ -60,10 +56,8 @@ def combine_settings(options: dict[str, Any], file: dict[str, Any] | None) -> Co
     form_piers = [pier for pier in options.get("piers", []) if isinstance(pier, dict)]
     _check_piers(form_piers, file_piers, problems)
     _check_broker(translated.get("mqtt"), file.get("mqtt"), problems)
-    if is_set(options.get("interval_seconds")) and is_set(file.get("recompute")):
+    if is_set(options.get("interval_seconds")) and _sets_interval(file.get("recompute")):
         problems.append(f"the recompute interval (recompute.interval_seconds) {_BOTH}")
-    for key in sorted(_other_keys(translated) & _other_keys(file), key=str):
-        problems.append(f"{_name(key)} {_BOTH}")
 
     if problems:
         raise ConfigError(
@@ -71,7 +65,12 @@ def combine_settings(options: dict[str, Any], file: dict[str, Any] | None) -> Co
         )
 
     combined = _merge(translated, file, file_piers)
-    return CombinedSettings(raw=combined, file_adds=combined != translated)
+    return CombinedSettings(raw=combined, file_adds=_known(combined) != _known(translated))
+
+
+def file_pier_ids(file: dict[str, Any]) -> list[str]:
+    """The text ids of the file's piers, once each, in the file's order (D6)."""
+    return list(_file_piers(file, []))
 
 
 def _file_piers(file: dict[str, Any], problems: list[str]) -> dict[str, dict[str, Any]]:
@@ -80,8 +79,9 @@ def _file_piers(file: dict[str, Any], problems: list[str]) -> dict[str, dict[str
     An entry that is not a mapping, or whose ``id`` is missing or not text, is
     reported by its position. Only entries with a text ``id`` are returned, so no
     other value is ever used as a key. A repeated ``id`` keeps its first entry.
+    A ``piers`` key with no entries, which YAML reads as null, lists no piers.
     """
-    if "piers" not in file:
+    if file.get("piers") is None:
         return {}
     raw_piers = file["piers"]
     if not isinstance(raw_piers, list):
@@ -95,17 +95,12 @@ def _file_piers(file: dict[str, Any], problems: list[str]) -> dict[str, dict[str
             problems.append(f"{where} is not a mapping of pier settings")
         elif not isinstance(entry.get("id"), str):
             problems.append(f"{where} has no id, or its id is not text")
+        elif entry["id"] not in by_id:
+            by_id[entry["id"]] = entry
         else:
-            by_id.setdefault(entry["id"], entry)
-
-    counts = Counter(
-        entry["id"]
-        for entry in raw_piers
-        if isinstance(entry, dict) and isinstance(entry.get("id"), str)
-    )
-    for pier_id, count in counts.items():
-        if count > 1:
-            problems.append(f"pier {pier_id!r} is listed more than once in config.yaml")
+            repeated = f"pier {entry['id']!r} is listed more than once in config.yaml"
+            if repeated not in problems:
+                problems.append(repeated)
     return by_id
 
 
@@ -152,9 +147,16 @@ def _check_broker(form_mqtt: Any, file_mqtt: Any, problems: list[str]) -> None:
         problems.append(f"mqtt.{_name(key)} {_BOTH}")
 
 
-def _other_keys(mapping: dict[str, Any]) -> set[Any]:
-    """The set top-level keys other than ``piers``, ``mqtt`` and ``recompute``."""
-    return {key for key, value in mapping.items() if key not in _HANDLED_KEYS and is_set(value)}
+def _sets_interval(recompute: Any) -> bool:
+    """Whether the file's ``recompute`` block sets anything; an empty block does not."""
+    if isinstance(recompute, dict):
+        return any(is_set(value) for value in recompute.values())
+    return is_set(recompute)
+
+
+def _known(mapping: dict[str, Any]) -> dict[str, Any]:
+    """The top-level keys the core reads; it drops any other (D3)."""
+    return {key: value for key, value in mapping.items() if key in AppConfig.model_fields}
 
 
 def _merge(
@@ -181,8 +183,11 @@ def _merge(
                 combined["mqtt"] = mqtt
 
     for key, value in file.items():
-        if key not in ("piers", "mqtt") and is_set(value):
-            combined[key] = value
+        if key in ("piers", "mqtt") or not is_set(value):
+            continue
+        if key == "recompute" and not _sets_interval(value):
+            continue
+        combined[key] = value
     return combined
 
 
