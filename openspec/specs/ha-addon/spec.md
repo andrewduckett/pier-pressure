@@ -141,6 +141,14 @@ described in "The form sets each pier's equipment":
 - `equipment_sensor_height_mm`: the camera sensor's height, in millimetres.
 - `equipment_reducer`: a focal reducer or barlow factor, with no unit.
 
+Each pier SHALL also have two optional gate fields, as described in "The form
+sets each pier's GO threshold and wind-gust limit":
+
+- `go_threshold`: the score a night needs for `GO`, a whole number from 0 to
+  100.
+- `max_gust`: the wind-gust limit, in km/h. On save, the form SHALL accept a
+  number of at least 0. The service then rejects 0.
+
 These names SHALL match the names of the same settings in `config.yaml`. The
 horizon and equipment fields are the exception, because a form cannot nest a
 `horizon` or `equipment` block inside a pier. `min_altitude` SHALL hold the
@@ -162,6 +170,8 @@ none.
 - **AND** each pier item has optional `equipment_focal_length_mm`,
   `equipment_sensor_width_mm`, `equipment_sensor_height_mm` and
   `equipment_reducer`, each a number of at least 0
+- **AND** each pier item has an optional `go_threshold`, a whole number from 0
+  to 100, and an optional `max_gust`, a number of at least 0
 - **AND** its `schema` declares `mqtt` with an optional text `host`, an optional
   `port`, an optional text `username`, and an optional `password` of the
   password type
@@ -177,8 +187,10 @@ none.
 
 - **WHEN** the test suite reads the add-on's English translation file
 - **THEN** it gives a name and a description for `interval_seconds`, `piers`, and
-  each field of a pier, including `min_altitude`, `horizon_points` and the four
-  equipment fields
+  each field of a pier, including `min_altitude`, `horizon_points`, the four
+  equipment fields, `go_threshold` and `max_gust`
+- **AND** the descriptions of `go_threshold` and `max_gust` say what an empty
+  field means: a threshold of 65, and no wind gate
 - **AND** it gives a name and a description for `mqtt` and each of its four
   fields
 
@@ -395,6 +407,81 @@ not rely on the Supervisor's check.
 - **THEN** the service logs an error that names the pier
 - **AND** the add-on stops with a configuration error that says no valid pier
   remains
+
+### Requirement: The form sets each pier's GO threshold and wind-gust limit
+
+The service SHALL pass a form pier's `go_threshold` and `max_gust` to that pier
+when they are set. It SHALL then check them exactly as it checks the same
+settings in `config.yaml`.
+
+When a field is not set, the value SHALL come from `config.yaml`, as the
+requirement "The add-on combines the Configuration form with config.yaml"
+describes. When the file does not set it either, the pier SHALL behave as a file
+pier without that setting:
+
+- Without `go_threshold`, the pier SHALL use the default threshold of 65.
+- Without `max_gust`, the pier SHALL have no wind gate. No forecast gust SHALL
+  cause a `NO-GO`.
+
+A field that is absent, saved as null, or saved as empty or blank text SHALL
+count as not set. A `go_threshold` of 0 SHALL count as set.
+
+When a pier's value fails these checks, the service SHALL skip that pier and
+log an error that names the pier and the field. It SHALL still publish the other
+piers. This covers a `go_threshold` below 0, above 100 or not a whole number, and a
+`max_gust` of 0 or less. When every pier is skipped, the add-on SHALL stop with
+a configuration error, as it does for any setup with no valid pier.
+
+#### Scenario: Both values from the form
+
+- **WHEN** an add-on's form lists a pier with `go_threshold` set to 75 and
+  `max_gust` set to 40
+- **AND** a separate `config.yaml`, used outside an add-on, lists a pier with the
+  same id, location and elevation, and the same two values
+- **THEN** at the same evaluation instant and with the same conditions, both
+  piers get the same verdict document
+
+#### Scenario: A gust over the form's limit is a NO-GO
+
+- **WHEN** the form lists a pier with `max_gust` set to 30
+- **AND** the forecast gives a gust of 45 km/h during the pier's dark window
+- **AND** no other gate fails
+- **THEN** the pier's verdict is `NO-GO`
+- **AND** its score is null
+- **AND** its `reasons[]` name the 30 km/h limit
+
+#### Scenario: Empty fields use the defaults
+
+- **WHEN** the saved form values list a pier with `go_threshold` and `max_gust`
+  each absent, saved as null, or saved as blank text
+- **AND** `config.yaml` does not set them for that pier
+- **THEN** the pier passes the service's checks
+- **AND** its checked settings hold a `go_threshold` of 65 and no `max_gust`
+
+#### Scenario: config.yaml fills an empty field
+
+- **WHEN** the saved form values list the pier `backyard` with `max_gust` saved
+  as null
+- **AND** `config.yaml` lists `backyard` with `max_gust` set to 40
+- **THEN** the pier's checked settings hold a `max_gust` of 40
+- **AND** the add-on does not report a setting given in both places
+
+#### Scenario: A value set in both places stops the add-on
+
+- **WHEN** the form lists the pier `backyard` with `go_threshold` set to 70
+- **AND** `config.yaml` lists `backyard` with `go_threshold` set to 75
+- **THEN** the add-on stops with a configuration error that names
+  `go_threshold` and `backyard`
+
+#### Scenario: A bad value skips only its pier
+
+- **WHEN** the saved form values list two piers
+- **AND** one pier sets `max_gust` to 0, or `go_threshold` to 101
+- **THEN** the service logs an error that names that pier and the field
+- **AND** it publishes a verdict for the other pier
+
+The Supervisor normally refuses to save a `go_threshold` over 100. The service
+still checks it, because it does not rely on the Supervisor's check.
 
 ### Requirement: The add-on behaves like the container
 
