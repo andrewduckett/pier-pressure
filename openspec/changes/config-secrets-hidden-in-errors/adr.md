@@ -10,14 +10,14 @@ ADR review completed for this change.
 No major durable architectural decisions were introduced, and no new
 repository-level ADR files were created.
 
-The design's decisions are each cheap to reverse, and the spec and tests already
-explain them:
+The design's decisions are each cheap to reverse. The specs state the required
+behaviour, and the planned tests (design D6) will fail if a decision is undone:
 
 - Holding the two secrets in a type that hides them (design D4) is a local type
   choice. The spec requires the result, and the tests fail if a secret shows.
-- Validating `explainer` directly (design D2) works around one Pydantic
-  behaviour. A code comment and the D5 tests guard it, so a later edit that
-  undoes it fails a test, not silently.
+- Writing block errors from their parts (design D1) and validating `explainer`
+  directly (design D2) work around two Pydantic behaviours. A code comment and
+  the D6 tests will guard them.
 
 All ADRs from 0001 to 0021 are accepted, and none is superseded. This change
 applies these without changing them:

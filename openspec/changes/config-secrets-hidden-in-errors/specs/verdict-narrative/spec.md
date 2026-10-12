@@ -1,15 +1,26 @@
 ## ADDED Requirements
 
-### Requirement: A configuration error never shows the explainer's API key
+### Requirement: An error about the explainer settings shows none of their text
 
-When the process rejects its configuration, the error and every log line SHALL
-NOT contain the explainer's API key. This SHALL hold whatever the user typed, and
-for every source of settings. The error SHALL still name the setting that is
-wrong, such as `explainer.api_key`, and say what is wrong with it.
+When the process rejects the `explainer` block, the error and the log SHALL NOT
+contain any value from that block. They SHALL NOT contain the name of a key that
+the block does not define either, because a user can type a secret where a key
+name belongs. This SHALL hold for every source of settings.
 
-Once the configuration is valid, the process SHALL keep the API key hidden when
-it prints or logs its settings. It SHALL use the key's value only to call the LLM
-provider.
+The error SHALL still say what is wrong:
+
+- For a defined setting, it SHALL name the setting, such as `explainer.api_key`,
+  and state the rule the value broke.
+- For a key the block does not define, it SHALL say that the block holds a
+  setting it does not know, and list the settings the block defines.
+- For an `explainer` value that is not a mapping or empty, it SHALL say that
+  `explainer` must be a mapping of settings.
+
+An empty `explainer` block SHALL still mean that the explainer is disabled.
+
+Once the configuration is valid, the process SHALL show the API key as a mask
+whenever it prints or logs its settings. It SHALL use the key's value only to
+call the LLM provider.
 
 #### Scenario: An API key that is not text is rejected without its value
 
@@ -18,13 +29,14 @@ provider.
   `explainer.api_key`
 - **AND** neither the error nor the log contains `12345`
 
-#### Scenario: A misspelled key beside the API key does not show its value
+#### Scenario: An unknown key in the explainer block is not named
 
-- **WHEN** the `explainer` block in `config.yaml` holds an unknown key, such as
-  `apikey`, set to a secret
-- **THEN** the process stops with a configuration error that names the unknown
-  key
-- **AND** neither the error nor the log contains the secret
+- **WHEN** the `explainer` block in `config.yaml` holds a key it does not define,
+  such as `apikey: sk-secret`, or a bare key `sk-secret`
+- **THEN** the process stops with a configuration error that says the
+  `explainer` block holds a setting it does not know
+- **AND** the error lists the settings the `explainer` block defines
+- **AND** neither the error nor the log contains `apikey` or `sk-secret`
 
 #### Scenario: An explainer block that is not a mapping does not show its value
 
@@ -33,8 +45,14 @@ provider.
   must be a mapping of settings
 - **AND** neither the error nor the log contains the secret
 
-#### Scenario: A valid API key is hidden when the settings are printed
+#### Scenario: An empty explainer block still disables the explainer
+
+- **WHEN** `config.yaml` has an `explainer` key with no value
+- **THEN** the configuration loads
+- **AND** no narrative is produced
+
+#### Scenario: A valid API key is masked when the settings are printed
 
 - **WHEN** the configuration is valid and sets an explainer API key
-- **AND** the process prints or logs its settings
+- **AND** the process prints or logs its settings, at any stage of loading them
 - **THEN** the output does not contain the API key
