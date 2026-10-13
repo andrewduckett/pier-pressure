@@ -6,6 +6,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
+import httpx
 import pytest
 
 from pierpressure.conditions.open_meteo import parse_open_meteo
@@ -16,7 +17,7 @@ from pierpressure.conditions.provider import (
     assemble_snapshot,
     build_provider,
 )
-from pierpressure.conditions.seven_timer import parse_seven_timer
+from pierpressure.conditions.seven_timer import SevenTimerProvider, parse_seven_timer
 from pierpressure.core.conditions import Conditions
 from pierpressure.health import FetchOutcome, ProviderInfo, describe_error
 
@@ -103,6 +104,21 @@ def test_seven_timer_maps_best_and_worst_indices_to_quality() -> None:
     reading = forecast.readings[_hour(21)]
     assert reading.seeing == 1.0  # best index -> full quality
     assert reading.transparency == 0.0  # worst index -> zero quality
+
+
+def test_seven_timer_follows_the_redirect_to_its_astro_endpoint() -> None:
+    # 7Timer! answers api.pl with a 302 to astro.php, which serves the same JSON.
+    astro_url = "https://www.7timer.info/bin/astro.php?lon=-87.9&lat=42.2&output=json"
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/bin/api.pl":
+            return httpx.Response(302, headers={"Location": astro_url})
+        return httpx.Response(200, json=_load("seven_timer.json"))
+
+    client = httpx.Client(transport=httpx.MockTransport(handle))
+    forecast = SevenTimerProvider(client=client).fetch(make_pier())
+    assert forecast.issued_at == _hour(18)
+    assert len(forecast.readings) == 6
 
 
 # --------------------------------------------------------------------------- #
