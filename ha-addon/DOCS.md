@@ -18,7 +18,8 @@ file, you add a `config.yaml` file. See
    Give it:
    - an **ID**, a short name such as `backyard`. Use only letters, digits and
      underscores, because the ID becomes part of the MQTT topics and entity IDs.
-   - its **latitude** and **longitude** in degrees. North and east are positive.
+   - its **latitude** and **longitude** in degrees. North and east are positive;
+     south and west are negative. A phone that shows 87.88° W means `-87.88`.
    - its **elevation** above sea level, in metres.
    - optionally, its **horizon**. See [Set a pier's horizon](#set-a-piers-horizon).
    - optionally, its **equipment**. See

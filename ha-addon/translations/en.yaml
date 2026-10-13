@@ -18,10 +18,14 @@ configuration:
           topics and entity IDs, so keep it to letters, digits and underscores.
       latitude:
         name: Latitude
-        description: In degrees, from -90 to 90. Positive is north of the equator.
+        description: >-
+          In degrees, from -90 to 90. North is positive and south is negative,
+          so 33.87° S is -33.87.
       longitude:
         name: Longitude
-        description: In degrees, from -180 to 180. Positive is east of Greenwich.
+        description: >-
+          In degrees, from -180 to 180. East is positive and west is negative,
+          so 87.88° W is -87.88.
       elevation_m:
         name: Elevation
         description: Height above sea level, in metres.
