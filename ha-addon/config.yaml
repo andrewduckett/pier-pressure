@@ -3,7 +3,7 @@
 name: PierPressure
 # Each release opens a pull request that moves this line to the new version
 # (design D5). Quoted so YAML keeps it a string.
-version: "2026.10.1"
+version: "2026.10.2"
 slug: pierpressure
 description: Decides whether tonight is worth setting up for, and what to point at.
 url: https://github.com/andrewduckett/pier-pressure
