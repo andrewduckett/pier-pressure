@@ -92,7 +92,8 @@ class SevenTimerProvider:
         }
         client = self.client or httpx.Client(timeout=_TIMEOUT_SECONDS)
         try:
-            response = client.get(SEVEN_TIMER_URL, params=params)
+            # api.pl redirects to astro.php, which serves the same JSON.
+            response = client.get(SEVEN_TIMER_URL, params=params, follow_redirects=True)
             response.raise_for_status()
             return parse_seven_timer(response.json())
         finally:
