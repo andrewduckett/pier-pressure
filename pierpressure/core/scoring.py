@@ -600,7 +600,14 @@ class Decision:
     scored_window: tuple[datetime, datetime] | tuple[None, None]
 
 
+# A scored window shorter than this is never a GO, however clear: it is not worth
+# setting up for (score-remaining-night design D2). It matches the ranking's
+# MIN_WINDOW, so the verdict and the target list agree on what a usable span is.
+MIN_SCORED = timedelta(minutes=60)
+
 _REASON_NO_WINDOW = "No astronomical night tonight: the sun never drops below -18°."
+_REASON_NO_DARK_TIME = "No dark time remains to score."
+_REASON_SHORT_WINDOW = "Less than an hour of dark time to score: not worth setting up."
 _REASON_OVERCAST = "Overcast for the whole dark window: no usably clear sky."
 _REASON_CONDITIONS_UNAVAILABLE = "Conditions unavailable — astronomy only, no cloud forecast."
 
@@ -667,9 +674,10 @@ def evaluate(
     (score-remaining-night design D1).
 
     The degradation ladder runs in a fixed precedence so the cases never
-    contradict (design D6): no dark window → wind gate → cloud entirely missing →
-    cloud present (overcast gate, else score). A NO-GO is only ever a failed hard
-    gate; a missing observation caps the verdict at MAYBE but never fails one.
+    contradict (design D6): no dark window → no dark time left → wind gate → cloud
+    entirely missing → cloud present (overcast gate, else score). A NO-GO is only
+    ever a failed hard gate; a missing observation or a scored window under
+    ``MIN_SCORED`` caps the verdict at MAYBE but never fails one.
     """
     start, end = window
     # 1. No dark window: astronomy alone decides, with no forecast to distrust.
@@ -682,6 +690,12 @@ def evaluate(
     scored: tuple[datetime, datetime] = (min(max(now, start), end), end)
 
     band, conf_value = confidence(pier, instant, bounded, scored, conditions)
+
+    # 1a. No dark time left: the instant lies in the window's last partial second.
+    #     An empty window tiles no usable hour, so letting it fall through would
+    #     read as "conditions unavailable", which is false (design D2).
+    if scored[0] == scored[1]:
+        return Decision(Verdict.MAYBE, 0, band, conf_value, [_REASON_NO_DARK_TIME], scored)
 
     # 2. Wind gate (opt-in). A forecast gust over the limit is a safety NO-GO,
     #    evaluated before any cloud logic so a missing cloud observation cannot
@@ -712,6 +726,10 @@ def evaluate(
     reasons = _score_reasons(scored, conditions, moon, score)
     if wind_capped:
         reasons.append(_wind_unavailable_reason())
-    is_go = score >= pier.go_threshold and not wind_capped
+    # A short window keeps its honest score, but is never worth setting up for.
+    short = scored[1] - scored[0] < MIN_SCORED
+    if short:
+        reasons.append(_REASON_SHORT_WINDOW)
+    is_go = score >= pier.go_threshold and not wind_capped and not short
     verdict = Verdict.GO if is_go else Verdict.MAYBE
     return Decision(verdict, score, band, conf_value, reasons, scored)
