@@ -2,7 +2,9 @@
 
 ### Requirement: The verdict judges the remaining night
 
-The verdict SHALL judge the **scored window**: the part of the dark window from the evaluation instant to `dark_window.end`. On an ordinary night `dark_window.end` is astronomical dawn. In continuous polar night it is the end of the local solar day the dark window is anchored to. The rules below read `dark_window.end` and do not depend on which it is.
+The verdict SHALL judge the **scored window**: the part of the dark window from the evaluation instant to `dark_window.end`.
+
+`dark_window.end` has two meanings. On an ordinary night it is astronomical dawn. In continuous polar night it is the end of the local solar day that anchors the dark window. The rules below read `dark_window.end` and work the same for both.
 
 - The **scoring instant** is the evaluation instant with its sub-second part removed, the same whole second as `generated_at`.
 - Before astronomical dusk, the scored window SHALL equal the dark window.
@@ -29,10 +31,12 @@ The document SHALL carry a `scored_window` object with a `start` and an `end`, i
 An empty scored window can only arise in the last partial second of the window. Three facts combine:
 
 - `dark_window.end` is the exact end instant, floored to a whole second.
-- The selected window is the one whose exact end is at or after the evaluation instant.
 - The scoring instant is the evaluation instant floored to a whole second.
+- The selected window ends at the first exact end that qualifies against the evaluation instant.
 
-So the scoring instant equals `dark_window.end` only when the evaluation instant lies in that floored second, up to and including the exact end. An instant after the exact end selects the next window. This holds for a dawn crossing and for the polar-night solar-day boundary alike.
+Which exact end qualifies differs by case. On an ordinary night, a dawn crossing at or after the evaluation instant qualifies, so an instant exactly on the crossing still selects the ending night. In continuous polar night, only a solar-day boundary after the evaluation instant qualifies, so an instant exactly on the boundary selects the next solar day.
+
+So the scoring instant equals `dark_window.end` only when the evaluation instant lies in that floored second and the selection still picks that window. For a dawn crossing, that is up to and including the exact crossing. For a polar solar-day boundary, that is up to but not including the exact boundary.
 
 When the scored window is empty, the verdict SHALL be `MAYBE` with a `score` of 0 and a reason that no dark time remains. It SHALL NOT fail the overcast gate, SHALL NOT be `GO`, and SHALL NOT report that conditions are unavailable.
 
@@ -99,9 +103,21 @@ A short span is not worth setting up for, however clear it is. When the scored w
 - **THEN** `scored_window.end` equals `dark_window.end`
 - **AND** `scored_window.start` equals `generated_at`
 
+#### Scenario: In continuous polar night, the exact solar-day boundary starts the next window
+
+- **WHEN** a verdict is produced during continuous polar night, at an evaluation instant exactly on the local solar-day boundary
+- **THEN** `dark_window` is the next solar day's window
+- **AND** `scored_window` equals `dark_window`
+
+#### Scenario: In continuous polar night, the floored second before the boundary is empty
+
+- **WHEN** a verdict is produced during continuous polar night, at an evaluation instant in the whole second that `dark_window.end` names, before the exact boundary, with cloud data available
+- **THEN** `scored_window.start` equals `scored_window.end`
+- **AND** the `verdict` is `MAYBE` with a `score` of 0
+
 #### Scenario: An hour or more left can still be GO
 
-- **WHEN** a verdict is produced at an evaluation instant 60 minutes before `dark_window.end`, the remaining sky is clear, and the score is at or above the go-threshold
+- **WHEN** a verdict is produced at an evaluation instant 60 minutes before `dark_window.end`, the remaining sky is clear, no wind limit is configured, and the score is at or above the go-threshold
 - **THEN** the `verdict` is `GO`
 
 #### Scenario: A verdict after the exact dawn crossing judges the next night
@@ -205,7 +221,7 @@ The score SHALL be the product of four factors, each from 0 to 1, scaled to 100 
 
 Because every factor is at most 1, the score SHALL never exceed the usable-sky term scaled to 100 and rounded. Good seeing and transparency refine a clear night; they cannot lift a cloudy one. The same inputs SHALL yield the same integer score.
 
-The verdict SHALL be `GO` when the score is at or above the pier's go-threshold, **cloud data for the scored window is available**, and no cap applies. It SHALL be `MAYBE` otherwise. Two caps exist: wind data that does not cover the scored window when a wind limit is configured, and a narrowed scored window shorter than 60 minutes. Requiring cloud data for a `GO` SHALL hold even when the go-threshold is 0, so a `GO` is never issued without evidence the sky is clear.
+The verdict SHALL be `GO` when the score is at or above the pier's go-threshold, **cloud data for the scored window is available**, and no cap applies. It SHALL be `MAYBE` otherwise. Two caps exist: wind data that does not cover the scored window when a wind limit is configured, and a scored window shorter than 60 minutes, narrowed or not. Requiring cloud data for a `GO` SHALL hold even when the go-threshold is 0, so a `GO` is never issued without evidence the sky is clear.
 
 A brighter night SHALL NOT score higher than an otherwise identical darker one. More cloud SHALL NOT raise the product of the usable-sky term and the atmosphere factor. That holds for any pattern of missing seeing and transparency, because an hour without data counts as 1. The moon and high-cloud factors keep today's rules. Each is a ratio over the usably clear hours. Clouding out the one hour that carried the moon or the cirrus can therefore still raise the score. The spec does not promise monotonicity in cloud through those two factors. Issue #112 covers that gap.
 

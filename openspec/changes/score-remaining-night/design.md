@@ -29,11 +29,12 @@ Facts that shape the approach:
   `produce_verdict` in `pierpressure/core/producer.py` passes the whole dark
   window to `evaluate` and to `rank_targets`, then emits `dark_window`.
 - **The golden tests lock the document byte for byte.** Every scored golden
-  under `tests/fixtures/golden/expected/` changes with this design. The
-  implementer regenerates them with `PP_WRITE_GOLDENS=1`.
+  under `tests/fixtures/golden/expected/` changes with this design.
 - **Polar night has no dawn.** `dark_window` anchors continuous polar night to
   the local solar day, noon to noon. The clamp reads `dark_window.end`, so it
-  needs no dawn and works the same there.
+  needs no dawn. One boundary detail differs: an instant exactly on a dawn
+  crossing still selects the ending night (`t >= instant`), but an instant
+  exactly on the polar noon selects the next solar day (`n > instant`).
 
 ## Goals / Non-Goals
 
@@ -92,7 +93,9 @@ crossing, selects the ending night. Its floored `end` equals `now`. Without
 the `min`, a raw instant later in that second would start after the end and
 tile no slots, which reads as "no cloud data". The `min` folds that case into
 the empty-window path (D2). An instant after the crossing selects the next
-night. A test pins the boundary with an instant that carries microseconds.
+night. In polar night the exact noon already selects the next day, so the
+empty window there stops just short of the boundary. Tests pin both
+boundaries with instants that carry microseconds.
 
 *Why clamp inside `evaluate` and not in `dark_window`:* the `dark_window` field
 is a frozen contract, and the moon and the targets still need the whole night.
@@ -257,21 +260,31 @@ never exceeds the cloud term. Better atmosphere never lowers the score.
 Missing atmosphere gives a factor of 1. The ten-hour monotonicity case gives
 97, then 90. One half-way value rounds to the even integer.
 
-Tests in `tests/test_verdict_eval.py` cover the clamp. A clear-then-overcast
-night is `NO-GO` mid-session and not before dusk. A passed gust does not gate.
-A passed wind gap does not cap. An instant in the floored dawn second gives
-the no-dark-time path, and so does an instant exactly on the crossing. An
-instant after the crossing selects the next night. Thirty minutes before dawn
-caps a `GO` at `MAYBE`; sixty minutes before dawn does not. A producer test checks `scored_window`
-before dusk, mid-session and without a dark window. A new golden case runs the
-recorded forecasts at a mid-session instant, so the new field, the span line
-and the reworded reasons are locked byte for byte. The implementer regenerates the existing goldens in one commit. The PR
-reviewer reads that diff for the expected score changes only.
+Tests in `tests/test_verdict_eval.py` cover the clamp:
+
+- a clear-then-overcast night is `NO-GO` mid-session and not before dusk;
+- a passed gust does not gate, and a passed wind gap does not cap;
+- an instant in the floored dawn second gives the no-dark-time path, and so
+  does an instant exactly on the crossing;
+- an instant after the crossing selects the next night;
+- in polar night, the exact noon selects the next day and the second before
+  it is empty;
+- thirty minutes before the end caps a `GO` at `MAYBE`, and a 50-minute whole
+  night is capped before dusk;
+- sixty minutes before the end, with no wind limit, is `GO`.
+
+A producer test checks `scored_window` before dusk, mid-session and without a
+dark window.
+
+A new golden case runs the recorded forecasts at a mid-session instant. It
+locks the new field, the span line and the reworded reasons byte for byte.
+The existing goldens are regenerated in one commit, so the PR diff shows the
+expected score changes on their own.
 
 ## Risks / Trade-offs
 
 - **Every scored verdict changes.** Users see lower scores on partly clear
-  nights, and scores that fall through the night. → The proposal, the README
+  nights, and scores that move through the night. → The proposal, the README
   and the decision record say so. The go-threshold default stays 65.
 - **A score that moves during the night can flip a Home Assistant automation.**
   A `GO` at 20:00 can become `MAYBE` at 23:00. → This is the intended honest
