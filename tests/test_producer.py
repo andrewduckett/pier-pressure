@@ -73,3 +73,30 @@ def test_invalid_pier_is_rejected_as_a_config_error_not_delivery() -> None:
     # Producer/config errors are a distinct type from delivery errors (design D9).
     assert not issubclass(ValidationError, DeliveryError)
     assert not issubclass(DeliveryError, ValidationError)
+
+
+def test_scored_window_equals_the_dark_window_before_dusk() -> None:
+    clock = FixedClock(datetime(2026, 9, 8, 14, 0, tzinfo=UTC))
+    with no_network():
+        doc = produce_verdict(make_pier(), clock, Conditions())
+    assert doc.dark_window.start is not None
+    assert doc.scored_window == doc.dark_window
+
+
+def test_scored_window_starts_at_generated_at_mid_session() -> None:
+    clock = FixedClock(datetime(2026, 9, 8, 23, 30, 0, 400_000, tzinfo=UTC))
+    with no_network():
+        doc = produce_verdict(make_pier(), clock, Conditions())
+    assert doc.dark_window.start is not None and doc.dark_window.start < doc.generated_at
+    assert doc.scored_window.start == doc.generated_at
+    assert doc.scored_window.end == doc.dark_window.end
+
+
+def test_scored_window_is_null_without_a_dark_window() -> None:
+    # Tromso at midsummer: the sun never drops below -18 degrees.
+    pier = PierConfig(id="tromso", latitude=69.65, longitude=18.96, elevation_m=10.0)
+    clock = FixedClock(datetime(2026, 6, 21, 12, 0, tzinfo=UTC))
+    with no_network():
+        doc = produce_verdict(pier, clock, Conditions())
+    assert doc.scored_window.start is None
+    assert doc.scored_window.end is None

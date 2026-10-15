@@ -69,6 +69,10 @@ def _document(targets: list[Target]) -> VerdictDocument:
             start=datetime(2026, 9, 8, 20, 30, tzinfo=UTC),
             end=datetime(2026, 9, 9, 3, 25, tzinfo=UTC),
         ),
+        scored_window=DarkWindow(
+            start=datetime(2026, 9, 8, 20, 30, tzinfo=UTC),
+            end=datetime(2026, 9, 9, 3, 25, tzinfo=UTC),
+        ),
         moon=Moon(illumination=0.1, phase=MoonPhase.WANING_CRESCENT),
     )
 

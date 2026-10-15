@@ -20,7 +20,7 @@ from .conditions import Conditions
 from .config import PierConfig
 from .model import Confidence, DarkWindow, VerdictDocument
 from .ranking import equipment_reasons, rank_targets
-from .scoring import evaluate
+from .scoring import MIN_USABLE_WINDOW, evaluate
 from .sky import dark_window, moon_info
 
 
@@ -47,10 +47,17 @@ def produce_verdict(pier: PierConfig, clock: Clock, conditions: Conditions) -> V
     # the top pick where the equipment and its facts are known (design D8). Appending
     # never changes an existing reason, and the notes are a pure function of the
     # pick's facts, so the reasons stay deterministic. The notes are added only on a
-    # gate-passing verdict (a non-null score): a NO-GO night has been ruled out, so
-    # its reasons name the failing gate and do not advertise a target.
+    # gate-passing verdict (a non-null score) with a scored window worth setting up
+    # for: a NO-GO night has been ruled out, and a span under MIN_USABLE_WINDOW has
+    # just said "not worth setting up", so neither advertises a target.
     reasons = list(decision.reasons)
-    if targets and decision.score is not None:
+    scored_start, scored_end = decision.scored_window
+    worth_setting_up = (
+        scored_start is not None
+        and scored_end is not None
+        and scored_end - scored_start >= MIN_USABLE_WINDOW
+    )
+    if targets and decision.score is not None and worth_setting_up:
         reasons.extend(equipment_reasons(pier.equipment, targets[0]))
 
     start, end = window
@@ -63,5 +70,7 @@ def produce_verdict(pier: PierConfig, clock: Clock, conditions: Conditions) -> V
         reasons=reasons,
         targets=targets,
         dark_window=DarkWindow(start=start, end=end),
+        # The span the gates and score judged (score-remaining-night design D5).
+        scored_window=DarkWindow(start=scored_start, end=scored_end),
         moon=moon,
     )
