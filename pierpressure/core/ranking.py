@@ -46,7 +46,7 @@ from skyfield.api import Star, wgs84
 from .catalog import CatalogObject, load_catalog
 from .config import Equipment, PierConfig
 from .horizon import Horizon
-from .model import Moon, Target, TargetWindow
+from .model import MIN_USABLE_WINDOW, Moon, Target, TargetWindow
 from .sky import _ephemeris, _timescale, _to_datetime
 
 # --- Ranking parameters (fixed constants; validated on a real night) -------- #
@@ -57,7 +57,8 @@ from .sky import _ephemeris, _timescale, _to_datetime
 GRID_STEP = timedelta(minutes=5)
 
 # The minimum observable window a target must clear to be listed (spec: gates).
-MIN_WINDOW = timedelta(minutes=60)
+# Shared with the verdict's short-window cap (model.MIN_USABLE_WINDOW).
+MIN_WINDOW = MIN_USABLE_WINDOW
 
 # The list is bounded to the top N targets (design D3, ADR-0009).
 TOP_N = 10

@@ -37,7 +37,7 @@ from datetime import datetime, timedelta
 
 from .conditions import BaseHour, Conditions, SecondaryHour
 from .config import PierConfig
-from .model import Band, Moon, Verdict, iso_z
+from .model import MIN_USABLE_WINDOW, Band, Moon, Verdict, iso_z
 
 _HOUR = timedelta(hours=1)
 
@@ -189,7 +189,8 @@ def optional_term_mean(
     Restricting the denominator keeps a partial-coverage gap from artificially
     depressing the mean — three clear hours of good seeing read as good seeing, not
     as good seeing diluted by the hours that carried none. Returns ``None`` when
-    the term has no usable hour, so the caller drops it from the score entirely.
+    the term has no usable hour, so the caller omits its reason line. The score
+    itself no longer reads this mean: it flows through :func:`atmosphere_mean`.
     """
     start, end = window
     numerator = 0.0
@@ -601,9 +602,9 @@ class Decision:
 
 
 # A scored window shorter than this is never a GO, however clear: it is not worth
-# setting up for (score-remaining-night design D2). It matches the ranking's
-# MIN_WINDOW, so the verdict and the target list agree on what a usable span is.
-MIN_SCORED = timedelta(minutes=60)
+# setting up for (score-remaining-night design D2). The ranking's MIN_WINDOW is
+# the same object, so the verdict and the target list agree on a usable span.
+MIN_SCORED = MIN_USABLE_WINDOW
 
 _REASON_NO_WINDOW = "No astronomical night tonight: the sun never drops below -18°."
 _REASON_NO_DARK_TIME = "No dark time remains to score."
@@ -612,6 +613,11 @@ _REASON_OVERCAST = "Overcast for the whole dark window: no usably clear sky."
 # "In the forecast": remaining hours without cloud data are unknown, not overcast.
 _REASON_OVERCAST_REST = "No usably clear sky in the forecast for the rest of the night."
 _REASON_CONDITIONS_UNAVAILABLE = "Conditions unavailable — astronomy only, no cloud forecast."
+# Mid-session the forecast may simply have run out, so claim only the remaining hours.
+_REASON_CONDITIONS_UNAVAILABLE_REST = (
+    "Conditions unavailable for the rest of the night: no cloud forecast for the"
+    " remaining hours, astronomy only."
+)
 
 
 def _wind_reason(max_gust: float, narrowed: bool) -> str:
@@ -728,7 +734,10 @@ def evaluate(
     # 3. Cloud entirely missing: no evidence the sky is clear, but absence is not
     #    a dealbreaker. MAYBE with a zero score and zero confidence.
     if not cloud_available(scored, conditions):
-        reasons = [*span, _REASON_CONDITIONS_UNAVAILABLE]
+        unavailable = (
+            _REASON_CONDITIONS_UNAVAILABLE_REST if narrowed else _REASON_CONDITIONS_UNAVAILABLE
+        )
+        reasons = [*span, unavailable]
         if wind_capped:
             reasons.append(_wind_unavailable_reason())
         return Decision(Verdict.MAYBE, 0, Band.LOW, 0, reasons, scored)
