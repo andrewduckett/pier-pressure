@@ -85,6 +85,27 @@ def test_a_gated_no_go_carries_no_equipment_reason() -> None:
     assert not any("Top pick" in r for r in document.reasons), document.reasons
 
 
+def test_a_window_not_worth_setting_up_for_carries_no_equipment_reason() -> None:
+    # Thirty minutes before dawn the verdict is capped at MAYBE with "not worth
+    # setting up". Targets are still ranked for the whole night (#110), but the
+    # reasons must not then advertise a top pick to set up on (score-remaining-night).
+    from datetime import timedelta
+
+    from pierpressure.core.model import Verdict
+
+    conditions = assemble_snapshot(_base_full(), _secondary_full())
+    with no_network():
+        before_dusk = produce_verdict(_equipped_pier(), FixedClock(_INSTANT), conditions)
+        assert before_dusk.dark_window.end is not None
+        late = FixedClock(before_dusk.dark_window.end - timedelta(minutes=30))
+        document = produce_verdict(_equipped_pier(), late, conditions)
+    assert document.verdict is Verdict.MAYBE
+    assert document.score is not None
+    assert any("Less than an hour" in r for r in document.reasons), document.reasons
+    assert document.targets
+    assert not any("Top pick" in r for r in document.reasons), document.reasons
+
+
 def test_equipment_reasons_are_deterministic() -> None:
     conditions = assemble_snapshot(_base_full(), _secondary_full())
     with no_network():

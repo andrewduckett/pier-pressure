@@ -247,6 +247,7 @@ to the whole second, ending in `Z`.
 | `reasons` | list of strings | Each gate and score term, so the verdict explains itself. |
 | `targets` | list | Up to ten ranked targets. Each has `id`, `name`, `type`, `score`, `window`, `max_altitude`, `transit_time`, `moon_separation`, `size_arcmin`, `magnitude`, and `surface_brightness`. |
 | `dark_window` | object | Tonight's astronomical night: `{ start, end }`. |
+| `scored_window` | object | The part of `dark_window` that the verdict judged: `{ start, end }`. |
 | `moon` | object | The moon's illumination, phase, and behaviour during the dark window. |
 
 **`dark_window`** is when the sun's centre is more than 18° below the horizon.
@@ -258,6 +259,23 @@ it is right whether you ask in the afternoon or after midnight.
   high-latitude summer.
 - During continuous polar night, the window is not null. It is anchored to the
   local solar day.
+
+**`scored_window`** is the span that the `verdict`, the `score`, and the gates
+judged. The data-completeness part of `confidence` reads it too. Its `end` is
+always `dark_window.end`.
+
+- Before dusk, it equals `dark_window`: the verdict judges the whole night.
+- Once the night has started, its `start` is `generated_at`. Hours that have
+  passed no longer count, so the score can fall during the night as clear hours
+  go by.
+- Less than an hour of `scored_window` is never `GO`. At the very end of the
+  night, it can be empty (`start` equals `end`); the verdict is then `MAYBE` with
+  a score of 0.
+- Both are `null` when `dark_window` is `null`.
+
+The `targets` still judge the whole night, so a target that has already set can
+stay on the list beside a verdict for the rest of the night. Issue #110 covers
+ranking only the rest of the night.
 
 **`moon`** always has `illumination` and `phase`. Its other fields are `null`
 when there is no dark window.

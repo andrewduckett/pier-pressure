@@ -12,7 +12,6 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from pierpressure.core.ranking import (
-    MIN_WINDOW,
     WEIGHT_ALTITUDE,
     WEIGHT_BRIGHTNESS,
     WEIGHT_FOV,
@@ -27,6 +26,7 @@ from pierpressure.core.ranking import (
     transit_subscore,
     window_subscore,
 )
+from pierpressure.core.scoring import MIN_USABLE_WINDOW
 
 _GEOMETRY_WEIGHT = WEIGHT_ALTITUDE + WEIGHT_WINDOW + WEIGHT_MOON + WEIGHT_TRANSIT
 
@@ -222,8 +222,8 @@ def test_score_is_stable_near_an_integer_half_boundary() -> None:
 
 def test_meets_minimum_exactly_at_threshold() -> None:
     start = datetime(2026, 9, 8, 21, 0, tzinfo=UTC)
-    assert meets_minimum(start, start + MIN_WINDOW)
-    assert not meets_minimum(start, start + MIN_WINDOW - timedelta(seconds=1))
+    assert meets_minimum(start, start + MIN_USABLE_WINDOW)
+    assert not meets_minimum(start, start + MIN_USABLE_WINDOW - timedelta(seconds=1))
 
 
 def _grid(n: int, step_min: int = 5) -> list[datetime]:

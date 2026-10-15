@@ -16,7 +16,6 @@ from pierpressure.core.catalog import load_catalog
 from pierpressure.core.config import PierConfig
 from pierpressure.core.model import Moon, MoonPhase
 from pierpressure.core.ranking import (
-    MIN_WINDOW,
     TOP_N,
     altitude_subscore,
     combined_score,
@@ -26,6 +25,7 @@ from pierpressure.core.ranking import (
     transit_subscore,
     window_subscore,
 )
+from pierpressure.core.scoring import MIN_USABLE_WINDOW
 from pierpressure.core.sky import dark_window, moon_info
 
 from .offline_guard import no_network
@@ -84,7 +84,7 @@ def test_top_target_is_genuinely_well_placed() -> None:
     targets = _rank(_london())
     top = targets[0]
     assert top.max_altitude >= 60.0
-    assert (top.window.end - top.window.start) >= MIN_WINDOW
+    assert (top.window.end - top.window.start) >= MIN_USABLE_WINDOW
     assert top.window.start <= top.transit_time <= top.window.end
 
 
@@ -177,7 +177,7 @@ def test_the_equipment_joins_the_cache_key() -> None:
 
 def test_every_emitted_window_meets_the_minimum() -> None:
     for target in _rank(_london()):
-        assert (target.window.end - target.window.start) >= MIN_WINDOW
+        assert (target.window.end - target.window.start) >= MIN_USABLE_WINDOW
 
 
 def test_object_that_never_clears_the_mask_is_absent() -> None:
