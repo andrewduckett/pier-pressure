@@ -111,6 +111,7 @@ def _document_with_moon(moon: Moon) -> VerdictDocument:
         reasons=["x"],
         targets=[],
         dark_window=DarkWindow(),
+        scored_window=DarkWindow(),
         moon=moon,
     )
 

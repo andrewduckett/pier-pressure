@@ -8,8 +8,15 @@ boundary test enforce this).
 
 The organising idea (design D3) is a single per-hour **clarity weight** ``q`` and
 **coverage weight** ``w``. Every quantity — the overcast gate, the cloud score,
-the optional terms, the moon penalty — is a clarity-weighted sum over the dark
-window, so the whole verdict rests on one concept rather than many ad-hoc rules.
+the atmosphere factor, the moon penalty — is a clarity-weighted sum over the
+scored window, so the whole verdict rests on one concept rather than many ad-hoc
+rules.
+
+The score is a product of factors, each at most 1: how much usable sky there is
+(the cloud term), scaled by how good it is (the atmosphere factor from seeing and
+transparency), the moon, and high cloud. Seeing and transparency scale the cloud
+term rather than adding to it, so they can never stand in for sky that is not
+there (score-remaining-night design D3).
 
 Cloud and wind live on the base group and seeing/transparency on the secondary
 group (design D1); the scoring reads each slot through its group's ``at`` lookup,
@@ -24,13 +31,13 @@ deliberate, reviewed diff rather than silent drift.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from .conditions import BaseHour, Conditions, SecondaryHour
 from .config import PierConfig
-from .model import Band, Moon, Verdict
+from .model import Band, Moon, Verdict, iso_z
 
 _HOUR = timedelta(hours=1)
 
@@ -126,6 +133,24 @@ def _transparency_at(conditions: Conditions, slot: datetime) -> float | None:
     return hour.transparency if hour is not None else None
 
 
+def _clear_weights(
+    window: tuple[datetime, datetime], conditions: Conditions
+) -> Iterator[tuple[datetime, float]]:
+    """Each window slot with cloud data, paired with its clear weight ``w·q``.
+
+    Every clarity-weighted sum in this module (the overcast gate, the cloud term,
+    the atmosphere factor, the moon and high-cloud penalties) walks exactly this
+    sequence, so the one place that defines "usable dark time per slot" is here.
+    Slots without cloud data are skipped: they are neither clear nor overcast.
+    """
+    start, end = window
+    for slot in hour_slots(start, end):
+        cloud = _cloud_at(conditions, slot)
+        if cloud is None:
+            continue
+        yield slot, coverage_weight(slot, start, end) * clarity_weight(cloud)
+
+
 def clear_hours_total(window: tuple[datetime, datetime], conditions: Conditions) -> float:
     """``W = Σ_{h∈C}(w·q)`` — effective clear hours over slots with cloud data.
 
@@ -133,14 +158,7 @@ def clear_hours_total(window: tuple[datetime, datetime], conditions: Conditions)
     integrated usable dark time the observer actually reasons about, and it drives
     both the overcast gate (``W ≈ 0``) and the cloud score term.
     """
-    start, end = window
-    total = 0.0
-    for slot in hour_slots(start, end):
-        cloud = _cloud_at(conditions, slot)
-        if cloud is None:
-            continue
-        total += coverage_weight(slot, start, end) * clarity_weight(cloud)
-    return total
+    return sum(weight for _, weight in _clear_weights(window, conditions))
 
 
 def total_coverage(window: tuple[datetime, datetime]) -> float:
@@ -169,6 +187,37 @@ def cloud_score_term(window: tuple[datetime, datetime], conditions: Conditions) 
     return clear_hours_total(window, conditions) / denominator
 
 
+def _optional_term(
+    window: tuple[datetime, datetime],
+    conditions: Conditions,
+    selector: Callable[[SecondaryHour], float | None],
+) -> tuple[float | None, float]:
+    """``(mean, coverage)`` of an optional term over the usably clear hours, in one pass.
+
+    ``mean`` is the clarity-weighted mean over hours where **both** the base
+    group's cloud and the secondary group's term are available, correlated by
+    top-of-hour across the two groups, with the denominator restricted to those
+    same hours (design D3, D6) — or ``None`` when no such hour exists.
+    ``coverage`` is that same restricted weight as a share of all usable weight.
+    """
+    numerator = 0.0
+    denominator = 0.0
+    usable = 0.0
+    for slot, weight in _clear_weights(window, conditions):
+        usable += weight
+        secondary_hour = _secondary_hour(conditions, slot)
+        if secondary_hour is None:
+            continue
+        value = selector(secondary_hour)
+        if value is None:
+            continue
+        numerator += weight * value
+        denominator += weight
+    mean = None if denominator <= 0.0 else numerator / denominator
+    coverage = 0.0 if usable <= 0.0 else denominator / usable
+    return mean, coverage
+
+
 def optional_term_mean(
     window: tuple[datetime, datetime],
     conditions: Conditions,
@@ -176,32 +225,46 @@ def optional_term_mean(
 ) -> float | None:
     """Clarity-weighted mean of an optional term (seeing, transparency) or ``None``.
 
-    The mean runs over hours where **both** the base group's cloud and the
-    secondary group's term are available, correlated by top-of-hour across the two
-    groups, and its denominator is restricted to those same hours (design D3, D6).
-    Restricting the denominator keeps a partial-coverage gap from artificially
-    depressing the mean — three clear hours of good seeing read as good seeing, not
-    as good seeing diluted by the hours that carried none. Returns ``None`` when
-    the term has no usable hour, so the caller drops it from the score entirely.
+    Restricting the denominator to the hours that carry the term keeps a
+    partial-coverage gap from artificially depressing the mean — three clear hours
+    of good seeing read as good seeing, not as good seeing diluted by the hours
+    that carried none. ``None`` when the term has no usable hour, so the caller
+    omits its reason line. The score itself does not read this mean: it flows
+    through :func:`atmosphere_mean`.
     """
-    start, end = window
+    return _optional_term(window, conditions, selector)[0]
+
+
+def _hour_atmosphere(hour: SecondaryHour | None) -> float:
+    """The hour's atmosphere quality ``a``: the mean of the seeing and transparency it carries.
+
+    An hour that carries neither has ``a = 1``, so missing atmosphere data never
+    lowers the score (score-remaining-night design D3).
+    """
+    if hour is None:
+        return 1.0
+    values = [v for v in (hour.seeing, hour.transparency) if v is not None]
+    if not values:
+        return 1.0
+    return sum(values) / len(values)
+
+
+def atmosphere_mean(window: tuple[datetime, datetime], conditions: Conditions) -> float:
+    """``A = Σ(w·q·a) / Σ(w·q)`` over the hours with cloud data, in ``[0, 1]``.
+
+    Unlike :func:`optional_term_mean`, an hour without seeing or transparency stays
+    in the mean at ``a = 1`` rather than dropping out. With that, the cloud and
+    atmosphere product is a sum of per-hour terms, each increasing in that hour's
+    clarity, so more cloud in any hour can never raise it (score-remaining-night
+    design D3). Returns 1 when no hour is usably clear.
+    """
     numerator = 0.0
     denominator = 0.0
-    for slot in hour_slots(start, end):
-        cloud = _cloud_at(conditions, slot)
-        if cloud is None:
-            continue
-        secondary_hour = _secondary_hour(conditions, slot)
-        if secondary_hour is None:
-            continue
-        value = selector(secondary_hour)
-        if value is None:
-            continue
-        weight = coverage_weight(slot, start, end) * clarity_weight(cloud)
-        numerator += weight * value
+    for slot, weight in _clear_weights(window, conditions):
+        numerator += weight * _hour_atmosphere(_secondary_hour(conditions, slot))
         denominator += weight
     if denominator <= 0.0:
-        return None
+        return 1.0
     return numerator / denominator
 
 
@@ -220,17 +283,12 @@ def high_cloud_penalty(window: tuple[datetime, datetime], conditions: Conditions
     the penalty bites on hours that read otherwise clear but carry cirrus aloft.
     Returns ``None`` when no hour qualifies, so the caller drops the term entirely.
     """
-    start, end = window
     numerator = 0.0
     denominator = 0.0
-    for slot in hour_slots(start, end):
-        cloud = _cloud_at(conditions, slot)
-        if cloud is None:
-            continue
+    for slot, weight in _clear_weights(window, conditions):
         high = _cloud_high_at(conditions, slot)
         if high is None:
             continue
-        weight = coverage_weight(slot, start, end) * clarity_weight(cloud)
         numerator += weight * (high / 100.0)
         denominator += weight
     if denominator <= 0.0:
@@ -275,25 +333,22 @@ def moon_penalty(window: tuple[datetime, datetime], conditions: Conditions, moon
         return 0.0
     start, end = window
     up_clear = 0.0
-    for slot in hour_slots(start, end):
-        cloud = _cloud_at(conditions, slot)
-        if cloud is None:
-            continue
+    for slot, weight in _clear_weights(window, conditions):
         covered_start = max(slot, start)
         covered_end = min(slot + _HOUR, end)
         midpoint = covered_start + (covered_end - covered_start) / 2
         if moon_up_at(midpoint, moon, window):
-            up_clear += coverage_weight(slot, start, end) * clarity_weight(cloud)
+            up_clear += weight
     return moon.illumination * (up_clear / total_clear)
 
 
 # --- Score assembly (design D4; task 5.1) ---------------------------------- #
-# Weights of the quality terms in the score. Cloud dominates (design D3); seeing
-# and transparency each nudge it. The weights are normalised over whichever terms
-# are present, so a missing optional term drops out rather than counting as zero.
-_W_CLOUD = 0.70
-_W_SEEING = 0.15
-_W_TRANSPARENCY = 0.15
+# The atmosphere factor for the worst seeing and transparency. Seeing and
+# transparency scale the cloud term between this floor and 1 rather than adding
+# to it, so good atmosphere refines a clear night but cannot lift a cloudy one
+# (score-remaining-night design D3). Not 0: poor atmosphere still leaves a night
+# for bright targets, and a factor of 0 would be a gate by another name.
+ATMOSPHERE_FLOOR = 0.7
 # The most a full moon, up throughout the usable darkness, can cut the score: a
 # penalty rather than a gate, because a bright moon spoils faint targets but
 # never makes a night impossible (design D4).
@@ -349,33 +404,51 @@ def wind_fully_covered(window: tuple[datetime, datetime], conditions: Conditions
     return all(_wind_at(conditions, slot) is not None for slot in hour_slots(start, end))
 
 
-def assemble_score(window: tuple[datetime, datetime], conditions: Conditions, moon: Moon) -> int:
-    """The banded 0-100 score from the cloud, seeing, transparency, and moon terms.
+def atmosphere_factor(window: tuple[datetime, datetime], conditions: Conditions) -> float:
+    """The atmosphere factor ``ATMOSPHERE_FLOOR + (1 - ATMOSPHERE_FLOOR) · A`` in ``[0.7, 1]``."""
+    return ATMOSPHERE_FLOOR + (1.0 - ATMOSPHERE_FLOOR) * atmosphere_mean(window, conditions)
 
-    A weighted mean of the available quality terms (cloud dominant), cut by the
-    moon penalty and the high/thin-cloud penalty as independent multiplicative
-    factors, rounded to the nearest integer and clamped to ``[0, 100]`` — so
-    identical inputs yield an identical integer (design D4). A ``None`` high-cloud
-    penalty (no ``cloud_high`` data for the window) leaves its factor at 1, so the
-    term drops out entirely.
+
+@dataclass(frozen=True)
+class ScoreTerms:
+    """The terms behind one banded score, computed once and shared with the reasons.
+
+    Holding them together means the score and the lines that explain it cannot
+    drift apart: :func:`_score_reasons` formats exactly these numbers.
     """
-    weighted = [(_W_CLOUD, cloud_score_term(window, conditions))]
-    seeing = optional_term_mean(window, conditions, lambda h: h.seeing)
-    if seeing is not None:
-        weighted.append((_W_SEEING, seeing))
-    transparency = optional_term_mean(window, conditions, lambda h: h.transparency)
-    if transparency is not None:
-        weighted.append((_W_TRANSPARENCY, transparency))
 
-    quality = sum(w * term for w, term in weighted) / sum(w for w, _ in weighted)
+    cloud_term: float
+    atmosphere_factor: float
+    high_cloud: float | None
+    moon_penalty: float
+    score: int
+
+
+def score_terms(
+    window: tuple[datetime, datetime], conditions: Conditions, moon: Moon
+) -> ScoreTerms:
+    """The banded 0-100 score and its terms: cloud scaled by atmosphere, moon, and high cloud.
+
+    ``cloud_term × atmosphere_factor × moon factor × high-cloud factor``, rounded to
+    the nearest integer (half to even) and clamped to ``[0, 100]`` — so identical
+    inputs yield an identical integer (design D4). Every factor is at most 1, so the
+    score never exceeds the cloud term (score-remaining-night design D3). A ``None``
+    high-cloud penalty (no ``cloud_high`` data for the window) leaves its factor at
+    1, so the term drops out entirely.
+    """
+    cloud_term = cloud_score_term(window, conditions)
+    atmosphere = atmosphere_factor(window, conditions)
     high_cloud = high_cloud_penalty(window, conditions)
     high_cloud_factor = 1.0 if high_cloud is None else 1.0 - _HIGH_CLOUD_MAX_PENALTY * high_cloud
-    score01 = (
-        quality
-        * (1.0 - _MOON_MAX_PENALTY * moon_penalty(window, conditions, moon))
-        * high_cloud_factor
-    )
-    return max(0, min(100, round(100.0 * _clamp01(score01))))
+    moon_term = moon_penalty(window, conditions, moon)
+    score01 = cloud_term * atmosphere * (1.0 - _MOON_MAX_PENALTY * moon_term) * high_cloud_factor
+    score = max(0, min(100, round(100.0 * _clamp01(score01))))
+    return ScoreTerms(cloud_term, atmosphere, high_cloud, moon_term, score)
+
+
+def assemble_score(window: tuple[datetime, datetime], conditions: Conditions, moon: Moon) -> int:
+    """The banded 0-100 score alone; see :func:`score_terms`."""
+    return score_terms(window, conditions, moon).score
 
 
 # --- Confidence (design D5; task 5.1) -------------------------------------- #
@@ -490,6 +563,12 @@ def confidence(
 ) -> tuple[Band, int]:
     """The forecast-based confidence ``(band, value)`` = ``max(floor, 100·L·F)·K``.
 
+    ``window`` is the scored window. Lead time over it equals lead time over the
+    dark window: before dusk they are the same span, and once the night has begun
+    both starts are at or before the instant, so the factor is 1 either way.
+    Completeness over it means a gap in hours that have passed no longer lowers
+    confidence (score-remaining-night design D1).
+
     Freshness reads the base group's issue time only (design D2): the secondary
     group's issue time is carried for provenance but never folded in, so a lagging
     secondary source never lowers confidence.
@@ -511,7 +590,9 @@ class Decision:
     """The decision terms the producer folds into the verdict document.
 
     ``score`` is ``None`` exactly when ``verdict`` is NO-GO (a failed gate), so the
-    invariant NO-GO ⟺ null score holds for the delivery layer.
+    invariant NO-GO ⟺ null score holds for the delivery layer. ``scored_window`` is
+    the span the gates and score judged: the dark window from the scoring instant on
+    (score-remaining-night design D1), or ``(None, None)`` without a dark window.
     """
 
     verdict: Verdict
@@ -519,46 +600,83 @@ class Decision:
     band: Band
     confidence: int
     reasons: list[str]
+    scored_window: tuple[datetime, datetime] | tuple[None, None]
 
+
+# The shortest span of dark time worth setting up for. A scored window under it
+# is never a GO, however clear (score-remaining-night design D2). The ranking
+# imports the same constant as the minimum a target must be observable for, so
+# the verdict and the target list agree on what a usable span is.
+MIN_USABLE_WINDOW = timedelta(minutes=60)
 
 _REASON_NO_WINDOW = "No astronomical night tonight: the sun never drops below -18°."
+_REASON_NO_DARK_TIME = "No dark time remains to score."
+_REASON_SHORT_WINDOW = "Less than an hour of dark time to score: not worth setting up."
 _REASON_OVERCAST = "Overcast for the whole dark window: no usably clear sky."
+# "In the forecast": remaining hours without cloud data are unknown, not overcast.
+_REASON_OVERCAST_REST = "No usably clear sky in the forecast for the rest of the night."
 _REASON_CONDITIONS_UNAVAILABLE = "Conditions unavailable — astronomy only, no cloud forecast."
+# Mid-session the forecast may simply have run out, so claim only the remaining hours.
+_REASON_CONDITIONS_UNAVAILABLE_REST = (
+    "Conditions unavailable for the rest of the night: no cloud forecast for the"
+    " remaining hours, astronomy only."
+)
 
 
-def _wind_reason(max_gust: float) -> str:
-    return f"Wind gust over the {max_gust:g} km/h limit during the dark window."
+def _wind_reason(max_gust: float, narrowed: bool) -> str:
+    span = "the rest of the night" if narrowed else "the dark window"
+    return f"Wind gust over the {max_gust:g} km/h limit during {span}."
+
+
+def _span_reason(scored: tuple[datetime, datetime]) -> str:
+    """The span line: the scored window in the document's own timestamp strings."""
+    return f"Scored from {iso_z(scored[0])} to {iso_z(scored[1])} (the rest of tonight)."
 
 
 def _wind_unavailable_reason() -> str:
     return "Wind data unavailable: the safety limit cannot be confirmed, so not a GO."
 
 
+_ATMOSPHERE_TERMS: tuple[tuple[str, Callable[[SecondaryHour], float | None]], ...] = (
+    ("Seeing", lambda h: h.seeing),
+    ("Transparency", lambda h: h.transparency),
+)
+
+
 def _score_reasons(
-    window: tuple[datetime, datetime], conditions: Conditions, moon: Moon, score: int
+    window: tuple[datetime, datetime],
+    conditions: Conditions,
+    terms: ScoreTerms,
+    narrowed: bool,
 ) -> list[str]:
-    """Itemise the terms behind a scored verdict, so the explanation follows the math."""
-    reasons = [
-        f"Cloud: {round(cloud_score_term(window, conditions) * 100)}% of the dark window usable."
-    ]
-    seeing = optional_term_mean(window, conditions, lambda h: h.seeing)
-    if seeing is not None:
-        reasons.append(f"Seeing quality {round(seeing * 100)}%.")
-    transparency = optional_term_mean(window, conditions, lambda h: h.transparency)
-    if transparency is not None:
-        reasons.append(f"Transparency quality {round(transparency * 100)}%.")
-    high_cloud = high_cloud_penalty(window, conditions)
+    """Itemise the terms behind a scored verdict, so the explanation follows the math.
+
+    The seeing and transparency lines are explanatory only (the score reads the
+    atmosphere factor), so their means are computed here rather than in ``terms``.
+    """
+    span = "the remaining night" if narrowed else "the dark window"
+    reasons = [f"Cloud: {round(terms.cloud_term * 100)}% of {span} usable."]
+    reasons.append(f"Atmosphere factor {round(terms.atmosphere_factor * 100)}%.")
+    for label, selector in _ATMOSPHERE_TERMS:
+        mean, coverage = _optional_term(window, conditions, selector)
+        if mean is None:
+            continue
+        # A mean over part of the usable sky says so, so a 0% line beside a 97%
+        # factor reads as what it is (score-remaining-night design D4).
+        covers = round(coverage * 100)
+        note = "" if covers >= 100 else f" (covers {covers}% of the usable sky)"
+        reasons.append(f"{label} quality {round(mean * 100)}%{note}.")
+    high_cloud = terms.high_cloud
     # Guard on the *rounded* percentage (not the raw > 0.0 the moon line uses), so a
     # sub-half-percent penalty never emits a confusing "High cloud penalty 0%" line
     # (design D3). Kept distinct from the total-cloud "Cloud:" line above.
     if high_cloud is not None and round(high_cloud * 100) > 0:
         reasons.append(f"High cloud penalty {round(high_cloud * 100)}% (thin cirrus aloft).")
-    penalty = moon_penalty(window, conditions, moon)
-    if penalty > 0.0:
+    if terms.moon_penalty > 0.0:
         reasons.append(
-            f"Moon penalty {round(penalty * 100)}% (illuminated and up during darkness)."
+            f"Moon penalty {round(terms.moon_penalty * 100)}% (illuminated and up during darkness)."
         )
-    reasons.append(f"Score {score}/100.")
+    reasons.append(f"Score {terms.score}/100.")
     return reasons
 
 
@@ -571,18 +689,40 @@ def evaluate(
 ) -> Decision:
     """Decide the verdict from astronomy, the conditions groups, and the moon.
 
+    Every condition rule judges the **scored window**: the dark window clamped to
+    start no earlier than the scoring instant, the evaluation instant floored to a
+    whole second as ``generated_at`` is. Before dusk that is the whole night; once
+    the night has started, hours that have passed no longer count
+    (score-remaining-night design D1).
+
     The degradation ladder runs in a fixed precedence so the cases never
-    contradict (design D6): no dark window → wind gate → cloud entirely missing →
-    cloud present (overcast gate, else score). A NO-GO is only ever a failed hard
-    gate; a missing observation caps the verdict at MAYBE but never fails one.
+    contradict (design D6): no dark window → no dark time left → wind gate → cloud
+    entirely missing → cloud present (overcast gate, else score). A NO-GO is only
+    ever a failed hard gate; a missing observation or a scored window under
+    ``MIN_USABLE_WINDOW`` caps the verdict at MAYBE but never fails one.
     """
     start, end = window
     # 1. No dark window: astronomy alone decides, with no forecast to distrust.
     if start is None or end is None:
-        return Decision(Verdict.NO_GO, None, Band.HIGH, 100, [_REASON_NO_WINDOW])
-    bounded: tuple[datetime, datetime] = (start, end)
+        return Decision(Verdict.NO_GO, None, Band.HIGH, 100, [_REASON_NO_WINDOW], (None, None))
+    # The inner max drops the hours that have passed; the outer min keeps the start
+    # from passing the end when the instant lies in the window's last partial second.
+    now = instant.replace(microsecond=0)
+    scored: tuple[datetime, datetime] = (min(max(now, start), end), end)
+    # Narrowed: hours have passed, so every reason speaks of the rest of the night,
+    # after a first line naming the span judged (score-remaining-night design D4).
+    narrowed = scored[0] > start
+    span = [_span_reason(scored)] if narrowed else []
 
-    band, conf_value = confidence(pier, instant, bounded, conditions)
+    # 1a. No dark time left: the instant lies in the window's last partial second.
+    #     An empty window tiles no usable hour, so letting it fall through would
+    #     read as "conditions unavailable", which is false (design D2). Confidence
+    #     is 0 in LOW by construction: completeness over no coverage is 0, and it
+    #     multiplies the whole value, so there is nothing for lead time to add.
+    if scored[0] == scored[1]:
+        return Decision(Verdict.MAYBE, 0, Band.LOW, 0, [*span, _REASON_NO_DARK_TIME], scored)
+
+    band, conf_value = confidence(pier, instant, scored, conditions)
 
     # 2. Wind gate (opt-in). A forecast gust over the limit is a safety NO-GO,
     #    evaluated before any cloud logic so a missing cloud observation cannot
@@ -590,27 +730,37 @@ def evaluate(
     #    cannot be confirmed: cap at MAYBE (never GO) rather than fail-open.
     wind_capped = False
     if pier.max_gust is not None:
-        if wind_exceeds_limit(bounded, conditions, pier.max_gust):
-            return Decision(Verdict.NO_GO, None, band, conf_value, [_wind_reason(pier.max_gust)])
-        if not wind_fully_covered(bounded, conditions):
+        if wind_exceeds_limit(scored, conditions, pier.max_gust):
+            reasons = [*span, _wind_reason(pier.max_gust, narrowed)]
+            return Decision(Verdict.NO_GO, None, band, conf_value, reasons, scored)
+        if not wind_fully_covered(scored, conditions):
             wind_capped = True
 
     # 3. Cloud entirely missing: no evidence the sky is clear, but absence is not
     #    a dealbreaker. MAYBE with a zero score and zero confidence.
-    if not cloud_available(bounded, conditions):
-        reasons = [_REASON_CONDITIONS_UNAVAILABLE]
+    if not cloud_available(scored, conditions):
+        unavailable = (
+            _REASON_CONDITIONS_UNAVAILABLE_REST if narrowed else _REASON_CONDITIONS_UNAVAILABLE
+        )
+        reasons = [*span, unavailable]
         if wind_capped:
             reasons.append(_wind_unavailable_reason())
-        return Decision(Verdict.MAYBE, 0, Band.LOW, 0, reasons)
+        return Decision(Verdict.MAYBE, 0, Band.LOW, 0, reasons, scored)
 
     # 4. Cloud present: the overcast gate can fire; otherwise score the night.
-    if is_overcast(bounded, conditions):
-        return Decision(Verdict.NO_GO, None, band, conf_value, [_REASON_OVERCAST])
+    if is_overcast(scored, conditions):
+        overcast = _REASON_OVERCAST_REST if narrowed else _REASON_OVERCAST
+        return Decision(Verdict.NO_GO, None, band, conf_value, [*span, overcast], scored)
 
-    score = assemble_score(bounded, conditions, moon)
-    reasons = _score_reasons(bounded, conditions, moon, score)
+    terms = score_terms(scored, conditions, moon)
+    score = terms.score
+    reasons = [*span, *_score_reasons(scored, conditions, terms, narrowed)]
     if wind_capped:
         reasons.append(_wind_unavailable_reason())
-    is_go = score >= pier.go_threshold and not wind_capped
+    # A short window keeps its honest score, but is never worth setting up for.
+    short = scored[1] - scored[0] < MIN_USABLE_WINDOW
+    if short:
+        reasons.append(_REASON_SHORT_WINDOW)
+    is_go = score >= pier.go_threshold and not wind_capped and not short
     verdict = Verdict.GO if is_go else Verdict.MAYBE
-    return Decision(verdict, score, band, conf_value, reasons)
+    return Decision(verdict, score, band, conf_value, reasons, scored)

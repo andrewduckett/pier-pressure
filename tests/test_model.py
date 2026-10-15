@@ -27,6 +27,7 @@ EXPECTED_KEY_ORDER = [
     "reasons",
     "targets",
     "dark_window",
+    "scored_window",
     "moon",
 ]
 
@@ -43,6 +44,7 @@ def _gated_no_go() -> VerdictDocument:
         reasons=["No dark window tonight"],
         targets=[],
         dark_window=DarkWindow(start=None, end=None),
+        scored_window=DarkWindow(start=None, end=None),
         moon=_STUB_MOON,
     )
 
@@ -81,6 +83,7 @@ def test_naive_generated_at_is_rejected() -> None:
             reasons=["x"],
             targets=[],
             dark_window=DarkWindow(),
+            scored_window=DarkWindow(),
             moon=_STUB_MOON,
         )
 
@@ -98,6 +101,7 @@ def test_non_utc_timezone_is_normalized_to_utc() -> None:
         reasons=["x"],
         targets=[],
         dark_window=DarkWindow(),
+        scored_window=DarkWindow(),
         moon=_STUB_MOON,
     )
     assert json.loads(doc.to_json())["generated_at"] == "2026-09-07T21:30:00Z"
@@ -115,6 +119,7 @@ def test_out_of_range_score_is_rejected(bad_score: int) -> None:
             reasons=["x"],
             targets=[],
             dark_window=DarkWindow(),
+            scored_window=DarkWindow(),
             moon=_STUB_MOON,
         )
 
@@ -136,6 +141,7 @@ def test_unknown_verdict_is_rejected() -> None:
             reasons=["x"],
             targets=[],
             dark_window=DarkWindow(),
+            scored_window=DarkWindow(),
             moon=_STUB_MOON,
         )
 
@@ -160,6 +166,7 @@ def _doc_with_generated_at(instant: datetime) -> VerdictDocument:
         reasons=["x"],
         targets=[],
         dark_window=DarkWindow(),
+        scored_window=DarkWindow(),
         moon=_STUB_MOON,
     )
 
@@ -189,3 +196,24 @@ def test_dark_window_microseconds_are_stripped_in_memory() -> None:
     )
     assert window.start is not None and window.start.microsecond == 0
     assert window.end is not None and window.end.microsecond == 0
+
+
+def test_scored_window_round_trips_through_json() -> None:
+    doc = _gated_no_go().model_copy(
+        update={
+            "dark_window": DarkWindow(
+                start=datetime(2026, 9, 7, 20, 30, tzinfo=UTC),
+                end=datetime(2026, 9, 8, 3, 25, tzinfo=UTC),
+            ),
+            "scored_window": DarkWindow(
+                start=datetime(2026, 9, 7, 21, 30, tzinfo=UTC),
+                end=datetime(2026, 9, 8, 3, 25, tzinfo=UTC),
+            ),
+        }
+    )
+    payload = json.loads(doc.to_json())
+    assert payload["scored_window"] == {
+        "start": "2026-09-07T21:30:00Z",
+        "end": "2026-09-08T03:25:00Z",
+    }
+    assert VerdictDocument.model_validate_json(doc.to_json()) == doc

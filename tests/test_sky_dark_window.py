@@ -134,3 +134,18 @@ def test_subsecond_night_collapses_to_null_on_whole_second_truncation() -> None:
         datetime(2026, 9, 8, 0, 0, 0, tzinfo=UTC),
         datetime(2026, 9, 8, 0, 0, 1, tzinfo=UTC),
     )
+
+
+def test_continuous_night_at_solar_noon_selects_the_next_solar_day() -> None:
+    # Near the solstice, solar noon drifts about 30 s a day. An instant on or near
+    # noon must still find a noon on each side of it (score-remaining-night 2.3a).
+    pier = PierConfig(id="high-arctic", latitude=88.0, longitude=0.0, elevation_m=0.0)
+    with no_network():
+        _, noon_end = dark_window(pier, datetime(2026, 12, 21, 15, 0, tzinfo=UTC))
+        assert noon_end is not None
+        start, end = dark_window(pier, noon_end + timedelta(seconds=1))
+        just_before = dark_window(pier, noon_end - timedelta(seconds=1))
+
+    assert start == noon_end
+    assert end is not None and end - start > timedelta(hours=23)
+    assert just_before[1] == noon_end

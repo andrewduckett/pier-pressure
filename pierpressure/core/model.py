@@ -65,7 +65,7 @@ Score = Annotated[int, Field(ge=0, le=100)]
 ConfidenceValue = Annotated[int, Field(ge=0, le=100)]
 
 
-def _iso_z(dt: datetime) -> str:
+def iso_z(dt: datetime) -> str:
     """Render a tz-aware datetime as UTC ISO-8601 (whole seconds) with a ``Z``."""
     text = dt.astimezone(UTC).isoformat(timespec="seconds")
     if text.endswith("+00:00"):
@@ -146,7 +146,7 @@ class DarkWindow(BaseModel):
 
     @field_serializer("start", "end")
     def _serialize(self, value: datetime | None) -> str | None:
-        return None if value is None else _iso_z(value)
+        return None if value is None else iso_z(value)
 
 
 class Moon(BaseModel):
@@ -175,7 +175,7 @@ class Moon(BaseModel):
 
     @field_serializer("rise", "set")
     def _serialize(self, value: datetime | None) -> str | None:
-        return None if value is None else _iso_z(value)
+        return None if value is None else iso_z(value)
 
 
 class TargetWindow(BaseModel):
@@ -199,7 +199,7 @@ class TargetWindow(BaseModel):
 
     @field_serializer("start", "end")
     def _serialize(self, value: datetime) -> str:
-        return _iso_z(value)
+        return iso_z(value)
 
 
 class Target(BaseModel):
@@ -243,7 +243,7 @@ class Target(BaseModel):
 
     @field_serializer("transit_time")
     def _serialize_transit(self, value: datetime) -> str:
-        return _iso_z(value)
+        return iso_z(value)
 
 
 class VerdictDocument(BaseModel):
@@ -264,6 +264,7 @@ class VerdictDocument(BaseModel):
     reasons: list[str]
     targets: list[Target] = Field(default_factory=list)
     dark_window: DarkWindow
+    scored_window: DarkWindow
     moon: Moon
 
     @field_validator("generated_at")
@@ -273,7 +274,7 @@ class VerdictDocument(BaseModel):
 
     @field_serializer("generated_at")
     def _serialize_generated_at(self, value: datetime) -> str:
-        return _iso_z(value)
+        return iso_z(value)
 
     def to_json(self) -> str:
         """Serialize to the canonical JSON string (fixed order, all keys, ``Z``)."""
