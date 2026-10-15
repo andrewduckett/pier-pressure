@@ -41,6 +41,13 @@ updates:
     commit-message:
       prefix: build
       include: scope
+    # uv is 0.x, so a minor release can break. The image's uv must stay inside
+    # [tool.uv] required-version in pyproject.toml, as the dev shell's does (design
+    # D5). Moving to a new uv minor is a deliberate change to all three together,
+    # so Dependabot offers only patch releases of the uv image.
+    ignore:
+      - dependency-name: "*astral-sh/uv"
+        update-types: ["version-update:semver-minor"]
     groups:
       docker-minor-and-patch:
         patterns: ["*"]
