@@ -8,6 +8,17 @@ on:
   push:
     branches: [main]
   pull_request:
+  # A merge queue runs the required checks on each queued change before it merges.
+  merge_group:
+
+# Only the latest changes are processed. A new push to a pull request cancels
+# the run it supersedes. Pushes to main are never cancelled, so every commit on
+# main keeps its own result: that history is how a breaking merge is found. In a
+# merge queue each entry has its own ref, so entries never cancel each other;
+# each tests a different combination of queued changes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
