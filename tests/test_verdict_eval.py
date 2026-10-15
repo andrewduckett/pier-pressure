@@ -245,3 +245,76 @@ def test_missing_wind_without_a_limit_is_irrelevant() -> None:
 def test_every_verdict_carries_at_least_one_reason() -> None:
     decision = evaluate(_pier(), _INSTANT, _WINDOW, _snapshot(cloud=20.0), _new_moon())
     assert decision.reasons and all(r.strip() for r in decision.reasons)
+
+
+# --------------------------------------------------------------------------- #
+# score-remaining-night 2.1: once the night has started, judge the rest of it
+# --------------------------------------------------------------------------- #
+
+# Inside the dark window, with a fractional second.
+_MID = datetime(2026, 9, 8, 23, 30, 0, 400_000, tzinfo=UTC)
+
+
+def _hourly_snapshot(
+    *, cloud: list[float | None], wind: list[float | None] | None = None
+) -> Conditions:
+    """A base group with per-hour cloud (and wind) across the six-hour ``_WINDOW``."""
+    slots = hour_slots(*_WINDOW)
+    gusts = wind if wind is not None else [None] * len(slots)
+    return Conditions(
+        base=BaseGroup.of(
+            GroupMeta(source="base", issued_at=_INSTANT),
+            tuple(
+                BaseHour(time=s, cloud_cover=cloud[i], wind_gust=gusts[i])
+                for i, s in enumerate(slots)
+            ),
+        )
+    )
+
+
+def test_before_dusk_the_scored_window_is_the_dark_window() -> None:
+    decision = evaluate(_pier(), _INSTANT, _WINDOW, _snapshot(cloud=0.0), _new_moon())
+    assert decision.scored_window == _WINDOW
+
+
+def test_mid_session_the_scored_window_starts_at_the_floored_instant() -> None:
+    decision = evaluate(_pier(), _MID, _WINDOW, _snapshot(cloud=0.0), _new_moon())
+    assert decision.scored_window == (datetime(2026, 9, 8, 23, 30, 0, tzinfo=UTC), _END)
+
+
+def test_without_a_dark_window_the_scored_window_is_null() -> None:
+    decision = evaluate(_pier(), _INSTANT, _NO_WINDOW, Conditions(), _new_moon())
+    assert decision.scored_window == (None, None)
+
+
+def test_passed_clear_hours_no_longer_lift_the_night() -> None:
+    # Clear for 21:00-23:00, overcast after.
+    snap = _hourly_snapshot(cloud=[0.0, 0.0, 100.0, 100.0, 100.0, 100.0])
+    before = evaluate(_pier(), _INSTANT, _WINDOW, snap, _new_moon())
+    during = evaluate(_pier(), _MID, _WINDOW, snap, _new_moon())
+    assert before.verdict is not Verdict.NO_GO
+    assert during.verdict is Verdict.NO_GO
+    assert during.score is None
+
+
+def test_a_gust_in_a_passed_hour_does_not_gate() -> None:
+    snap = _hourly_snapshot(cloud=[0.0] * 6, wind=[60.0, 10.0, 10.0, 10.0, 10.0, 10.0])
+    decision = evaluate(_pier(max_gust=40.0), _MID, _WINDOW, snap, _new_moon())
+    assert decision.verdict is not Verdict.NO_GO
+
+
+def test_a_wind_gap_in_a_passed_hour_does_not_cap() -> None:
+    snap = _hourly_snapshot(cloud=[0.0] * 6, wind=[None, 10.0, 10.0, 10.0, 10.0, 10.0])
+    decision = evaluate(_pier(max_gust=40.0, go_threshold=50), _MID, _WINDOW, snap, _new_moon())
+    assert decision.verdict is Verdict.GO
+    assert not any("wind" in r.lower() for r in decision.reasons)
+
+
+def test_completeness_reads_the_scored_window() -> None:
+    # Cloud is missing only for hours that have passed by _MID.
+    gappy = _hourly_snapshot(cloud=[None, None, 0.0, 0.0, 0.0, 0.0])
+    full = _hourly_snapshot(cloud=[0.0] * 6)
+    assert (
+        evaluate(_pier(), _MID, _WINDOW, gappy, _new_moon()).confidence
+        == evaluate(_pier(), _MID, _WINDOW, full, _new_moon()).confidence
+    )
