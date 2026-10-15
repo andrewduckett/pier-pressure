@@ -557,9 +557,14 @@ def confidence(
     pier: PierConfig,
     instant: datetime,
     window: tuple[datetime, datetime],
+    scored: tuple[datetime, datetime],
     conditions: Conditions,
 ) -> tuple[Band, int]:
     """The forecast-based confidence ``(band, value)`` = ``max(floor, 100·L·F)·K``.
+
+    Lead time reads the dark ``window``'s start, so it is 1 once the night has
+    begun; completeness reads the ``scored`` window, so a gap in hours that have
+    passed no longer lowers it (score-remaining-night design D1).
 
     Freshness reads the base group's issue time only (design D2): the secondary
     group's issue time is carried for provenance but never folded in, so a lagging
@@ -568,7 +573,7 @@ def confidence(
     lead = lead_time_factor(instant, window)
     base_issued_at = conditions.base.meta.issued_at if conditions.base is not None else None
     fresh = freshness_factor(instant, base_issued_at)
-    complete = completeness_factor(window, conditions, pier.max_gust)
+    complete = completeness_factor(scored, conditions, pier.max_gust)
     value = round(max(_CONFIDENCE_FLOOR, lead * fresh) * complete * 100.0)
     value = max(0, min(100, value))
     return _band_for(value), value
@@ -582,7 +587,9 @@ class Decision:
     """The decision terms the producer folds into the verdict document.
 
     ``score`` is ``None`` exactly when ``verdict`` is NO-GO (a failed gate), so the
-    invariant NO-GO ⟺ null score holds for the delivery layer.
+    invariant NO-GO ⟺ null score holds for the delivery layer. ``scored_window`` is
+    the span the gates and score judged: the dark window from the scoring instant on
+    (score-remaining-night design D1), or ``(None, None)`` without a dark window.
     """
 
     verdict: Verdict
@@ -590,6 +597,7 @@ class Decision:
     band: Band
     confidence: int
     reasons: list[str]
+    scored_window: tuple[datetime, datetime] | tuple[None, None]
 
 
 _REASON_NO_WINDOW = "No astronomical night tonight: the sun never drops below -18°."
@@ -652,6 +660,12 @@ def evaluate(
 ) -> Decision:
     """Decide the verdict from astronomy, the conditions groups, and the moon.
 
+    Every condition rule judges the **scored window**: the dark window clamped to
+    start no earlier than the scoring instant, the evaluation instant floored to a
+    whole second as ``generated_at`` is. Before dusk that is the whole night; once
+    the night has started, hours that have passed no longer count
+    (score-remaining-night design D1).
+
     The degradation ladder runs in a fixed precedence so the cases never
     contradict (design D6): no dark window → wind gate → cloud entirely missing →
     cloud present (overcast gate, else score). A NO-GO is only ever a failed hard
@@ -660,10 +674,14 @@ def evaluate(
     start, end = window
     # 1. No dark window: astronomy alone decides, with no forecast to distrust.
     if start is None or end is None:
-        return Decision(Verdict.NO_GO, None, Band.HIGH, 100, [_REASON_NO_WINDOW])
+        return Decision(Verdict.NO_GO, None, Band.HIGH, 100, [_REASON_NO_WINDOW], (None, None))
     bounded: tuple[datetime, datetime] = (start, end)
+    # The inner max drops the hours that have passed; the outer min keeps the start
+    # from passing the end when the instant lies in the window's last partial second.
+    now = instant.replace(microsecond=0)
+    scored: tuple[datetime, datetime] = (min(max(now, start), end), end)
 
-    band, conf_value = confidence(pier, instant, bounded, conditions)
+    band, conf_value = confidence(pier, instant, bounded, scored, conditions)
 
     # 2. Wind gate (opt-in). A forecast gust over the limit is a safety NO-GO,
     #    evaluated before any cloud logic so a missing cloud observation cannot
@@ -671,27 +689,29 @@ def evaluate(
     #    cannot be confirmed: cap at MAYBE (never GO) rather than fail-open.
     wind_capped = False
     if pier.max_gust is not None:
-        if wind_exceeds_limit(bounded, conditions, pier.max_gust):
-            return Decision(Verdict.NO_GO, None, band, conf_value, [_wind_reason(pier.max_gust)])
-        if not wind_fully_covered(bounded, conditions):
+        if wind_exceeds_limit(scored, conditions, pier.max_gust):
+            return Decision(
+                Verdict.NO_GO, None, band, conf_value, [_wind_reason(pier.max_gust)], scored
+            )
+        if not wind_fully_covered(scored, conditions):
             wind_capped = True
 
     # 3. Cloud entirely missing: no evidence the sky is clear, but absence is not
     #    a dealbreaker. MAYBE with a zero score and zero confidence.
-    if not cloud_available(bounded, conditions):
+    if not cloud_available(scored, conditions):
         reasons = [_REASON_CONDITIONS_UNAVAILABLE]
         if wind_capped:
             reasons.append(_wind_unavailable_reason())
-        return Decision(Verdict.MAYBE, 0, Band.LOW, 0, reasons)
+        return Decision(Verdict.MAYBE, 0, Band.LOW, 0, reasons, scored)
 
     # 4. Cloud present: the overcast gate can fire; otherwise score the night.
-    if is_overcast(bounded, conditions):
-        return Decision(Verdict.NO_GO, None, band, conf_value, [_REASON_OVERCAST])
+    if is_overcast(scored, conditions):
+        return Decision(Verdict.NO_GO, None, band, conf_value, [_REASON_OVERCAST], scored)
 
-    score = assemble_score(bounded, conditions, moon)
-    reasons = _score_reasons(bounded, conditions, moon, score)
+    score = assemble_score(scored, conditions, moon)
+    reasons = _score_reasons(scored, conditions, moon, score)
     if wind_capped:
         reasons.append(_wind_unavailable_reason())
     is_go = score >= pier.go_threshold and not wind_capped
     verdict = Verdict.GO if is_go else Verdict.MAYBE
-    return Decision(verdict, score, band, conf_value, reasons)
+    return Decision(verdict, score, band, conf_value, reasons, scored)
