@@ -21,7 +21,7 @@
 
 - [x] 4.1 Write failing tests in `tests/test_producer.py` and `tests/test_model.py`: the document has `scored_window` after `dark_window`; before dusk it equals `dark_window`; mid-session its start equals `generated_at`; it is null-null without a dark window; the field round-trips through JSON. Verify they fail.
 - [x] 4.2 Add `scored_window: DarkWindow` to `VerdictDocument` and emit the decision's scored window from `produce_verdict`. Verify the 4.1 tests pass and `tests/test_determinism.py` and `tests/test_core_boundary.py` still pass.
-- [ ] 4.3 Update the README's document table and the paragraph after it: describe `scored_window`, say the score and gates judge it, and say the targets still judge the whole night (issue #110). Verify by reading the rendered Markdown.
+- [x] 4.3 Update the README's document table and the paragraph after it: describe `scored_window`, say the score and gates judge it, and say the targets still judge the whole night (issue #110). Verify by reading the rendered Markdown.
 
 ## 5. Goldens (design D6)
 
