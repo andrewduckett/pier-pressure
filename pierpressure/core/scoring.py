@@ -212,6 +212,35 @@ def optional_term_mean(
     return numerator / denominator
 
 
+def optional_term_coverage(
+    window: tuple[datetime, datetime],
+    conditions: Conditions,
+    selector: Callable[[SecondaryHour], float | None],
+) -> float:
+    """The share of the usable sky ``Σ(w·q)`` over hours that carry an optional term.
+
+    This is the weight :func:`optional_term_mean` averages over, as a share of the
+    weight :func:`atmosphere_mean` averages over, so a reason can say how much of
+    the atmosphere factor a term's mean actually stands behind. 0 when no hour is
+    usably clear.
+    """
+    start, end = window
+    covered = 0.0
+    usable = 0.0
+    for slot in hour_slots(start, end):
+        cloud = _cloud_at(conditions, slot)
+        if cloud is None:
+            continue
+        weight = coverage_weight(slot, start, end) * clarity_weight(cloud)
+        usable += weight
+        secondary_hour = _secondary_hour(conditions, slot)
+        if secondary_hour is not None and selector(secondary_hour) is not None:
+            covered += weight
+    if usable <= 0.0:
+        return 0.0
+    return covered / usable
+
+
 def _hour_atmosphere(hour: SecondaryHour | None) -> float:
     """The hour's atmosphere quality ``a``: the mean of the seeing and transparency it carries.
 
@@ -576,6 +605,12 @@ def _wind_unavailable_reason() -> str:
     return "Wind data unavailable: the safety limit cannot be confirmed, so not a GO."
 
 
+_ATMOSPHERE_TERMS: tuple[tuple[str, Callable[[SecondaryHour], float | None]], ...] = (
+    ("Seeing", lambda h: h.seeing),
+    ("Transparency", lambda h: h.transparency),
+)
+
+
 def _score_reasons(
     window: tuple[datetime, datetime], conditions: Conditions, moon: Moon, score: int
 ) -> list[str]:
@@ -583,12 +618,16 @@ def _score_reasons(
     reasons = [
         f"Cloud: {round(cloud_score_term(window, conditions) * 100)}% of the dark window usable."
     ]
-    seeing = optional_term_mean(window, conditions, lambda h: h.seeing)
-    if seeing is not None:
-        reasons.append(f"Seeing quality {round(seeing * 100)}%.")
-    transparency = optional_term_mean(window, conditions, lambda h: h.transparency)
-    if transparency is not None:
-        reasons.append(f"Transparency quality {round(transparency * 100)}%.")
+    reasons.append(f"Atmosphere factor {round(atmosphere_factor(window, conditions) * 100)}%.")
+    for label, selector in _ATMOSPHERE_TERMS:
+        mean = optional_term_mean(window, conditions, selector)
+        if mean is None:
+            continue
+        # A mean over part of the usable sky says so, so a 0% line beside a 97%
+        # factor reads as what it is (score-remaining-night design D4).
+        covers = round(optional_term_coverage(window, conditions, selector) * 100)
+        note = "" if covers >= 100 else f" (covers {covers}% of the usable sky)"
+        reasons.append(f"{label} quality {round(mean * 100)}%{note}.")
     high_cloud = high_cloud_penalty(window, conditions)
     # Guard on the *rounded* percentage (not the raw > 0.0 the moon line uses), so a
     # sub-half-percent penalty never emits a confusing "High cloud penalty 0%" line
