@@ -118,11 +118,11 @@ and freshness cannot lift it. `evaluate` returns that result directly rather
 than computing it. This path sits after the no-dark-window gate and before the
 wind gate.
 
-When `scored` is shorter than `MIN_SCORED` (60 minutes), narrowed or not,
+When `scored` is shorter than `MIN_USABLE_WINDOW` (60 minutes), narrowed or not,
 the gates and the score run as usual, but a `GO` is capped at `MAYBE` with the
 reason "Less than an hour of dark time to score: not worth setting up." This
 wording is true before dusk and during the night. It is the same cap shape
-as the missing-wind rule. `MIN_SCORED` matches the ranking's minimum target
+as the missing-wind rule. The ranking imports the same constant as its minimum target
 window, so the verdict and the target list agree on what a usable span is.
 Applying it to a whole short night too keeps one rule: a 50-minute night is
 `MAYBE` at dusk and stays `MAYBE` a second later, rather than flipping.

@@ -46,7 +46,8 @@ from skyfield.api import Star, wgs84
 from .catalog import CatalogObject, load_catalog
 from .config import Equipment, PierConfig
 from .horizon import Horizon
-from .model import MIN_USABLE_WINDOW, Moon, Target, TargetWindow
+from .model import Moon, Target, TargetWindow
+from .scoring import MIN_USABLE_WINDOW
 from .sky import _ephemeris, _timescale, _to_datetime
 
 # --- Ranking parameters (fixed constants; validated on a real night) -------- #
@@ -55,10 +56,6 @@ from .sky import _ephemeris, _timescale, _to_datetime
 # so any object observable for the minimum duration lands several grid points
 # above the mask and is never missed by the coarse scan (design D3/D5).
 GRID_STEP = timedelta(minutes=5)
-
-# The minimum observable window a target must clear to be listed (spec: gates).
-# Shared with the verdict's short-window cap (model.MIN_USABLE_WINDOW).
-MIN_WINDOW = MIN_USABLE_WINDOW
 
 # The list is bounded to the top N targets (design D3, ADR-0009).
 TOP_N = 10
@@ -354,7 +351,8 @@ def equipment_reasons(equipment: Equipment | None, target: Target) -> list[str]:
 
 def meets_minimum(start: datetime, end: datetime) -> bool:
     """Whether an observable window spans at least the minimum duration (the gate)."""
-    return (end - start) >= MIN_WINDOW
+    # The same minimum the verdict's short-window cap uses (spec: gates).
+    return (end - start) >= MIN_USABLE_WINDOW
 
 
 def observable_window(times: list[datetime], above: list[bool]) -> tuple[int, int] | None:

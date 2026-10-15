@@ -14,7 +14,7 @@ Serialization rules for determinism:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Annotated
 
@@ -60,12 +60,6 @@ class MoonPhase(StrEnum):
     LAST_QUARTER = "last quarter"
     WANING_CRESCENT = "waning crescent"
 
-
-# The shortest span of dark time worth setting up for. The verdict (a scored
-# window under this is never GO) and the ranking (a target must be observable
-# for at least this long to be listed) share it, so they agree on what a usable
-# span is. It lives here because both modules already import this one.
-MIN_USABLE_WINDOW = timedelta(minutes=60)
 
 Score = Annotated[int, Field(ge=0, le=100)]
 ConfidenceValue = Annotated[int, Field(ge=0, le=100)]

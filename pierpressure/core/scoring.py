@@ -37,7 +37,7 @@ from datetime import datetime, timedelta
 
 from .conditions import BaseHour, Conditions, SecondaryHour
 from .config import PierConfig
-from .model import MIN_USABLE_WINDOW, Band, Moon, Verdict, iso_z
+from .model import Band, Moon, Verdict, iso_z
 
 _HOUR = timedelta(hours=1)
 
@@ -233,21 +233,6 @@ def optional_term_mean(
     through :func:`atmosphere_mean`.
     """
     return _optional_term(window, conditions, selector)[0]
-
-
-def optional_term_coverage(
-    window: tuple[datetime, datetime],
-    conditions: Conditions,
-    selector: Callable[[SecondaryHour], float | None],
-) -> float:
-    """The share of the usable sky ``Σ(w·q)`` over hours that carry an optional term.
-
-    This is the weight :func:`optional_term_mean` averages over, as a share of the
-    weight :func:`atmosphere_mean` averages over, so a reason can say how much of
-    the atmosphere factor a term's mean actually stands behind. 0 when no hour is
-    usably clear.
-    """
-    return _optional_term(window, conditions, selector)[1]
 
 
 def _hour_atmosphere(hour: SecondaryHour | None) -> float:
@@ -574,14 +559,15 @@ def confidence(
     pier: PierConfig,
     instant: datetime,
     window: tuple[datetime, datetime],
-    scored: tuple[datetime, datetime],
     conditions: Conditions,
 ) -> tuple[Band, int]:
     """The forecast-based confidence ``(band, value)`` = ``max(floor, 100·L·F)·K``.
 
-    Lead time reads the dark ``window``'s start, so it is 1 once the night has
-    begun; completeness reads the ``scored`` window, so a gap in hours that have
-    passed no longer lowers it (score-remaining-night design D1).
+    ``window`` is the scored window. Lead time over it equals lead time over the
+    dark window: before dusk they are the same span, and once the night has begun
+    both starts are at or before the instant, so the factor is 1 either way.
+    Completeness over it means a gap in hours that have passed no longer lowers
+    confidence (score-remaining-night design D1).
 
     Freshness reads the base group's issue time only (design D2): the secondary
     group's issue time is carried for provenance but never folded in, so a lagging
@@ -590,7 +576,7 @@ def confidence(
     lead = lead_time_factor(instant, window)
     base_issued_at = conditions.base.meta.issued_at if conditions.base is not None else None
     fresh = freshness_factor(instant, base_issued_at)
-    complete = completeness_factor(scored, conditions, pier.max_gust)
+    complete = completeness_factor(window, conditions, pier.max_gust)
     value = round(max(_CONFIDENCE_FLOOR, lead * fresh) * complete * 100.0)
     value = max(0, min(100, value))
     return _band_for(value), value
@@ -617,10 +603,11 @@ class Decision:
     scored_window: tuple[datetime, datetime] | tuple[None, None]
 
 
-# A scored window shorter than this is never a GO, however clear: it is not worth
-# setting up for (score-remaining-night design D2). The ranking's MIN_WINDOW is
-# the same object, so the verdict and the target list agree on a usable span.
-MIN_SCORED = MIN_USABLE_WINDOW
+# The shortest span of dark time worth setting up for. A scored window under it
+# is never a GO, however clear (score-remaining-night design D2). The ranking
+# imports the same constant as the minimum a target must be observable for, so
+# the verdict and the target list agree on what a usable span is.
+MIN_USABLE_WINDOW = timedelta(minutes=60)
 
 _REASON_NO_WINDOW = "No astronomical night tonight: the sun never drops below -18°."
 _REASON_NO_DARK_TIME = "No dark time remains to score."
@@ -712,13 +699,12 @@ def evaluate(
     contradict (design D6): no dark window → no dark time left → wind gate → cloud
     entirely missing → cloud present (overcast gate, else score). A NO-GO is only
     ever a failed hard gate; a missing observation or a scored window under
-    ``MIN_SCORED`` caps the verdict at MAYBE but never fails one.
+    ``MIN_USABLE_WINDOW`` caps the verdict at MAYBE but never fails one.
     """
     start, end = window
     # 1. No dark window: astronomy alone decides, with no forecast to distrust.
     if start is None or end is None:
         return Decision(Verdict.NO_GO, None, Band.HIGH, 100, [_REASON_NO_WINDOW], (None, None))
-    bounded: tuple[datetime, datetime] = (start, end)
     # The inner max drops the hours that have passed; the outer min keeps the start
     # from passing the end when the instant lies in the window's last partial second.
     now = instant.replace(microsecond=0)
@@ -736,7 +722,7 @@ def evaluate(
     if scored[0] == scored[1]:
         return Decision(Verdict.MAYBE, 0, Band.LOW, 0, [*span, _REASON_NO_DARK_TIME], scored)
 
-    band, conf_value = confidence(pier, instant, bounded, scored, conditions)
+    band, conf_value = confidence(pier, instant, scored, conditions)
 
     # 2. Wind gate (opt-in). A forecast gust over the limit is a safety NO-GO,
     #    evaluated before any cloud logic so a missing cloud observation cannot
@@ -772,7 +758,7 @@ def evaluate(
     if wind_capped:
         reasons.append(_wind_unavailable_reason())
     # A short window keeps its honest score, but is never worth setting up for.
-    short = scored[1] - scored[0] < MIN_SCORED
+    short = scored[1] - scored[0] < MIN_USABLE_WINDOW
     if short:
         reasons.append(_REASON_SHORT_WINDOW)
     is_go = score >= pier.go_threshold and not wind_capped and not short
