@@ -355,6 +355,7 @@ def _assert_no_dark_time(window: tuple[datetime, datetime], decision: Decision) 
     assert decision.scored_window == (window[1], window[1])
     assert decision.verdict is Verdict.MAYBE
     assert decision.score == 0
+    assert (decision.band, decision.confidence) == (Band.LOW, 0)
     assert _NO_DARK_TIME in decision.reasons
     assert not any("unavailable" in r.lower() for r in decision.reasons)
 
