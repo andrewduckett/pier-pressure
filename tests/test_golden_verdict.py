@@ -45,6 +45,8 @@ _EXPECTED = _FIXTURES / "expected"
 # window (20:30 → 03:25 UTC) and the moon are real and the freshness/lead-time
 # factors are exercised rather than pinned at their extremes.
 _INSTANT = datetime(2026, 9, 8, 18, 0, tzinfo=UTC)
+# Inside the dark window, so the verdict judges only the rest of the night.
+_MID_SESSION = datetime(2026, 9, 8, 23, 30, tzinfo=UTC)
 _FRESH_ISSUED = datetime(2026, 9, 8, 17, 0, tzinfo=UTC)  # 1h old → fresh
 _STALE_ISSUED = datetime(2026, 9, 8, 7, 0, tzinfo=UTC)  # 11h old → near the stale floor
 
@@ -116,16 +118,31 @@ def make_pier_with_gust(max_gust: float) -> PierConfig:
     )
 
 
-def _verdict_json(pier: PierConfig, base: SourceForecast, secondary: SourceForecast) -> str:
+def _verdict_json(
+    pier: PierConfig,
+    base: SourceForecast,
+    secondary: SourceForecast,
+    instant: datetime = _INSTANT,
+) -> str:
     conditions = assemble_snapshot(base, secondary)
     with no_network():
-        return produce_verdict(pier, FixedClock(_INSTANT), conditions).to_json()
+        return produce_verdict(pier, FixedClock(instant), conditions).to_json()
 
 
 @pytest.mark.parametrize("case", sorted(_CASES))
 def test_verdict_matches_committed_golden(case: str) -> None:
     pier, base, secondary = _CASES[case]()
-    actual = _verdict_json(pier, base, secondary)
+    _assert_matches_golden(case, _verdict_json(pier, base, secondary))
+
+
+def test_mid_session_verdict_matches_committed_golden() -> None:
+    # The recorded forecasts judged from inside the night: locks scored_window, the
+    # span line, and the rest-of-the-night wording (score-remaining-night D6).
+    actual = _verdict_json(make_pier(), _base_full(), _secondary_full(), _MID_SESSION)
+    _assert_matches_golden("both_present_mid_session", actual)
+
+
+def _assert_matches_golden(case: str, actual: str) -> None:
     golden_path = _EXPECTED / f"{case}.json"
 
     if os.environ.get("PP_WRITE_GOLDENS"):

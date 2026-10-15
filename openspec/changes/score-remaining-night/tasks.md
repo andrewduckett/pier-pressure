@@ -25,7 +25,7 @@
 
 ## 5. Goldens (design D6)
 
-- [ ] 5.1 Add a mid-session golden case to `tests/test_golden_verdict.py` that runs the recorded forecasts at an instant inside the dark window. Verify it fails for want of an expected file.
+- [x] 5.1 Add a mid-session golden case to `tests/test_golden_verdict.py` that runs the recorded forecasts at an instant inside the dark window. Verify it fails for want of an expected file.
 - [ ] 5.2 Regenerate every golden with `PP_WRITE_GOLDENS=1 uv run pytest tests/test_golden_verdict.py` in one commit. Verify the diff shows only the expected changes: scores under the new formula, the new `scored_window` field, the atmosphere reason lines, and the mid-session span line and wording in the new case.
 
 ## 6. Verification
