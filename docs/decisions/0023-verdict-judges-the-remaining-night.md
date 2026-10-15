@@ -48,9 +48,10 @@ scored-window field that reports the span judged.
 - **Constraint accepted:** the target list still judges the whole night, so
   mid-session the verdict and the targets describe different spans. Ranking
   the rest of the night is a separate change.
-- **Constraint accepted:** a verdict asked in the last partial second before
-  dawn has an empty scored window. It reports that no dark time remains rather
-  than failing a gate. A second later, the next night is selected.
+- **Constraint accepted:** a verdict asked in the last partial second of the
+  night, up to the exact dawn crossing, has an empty scored window. It reports
+  that no dark time remains rather than failing a gate. A moment later, the
+  next night is selected.
 
 ## Alternatives Considered
 

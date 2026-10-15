@@ -16,8 +16,10 @@ Issue: #97. Issue #98 (rain) builds on this change.
 - **Seeing and transparency scale the cloud term instead of adding to it.** The
   score becomes the usable-sky term multiplied by an atmosphere factor, then by
   the existing moon and high-cloud factors. The atmosphere factor runs from 0.7
-  for the worst seeing and transparency to 1.0 for the best. When both are
-  missing, the factor is 1.0 and confidence drops, as it does today. The night
+  for the worst seeing and transparency to 1.0 for the best. An hour with no
+  seeing or transparency counts as 1.0, so missing data never lowers the score
+  and more cloud never raises it. Confidence drops for the missing data, as it
+  does today. The night
   in the issue, with the moon down and no cirrus, would score 14 instead of 32.
 - **Once the night has started, the verdict judges the rest of the night.** The
   score, the overcast gate, the wind gate, and the completeness part of
@@ -28,13 +30,13 @@ Issue: #97. Issue #98 (rain) builds on this change.
   additive `scored_window` field, with the same `{ start, end }` shape, reports
   the span the verdict judged. Before dusk the two are equal.
 - **The reasons name the scored span.** Once the night has started, every
-  verdict's first reason states the span judged, and the cloud reason says the
-  usable share is of the remaining night.
+  verdict's first reason states the span judged, and the cloud, overcast and
+  wind reasons say "the rest of the night" instead of "the dark window".
 - **A verdict in the last second of the night scores zero usable time.**
   `dark_window.end` is dawn floored to a whole second. An instant inside that
   second, before the exact crossing, has an empty remaining span. The verdict
-  reports no dark time left rather than "conditions unavailable". An instant at
-  or after the crossing already selects the next night.
+  reports no dark time left rather than "conditions unavailable". An instant
+  after the crossing already selects the next night.
 
 Out of scope:
 
@@ -70,5 +72,6 @@ None.
   the night as clear hours pass.
 - **Docs:** the README's document table gains `scored_window`, and says that
   the targets still judge the whole night.
-- **Tests:** unit tests for the new score assembly and the clamped window, a
-  mid-session verdict test, a dawn-instant test, and the regenerated goldens.
+- **Tests:** unit tests for the new score assembly and the clamped window,
+  mid-session verdict tests, dawn-second tests, a new mid-session golden, and
+  the regenerated goldens.

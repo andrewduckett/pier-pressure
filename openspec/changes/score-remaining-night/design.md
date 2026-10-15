@@ -55,7 +55,9 @@ Facts that shape the approach:
 `evaluate` first floors the evaluation instant to a whole second: the
 **scoring instant**, `now = instant.replace(microsecond=0)`. The document
 already floors `generated_at` the same way, so the two are equal. It then
-computes `scored = (min(max(now, start), end), end)` from the dark window. The
+computes `scored = (min(max(now, start), end), end)` from the dark window.
+`evaluate` is the only caller that needs `now`; the producer passes the raw
+instant as today and `evaluate` floors it. The
 inner `max` drops the hours that have passed. The outer `min` keeps the start
 from passing the end. `evaluate` passes `scored` to every condition rule: the
 overcast gate, the wind gate, wind coverage, cloud availability, the score and
@@ -85,9 +87,11 @@ An instant inside the last partial second of the night, such as 03:25:52.400
 with the crossing at 03:25:52.700, selects a night whose floored `end` is
 03:25:52, which equals `now`. Without the `min`, a later raw instant could
 start after the end and tile no slots, which reads as "no cloud data". The
-`min` folds that case into the empty-window path (D2). An instant at or after
-the exact crossing selects the next night, so the empty window is confined to
-that one partial second. A test pins it with an instant that carries
+`min` folds that case into the empty-window path (D2). `dark_window` selects
+the first exact dawn at or after the instant, so an instant exactly on the
+crossing still selects the ending night and its floored `end` equals `now`.
+An instant after the crossing selects the next night. The empty window is
+therefore confined to the floored second, up to and including the crossing. A test pins it with an instant that carries
 microseconds.
 
 *Why clamp inside `evaluate` and not in `dark_window`:* the `dark_window` field
@@ -116,27 +120,39 @@ because it needs cloud data present.
 and "the night is over" is not a condition gate. The next refresh, a second
 later, selects the next night.
 
-### D3. Seeing and transparency become one atmosphere factor on the usable-sky term
+### D3. Seeing and transparency become a per-hour atmosphere weight on the usable-sky term
 
-The score becomes:
+Each hour of the scored window gets an atmosphere quality `a_h`: the mean of
+the seeing and transparency values that hour carries, or 1 when it carries
+neither. The score becomes:
 
 ```
-atmosphere = mean of the present terms among seeing and transparency
+A          = sum(w_h * q_h * a_h) / sum(w_h * q_h)        over the scored window
 score01    = cloud_term
-           * (ATMOSPHERE_FLOOR + (1 - ATMOSPHERE_FLOOR) * atmosphere)
+           * (ATMOSPHERE_FLOOR + (1 - ATMOSPHERE_FLOOR) * A)
            * (1 - MOON_MAX_PENALTY * moon_penalty)
            * high_cloud_factor
 ```
 
+`w_h` is the hour's coverage weight and `q_h` its clarity weight, as today.
 `ATMOSPHERE_FLOOR` is 0.7, replacing the three weights 0.70, 0.15 and 0.15.
-When neither term is present, the factor is 1 and the completeness factor
-already trims confidence. The spec states this formula, so a different
-implementation cannot satisfy the spec with different numbers.
+The spec states this formula, so a different implementation cannot satisfy the
+spec with different numbers.
+
+`A` differs from today's `optional_term_mean` in one way: an hour with cloud
+data but no seeing or transparency stays in the mean, at 1, instead of
+dropping out of both numerator and denominator. With that, the cloud and
+atmosphere product is `sum(w_h * q_h * (0.7 + 0.3 * a_h)) / sum(w_h)`, a sum
+of per-hour terms, each non-negative and increasing in that hour's clarity. So
+more cloud in any hour can never raise the score. With today's restricted
+denominator, clouding out the one hour that carried poor seeing would lift the
+mean and could raise the score, which the spec forbids. The spec pins this
+with a ten-hour scenario (97, then 90 when the poor hour is clouded out).
 
 The night in the issue had a cloud term of 0.15 and seeing and transparency
-of 0.71, with the moon below the horizon and no high-cloud reason, so both
-remaining factors were 1. It scores `0.15 × (0.7 + 0.3 × 0.71) = 0.137`, so 14.
-With a bright moon up or cirrus present the number would be lower still.
+of 0.71 in every hour, with the moon below the horizon and no high-cloud reason,
+so both remaining factors were 1. It scores `0.15 × (0.7 + 0.3 × 0.71) = 0.137`,
+so 14. With a bright moon up or cirrus present the number would be lower still.
 
 *Why a factor:* the cloud term says how much sky there is; the atmosphere
 terms say how good it is. "How much times how good" is the honest combination,
@@ -148,11 +164,17 @@ still leave a usable night for bright targets. A factor of 0 would turn poor
 atmosphere into a gate by another name, which ADR-0002 reserves for real
 dealbreakers.
 
-*Why 1 for missing data, not 0.85:* the project drops an unknown factor and
+*Why 1 for a missing hour, not 0.85:* the project drops an unknown factor and
 lets confidence carry the doubt (ADR-0010 for ranking, design D3 of the
-conditions verdict for seeing and transparency). Inventing a middle value
-would score an unknown atmosphere below a known good one and above a known
-poor one, which is a guess dressed as a fact.
+conditions verdict for seeing and transparency). A middle value would score an
+unknown atmosphere below a known good one and above a known poor one, which is
+a guess dressed as a fact. Per hour, 1 is also the only value that keeps the
+score monotone in cloud without a second rule.
+
+*Why the high-cloud factor keeps its restricted denominator:* changing it is
+out of scope (proposal), and its own design chose not to read a missing cirrus
+component as clear sky. The same monotonicity gap therefore remains for a
+night whose cirrus data is partly missing. The risks section records it.
 
 *Alternative, keep the weighted mean but weight the atmosphere terms by the
 cloud term:* gives the same ordering with a less readable formula. Rejected.
@@ -162,14 +184,17 @@ cloud term:* gives the same ordering with a less readable formula. Rejected.
 Once `scored` starts after dusk, `evaluate` puts a span line first in every
 reason list it returns: "Scored from HH:MM to HH:MM UTC (the rest of tonight)."
 That covers the scored path, the overcast and wind gates, the missing-cloud
-path, and the empty-window path. On the scored path the cloud reason reads
-"Cloud: N% of the remaining night usable." instead of "of the dark window".
-Before dusk the reasons keep today's wording and no span line is added. The
-times use the same UTC formatting as the document's timestamps.
+path, and the empty-window path. The whole-night wording of the other reasons
+changes with it: "Cloud: N% of the remaining night usable.", "Overcast for the
+rest of the night: no usably clear sky.", and "Wind gust over the N km/h limit
+during the rest of the night.". Before dusk the reasons keep today's wording
+and no span line is added. The times use the same UTC formatting as the
+document's timestamps.
 
-*Why on every path:* a mid-session `NO-GO` for overcast is a verdict on the
-rest of the night, not the whole of it. Without the span line, "Overcast for
-the whole dark window" would read as a claim about hours that were clear.
+*Why on every path, and why reword the gates:* a mid-session `NO-GO` for
+overcast is a verdict on the rest of the night, not the whole of it. "Overcast
+for the whole dark window" would be false after a clear evening, whatever line
+precedes it.
 
 *Why change the cloud wording rather than only add a line:* "15% of the dark
 window usable" would be false mid-session, because the share is of the
@@ -196,11 +221,14 @@ never exceeds the cloud term, better atmosphere scores higher, and missing
 atmosphere gives a factor of 1. Tests in `tests/test_verdict_eval.py` cover
 the clamp: a clear-then-overcast night is `NO-GO` mid-session and not before
 dusk, a passed gust does not gate, a passed wind gap does not cap, an instant
-in the floored dawn second gives the no-dark-time path, and an instant at the
-exact crossing selects the next night. A rounding test pins one half-way
+in the floored dawn second gives the no-dark-time path, an instant exactly on
+the crossing does the same, and an instant after it selects the next night. A rounding test pins one half-way
 value to the even integer. A producer test checks `scored_window`
-before dusk, mid-session and without a dark window. The goldens are regenerated
-in one commit, and the diff is reviewed for the expected score changes only.
+before dusk, mid-session and without a dark window. A new golden case runs the
+recorded forecasts at a mid-session instant, so the new field, the span line
+and the reworded reasons are locked byte for byte. The existing goldens are
+regenerated in one commit, and the diff is reviewed for the expected score
+changes only.
 
 ## Risks / Trade-offs
 
@@ -215,6 +243,10 @@ in one commit, and the diff is reviewed for the expected score changes only.
   has set can still lead the list under a verdict for the rest of the night.
   → Issue #110 tracks it. The target `window` fields still state the truth for
   the whole night.
+- **Partly missing cirrus data can still break monotonicity.** The high-cloud
+  factor keeps its restricted denominator, so clouding out the one hour that
+  carried cirrus can lift the factor. → Out of scope here and unchanged from
+  today. A later change can give that term the same per-hour neutral.
 - **A sub-second gap at dawn.** The dark window is floored to whole seconds,
   and the instant may carry microseconds, so the selected night can end a
   fraction of a second before the instant. → D1's outer `min` folds that case
