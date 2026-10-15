@@ -384,17 +384,18 @@ def test_an_instant_after_the_dawn_crossing_judges_the_next_night() -> None:
     assert decision.scored_window == window
 
 
-def test_in_polar_night_the_exact_noon_starts_the_next_window() -> None:
+def test_in_polar_night_the_noon_boundary_starts_the_next_window() -> None:
     noon = _local_solar_day(_HIGH_ARCTIC, datetime(2026, 12, 21, 15, 0, tzinfo=UTC))[1]
-    window, decision = _evaluate_at(_HIGH_ARCTIC, noon)
+    # Skyfield finds noon to about a millisecond, so step just clear of it.
+    window, decision = _evaluate_at(_HIGH_ARCTIC, noon + timedelta(milliseconds=10))
     assert window[0] == noon.replace(microsecond=0)
     assert decision.scored_window == window
 
 
 def test_in_polar_night_the_floored_second_before_noon_has_no_dark_time_left() -> None:
     noon = _local_solar_day(_HIGH_ARCTIC, datetime(2026, 12, 21, 15, 0, tzinfo=UTC))[1]
-    assert noon.microsecond > 0
-    window, decision = _evaluate_at(_HIGH_ARCTIC, noon - timedelta(microseconds=1))
+    assert noon.microsecond > 10_000
+    window, decision = _evaluate_at(_HIGH_ARCTIC, noon - timedelta(milliseconds=10))
     assert window[1] == noon.replace(microsecond=0)
     _assert_no_dark_time(window, decision)
 
