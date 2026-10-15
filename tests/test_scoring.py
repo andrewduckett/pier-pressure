@@ -502,3 +502,38 @@ def test_a_half_way_score_rounds_to_the_even_integer() -> None:
         window, cloud=[0.0] + [100.0] * 7, seeing=[None] * 8, transparency=[None] * 8
     )
     assert assemble_score(window, snap, _DARK) == 12
+
+
+# --------------------------------------------------------------------------- #
+# score-remaining-night 1.3: the reasons explain the atmosphere factor
+# --------------------------------------------------------------------------- #
+
+
+def test_a_scored_verdict_states_the_atmosphere_factor() -> None:
+    window = _window(6)
+    snap = _conditions_atmosphere(window, cloud=[0.0] * 6, seeing=[0.0] * 6, transparency=[0.0] * 6)
+    decision = evaluate(make_pier(), _EVAL_INSTANT, window, snap, _DARK)
+    assert "Atmosphere factor 70%." in decision.reasons
+
+
+def test_full_coverage_atmosphere_lines_carry_no_coverage_note() -> None:
+    window = _window(6)
+    snap = _conditions_atmosphere(
+        window, cloud=[0.0] * 6, seeing=[0.71] * 6, transparency=[0.71] * 6
+    )
+    decision = evaluate(make_pier(), _EVAL_INSTANT, window, snap, _DARK)
+    assert "Seeing quality 71%." in decision.reasons
+    assert "Transparency quality 71%." in decision.reasons
+
+
+def test_partial_atmosphere_lines_state_the_share_of_usable_sky_they_cover() -> None:
+    # Nine clear hours without seeing or transparency, one clear hour with both at 0.
+    window = _window(10)
+    atmosphere: list[float | None] = [None] * 9 + [0.0]
+    snap = _conditions_atmosphere(
+        window, cloud=[0.0] * 10, seeing=atmosphere, transparency=atmosphere
+    )
+    decision = evaluate(make_pier(), _EVAL_INSTANT, window, snap, _DARK)
+    assert "Atmosphere factor 97%." in decision.reasons
+    assert "Seeing quality 0% (covers 10% of the usable sky)." in decision.reasons
+    assert "Transparency quality 0% (covers 10% of the usable sky)." in decision.reasons
