@@ -10,19 +10,18 @@ description: Architecture Decision Record. After astronomical dusk, the gates an
 
 ## Context
 
-PierPressure answers "is tonight worth setting up for?" with one verdict per
-pier. It recomputes that verdict on a schedule and on demand, so the question
-is asked again and again through the evening and the night.
+PierPressure recomputes each pier's night verdict on a schedule and on demand,
+so the question "is tonight worth setting up for?" is asked again and again
+through the evening and the night.
 
-The verdict judges a night by its usable dark time. The dark window runs from
+The verdict judges a night by its usable dark time, over the dark window from
 astronomical dusk to astronomical dawn. Until now, every rule read the whole
 window, whatever the time of the question. At 22:00, a clear spell that ended
 at 21:00 still counted as usable time, and a gust that blew at 20:00 still
 failed the wind gate. The answer described a night that was partly over.
 
-The dark-window field in the verdict document is a frozen contract. Other
-parts of the document, such as the moon's rise and set and the target list,
-also describe the whole night.
+The dark-window field in the verdict document is a frozen contract. The moon's
+rise and set and the target list also describe the whole night.
 
 ## Decision
 
@@ -49,8 +48,9 @@ scored-window field that reports the span judged.
 - **Constraint accepted:** the target list still judges the whole night, so
   mid-session the verdict and the targets describe different spans. Ranking
   the rest of the night is a separate change.
-- **Constraint accepted:** a verdict asked exactly at dawn has an empty scored
-  window. It reports that no dark time remains rather than failing a gate.
+- **Constraint accepted:** a verdict asked in the last partial second before
+  dawn has an empty scored window. It reports that no dark time remains rather
+  than failing a gate. A second later, the next night is selected.
 
 ## Alternatives Considered
 

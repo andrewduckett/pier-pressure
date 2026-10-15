@@ -1,8 +1,9 @@
 ## Context
 
-See proposal.md for why, and `specs/night-verdict/spec.md` for the required
-behaviour. This design covers how the score changes shape and how the verdict
-narrows to the rest of the night, without changing any existing document field.
+The proposal says why; `specs/night-verdict/spec.md` says what. This design
+resolves two constraints: the score must not exceed its usable-sky share, and
+the verdict must narrow to the rest of the night without changing any
+existing document field or the whole-second timestamp rule.
 
 Facts that shape the approach:
 
@@ -49,35 +50,45 @@ Facts that shape the approach:
 
 ## Decisions
 
-### D1. The scored window is the dark window clamped to start no earlier than now
+### D1. The scored window is the dark window clamped to start no earlier than the scoring instant
 
-`evaluate` computes `scored = (min(max(instant, start), end), end)` from the
-dark window. The inner `max` drops the hours that have passed. The outer `min`
-keeps the start from passing the end. `evaluate` passes `scored` to every
-condition rule: the overcast gate, the wind gate, wind coverage, cloud
-availability, the score and the completeness factor. The lead-time factor keeps
-reading the dark window's start, which gives 1 once the night has begun, as
-today.
+`evaluate` first floors the evaluation instant to a whole second: the
+**scoring instant**, `now = instant.replace(microsecond=0)`. The document
+already floors `generated_at` the same way, so the two are equal. It then
+computes `scored = (min(max(now, start), end), end)` from the dark window. The
+inner `max` drops the hours that have passed. The outer `min` keeps the start
+from passing the end. `evaluate` passes `scored` to every condition rule: the
+overcast gate, the wind gate, wind coverage, cloud availability, the score and
+the completeness factor. The lead-time factor keeps reading the dark window's
+start, which gives 1 once the night has begun, as today.
 
 ```
-dark window     |<------------- dusk .......... dawn ------------->|
-instant before  ^                                 scored = dark
-instant inside            ^-------- scored -------------------------|
-instant at dawn                                                     ^  scored empty
+dark window       |<------------- dusk .......... dawn ------------->|
+now before        ^                                   scored = dark
+now inside                  ^-------- scored -------------------------|
+now == floored dawn                                                   ^  scored empty
 ```
+
+`evaluate` returns `scored` on the `Decision`, and the producer emits it as
+`scored_window`. One computation feeds both, so the emitted span and the span
+the verdict judged cannot differ, and `scored_window.start` equals
+`generated_at` mid-session by construction.
+
+*Why floor the instant before clamping:* every document timestamp is floored to
+a whole second at validation. Clamping with the raw instant would score from
+22:00:00.400 and report 22:00:00. Flooring first keeps the document honest, and
+costs at most one second of already-elapsed time.
 
 *Why the outer `min`:* `dark_window` picks the first dawn at or after the
 instant using the exact crossing, then floors both bounds to a whole second.
-An instant such as 03:25:52.400 can therefore select a night whose floored
-`end` is 03:25:52.000, which is before the instant. Without the `min`, the
-start would pass the end and the hour-slot tiling would produce no slots,
-which reads as "no cloud data". The `min` folds that sub-second case into the
-empty-window path (D2). A test pins it with an instant that carries
+An instant inside the last partial second of the night, such as 03:25:52.400
+with the crossing at 03:25:52.700, selects a night whose floored `end` is
+03:25:52, which equals `now`. Without the `min`, a later raw instant could
+start after the end and tile no slots, which reads as "no cloud data". The
+`min` folds that case into the empty-window path (D2). An instant at or after
+the exact crossing selects the next night, so the empty window is confined to
+that one partial second. A test pins it with an instant that carries
 microseconds.
-
-The producer computes the same clamp once and emits it as `scored_window`. Both
-values come from the same two inputs, so they cannot disagree. The producer
-keeps passing the whole dark window to `rank_targets`.
 
 *Why clamp inside `evaluate` and not in `dark_window`:* the `dark_window` field
 is a frozen contract, and the moon and the targets still need the whole night.
@@ -85,17 +96,16 @@ One clamp at the one place that decides the verdict keeps every other reader
 unchanged.
 
 *Alternative, a separate "session window" concept with its own module:*
-rejected. The clamp is one line, and the rules already take a window.
+rejected. The clamp is two lines, and the rules already take a window.
 
 ### D2. An empty scored window is its own path, before the cloud rules
 
 When `scored` starts and ends at the same instant, `evaluate` returns `MAYBE`,
 score 0, with a reason that no dark time remains, before it reads any cloud
-data. This covers both an instant exactly at dawn and an instant inside the
-floored dawn second (D1). Confidence
-comes from the usual lead time and freshness, with completeness at 0 because
-the window covers no hour. This path sits after the no-dark-window gate and
-before the wind gate.
+data. This can only happen when `now` equals `dark_window.end` (D1).
+Confidence comes from the usual lead time and freshness, with completeness at
+0 because the window covers no hour. This path sits after the no-dark-window
+gate and before the wind gate.
 
 *Why not let it fall through:* an empty window has no slots. The cloud
 availability check would then read "no cloud data", and the verdict would say
@@ -103,8 +113,8 @@ availability check would then read "no cloud data", and the verdict would say
 because it needs cloud data present.
 
 *Why `MAYBE` and not `NO-GO`:* a failed gate is the only cause of a `NO-GO`,
-and "the night is over" is not a condition gate. The next refresh selects the
-next night.
+and "the night is over" is not a condition gate. The next refresh, a second
+later, selects the next night.
 
 ### D3. Seeing and transparency become one atmosphere factor on the usable-sky term
 
@@ -149,16 +159,22 @@ cloud term:* gives the same ordering with a less readable formula. Rejected.
 
 ### D4. Reasons name the span once the night has started
 
-Once `scored` starts after dusk, the cloud reason reads
-"Cloud: N% of the remaining night usable." and a new line reads
-"Scored from HH:MM to HH:MM UTC (the rest of tonight)." The line sits first in
-the list, before the cloud reason. Before dusk the reasons keep today's wording
-and no span line is added. The times use the same UTC formatting as the
-document's timestamps.
+Once `scored` starts after dusk, `evaluate` puts a span line first in every
+reason list it returns: "Scored from HH:MM to HH:MM UTC (the rest of tonight)."
+That covers the scored path, the overcast and wind gates, the missing-cloud
+path, and the empty-window path. On the scored path the cloud reason reads
+"Cloud: N% of the remaining night usable." instead of "of the dark window".
+Before dusk the reasons keep today's wording and no span line is added. The
+times use the same UTC formatting as the document's timestamps.
 
-*Why change the wording rather than only add a line:* "15% of the dark window
-usable" would be false mid-session, because the share is of the remaining
-night. The reasons are prose, not a frozen field, so their wording can change.
+*Why on every path:* a mid-session `NO-GO` for overcast is a verdict on the
+rest of the night, not the whole of it. Without the span line, "Overcast for
+the whole dark window" would read as a claim about hours that were clear.
+
+*Why change the cloud wording rather than only add a line:* "15% of the dark
+window usable" would be false mid-session, because the share is of the
+remaining night. The reasons are prose, not a frozen field, so their wording
+can change.
 
 ### D5. `scored_window` is an additive field with `dark_window`'s shape
 
@@ -179,8 +195,10 @@ Unit tests in `tests/test_scoring.py` cover the atmosphere factor: the score
 never exceeds the cloud term, better atmosphere scores higher, and missing
 atmosphere gives a factor of 1. Tests in `tests/test_verdict_eval.py` cover
 the clamp: a clear-then-overcast night is `NO-GO` mid-session and not before
-dusk, a passed gust does not gate, a passed wind gap does not cap, and a dawn
-instant gives the no-dark-time path. A producer test checks `scored_window`
+dusk, a passed gust does not gate, a passed wind gap does not cap, an instant
+in the floored dawn second gives the no-dark-time path, and an instant at the
+exact crossing selects the next night. A rounding test pins one half-way
+value to the even integer. A producer test checks `scored_window`
 before dusk, mid-session and without a dark window. The goldens are regenerated
 in one commit, and the diff is reviewed for the expected score changes only.
 

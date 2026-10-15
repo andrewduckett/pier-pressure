@@ -2,13 +2,18 @@
 
 ### Requirement: The verdict judges the remaining night
 
-The verdict SHALL judge the **scored window**: the part of the dark window from the evaluation instant to astronomical dawn. Before astronomical dusk, the scored window SHALL equal the dark window. Once the night has started, the scored window SHALL start at the evaluation instant, so hours that have passed no longer count.
+The verdict SHALL judge the **scored window**: the part of the dark window from the evaluation instant to astronomical dawn.
+
+- The **scoring instant** is the evaluation instant with its sub-second part removed, the same whole second as `generated_at`.
+- Before astronomical dusk, the scored window SHALL equal the dark window.
+- Once the night has started, the scored window SHALL start at the scoring instant, so hours that have passed no longer count.
+- The scored window's start SHALL never be later than its end. When the scoring instant equals `dark_window.end`, the scored window is empty.
 
 These rules SHALL all run over the scored window: the overcast gate, the wind gate, the wind-coverage check, the cloud-availability check, the score and each of its terms, and the completeness part of confidence. The `dark_window` field SHALL keep the whole night and SHALL NOT change meaning.
 
-The document SHALL carry a `scored_window` object with a `start` and an `end`, in the same shape as `dark_window`. Both SHALL be null when there is no dark window. Otherwise `scored_window.end` SHALL equal `dark_window.end`. `scored_window.start` SHALL be the later of `dark_window.start` and the evaluation instant, but never later than `scored_window.end`. So when the evaluation instant is at or after `dark_window.end`, `scored_window.start` SHALL equal `scored_window.end`.
+The document SHALL carry a `scored_window` object with a `start` and an `end`, in the same shape as `dark_window`. Both SHALL be null when there is no dark window. Otherwise `scored_window.end` SHALL equal `dark_window.end`, and `scored_window.start` SHALL be the later of `dark_window.start` and `generated_at`. The scoring instant and `generated_at` are the same whole second, so the emitted span and the span the verdict judged are the same.
 
-When `scored_window.start` equals `scored_window.end`, the scored window is empty and the night has no usable time left. The verdict SHALL then be `MAYBE` with a `score` of 0 and a reason that no dark time remains. It SHALL NOT fail the overcast gate, SHALL NOT be `GO`, and SHALL NOT report that conditions are unavailable. This case can arise because `dark_window.end` is floored to a whole second: an evaluation instant inside that second is at or after the floored dawn.
+An empty scored window can only arise in the last partial second of the night. `dark_window.end` is the exact dawn crossing floored to a whole second, and an evaluation instant at or after the exact crossing selects the next night. So the scoring instant equals `dark_window.end` only when the evaluation instant lies in that floored second, before the crossing. When the scored window is empty, the verdict SHALL be `MAYBE` with a `score` of 0 and a reason that no dark time remains. It SHALL NOT fail the overcast gate, SHALL NOT be `GO`, and SHALL NOT report that conditions are unavailable.
 
 #### Scenario: Before dusk, the scored window is the whole night
 
@@ -16,10 +21,10 @@ When `scored_window.start` equals `scored_window.end`, the scored window is empt
 - **THEN** `scored_window.start` equals `dark_window.start`
 - **AND** `scored_window.end` equals `dark_window.end`
 
-#### Scenario: Mid-session, the scored window starts now
+#### Scenario: Mid-session, the scored window starts at the generation second
 
-- **WHEN** a verdict is produced at an evaluation instant inside the dark window
-- **THEN** `scored_window.start` equals the evaluation instant
+- **WHEN** a verdict is produced at an evaluation instant inside the dark window, with a fractional second
+- **THEN** `scored_window.start` equals `generated_at`
 - **AND** `scored_window.end` equals `dark_window.end`
 
 #### Scenario: Clear hours that have passed no longer lift the score
@@ -43,31 +48,42 @@ When `scored_window.start` equals `scored_window.end`, the scored window is empt
 - **WHEN** a verdict is produced for a selected night that has no dark window
 - **THEN** `scored_window.start` and `scored_window.end` are both null
 
-#### Scenario: A verdict at dawn has no usable time left
+#### Scenario: A verdict in the last partial second of the night has no usable time left
 
-- **WHEN** a verdict is produced at an evaluation instant equal to `dark_window.end`, with cloud data available
+- **WHEN** a verdict is produced at an evaluation instant in the whole second that `dark_window.end` names, before the exact dawn crossing, with cloud data available
 - **THEN** `scored_window.start` equals `scored_window.end`
 - **AND** the `verdict` is `MAYBE`
 - **AND** the `score` is 0
 - **AND** a reason states that no dark time remains
 - **AND** no reason states that conditions are unavailable
 
-#### Scenario: A verdict a fraction of a second past the floored dawn has no usable time left
+#### Scenario: A verdict at the exact dawn crossing judges the next night
 
-- **WHEN** a verdict is produced at an evaluation instant with a fractional second, and the selected night's `dark_window.end` is the whole second that instant falls in
-- **THEN** `scored_window.start` equals `scored_window.end`
-- **AND** the `verdict` is `MAYBE` with a `score` of 0
-- **AND** no reason states that conditions are unavailable
+- **WHEN** a verdict is produced at an evaluation instant at or after the exact astronomical dawn crossing
+- **THEN** `dark_window` is the next night's window
+- **AND** `scored_window` equals `dark_window`
 
 ### Requirement: Reasons name the scored span
 
-Once the night has started, the reasons SHALL say which span the verdict judged. The cloud reason SHALL state the usable share of the remaining night, and a reason SHALL state the scored window's start and end. Before dusk, the cloud reason SHALL state the usable share of the dark window, as it does today, and no span reason is present.
+Once the night has started, every verdict with a dark window SHALL carry, as its first reason, a line that states the scored window's start and end. This holds for a scored verdict, a gated `NO-GO`, a missing-cloud `MAYBE`, and an empty scored window. On a scored verdict, the cloud reason SHALL state the usable share of the remaining night. Before dusk, no span line is present, and the cloud reason SHALL state the usable share of the dark window, as it does today.
 
-#### Scenario: A mid-session verdict names the span it judged
+#### Scenario: A mid-session scored verdict names the span it judged
 
 - **WHEN** a scored verdict is produced at an evaluation instant inside the dark window
-- **THEN** a reason states the usable share of the remaining night
-- **AND** a reason states the start and end of the scored window
+- **THEN** the first reason states the start and end of the scored window
+- **AND** a reason states the usable share of the remaining night
+
+#### Scenario: A mid-session gated verdict names the span it judged
+
+- **WHEN** a `NO-GO` verdict is produced at an evaluation instant inside the dark window because the overcast gate or the wind gate failed
+- **THEN** the first reason states the start and end of the scored window
+- **AND** a later reason names the failing gate
+
+#### Scenario: A mid-session missing-cloud verdict names the span it judged
+
+- **WHEN** a verdict is produced at an evaluation instant inside the dark window with no cloud data for the scored window
+- **THEN** the first reason states the start and end of the scored window
+- **AND** a later reason states that conditions are unavailable
 
 #### Scenario: A verdict before dusk keeps the whole-night wording
 
@@ -115,7 +131,7 @@ The overcast gate SHALL require cloud data to be available. When cloud data is e
 
 When every hard gate passes, the system SHALL compute an integer score from 0 to 100 from the observing conditions across the scored window.
 
-The score SHALL be the product of four factors, each from 0 to 1, scaled to 100 and rounded to the nearest integer:
+The score SHALL be the product of four factors, each from 0 to 1, scaled to 100 and rounded to the nearest integer. A value exactly half-way between two integers SHALL round to the even one, so 12.5 gives 12 and 13.5 gives 14. The factors are:
 
 - the **usable-sky term**: the share of the scored window that is usably clear. This is the dominant term;
 - the **atmosphere factor**: `0.7 + 0.3 × A`, where `A` is the mean of whichever of seeing and transparency are available, each weighted toward the usably clear hours. When neither is available, the factor SHALL be 1 and the missing data SHALL lower confidence instead;
@@ -177,7 +193,8 @@ The verdict SHALL judge the night by how much usable dark time the scored window
 
 - **WHEN** part of the scored window is usably clear and the rest is overcast
 - **THEN** the overcast gate does not fail
-- **AND** the score reflects the usable clear portion
+- **AND** the `score` is above 0
+- **AND** the `score` is at most the usably clear share of the scored window, scaled to 100 and rounded
 
 #### Scenario: More usable clear darkness scores higher
 
@@ -186,7 +203,13 @@ The verdict SHALL judge the night by how much usable dark time the scored window
 
 ### Requirement: The verdict degrades honestly when conditions are unavailable
 
-When conditions data is missing, the verdict SHALL degrade rather than fail or mislead. Missing optional data (seeing or transparency) SHALL drop only its own contribution and lower confidence. When a wind-gust limit is configured for the pier but wind data does not cover the whole scored window, the safety limit cannot be confirmed for every remaining hour, so it SHALL be treated as unavailable: this holds whether wind data is absent for the entire scored window or only for some of its hours, because an unchecked hour could exceed the limit. When the limit is treated as unavailable this way — and no hour with wind data has already failed the gate — the verdict SHALL NOT be `GO` and SHALL be capped at `MAYBE`, so a configured safety limit is never silently ignored, with a reason that wind data is unavailable and lowered confidence. The hard gates SHALL be evaluated before the missing-cloud rule applies: a failed hard gate that does not depend on cloud data — no dark window, or a configured wind gust over its limit — SHALL still yield `NO-GO` even when cloud data is missing, so a safety-critical gate is never overridden by a missing observation. Only when every hard gate passes does the missing-cloud rule apply: when cloud data for the scored window is entirely unavailable, the verdict SHALL NOT be `GO` (there is no evidence the sky is clear) and SHALL NOT be `NO-GO` on account of the missing data itself (absence of data is not a dealbreaker); it SHALL be `MAYBE` with a `score` of 0 (no evidence the night is usable), a `confidence.value` of 0 in the `LOW` band, and a reason stating that conditions are unavailable. The missing-cloud rule SHALL NOT apply to an empty scored window; that case is the no-dark-time-left path. A verdict SHALL always be produced.
+When conditions data is missing, the verdict SHALL degrade rather than fail or mislead. A verdict SHALL always be produced. The rules, in the order they apply:
+
+- **Missing optional data.** Missing seeing or transparency SHALL drop only its own contribution and lower confidence.
+- **Gates first.** The hard gates SHALL be evaluated before the missing-cloud rule applies. A failed hard gate that does not depend on cloud data (no dark window, or a configured wind gust over its limit) SHALL still yield `NO-GO` even when cloud data is missing, so a safety-critical gate is never overridden by a missing observation.
+- **Empty scored window.** The missing-cloud rule SHALL NOT apply to an empty scored window; that case is the no-dark-time-left path.
+- **Wind limit set but wind not fully covered.** When a wind-gust limit is configured but wind data does not cover every hour of the scored window, the limit cannot be confirmed, so it SHALL be treated as unavailable. This holds whether wind data is absent for the whole scored window or only for some of its hours. When the limit is treated as unavailable this way, and no hour with wind data has already failed the gate, the verdict SHALL NOT be `GO` and SHALL be capped at `MAYBE`, with a reason that wind data is unavailable and lowered confidence.
+- **Cloud entirely missing.** Only when every hard gate passes does the missing-cloud rule apply. When cloud data for the scored window is entirely unavailable, the verdict SHALL NOT be `GO` (there is no evidence the sky is clear) and SHALL NOT be `NO-GO` on account of the missing data itself (absence of data is not a dealbreaker). It SHALL be `MAYBE` with a `score` of 0, a `confidence.value` of 0 in the `LOW` band, and a reason stating that conditions are unavailable.
 
 #### Scenario: Missing cloud data caps the verdict at MAYBE when gates pass
 

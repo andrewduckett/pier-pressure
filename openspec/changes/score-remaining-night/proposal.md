@@ -27,12 +27,14 @@ Issue: #97. Issue #98 (rain) builds on this change.
 - **`dark_window` keeps the whole night.** Its meaning does not change. A new
   additive `scored_window` field, with the same `{ start, end }` shape, reports
   the span the verdict judged. Before dusk the two are equal.
-- **The reasons name the scored span.** Once the night has started, the cloud
-  reason says the usable share is of the remaining night, and a new reason line
-  states the span judged.
-- **A verdict at dawn scores zero usable time.** When the evaluation instant
-  is at or past dawn, the remaining span is empty. The verdict reports no dark
-  time left rather than "conditions unavailable".
+- **The reasons name the scored span.** Once the night has started, every
+  verdict's first reason states the span judged, and the cloud reason says the
+  usable share is of the remaining night.
+- **A verdict in the last second of the night scores zero usable time.**
+  `dark_window.end` is dawn floored to a whole second. An instant inside that
+  second, before the exact crossing, has an empty remaining span. The verdict
+  reports no dark time left rather than "conditions unavailable". An instant at
+  or after the crossing already selects the next night.
 
 Out of scope:
 
