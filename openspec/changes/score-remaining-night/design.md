@@ -184,11 +184,13 @@ unknown atmosphere below a known good one and above a known poor one, which is
 a guess dressed as a fact. Per hour, 1 is also the only value that keeps the
 score monotone in cloud without a second rule.
 
-*Why the high-cloud factor keeps its restricted denominator:* changing it is
-out of scope (proposal), and its own design chose not to read a missing cirrus
-component as clear sky. So the score is monotone in cloud only when the
-high-cloud component is present for every hour or for none. The spec says so,
-and issue #112 tracks the gap.
+*Why the moon and high-cloud factors keep their ratio form:* changing them is
+out of scope (proposal). Each divides a clarity-weighted sum by the usably
+clear hours, so clouding out the one hour that carried the moon or the cirrus
+shrinks the penalty by more than the sky it cost. The cloud and atmosphere
+product is monotone in cloud; the whole score is not, through those two
+factors. The spec promises only the former, and issue #112 tracks a per-hour
+form for the moon and cirrus terms.
 
 *Alternative, keep the weighted mean but weight the atmosphere terms by the
 cloud term:* gives the same ordering with a less readable formula. Rejected.
@@ -276,10 +278,10 @@ changes only.
   has set can still lead the list under a verdict for the rest of the night.
   → Issue #110 tracks it. The target `window` fields still state the truth for
   the whole night.
-- **Partly missing cirrus data can still break monotonicity.** The high-cloud
-  factor keeps its restricted denominator, so clouding out the one hour that
-  carried cirrus can lift the factor. → Unchanged from today, stated as a
-  limit in the spec, and tracked as issue #112.
+- **The moon and cirrus terms can still let more cloud raise the score.** Both
+  are ratios over the usably clear hours, so clouding out the one hour that
+  carried the moon or the cirrus can lift the score. → Unchanged from today,
+  stated as a limit in the spec, and tracked as issue #112.
 - **A sub-second gap at dawn.** The dark window is floored to whole seconds,
   and the instant may carry microseconds, so the selected night can end a
   fraction of a second before the instant. → D1's outer `min` folds that case

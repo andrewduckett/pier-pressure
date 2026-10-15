@@ -36,9 +36,9 @@ scored-window field that reports the span judged.
 
 ## Consequences
 
-- **Easier:** a mid-session verdict is honest. The score falls as clear hours
-  pass, and a gust or a gap that is behind the observer no longer gates or
-  caps the night. The refresh button answers "is the rest of tonight worth
+- **Easier:** a mid-session verdict is honest. The score changes as elapsed
+  hours leave the scored window, and a gust or a gap that is behind the
+  observer no longer gates or caps the night. The refresh button answers "is the rest of tonight worth
   it", which is the question a person asks at 22:00.
 - **Easier:** the rule is one clamp at the one place that decides the verdict.
   Every condition rule already takes a window, so none of them changes.

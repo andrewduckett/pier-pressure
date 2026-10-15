@@ -18,9 +18,10 @@ Issue: #97. Issue #98 (rain) builds on this change.
   the existing moon and high-cloud factors. The atmosphere factor runs from 0.7
   for the worst seeing and transparency to 1.0 for the best. An hour with no
   seeing or transparency counts as 1.0, so missing atmosphere data never
-  lowers the score and never lets more cloud raise it. The high-cloud term is
-  unchanged, so the one case where more cloud can still raise the score, a
-  night with cirrus data for only some hours, stays as it is today (#112). Confidence drops for the missing data, as it
+  lowers the score and never lets more cloud raise it. The moon and high-cloud
+  terms are unchanged, so the one way more cloud can still raise the score,
+  by clouding out the hour that carried the moon or the cirrus, stays as it
+  is today (#112). Confidence drops for the missing data, as it
   does today. The night
   in the issue, with the moon down and no cirrus, would score 14 instead of 32.
 - **Once the night has started, the verdict judges the rest of the night.** The
@@ -54,7 +55,7 @@ Out of scope:
   covers ranking the rest of the night.
 - Rain. Issue #98 adds precipitation as a separate change on top of this one.
 - Any change to the clarity curve, the moon penalty, or the high-cloud penalty.
-  Issue #112 covers the high-cloud penalty's own monotonicity gap.
+  Issue #112 covers the moon and high-cloud penalties' own monotonicity gap.
 
 ## Capabilities
 

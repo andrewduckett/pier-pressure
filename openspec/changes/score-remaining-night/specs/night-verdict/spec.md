@@ -9,7 +9,14 @@ The verdict SHALL judge the **scored window**: the part of the dark window from 
 - Once the night has started, the scored window SHALL start at the scoring instant, so hours that have passed no longer count.
 - The scored window's start SHALL never be later than its end. When the scoring instant equals `dark_window.end`, the scored window is empty.
 
-These rules SHALL all run over the scored window: the overcast gate, the wind gate, the wind-coverage check, the cloud-availability check, the score and each of its terms, and the completeness part of confidence. The `dark_window` field SHALL keep the whole night and SHALL NOT change meaning.
+These rules SHALL all run over the scored window:
+
+- the overcast gate and the wind gate;
+- the wind-coverage check and the cloud-availability check;
+- the score and each of its terms;
+- the completeness part of confidence.
+
+The `dark_window` field SHALL keep the whole night and SHALL NOT change meaning.
 
 The document SHALL carry a `scored_window` object with a `start` and an `end`, in the same shape as `dark_window`.
 
@@ -19,7 +26,13 @@ The document SHALL carry a `scored_window` object with a `start` and an `end`, i
 
 `generated_at` is the scoring instant, so the emitted span is the span the verdict judged.
 
-An empty scored window can only arise in the last partial second of the night. `dark_window.end` is the exact dawn crossing floored to a whole second. The selected night is the one whose exact dawn is at or after the evaluation instant. So the scoring instant equals `dark_window.end` only when the evaluation instant lies in that floored second, up to and including the exact crossing. An instant after the crossing selects the next night.
+An empty scored window can only arise in the last partial second of the night. Three facts combine:
+
+- `dark_window.end` is the exact dawn crossing, floored to a whole second.
+- The selected night is the one whose exact dawn is at or after the evaluation instant.
+- The scoring instant is the evaluation instant floored to a whole second.
+
+So the scoring instant equals `dark_window.end` only when the evaluation instant lies in that floored second, up to and including the exact crossing. An instant after the crossing selects the next night.
 
 When the scored window is empty, the verdict SHALL be `MAYBE` with a `score` of 0 and a reason that no dark time remains. It SHALL NOT fail the overcast gate, SHALL NOT be `GO`, and SHALL NOT report that conditions are unavailable.
 
@@ -180,15 +193,15 @@ The score SHALL be the product of four factors, each from 0 to 1, scaled to 100 
 
 Because every factor is at most 1, the score SHALL never exceed the usable-sky term scaled to 100 and rounded. Good seeing and transparency refine a clear night; they cannot lift a cloudy one. The same inputs SHALL yield the same integer score.
 
-The verdict SHALL be `GO` when the score is at or above the pier's go-threshold **and cloud data for the scored window is available**, and `MAYBE` otherwise. Requiring cloud data for a `GO` SHALL hold even when the go-threshold is 0, so a `GO` is never issued without evidence the sky is clear.
+The verdict SHALL be `GO` when the score is at or above the pier's go-threshold, **cloud data for the scored window is available**, and no cap applies. It SHALL be `MAYBE` otherwise. Two caps exist: wind data that does not cover the scored window when a wind limit is configured, and a narrowed scored window shorter than 60 minutes. Requiring cloud data for a `GO` SHALL hold even when the go-threshold is 0, so a `GO` is never issued without evidence the sky is clear.
 
-A brighter or more clouded night SHALL NOT score higher than an otherwise identical darker or clearer one. This rule holds for any pattern of missing seeing and transparency, because an hour without data counts as 1. It holds when the high-cloud component is present for every hour of the scored window. It also holds when that component is present for no hour. When the component is present for only some hours, the high-cloud factor keeps today's rule. Clouding out one of those hours can then raise the score. Issue #112 covers that gap.
+A brighter night SHALL NOT score higher than an otherwise identical darker one. More cloud SHALL NOT raise the product of the usable-sky term and the atmosphere factor, for any pattern of missing seeing and transparency, because an hour without data counts as 1. The moon and high-cloud factors keep today's rules. Each is a ratio over the usably clear hours, so clouding out the one hour that carried the moon or the cirrus can still raise the score. The spec does not promise monotonicity in cloud through those two factors. Issue #112 covers that gap.
 
 The reasons SHALL explain the atmosphere factor as computed. A scored verdict SHALL carry a reason that states the atmosphere factor as a percentage. Each seeing or transparency reason SHALL state the share of the usable sky its data covers, when that share is below 100%.
 
 #### Scenario: A score at or above the go-threshold with cloud data is GO
 
-- **WHEN** every gate passes, cloud data is available, and the computed score is at or above the pier's go-threshold
+- **WHEN** every gate passes, cloud data is available, no cap applies, and the computed score is at or above the pier's go-threshold
 - **THEN** the `verdict` is `GO`
 
 #### Scenario: A score below the go-threshold is MAYBE
@@ -208,7 +221,7 @@ The reasons SHALL explain the atmosphere factor as computed. A scored verdict SH
 
 #### Scenario: Better seeing and transparency never lower the score
 
-- **WHEN** two nights are identical in cloud and moon, and one has better seeing and transparency in its usably clear hours
+- **WHEN** two nights are identical in cloud, high cloud and moon, and one has better seeing and transparency in its usably clear hours
 - **THEN** the night with the better seeing and transparency has a score no lower than the other
 - **AND** when the usable-sky term is 1, the moon is down, no high cloud is present, and seeing and transparency move from 0 to 1, the `score` moves from 70 to 100
 
@@ -220,13 +233,13 @@ The reasons SHALL explain the atmosphere factor as computed. A scored verdict SH
 
 #### Scenario: Clouding out a poor-atmosphere hour never raises the score
 
-- **WHEN** a scored window has ten clear hours, eight with no seeing or transparency, one with both at 1, and one with both at 0, the moon is down, and no high-cloud component is present
+- **WHEN** a scored window has ten clear hours, eight with no seeing or transparency, one with both at 1, and one with both at 0, the moon is down throughout, and no high-cloud component is present
 - **THEN** the `score` is 97
 - **AND** when the hour with both at 0 is made overcast instead, the `score` is 90
 
 #### Scenario: Missing seeing and transparency leave the score at the usable-sky term
 
-- **WHEN** two nights are identical in cloud and moon, and one has no seeing or transparency data at all
+- **WHEN** two nights are identical in cloud, high cloud and moon, and one has no seeing or transparency data at all
 - **THEN** the night without seeing and transparency scores the usable-sky term cut only by the moon and high-cloud factors, scaled to 100 and rounded
 - **AND** its confidence is lower
 
