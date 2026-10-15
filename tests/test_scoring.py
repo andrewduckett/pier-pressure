@@ -16,6 +16,7 @@ from pierpressure.core.model import Moon, MoonPhase, Verdict
 from pierpressure.core.scoring import (
     OVERCAST_EPSILON,
     assemble_score,
+    atmosphere_mean,
     clarity_weight,
     clear_hours_total,
     cloud_score_term,
@@ -399,3 +400,105 @@ def test_high_cloud_reason_is_absent_for_a_sub_half_percent_penalty() -> None:
     snap = _conditions_high(window, cloud=[10.0] * 6, high=[0.4] * 6)
     decision = evaluate(make_pier(), _EVAL_INSTANT, window, snap, _moon(0.0, up_during_dark=False))
     assert not any("High cloud" in r for r in decision.reasons)
+
+
+# --------------------------------------------------------------------------- #
+# score-remaining-night 1.1: seeing and transparency scale the cloud term
+# --------------------------------------------------------------------------- #
+
+
+def _conditions_atmosphere(
+    window: tuple[datetime, datetime],
+    *,
+    cloud: list[float | None],
+    seeing: list[float | None],
+    transparency: list[float | None],
+) -> Conditions:
+    """Conditions with per-hour cloud on the base group and seeing/transparency on the secondary."""
+    slots = hour_slots(*window)
+    return Conditions(
+        base=BaseGroup.of(
+            GroupMeta(source="base"),
+            tuple(BaseHour(time=s, cloud_cover=cloud[i]) for i, s in enumerate(slots)),
+        ),
+        secondary=SecondaryGroup.of(
+            GroupMeta(source="secondary"),
+            tuple(
+                SecondaryHour(time=s, seeing=seeing[i], transparency=transparency[i])
+                for i, s in enumerate(slots)
+            ),
+        ),
+    )
+
+
+_DARK = _moon(0.0, up_during_dark=False)
+
+
+def test_atmosphere_mean_is_one_when_no_hour_carries_seeing_or_transparency() -> None:
+    window = _window(6)
+    snap = _conditions_atmosphere(
+        window, cloud=[0.0] * 6, seeing=[None] * 6, transparency=[None] * 6
+    )
+    assert atmosphere_mean(window, snap) == 1.0
+
+
+def test_atmosphere_mean_uses_the_one_term_an_hour_carries() -> None:
+    window = _window(6)
+    snap = _conditions_atmosphere(
+        window, cloud=[0.0] * 6, seeing=[0.4] * 6, transparency=[None] * 6
+    )
+    assert abs(atmosphere_mean(window, snap) - 0.4) < 1e-9
+
+
+def test_a_mostly_cloudy_night_with_good_atmosphere_scores_14() -> None:
+    # The issue's night: cloud 78% gives a clarity weight, and so a cloud term, of 0.15.
+    window = _window(6)
+    snap = _conditions_atmosphere(
+        window, cloud=[78.0] * 6, seeing=[0.71] * 6, transparency=[0.71] * 6
+    )
+    assert abs(cloud_score_term(window, snap) - 0.15) < 1e-9
+    assert assemble_score(window, snap, _DARK) == 14
+
+
+def test_atmosphere_moves_a_clear_night_from_70_to_100() -> None:
+    window = _window(6)
+    worst = _conditions_atmosphere(
+        window, cloud=[0.0] * 6, seeing=[0.0] * 6, transparency=[0.0] * 6
+    )
+    best = _conditions_atmosphere(window, cloud=[0.0] * 6, seeing=[1.0] * 6, transparency=[1.0] * 6)
+    assert assemble_score(window, worst, _DARK) == 70
+    assert assemble_score(window, best, _DARK) == 100
+
+
+def test_clouding_out_a_poor_atmosphere_hour_never_raises_the_score() -> None:
+    # Ten clear hours: eight without seeing or transparency, one at 1, one at 0.
+    window = _window(10)
+    atmosphere: list[float | None] = [None] * 8 + [1.0, 0.0]
+    clear = _conditions_atmosphere(
+        window, cloud=[0.0] * 10, seeing=atmosphere, transparency=atmosphere
+    )
+    clouded = _conditions_atmosphere(
+        window, cloud=[0.0] * 9 + [100.0], seeing=atmosphere, transparency=atmosphere
+    )
+    assert assemble_score(window, clear, _DARK) == 97
+    assert assemble_score(window, clouded, _DARK) == 90
+
+
+def test_the_score_never_exceeds_the_rounded_cloud_term() -> None:
+    window = _window(6)
+    for cloud in (0.0, 30.0, 50.0, 78.0, 89.0):
+        for quality in (0.0, 0.5, 1.0):
+            snap = _conditions_atmosphere(
+                window, cloud=[cloud] * 6, seeing=[quality] * 6, transparency=[quality] * 6
+            )
+            ceiling = round(100.0 * cloud_score_term(window, snap))
+            assert assemble_score(window, snap, _DARK) <= ceiling
+
+
+def test_a_half_way_score_rounds_to_the_even_integer() -> None:
+    # One clear hour of eight, no atmosphere data: 100 * 1/8 = 12.5, which rounds to 12.
+    window = _window(8)
+    snap = _conditions_atmosphere(
+        window, cloud=[0.0] + [100.0] * 7, seeing=[None] * 8, transparency=[None] * 8
+    )
+    assert assemble_score(window, snap, _DARK) == 12
