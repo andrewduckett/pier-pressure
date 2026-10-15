@@ -133,8 +133,10 @@ def _local_solar_day(pier: PierConfig, instant: datetime) -> tuple[datetime, dat
     location = wgs84.latlon(pier.latitude, pier.longitude, elevation_m=pier.elevation_m)
     transits = almanac.meridian_transits(eph, eph["sun"], location)
 
-    t0 = ts.from_datetime(instant - timedelta(days=1))
-    t1 = ts.from_datetime(instant + timedelta(days=1))
+    # Two days either side, not one: solar noon drifts by up to about 30 seconds a
+    # day, so a one-day span can miss the noon on one side of an instant near noon.
+    t0 = ts.from_datetime(instant - timedelta(days=2))
+    t1 = ts.from_datetime(instant + timedelta(days=2))
     times, values = almanac.find_discrete(t0, t1, transits)
 
     # value == 1 is the upper transit (local solar noon).
