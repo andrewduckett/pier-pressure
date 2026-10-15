@@ -5,7 +5,7 @@
 
 ## Review Summary
 
-ADR review completed for this change.
+The author completed the ADR review for this change.
 
 One decision in the design is a durable fork: once the night has started, the
 verdict judges the rest of it (design D1, D2, D5). An engineer reading the

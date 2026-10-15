@@ -18,7 +18,7 @@ Issue: #97. Issue #98 (rain) builds on this change.
   the existing moon and high-cloud factors. The atmosphere factor runs from 0.7
   for the worst seeing and transparency to 1.0 for the best. When both are
   missing, the factor is 1.0 and confidence drops, as it does today. The night
-  in the issue would score about 14 instead of 32.
+  in the issue, with the moon down and no cirrus, would score 14 instead of 32.
 - **Once the night has started, the verdict judges the rest of the night.** The
   score, the overcast gate, the wind gate, and the completeness part of
   confidence all cover the span from the evaluation instant to dawn. Before
@@ -31,8 +31,8 @@ Issue: #97. Issue #98 (rain) builds on this change.
   reason says the usable share is of the remaining night, and a new reason line
   states the span judged.
 - **A verdict at dawn scores zero usable time.** When the evaluation instant
-  lands on dawn, the remaining span is empty. The verdict reports no usable
-  sky left rather than "conditions unavailable".
+  is at or past dawn, the remaining span is empty. The verdict reports no dark
+  time left rather than "conditions unavailable".
 
 Out of scope:
 
@@ -66,6 +66,7 @@ None.
   new field travels in the document only. Home Assistant automations that read
   `score` see lower scores on partly clear nights, and scores that fall during
   the night as clear hours pass.
-- **Docs:** the README's document table gains `scored_window`.
+- **Docs:** the README's document table gains `scored_window`, and says that
+  the targets still judge the whole night.
 - **Tests:** unit tests for the new score assembly and the clamped window, a
   mid-session verdict test, a dawn-instant test, and the regenerated goldens.

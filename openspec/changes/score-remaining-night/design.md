@@ -51,11 +51,13 @@ Facts that shape the approach:
 
 ### D1. The scored window is the dark window clamped to start no earlier than now
 
-`evaluate` computes `scored = (max(instant, start), end)` from the dark window
-and passes `scored` to every condition rule: the overcast gate, the wind gate,
-wind coverage, cloud availability, the score and the completeness factor. The
-lead-time factor keeps reading the dark window's start, which gives 1 once the
-night has begun, as today.
+`evaluate` computes `scored = (min(max(instant, start), end), end)` from the
+dark window. The inner `max` drops the hours that have passed. The outer `min`
+keeps the start from passing the end. `evaluate` passes `scored` to every
+condition rule: the overcast gate, the wind gate, wind coverage, cloud
+availability, the score and the completeness factor. The lead-time factor keeps
+reading the dark window's start, which gives 1 once the night has begun, as
+today.
 
 ```
 dark window     |<------------- dusk .......... dawn ------------->|
@@ -63,6 +65,15 @@ instant before  ^                                 scored = dark
 instant inside            ^-------- scored -------------------------|
 instant at dawn                                                     ^  scored empty
 ```
+
+*Why the outer `min`:* `dark_window` picks the first dawn at or after the
+instant using the exact crossing, then floors both bounds to a whole second.
+An instant such as 03:25:52.400 can therefore select a night whose floored
+`end` is 03:25:52.000, which is before the instant. Without the `min`, the
+start would pass the end and the hour-slot tiling would produce no slots,
+which reads as "no cloud data". The `min` folds that sub-second case into the
+empty-window path (D2). A test pins it with an instant that carries
+microseconds.
 
 The producer computes the same clamp once and emits it as `scored_window`. Both
 values come from the same two inputs, so they cannot disagree. The producer
@@ -78,8 +89,10 @@ rejected. The clamp is one line, and the rules already take a window.
 
 ### D2. An empty scored window is its own path, before the cloud rules
 
-When `scored` has zero length, `evaluate` returns `MAYBE`, score 0, with a
-reason that no dark time remains, before it reads any cloud data. Confidence
+When `scored` starts and ends at the same instant, `evaluate` returns `MAYBE`,
+score 0, with a reason that no dark time remains, before it reads any cloud
+data. This covers both an instant exactly at dawn and an instant inside the
+floored dawn second (D1). Confidence
 comes from the usual lead time and freshness, with completeness at 0 because
 the window covers no hour. This path sits after the no-dark-window gate and
 before the wind gate.
@@ -107,8 +120,13 @@ score01    = cloud_term
 
 `ATMOSPHERE_FLOOR` is 0.7, replacing the three weights 0.70, 0.15 and 0.15.
 When neither term is present, the factor is 1 and the completeness factor
-already trims confidence. The night in the issue scores
-`0.15 × (0.7 + 0.3 × 0.71) ≈ 0.14`, so 14.
+already trims confidence. The spec states this formula, so a different
+implementation cannot satisfy the spec with different numbers.
+
+The night in the issue had a cloud term of 0.15 and seeing and transparency
+of 0.71, with the moon below the horizon and no high-cloud reason, so both
+remaining factors were 1. It scores `0.15 × (0.7 + 0.3 × 0.71) = 0.137`, so 14.
+With a bright moon up or cirrus present the number would be lower still.
 
 *Why a factor:* the cloud term says how much sky there is; the atmosphere
 terms say how good it is. "How much times how good" is the honest combination,
@@ -146,8 +164,10 @@ night. The reasons are prose, not a frozen field, so their wording can change.
 
 `VerdictDocument` gains `scored_window: DarkWindow` after `dark_window`. The
 same model class serves both, since the shape and the null rule are identical.
-The README's document table describes it. No MQTT entity or attribute changes;
-the field travels in the document only.
+The README's document table describes it, and says that the targets still
+judge the whole night, so a target that has set can still be listed beside a
+remaining-night verdict (issue #110). No MQTT entity or attribute changes; the
+field travels in the document only.
 
 *Why add the field at all:* a score that falls during the night needs a visible
 cause. Home Assistant and the narrative explainer can read the span without
@@ -177,7 +197,7 @@ in one commit, and the diff is reviewed for the expected score changes only.
   has set can still lead the list under a verdict for the rest of the night.
   → Issue #110 tracks it. The target `window` fields still state the truth for
   the whole night.
-- **A one-second rounding at dawn.** The dark window is at whole-second
-  precision, and the instant may carry microseconds. → The clamp compares
-  aware datetimes directly; an instant a fraction past dawn selects the next
-  night, so the empty window occurs only when the instant equals dawn exactly.
+- **A sub-second gap at dawn.** The dark window is floored to whole seconds,
+  and the instant may carry microseconds, so the selected night can end a
+  fraction of a second before the instant. → D1's outer `min` folds that case
+  into the empty-window path, and a test with a microsecond instant pins it.

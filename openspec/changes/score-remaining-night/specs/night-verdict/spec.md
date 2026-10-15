@@ -2,11 +2,13 @@
 
 ### Requirement: The verdict judges the remaining night
 
-The verdict SHALL judge the **scored window**: the part of the dark window from the evaluation instant to astronomical dawn. Before astronomical dusk, the scored window SHALL equal the dark window. Once the night has started, the scored window SHALL start at the evaluation instant, so hours that have passed no longer count. The hard gates that read conditions (overcast, wind), the score, and the completeness part of confidence SHALL all run over the scored window. The `dark_window` field SHALL keep the whole night and SHALL NOT change meaning.
+The verdict SHALL judge the **scored window**: the part of the dark window from the evaluation instant to astronomical dawn. Before astronomical dusk, the scored window SHALL equal the dark window. Once the night has started, the scored window SHALL start at the evaluation instant, so hours that have passed no longer count.
 
-The document SHALL carry a `scored_window` object with a `start` and an `end`, in the same shape as `dark_window`. Both SHALL be null when there is no dark window. Otherwise `scored_window.end` SHALL equal `dark_window.end`, and `scored_window.start` SHALL be the later of `dark_window.start` and the evaluation instant.
+These rules SHALL all run over the scored window: the overcast gate, the wind gate, the wind-coverage check, the cloud-availability check, the score and each of its terms, and the completeness part of confidence. The `dark_window` field SHALL keep the whole night and SHALL NOT change meaning.
 
-When the evaluation instant falls on astronomical dawn, the scored window SHALL be empty. The verdict SHALL then treat the night as having no usable time left: it SHALL NOT fail the overcast gate, SHALL NOT be `GO`, SHALL be `MAYBE` with a `score` of 0, and SHALL carry a reason that no dark time remains. It SHALL NOT report that conditions are unavailable.
+The document SHALL carry a `scored_window` object with a `start` and an `end`, in the same shape as `dark_window`. Both SHALL be null when there is no dark window. Otherwise `scored_window.end` SHALL equal `dark_window.end`. `scored_window.start` SHALL be the later of `dark_window.start` and the evaluation instant, but never later than `scored_window.end`. So when the evaluation instant is at or after `dark_window.end`, `scored_window.start` SHALL equal `scored_window.end`.
+
+When `scored_window.start` equals `scored_window.end`, the scored window is empty and the night has no usable time left. The verdict SHALL then be `MAYBE` with a `score` of 0 and a reason that no dark time remains. It SHALL NOT fail the overcast gate, SHALL NOT be `GO`, and SHALL NOT report that conditions are unavailable. This case can arise because `dark_window.end` is floored to a whole second: an evaluation instant inside that second is at or after the floored dawn.
 
 #### Scenario: Before dusk, the scored window is the whole night
 
@@ -43,15 +45,23 @@ When the evaluation instant falls on astronomical dawn, the scored window SHALL 
 
 #### Scenario: A verdict at dawn has no usable time left
 
-- **WHEN** a verdict is produced at an evaluation instant equal to astronomical dawn, with cloud data available
-- **THEN** the `verdict` is `MAYBE`
+- **WHEN** a verdict is produced at an evaluation instant equal to `dark_window.end`, with cloud data available
+- **THEN** `scored_window.start` equals `scored_window.end`
+- **AND** the `verdict` is `MAYBE`
 - **AND** the `score` is 0
 - **AND** a reason states that no dark time remains
 - **AND** no reason states that conditions are unavailable
 
+#### Scenario: A verdict a fraction of a second past the floored dawn has no usable time left
+
+- **WHEN** a verdict is produced at an evaluation instant with a fractional second, and the selected night's `dark_window.end` is the whole second that instant falls in
+- **THEN** `scored_window.start` equals `scored_window.end`
+- **AND** the `verdict` is `MAYBE` with a `score` of 0
+- **AND** no reason states that conditions are unavailable
+
 ### Requirement: Reasons name the scored span
 
-Once the night has started, the reasons SHALL say which span the verdict judged. The cloud reason SHALL state the usable share of the remaining night, and a reason SHALL state the scored span's start and end. Before dusk, the cloud reason SHALL state the usable share of the dark window, as it does today, and no span reason is needed.
+Once the night has started, the reasons SHALL say which span the verdict judged. The cloud reason SHALL state the usable share of the remaining night, and a reason SHALL state the scored window's start and end. Before dusk, the cloud reason SHALL state the usable share of the dark window, as it does today, and no span reason is present.
 
 #### Scenario: A mid-session verdict names the span it judged
 
@@ -69,7 +79,13 @@ Once the night has started, the reasons SHALL say which span the verdict judged.
 
 ### Requirement: Hard gates decide a NO-GO
 
-The verdict SHALL be `NO-GO` when any hard gate fails, and a failed gate SHALL be the only cause of a `NO-GO`. The hard gates are: the selected night has no dark window; cloud data is available for the scored window and that window is overcast for its entire covered length (no part with cloud data is usably clear); and — only when a wind-gust limit is configured for the pier — the forecast gust exceeds that limit at any hour of the scored window. The overcast gate SHALL require cloud data to be available: when cloud data is entirely absent, the overcast gate SHALL NOT fire (that case is the missing-data path, not a NO-GO). The overcast gate SHALL NOT fire on an empty scored window (the evaluation instant at dawn); that case is the no-dark-time-left path. When a gate fails, the `score` SHALL be null and the reasons SHALL name the failing gate.
+The verdict SHALL be `NO-GO` when any hard gate fails, and a failed gate SHALL be the only cause of a `NO-GO`. The hard gates are:
+
+- the selected night has no dark window;
+- cloud data is available for the scored window, and every part of that window with cloud data is overcast (no part is usably clear);
+- only when a wind-gust limit is configured for the pier: the forecast gust exceeds that limit at any hour of the scored window.
+
+The overcast gate SHALL require cloud data to be available. When cloud data is entirely absent, the overcast gate SHALL NOT fire; that case is the missing-data path, not a NO-GO. The overcast gate SHALL NOT fire on an empty scored window; that case is the no-dark-time-left path. When a gate fails, the `score` SHALL be null and the reasons SHALL name the failing gate.
 
 #### Scenario: No dark window gates to NO-GO
 
@@ -97,7 +113,18 @@ The verdict SHALL be `NO-GO` when any hard gate fails, and a failed gate SHALL b
 
 ### Requirement: A banded score decides GO versus MAYBE
 
-When every hard gate passes, the system SHALL compute an integer score from 0 to 100 from the observing conditions across the scored window. The score SHALL be the usable-sky term (the share of the scored window that is usably clear, the dominant term) multiplied by an atmosphere factor, a moon factor, and a high-cloud factor. The atmosphere factor SHALL combine seeing and transparency, each weighted toward the usably clear hours, and SHALL range from a fixed floor for the worst atmosphere to 1 for the best, so good seeing and transparency SHALL never lift a night above its usable-sky term. When seeing and transparency are both unavailable, the atmosphere factor SHALL be 1 and the missing data SHALL lower confidence instead. The moon factor SHALL weight the moon's brightness by how much of the usably clear scored window it is above the horizon. The product SHALL be rounded to the nearest integer, so the same inputs yield the same integer score deterministically. The verdict SHALL be `GO` when the score is at or above the pier's go-threshold **and cloud data for the scored window is available**, and `MAYBE` otherwise. Requiring cloud data for a `GO` — not merely a high score — SHALL hold even when the go-threshold is 0, so a `GO` is never issued without evidence the sky is clear. A brighter or more clouded night SHALL not score higher than an otherwise identical darker or clearer one.
+When every hard gate passes, the system SHALL compute an integer score from 0 to 100 from the observing conditions across the scored window.
+
+The score SHALL be the product of four factors, each from 0 to 1, scaled to 100 and rounded to the nearest integer:
+
+- the **usable-sky term**: the share of the scored window that is usably clear. This is the dominant term;
+- the **atmosphere factor**: `0.7 + 0.3 × A`, where `A` is the mean of whichever of seeing and transparency are available, each weighted toward the usably clear hours. When neither is available, the factor SHALL be 1 and the missing data SHALL lower confidence instead;
+- the **moon factor**: the moon's brightness weighted by how much of the usably clear scored window it is above the horizon, as today;
+- the **high-cloud factor**, as today.
+
+Because every factor is at most 1, the score SHALL never exceed the usable-sky term scaled to 100 and rounded. Good seeing and transparency refine a clear night; they cannot lift a cloudy one. The same inputs SHALL yield the same integer score.
+
+The verdict SHALL be `GO` when the score is at or above the pier's go-threshold **and cloud data for the scored window is available**, and `MAYBE` otherwise. Requiring cloud data for a `GO` SHALL hold even when the go-threshold is 0, so a `GO` is never issued without evidence the sky is clear. A brighter or more clouded night SHALL NOT score higher than an otherwise identical darker or clearer one.
 
 #### Scenario: A score at or above the go-threshold with cloud data is GO
 
@@ -116,18 +143,19 @@ When every hard gate passes, the system SHALL compute an integer score from 0 to
 
 #### Scenario: Good seeing and transparency cannot lift a mostly cloudy night
 
-- **WHEN** every gate passes and only a small share of the scored window is usably clear, however good the seeing and transparency are in that share
-- **THEN** the score is at most the usable-sky share expressed as a percentage
+- **WHEN** every gate passes, the usable-sky term is 0.15, seeing and transparency are both 0.71 in the usably clear hours, the moon is below the horizon throughout, and no high-cloud component is available
+- **THEN** the `score` is 14
 
-#### Scenario: Better seeing and transparency raise the score of a clear night
+#### Scenario: Better seeing and transparency never lower the score
 
 - **WHEN** two nights are identical in cloud and moon, and one has better seeing and transparency in its usably clear hours
-- **THEN** the night with the better seeing and transparency has the higher score
+- **THEN** the night with the better seeing and transparency has a score no lower than the other
+- **AND** when the usable-sky term is 1, the moon is down, no high cloud is present, and seeing and transparency move from 0 to 1, the `score` moves from 70 to 100
 
 #### Scenario: Missing seeing and transparency leave the score at the usable-sky term
 
 - **WHEN** two nights are identical in cloud and moon, and one has no seeing or transparency data at all
-- **THEN** the night without seeing and transparency scores the same as the usable-sky term alone, cut only by the moon and high-cloud factors
+- **THEN** the night without seeing and transparency scores the usable-sky term cut only by the moon and high-cloud factors, scaled to 100 and rounded
 - **AND** its confidence is lower
 
 ### Requirement: Conditions are evaluated across the whole dark window
@@ -153,5 +181,84 @@ The verdict SHALL judge the night by how much usable dark time the scored window
 
 #### Scenario: More usable clear darkness scores higher
 
-- **WHEN** two nights are identical except that one has more of its scored window usably clear
+- **WHEN** two nights are identical except that one has more of its scored window usably clear, by enough to change the rounded score
 - **THEN** the night with more usable clear darkness has the higher score
+
+### Requirement: The verdict degrades honestly when conditions are unavailable
+
+When conditions data is missing, the verdict SHALL degrade rather than fail or mislead. Missing optional data (seeing or transparency) SHALL drop only its own contribution and lower confidence. When a wind-gust limit is configured for the pier but wind data does not cover the whole scored window, the safety limit cannot be confirmed for every remaining hour, so it SHALL be treated as unavailable: this holds whether wind data is absent for the entire scored window or only for some of its hours, because an unchecked hour could exceed the limit. When the limit is treated as unavailable this way — and no hour with wind data has already failed the gate — the verdict SHALL NOT be `GO` and SHALL be capped at `MAYBE`, so a configured safety limit is never silently ignored, with a reason that wind data is unavailable and lowered confidence. The hard gates SHALL be evaluated before the missing-cloud rule applies: a failed hard gate that does not depend on cloud data — no dark window, or a configured wind gust over its limit — SHALL still yield `NO-GO` even when cloud data is missing, so a safety-critical gate is never overridden by a missing observation. Only when every hard gate passes does the missing-cloud rule apply: when cloud data for the scored window is entirely unavailable, the verdict SHALL NOT be `GO` (there is no evidence the sky is clear) and SHALL NOT be `NO-GO` on account of the missing data itself (absence of data is not a dealbreaker); it SHALL be `MAYBE` with a `score` of 0 (no evidence the night is usable), a `confidence.value` of 0 in the `LOW` band, and a reason stating that conditions are unavailable. The missing-cloud rule SHALL NOT apply to an empty scored window; that case is the no-dark-time-left path. A verdict SHALL always be produced.
+
+#### Scenario: Missing cloud data caps the verdict at MAYBE when gates pass
+
+- **WHEN** a verdict is produced for a pier with a dark window, every hard gate passes, and there is no available cloud data
+- **THEN** the `verdict` is `MAYBE`
+- **AND** the `verdict` is neither `GO` nor `NO-GO`
+- **AND** the `score` is 0
+- **AND** the `confidence.value` is 0
+- **AND** the `confidence.band` is `LOW`
+- **AND** a reason states that conditions are unavailable
+
+#### Scenario: A failed wind gate yields NO-GO even when cloud data is missing
+
+- **WHEN** cloud data is unavailable but wind-gust data is available and exceeds the pier's configured wind-gust limit during the scored window
+- **THEN** the `verdict` is `NO-GO`
+- **AND** the `score` is null
+
+#### Scenario: Missing wind data caps the verdict at MAYBE when a limit is configured
+
+- **WHEN** a pier has a configured wind-gust limit, every gate that can be evaluated passes, and wind-gust data is unavailable for the scored window
+- **THEN** the `verdict` is not `GO`
+- **AND** the `verdict` is `MAYBE`
+- **AND** a reason states that wind data is unavailable
+
+#### Scenario: Partial wind coverage caps the verdict at MAYBE when a limit is configured
+
+- **WHEN** a pier has a configured wind-gust limit, no hour with wind data exceeds it, but at least one hour of the scored window has no wind data
+- **THEN** the `verdict` is not `GO`
+- **AND** the `verdict` is `MAYBE`
+- **AND** a reason states that wind data is unavailable
+
+#### Scenario: A verdict is always produced despite missing conditions
+
+- **WHEN** conditions cannot be obtained at all for a pier with a dark window
+- **THEN** a verdict document is still produced
+
+### Requirement: High, thin cloud is a distinct score penalty
+
+When every hard gate passes and cloud data is available, the banded score SHALL
+apply a penalty for high-layer (thin cirrus) cloud across the scored window that is
+distinct from the total-cloud term of the score. High cirrus can leave a low
+total cloud reading yet wreck transparency for deep-sky work, so the night is
+scored honestly rather than as clear. The high-cloud penalty SHALL be reported as
+its own itemized `reasons[]` line, separate from the total-cloud reason, so the
+explanation names it as a distinct term. Holding every other input fixed —
+including the total cloud cover — more high-layer cloud usably up during the scored
+window SHALL NOT raise the score: it lowers it or leaves it unchanged.
+
+The high-cloud penalty SHALL only shape the banded score; it SHALL NOT introduce
+a new hard gate and SHALL NOT on its own cause a `NO-GO`. It SHALL be weighted
+toward the usably clear hours in the same way as the other non-cloud terms, so a
+high-cirrus reading during a clouded-out hour does not distort the verdict. When
+the high-layer cloud component is unavailable for the scored window, the high-cloud
+term SHALL drop its own contribution — no penalty and no reason line — rather than
+fail or guess, exactly as the other optional terms degrade when their data is
+missing. This term is additive: it does not change the meaning of the existing
+total-cloud term, the gates, the bands, or the confidence.
+
+#### Scenario: High cirrus lowers the score with its own reason
+
+- **WHEN** two nights are identical, each with cloud data available and every hard gate passing, except that one has high, thin cloud usably up during the scored window and the other has none
+- **THEN** the night with the high cirrus has the lower score
+- **AND** its `reasons` list carries a high/thin-cloud line distinct from the total-cloud line
+
+#### Scenario: The high-cloud penalty never gates the night
+
+- **WHEN** a night has high, thin cloud during the scored window while every hard gate passes
+- **THEN** the `verdict` is not `NO-GO` on account of the high cloud
+- **AND** the `score` is a non-null integer between 0 and 100 inclusive
+
+#### Scenario: Missing high-cloud component drops the term without penalty
+
+- **WHEN** two nights are identical and every hard gate passes, except that one has its high-layer cloud component available and clear and the other has that component unavailable while total cloud cover is available
+- **THEN** neither night is penalized for high cloud
+- **AND** neither `reasons` list carries a high/thin-cloud line
