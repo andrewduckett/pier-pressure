@@ -8,8 +8,15 @@ boundary test enforce this).
 
 The organising idea (design D3) is a single per-hour **clarity weight** ``q`` and
 **coverage weight** ``w``. Every quantity — the overcast gate, the cloud score,
-the optional terms, the moon penalty — is a clarity-weighted sum over the dark
-window, so the whole verdict rests on one concept rather than many ad-hoc rules.
+the atmosphere factor, the moon penalty — is a clarity-weighted sum over the
+scored window, so the whole verdict rests on one concept rather than many ad-hoc
+rules.
+
+The score is a product of factors, each at most 1: how much usable sky there is
+(the cloud term), scaled by how good it is (the atmosphere factor from seeing and
+transparency), the moon, and high cloud. Seeing and transparency scale the cloud
+term rather than adding to it, so they can never stand in for sky that is not
+there (score-remaining-night design D3).
 
 Cloud and wind live on the base group and seeing/transparency on the secondary
 group (design D1); the scoring reads each slot through its group's ``at`` lookup,
@@ -205,6 +212,44 @@ def optional_term_mean(
     return numerator / denominator
 
 
+def _hour_atmosphere(hour: SecondaryHour | None) -> float:
+    """The hour's atmosphere quality ``a``: the mean of the seeing and transparency it carries.
+
+    An hour that carries neither has ``a = 1``, so missing atmosphere data never
+    lowers the score (score-remaining-night design D3).
+    """
+    if hour is None:
+        return 1.0
+    values = [v for v in (hour.seeing, hour.transparency) if v is not None]
+    if not values:
+        return 1.0
+    return sum(values) / len(values)
+
+
+def atmosphere_mean(window: tuple[datetime, datetime], conditions: Conditions) -> float:
+    """``A = Σ(w·q·a) / Σ(w·q)`` over the hours with cloud data, in ``[0, 1]``.
+
+    Unlike :func:`optional_term_mean`, an hour without seeing or transparency stays
+    in the mean at ``a = 1`` rather than dropping out. With that, the cloud and
+    atmosphere product is a sum of per-hour terms, each increasing in that hour's
+    clarity, so more cloud in any hour can never raise it (score-remaining-night
+    design D3). Returns 1 when no hour is usably clear.
+    """
+    start, end = window
+    numerator = 0.0
+    denominator = 0.0
+    for slot in hour_slots(start, end):
+        cloud = _cloud_at(conditions, slot)
+        if cloud is None:
+            continue
+        weight = coverage_weight(slot, start, end) * clarity_weight(cloud)
+        numerator += weight * _hour_atmosphere(_secondary_hour(conditions, slot))
+        denominator += weight
+    if denominator <= 0.0:
+        return 1.0
+    return numerator / denominator
+
+
 def high_cloud_penalty(window: tuple[datetime, datetime], conditions: Conditions) -> float | None:
     """The high/thin-cloud penalty in ``[0, 1]`` or ``None`` (design D2).
 
@@ -288,12 +333,12 @@ def moon_penalty(window: tuple[datetime, datetime], conditions: Conditions, moon
 
 
 # --- Score assembly (design D4; task 5.1) ---------------------------------- #
-# Weights of the quality terms in the score. Cloud dominates (design D3); seeing
-# and transparency each nudge it. The weights are normalised over whichever terms
-# are present, so a missing optional term drops out rather than counting as zero.
-_W_CLOUD = 0.70
-_W_SEEING = 0.15
-_W_TRANSPARENCY = 0.15
+# The atmosphere factor for the worst seeing and transparency. Seeing and
+# transparency scale the cloud term between this floor and 1 rather than adding
+# to it, so good atmosphere refines a clear night but cannot lift a cloudy one
+# (score-remaining-night design D3). Not 0: poor atmosphere still leaves a night
+# for bright targets, and a factor of 0 would be a gate by another name.
+ATMOSPHERE_FLOOR = 0.7
 # The most a full moon, up throughout the usable darkness, can cut the score: a
 # penalty rather than a gate, because a bright moon spoils faint targets but
 # never makes a night impossible (design D4).
@@ -349,25 +394,22 @@ def wind_fully_covered(window: tuple[datetime, datetime], conditions: Conditions
     return all(_wind_at(conditions, slot) is not None for slot in hour_slots(start, end))
 
 
+def atmosphere_factor(window: tuple[datetime, datetime], conditions: Conditions) -> float:
+    """The atmosphere factor ``ATMOSPHERE_FLOOR + (1 - ATMOSPHERE_FLOOR) · A`` in ``[0.7, 1]``."""
+    return ATMOSPHERE_FLOOR + (1.0 - ATMOSPHERE_FLOOR) * atmosphere_mean(window, conditions)
+
+
 def assemble_score(window: tuple[datetime, datetime], conditions: Conditions, moon: Moon) -> int:
-    """The banded 0-100 score from the cloud, seeing, transparency, and moon terms.
+    """The banded 0-100 score: the cloud term scaled by atmosphere, moon, and high cloud.
 
-    A weighted mean of the available quality terms (cloud dominant), cut by the
-    moon penalty and the high/thin-cloud penalty as independent multiplicative
-    factors, rounded to the nearest integer and clamped to ``[0, 100]`` — so
-    identical inputs yield an identical integer (design D4). A ``None`` high-cloud
-    penalty (no ``cloud_high`` data for the window) leaves its factor at 1, so the
-    term drops out entirely.
+    ``cloud_term × atmosphere_factor × moon factor × high-cloud factor``, rounded to
+    the nearest integer (half to even) and clamped to ``[0, 100]`` — so identical
+    inputs yield an identical integer (design D4). Every factor is at most 1, so the
+    score never exceeds the cloud term (score-remaining-night design D3). A ``None``
+    high-cloud penalty (no ``cloud_high`` data for the window) leaves its factor at
+    1, so the term drops out entirely.
     """
-    weighted = [(_W_CLOUD, cloud_score_term(window, conditions))]
-    seeing = optional_term_mean(window, conditions, lambda h: h.seeing)
-    if seeing is not None:
-        weighted.append((_W_SEEING, seeing))
-    transparency = optional_term_mean(window, conditions, lambda h: h.transparency)
-    if transparency is not None:
-        weighted.append((_W_TRANSPARENCY, transparency))
-
-    quality = sum(w * term for w, term in weighted) / sum(w for w, _ in weighted)
+    quality = cloud_score_term(window, conditions) * atmosphere_factor(window, conditions)
     high_cloud = high_cloud_penalty(window, conditions)
     high_cloud_factor = 1.0 if high_cloud is None else 1.0 - _HIGH_CLOUD_MAX_PENALTY * high_cloud
     score01 = (
