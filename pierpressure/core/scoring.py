@@ -37,7 +37,7 @@ from datetime import datetime, timedelta
 
 from .conditions import BaseHour, Conditions, SecondaryHour
 from .config import PierConfig
-from .model import Band, Moon, Verdict
+from .model import Band, Moon, Verdict, iso_z
 
 _HOUR = timedelta(hours=1)
 
@@ -609,11 +609,19 @@ _REASON_NO_WINDOW = "No astronomical night tonight: the sun never drops below -1
 _REASON_NO_DARK_TIME = "No dark time remains to score."
 _REASON_SHORT_WINDOW = "Less than an hour of dark time to score: not worth setting up."
 _REASON_OVERCAST = "Overcast for the whole dark window: no usably clear sky."
+# "In the forecast": remaining hours without cloud data are unknown, not overcast.
+_REASON_OVERCAST_REST = "No usably clear sky in the forecast for the rest of the night."
 _REASON_CONDITIONS_UNAVAILABLE = "Conditions unavailable — astronomy only, no cloud forecast."
 
 
-def _wind_reason(max_gust: float) -> str:
-    return f"Wind gust over the {max_gust:g} km/h limit during the dark window."
+def _wind_reason(max_gust: float, narrowed: bool) -> str:
+    span = "the rest of the night" if narrowed else "the dark window"
+    return f"Wind gust over the {max_gust:g} km/h limit during {span}."
+
+
+def _span_reason(scored: tuple[datetime, datetime]) -> str:
+    """The span line: the scored window in the document's own timestamp strings."""
+    return f"Scored from {iso_z(scored[0])} to {iso_z(scored[1])} (the rest of tonight)."
 
 
 def _wind_unavailable_reason() -> str:
@@ -627,12 +635,16 @@ _ATMOSPHERE_TERMS: tuple[tuple[str, Callable[[SecondaryHour], float | None]], ..
 
 
 def _score_reasons(
-    window: tuple[datetime, datetime], conditions: Conditions, moon: Moon, score: int
+    window: tuple[datetime, datetime],
+    conditions: Conditions,
+    moon: Moon,
+    score: int,
+    narrowed: bool,
 ) -> list[str]:
     """Itemise the terms behind a scored verdict, so the explanation follows the math."""
-    reasons = [
-        f"Cloud: {round(cloud_score_term(window, conditions) * 100)}% of the dark window usable."
-    ]
+    share = round(cloud_score_term(window, conditions) * 100)
+    span = "the remaining night" if narrowed else "the dark window"
+    reasons = [f"Cloud: {share}% of {span} usable."]
     reasons.append(f"Atmosphere factor {round(atmosphere_factor(window, conditions) * 100)}%.")
     for label, selector in _ATMOSPHERE_TERMS:
         mean = optional_term_mean(window, conditions, selector)
@@ -688,6 +700,10 @@ def evaluate(
     # from passing the end when the instant lies in the window's last partial second.
     now = instant.replace(microsecond=0)
     scored: tuple[datetime, datetime] = (min(max(now, start), end), end)
+    # Narrowed: hours have passed, so every reason speaks of the rest of the night,
+    # after a first line naming the span judged (score-remaining-night design D4).
+    narrowed = scored[0] > start
+    span = [_span_reason(scored)] if narrowed else []
 
     band, conf_value = confidence(pier, instant, bounded, scored, conditions)
 
@@ -695,7 +711,7 @@ def evaluate(
     #     An empty window tiles no usable hour, so letting it fall through would
     #     read as "conditions unavailable", which is false (design D2).
     if scored[0] == scored[1]:
-        return Decision(Verdict.MAYBE, 0, band, conf_value, [_REASON_NO_DARK_TIME], scored)
+        return Decision(Verdict.MAYBE, 0, band, conf_value, [*span, _REASON_NO_DARK_TIME], scored)
 
     # 2. Wind gate (opt-in). A forecast gust over the limit is a safety NO-GO,
     #    evaluated before any cloud logic so a missing cloud observation cannot
@@ -704,26 +720,26 @@ def evaluate(
     wind_capped = False
     if pier.max_gust is not None:
         if wind_exceeds_limit(scored, conditions, pier.max_gust):
-            return Decision(
-                Verdict.NO_GO, None, band, conf_value, [_wind_reason(pier.max_gust)], scored
-            )
+            reasons = [*span, _wind_reason(pier.max_gust, narrowed)]
+            return Decision(Verdict.NO_GO, None, band, conf_value, reasons, scored)
         if not wind_fully_covered(scored, conditions):
             wind_capped = True
 
     # 3. Cloud entirely missing: no evidence the sky is clear, but absence is not
     #    a dealbreaker. MAYBE with a zero score and zero confidence.
     if not cloud_available(scored, conditions):
-        reasons = [_REASON_CONDITIONS_UNAVAILABLE]
+        reasons = [*span, _REASON_CONDITIONS_UNAVAILABLE]
         if wind_capped:
             reasons.append(_wind_unavailable_reason())
         return Decision(Verdict.MAYBE, 0, Band.LOW, 0, reasons, scored)
 
     # 4. Cloud present: the overcast gate can fire; otherwise score the night.
     if is_overcast(scored, conditions):
-        return Decision(Verdict.NO_GO, None, band, conf_value, [_REASON_OVERCAST], scored)
+        overcast = _REASON_OVERCAST_REST if narrowed else _REASON_OVERCAST
+        return Decision(Verdict.NO_GO, None, band, conf_value, [*span, overcast], scored)
 
     score = assemble_score(scored, conditions, moon)
-    reasons = _score_reasons(scored, conditions, moon, score)
+    reasons = [*span, *_score_reasons(scored, conditions, moon, score, narrowed)]
     if wind_capped:
         reasons.append(_wind_unavailable_reason())
     # A short window keeps its honest score, but is never worth setting up for.
