@@ -29,8 +29,11 @@ Facts that shape the approach:
   `produce_verdict` in `pierpressure/core/producer.py` passes the whole dark
   window to `evaluate` and to `rank_targets`, then emits `dark_window`.
 - **The golden tests lock the document byte for byte.** Every scored golden
-  under `tests/fixtures/golden/expected/` changes with this design, and the
-  suite is regenerated with `PP_WRITE_GOLDENS=1`.
+  under `tests/fixtures/golden/expected/` changes with this design. The
+  implementer regenerates them with `PP_WRITE_GOLDENS=1`.
+- **Polar night has no dawn.** `dark_window` anchors continuous polar night to
+  the local solar day, noon to noon. The clamp reads `dark_window.end`, so it
+  needs no dawn and works the same there.
 
 ## Goals / Non-Goals
 
@@ -81,8 +84,9 @@ a whole second at validation. Clamping with the raw instant would score from
 22:00:00.400 and report 22:00:00. Flooring first keeps the document honest, and
 costs at most one second of already-elapsed time.
 
-*Why the outer `min`:* `dark_window` picks the first exact dawn crossing at
-or after the raw instant, then floors both bounds to a whole second. So an
+*Why the outer `min`:* `dark_window` picks the first exact end (a dawn
+crossing, or the solar-day boundary in polar night) at or after the raw
+instant, then floors both bounds to a whole second. So an
 instant in the last partial second of the night, up to and including the
 crossing, selects the ending night. Its floored `end` equals `now`. Without
 the `min`, a raw instant later in that second would start after the end and
@@ -107,13 +111,13 @@ Confidence comes from the usual lead time and freshness, with completeness at
 0 because the window covers no hour. This path sits after the no-dark-window
 gate and before the wind gate.
 
-When `scored` is narrowed and shorter than `MIN_REMAINING` (60 minutes), the
-gates and the score run as usual, but a `GO` is capped at `MAYBE` with the
+When `scored` is shorter than `MIN_SCORED` (60 minutes), narrowed or not,
+the gates and the score run as usual, but a `GO` is capped at `MAYBE` with the
 reason "Less than an hour of dark time remains." This is the same cap shape
-as the missing-wind rule. `MIN_REMAINING` matches the ranking's minimum target
-window, so the verdict and the target list agree on what a usable span is. A
-whole night shorter than an hour is not narrowed and is not capped; the night
-is what it is.
+as the missing-wind rule. `MIN_SCORED` matches the ranking's minimum target
+window, so the verdict and the target list agree on what a usable span is.
+Applying it to a whole short night too keeps one rule: a 50-minute night is
+`MAYBE` at dusk and stays `MAYBE` a second later, rather than flipping.
 
 *Why a cap and not a gate:* a failed gate is the only cause of a `NO-GO`, and
 "not much night left" is not a condition gate. The score stays honest about
@@ -129,9 +133,9 @@ share so that a short night and a long night with the same clear fraction
 score the same, which the spec requires. A length factor would also change
 every pre-dusk score on short summer nights.
 
-The transition near dawn is then: `GO` while an hour or more remains, `MAYBE`
-with the computed score for the last hour, `MAYBE` with score 0 in the final
-second, and the next night after the crossing.
+The transition near the end is then: `GO` while an hour or more remains,
+`MAYBE` with the computed score for the last hour, `MAYBE` with score 0 in the
+final second, and the next window after the exact end.
 
 ### D3. Seeing and transparency become a per-hour atmosphere weight on the usable-sky term
 
@@ -261,9 +265,8 @@ instant after the crossing selects the next night. Thirty minutes before dawn
 caps a `GO` at `MAYBE`; sixty minutes before dawn does not. A producer test checks `scored_window`
 before dusk, mid-session and without a dark window. A new golden case runs the
 recorded forecasts at a mid-session instant, so the new field, the span line
-and the reworded reasons are locked byte for byte. The existing goldens are
-regenerated in one commit, and the diff is reviewed for the expected score
-changes only.
+and the reworded reasons are locked byte for byte. The implementer regenerates the existing goldens in one commit. The PR
+reviewer reads that diff for the expected score changes only.
 
 ## Risks / Trade-offs
 

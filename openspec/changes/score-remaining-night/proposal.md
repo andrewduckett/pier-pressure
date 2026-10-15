@@ -26,7 +26,8 @@ Issue: #97. Issue #98 (rain) builds on this change.
   in the issue, with the moon down and no cirrus, would score 14 instead of 32.
 - **Once the night has started, the verdict judges the rest of the night.** The
   score, the overcast gate, the wind gate, and the completeness part of
-  confidence all cover the span from the evaluation instant to dawn. Before
+  confidence all cover the span from the evaluation instant to the end of the
+  dark window (dawn, or the solar-day boundary in polar night). Before
   dusk, that span is the whole night, so nothing changes until the night begins.
   The night in the issue would score about 3 at 21:52 local time.
 - **`dark_window` keeps the whole night.** Its meaning does not change. A new
@@ -39,10 +40,10 @@ Issue: #97. Issue #98 (rain) builds on this change.
 - **The reasons explain the atmosphere factor.** A new line states the factor.
   The seeing and transparency lines say how much of the usable sky their data
   covers, when it is not all of it.
-- **Less than an hour left is never a `GO`.** Once the night has started, a
-  remaining span shorter than 60 minutes caps the verdict at `MAYBE`, with a
-  reason. The score is still computed. A clear last half hour is honest about
-  the sky, but not worth setting up for.
+- **Less than an hour of dark time is never a `GO`.** A scored window shorter
+  than 60 minutes caps the verdict at `MAYBE`, with a reason, whether it is
+  the rest of a night or a whole short night. The score is still computed. A
+  clear last half hour is honest about the sky, but not worth setting up for.
 - **A verdict in the last second of the night scores zero usable time.**
   `dark_window.end` is dawn floored to a whole second. An instant inside that
   second, before the exact crossing, has an empty remaining span. The verdict

@@ -25,8 +25,10 @@ rise and set and the target list also describe the whole night.
 
 ## Decision
 
-Once the evaluation instant is past astronomical dusk, the verdict judges the
-scored window: the span from that instant to astronomical dawn. The overcast
+Once the evaluation instant is past the start of the dark window, the verdict
+judges the scored window: the span from that instant to the end of the dark
+window. That end is astronomical dawn on an ordinary night, and the solar-day
+boundary during continuous polar night. The overcast
 gate, the wind gate, the score, and the completeness part of confidence all
 read this span. Before dusk, the scored window is the whole dark window, so a
 verdict asked in the afternoon is unchanged.
@@ -49,12 +51,12 @@ scored-window field that reports the span judged.
   mid-session the verdict and the targets describe different spans. Ranking
   the rest of the night is a separate change.
 - **Constraint accepted:** a verdict asked in the last partial second of the
-  night, up to the exact dawn crossing, has an empty scored window. It reports
+  window, up to its exact end, has an empty scored window. It reports
   that no dark time remains rather than failing a gate. A moment later, the
   next night is selected.
 - **Constraint accepted:** the score is a share of the remaining span, so a
   clear last half hour can score 100. A separate rule stops that from being a
-  `GO`: once the night has started, less than an hour left is at most `MAYBE`.
+  `GO`: a scored window shorter than an hour is at most `MAYBE`.
 
 ## Alternatives Considered
 
