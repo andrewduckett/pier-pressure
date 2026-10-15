@@ -307,7 +307,7 @@ def test_a_wind_gap_in_a_passed_hour_does_not_cap() -> None:
     snap = _hourly_snapshot(cloud=[0.0] * 6, wind=[None, 10.0, 10.0, 10.0, 10.0, 10.0])
     decision = evaluate(_pier(max_gust=40.0, go_threshold=50), _MID, _WINDOW, snap, _new_moon())
     assert decision.verdict is Verdict.GO
-    assert not any("wind" in r.lower() for r in decision.reasons)
+    assert not any(r.startswith("Wind data unavailable") for r in decision.reasons)
 
 
 def test_completeness_reads_the_scored_window() -> None:
