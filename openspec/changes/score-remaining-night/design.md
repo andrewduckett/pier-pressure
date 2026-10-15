@@ -112,9 +112,11 @@ rejected. The clamp is two lines, and the rules already take a window.
 When `scored` starts and ends at the same instant, `evaluate` returns `MAYBE`,
 score 0, with a reason that no dark time remains, before it reads any cloud
 data. This can only happen when `now` equals `dark_window.end` (D1).
-Confidence comes from the usual lead time and freshness, with completeness at
-0 because the window covers no hour. This path sits after the no-dark-window
-gate and before the wind gate.
+Confidence is 0 in the `LOW` band. Completeness is 0 because the window covers
+no hour, and completeness multiplies the whole confidence value, so lead time
+and freshness cannot lift it. `evaluate` returns that result directly rather
+than computing it. This path sits after the no-dark-window gate and before the
+wind gate.
 
 When `scored` is shorter than `MIN_SCORED` (60 minutes), narrowed or not,
 the gates and the score run as usual, but a `GO` is capped at `MAYBE` with the
