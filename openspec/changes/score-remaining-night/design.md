@@ -223,6 +223,9 @@ wording of the other reasons changes with it:
 - "Cloud: N% of the remaining night usable."
 - "No usably clear sky in the forecast for the rest of the night."
 - "Wind gust over the N km/h limit during the rest of the night."
+- "Conditions unavailable for the rest of the night: no cloud forecast for the
+  remaining hours, astronomy only." The forecast may simply have run out, so the
+  line claims no more than the remaining hours.
 
 The atmosphere reasons change on every scored verdict, narrowed or not,
 because D3 changes what the factor means. A new line "Atmosphere factor N%."

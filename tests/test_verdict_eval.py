@@ -385,6 +385,13 @@ def test_an_instant_after_the_dawn_crossing_judges_the_next_night() -> None:
     assert decision.scored_window == window
 
 
+def test_in_polar_night_the_scored_window_runs_from_now_to_the_solar_day_end() -> None:
+    inside = datetime(2026, 12, 21, 15, 0, 0, 250_000, tzinfo=UTC)
+    window, decision = _evaluate_at(_HIGH_ARCTIC, inside)
+    assert window[0] < inside < window[1]
+    assert decision.scored_window == (inside.replace(microsecond=0), window[1])
+
+
 def test_in_polar_night_the_noon_boundary_starts_the_next_window() -> None:
     noon = _local_solar_day(_HIGH_ARCTIC, datetime(2026, 12, 21, 15, 0, tzinfo=UTC))[1]
     # Skyfield finds noon to about a millisecond, so step just clear of it.
