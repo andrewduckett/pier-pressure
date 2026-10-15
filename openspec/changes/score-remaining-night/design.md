@@ -98,7 +98,7 @@ unchanged.
 *Alternative, a separate "session window" concept with its own module:*
 rejected. The clamp is two lines, and the rules already take a window.
 
-### D2. An empty scored window is its own path, before the cloud rules
+### D2. An empty or short scored window cannot be GO
 
 When `scored` starts and ends at the same instant, `evaluate` returns `MAYBE`,
 score 0, with a reason that no dark time remains, before it reads any cloud
@@ -107,14 +107,31 @@ Confidence comes from the usual lead time and freshness, with completeness at
 0 because the window covers no hour. This path sits after the no-dark-window
 gate and before the wind gate.
 
-*Why not let it fall through:* an empty window has no slots. The cloud
-availability check would then read "no cloud data", and the verdict would say
-"conditions unavailable", which is false. The overcast gate cannot fire either,
-because it needs cloud data present.
+When `scored` is narrowed and shorter than `MIN_REMAINING` (60 minutes), the
+gates and the score run as usual, but a `GO` is capped at `MAYBE` with the
+reason "Less than an hour of dark time remains." This is the same cap shape
+as the missing-wind rule. `MIN_REMAINING` matches the ranking's minimum target
+window, so the verdict and the target list agree on what a usable span is. A
+whole night shorter than an hour is not narrowed and is not capped; the night
+is what it is.
 
-*Why `MAYBE` and not `NO-GO`:* a failed gate is the only cause of a `NO-GO`,
-and "the night is over" is not a condition gate. The next refresh, a second
-later, selects the next night.
+*Why a cap and not a gate:* a failed gate is the only cause of a `NO-GO`, and
+"not much night left" is not a condition gate. The score stays honest about
+the sky; the cap stops it from saying "set up now".
+
+*Why not let an empty window fall through:* an empty window has no slots. The
+cloud availability check would then read "no cloud data", and the verdict
+would say "conditions unavailable", which is false. The overcast gate cannot
+fire either, because it needs cloud data present.
+
+*Why not scale the score by the remaining length:* the usable-sky term is a
+share so that a short night and a long night with the same clear fraction
+score the same, which the spec requires. A length factor would also change
+every pre-dusk score on short summer nights.
+
+The transition near dawn is then: `GO` while an hour or more remains, `MAYBE`
+with the computed score for the last hour, `MAYBE` with score 0 in the final
+second, and the next night after the crossing.
 
 ### D3. Seeing and transparency become a per-hour atmosphere weight on the usable-sky term
 
@@ -181,8 +198,9 @@ cloud term:* gives the same ordering with a less readable formula. Rejected.
 The scored window is narrowed when `scored.start > start` (the floored dusk).
 An instant in the dusk second is not narrowed, so its reasons keep the
 whole-night wording, which is true for it. When narrowed, `evaluate` puts a
-span line first in every reason list it returns: "Scored from HH:MM to HH:MM
-UTC (the rest of tonight)." That covers the scored path, the overcast and wind
+span line first in every reason list it returns: "Scored from HH:MM:SS to
+HH:MM:SS UTC (the rest of tonight)." The times are whole seconds, so they equal
+`scored_window` exactly. That covers the scored path, the overcast and wind
 gates, the missing-cloud path, and the empty-window path. The whole-night
 wording of the other reasons changes with it:
 
@@ -190,7 +208,12 @@ wording of the other reasons changes with it:
 - "No usably clear sky in the forecast for the rest of the night."
 - "Wind gust over the N km/h limit during the rest of the night."
 
-The times use the same UTC formatting as the document's timestamps.
+The atmosphere reasons change on every scored verdict, narrowed or not,
+because D3 changes what the factor means. A new line "Atmosphere factor N%."
+states the factor as computed. The seeing and transparency lines keep their
+means over the hours that carry data, and add their coverage when it is
+partial: "Seeing quality 0% (covers 10% of the usable sky)." A reader can then
+see why a 0% seeing line sits beside a 97% factor.
 
 *Why on every path, and why reword the gates:* a mid-session `NO-GO` for
 overcast is a verdict on the rest of the night, not the whole of it. "Overcast
@@ -223,14 +246,17 @@ parsing a reason string.
 
 ### D6. Tests lock the new shape and the goldens are regenerated once
 
-Unit tests in `tests/test_scoring.py` cover the atmosphere factor: the score
-never exceeds the cloud term, better atmosphere scores higher, and missing
-atmosphere gives a factor of 1. Tests in `tests/test_verdict_eval.py` cover
-the clamp: a clear-then-overcast night is `NO-GO` mid-session and not before
-dusk, a passed gust does not gate, a passed wind gap does not cap, an instant
-in the floored dawn second gives the no-dark-time path, an instant exactly on
-the crossing does the same, and an instant after it selects the next night. A rounding test pins one half-way
-value to the even integer. A producer test checks `scored_window`
+Unit tests in `tests/test_scoring.py` cover the atmosphere factor. The score
+never exceeds the cloud term. Better atmosphere never lowers the score.
+Missing atmosphere gives a factor of 1. The ten-hour monotonicity case gives
+97, then 90. One half-way value rounds to the even integer.
+
+Tests in `tests/test_verdict_eval.py` cover the clamp. A clear-then-overcast
+night is `NO-GO` mid-session and not before dusk. A passed gust does not gate.
+A passed wind gap does not cap. An instant in the floored dawn second gives
+the no-dark-time path, and so does an instant exactly on the crossing. An
+instant after the crossing selects the next night. Thirty minutes before dawn
+caps a `GO` at `MAYBE`; sixty minutes before dawn does not. A producer test checks `scored_window`
 before dusk, mid-session and without a dark window. A new golden case runs the
 recorded forecasts at a mid-session instant, so the new field, the span line
 and the reworded reasons are locked byte for byte. The existing goldens are

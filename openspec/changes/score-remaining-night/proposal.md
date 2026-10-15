@@ -35,6 +35,13 @@ Issue: #97. Issue #98 (rain) builds on this change.
   than the night, every verdict's first reason states the span judged, and the
   cloud, overcast and wind reasons say "the rest of the night" instead of "the
   dark window".
+- **The reasons explain the atmosphere factor.** A new line states the factor.
+  The seeing and transparency lines say how much of the usable sky their data
+  covers, when it is not all of it.
+- **Less than an hour left is never a `GO`.** Once the night has started, a
+  remaining span shorter than 60 minutes caps the verdict at `MAYBE`, with a
+  reason. The score is still computed. A clear last half hour is honest about
+  the sky, but not worth setting up for.
 - **A verdict in the last second of the night scores zero usable time.**
   `dark_window.end` is dawn floored to a whole second. An instant inside that
   second, before the exact crossing, has an empty remaining span. The verdict

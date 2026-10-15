@@ -52,6 +52,9 @@ scored-window field that reports the span judged.
   night, up to the exact dawn crossing, has an empty scored window. It reports
   that no dark time remains rather than failing a gate. A moment later, the
   next night is selected.
+- **Constraint accepted:** the score is a share of the remaining span, so a
+  clear last half hour can score 100. A separate rule stops that from being a
+  `GO`: once the night has started, less than an hour left is at most `MAYBE`.
 
 ## Alternatives Considered
 
