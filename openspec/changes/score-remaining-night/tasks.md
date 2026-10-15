@@ -14,7 +14,7 @@
 
 ## 3. The reasons name the span (design D4)
 
-- [ ] 3.1 Write failing tests that, when the scored window is narrowed, the first reason is "Scored from <start> to <end> (the rest of tonight)." with both endpoints equal to the document's timestamp strings, on the scored path, both gates, the missing-cloud path, and the empty-window path. Cover the reworded lines: "Cloud: N% of the remaining night usable.", "No usably clear sky in the forecast for the rest of the night.", and "Wind gust over the N km/h limit during the rest of the night.". Cover that an instant in the dusk second and an instant before dusk keep today's wording with no span line. Verify they fail.
+- [x] 3.1 Write failing tests that, when the scored window is narrowed, the first reason is "Scored from <start> to <end> (the rest of tonight)." with both endpoints equal to the document's timestamp strings, on the scored path, both gates, the missing-cloud path, and the empty-window path. Cover the reworded lines: "Cloud: N% of the remaining night usable.", "No usably clear sky in the forecast for the rest of the night.", and "Wind gust over the N km/h limit during the rest of the night.". Cover that an instant in the dusk second and an instant before dusk keep today's wording with no span line. Verify they fail.
 - [ ] 3.2 Add the span line and the narrowed wording in `pierpressure/core/scoring.py`, sharing the timestamp formatter with `pierpressure/core/model.py`. Verify the 3.1 tests pass.
 
 ## 4. The document field (design D5)

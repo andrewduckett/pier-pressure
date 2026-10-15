@@ -423,3 +423,60 @@ def test_an_hour_left_can_still_be_go() -> None:
     )
     assert decision.verdict is Verdict.GO
     assert _SHORT_WINDOW not in decision.reasons
+
+
+# --------------------------------------------------------------------------- #
+# score-remaining-night 3.1: the reasons name the span once it is narrowed
+# --------------------------------------------------------------------------- #
+
+_SPAN = "Scored from 2026-09-08T23:30:00Z to 2026-09-09T03:00:00Z (the rest of tonight)."
+
+
+def test_a_mid_session_scored_verdict_names_its_span_first() -> None:
+    decision = evaluate(_pier(), _MID, _WINDOW, _snapshot(cloud=0.0), _new_moon())
+    assert decision.score is not None
+    assert decision.reasons[0] == _SPAN
+    assert "Cloud: 100% of the remaining night usable." in decision.reasons
+
+
+def test_a_mid_session_overcast_gate_names_its_span_and_the_rest_of_the_night() -> None:
+    decision = evaluate(_pier(), _MID, _WINDOW, _snapshot(cloud=100.0), _new_moon())
+    assert decision.reasons == [
+        _SPAN,
+        "No usably clear sky in the forecast for the rest of the night.",
+    ]
+
+
+def test_a_mid_session_wind_gate_names_its_span_and_the_rest_of_the_night() -> None:
+    snap = _snapshot(cloud=0.0, wind=60.0)
+    decision = evaluate(_pier(max_gust=40.0), _MID, _WINDOW, snap, _new_moon())
+    assert decision.reasons == [
+        _SPAN,
+        "Wind gust over the 40 km/h limit during the rest of the night.",
+    ]
+
+
+def test_a_mid_session_missing_cloud_verdict_names_its_span() -> None:
+    decision = evaluate(_pier(), _MID, _WINDOW, _snapshot(cloud=None), _new_moon())
+    assert decision.reasons[0] == _SPAN
+    assert any("unavailable" in r.lower() for r in decision.reasons[1:])
+
+
+def test_an_empty_scored_window_names_its_span() -> None:
+    dawn = _exact_dawn(_LONDON, datetime(2026, 9, 9, 1, 0, tzinfo=UTC))
+    _, decision = _evaluate_at(_LONDON, dawn)
+    end = dawn.replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
+    assert decision.reasons[0] == f"Scored from {end} to {end} (the rest of tonight)."
+
+
+def test_an_instant_in_the_dusk_second_keeps_the_whole_night_wording() -> None:
+    in_dusk_second = _START.replace(microsecond=500_000)
+    decision = evaluate(_pier(), in_dusk_second, _WINDOW, _snapshot(cloud=0.0), _new_moon())
+    assert decision.scored_window == _WINDOW
+    assert not any(r.startswith("Scored from") for r in decision.reasons)
+    assert "Cloud: 100% of the dark window usable." in decision.reasons
+
+
+def test_a_verdict_before_dusk_keeps_the_whole_night_wording() -> None:
+    decision = evaluate(_pier(), _INSTANT, _WINDOW, _snapshot(cloud=100.0), _new_moon())
+    assert decision.reasons == ["Overcast for the whole dark window: no usably clear sky."]
