@@ -13,8 +13,9 @@ from pierpressure.core.conditions import (
     SecondaryHour,
 )
 from pierpressure.core.config import PierConfig
-from pierpressure.core.model import Band, Moon, MoonPhase, Verdict
-from pierpressure.core.scoring import Decision, evaluate, hour_slots
+from pierpressure.core.model import MIN_USABLE_WINDOW, Band, Moon, MoonPhase, Verdict
+from pierpressure.core.ranking import MIN_WINDOW
+from pierpressure.core.scoring import MIN_SCORED, Decision, evaluate, hour_slots
 from pierpressure.core.sky import _local_solar_day, _night_transitions, dark_window
 
 from .offline_guard import no_network
@@ -480,3 +481,21 @@ def test_an_instant_in_the_dusk_second_keeps_the_whole_night_wording() -> None:
 def test_a_verdict_before_dusk_keeps_the_whole_night_wording() -> None:
     decision = evaluate(_pier(), _INSTANT, _WINDOW, _snapshot(cloud=100.0), _new_moon())
     assert decision.reasons == ["Overcast for the whole dark window: no usably clear sky."]
+
+
+def test_a_mid_session_missing_cloud_reason_speaks_of_the_rest_of_the_night() -> None:
+    # Cloud data for the hours that have passed only: the forecast ran out, it was
+    # not absent, so the reason must not claim there is no cloud forecast at all.
+    snap = _hourly_snapshot(cloud=[0.0, 0.0, None, None, None, None])
+    decision = evaluate(_pier(), _MID, _WINDOW, snap, _new_moon())
+    assert decision.verdict is Verdict.MAYBE
+    assert decision.reasons == [
+        _SPAN,
+        "Conditions unavailable for the rest of the night: no cloud forecast for the"
+        " remaining hours, astronomy only.",
+    ]
+
+
+def test_the_verdict_and_the_ranking_share_one_minimum_usable_window() -> None:
+    assert MIN_SCORED is MIN_USABLE_WINDOW
+    assert MIN_WINDOW is MIN_USABLE_WINDOW
