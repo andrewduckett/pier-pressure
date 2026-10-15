@@ -30,5 +30,5 @@
 
 ## 6. Verification
 
-- [ ] 6.1 Run `just check` and verify it is green.
-- [ ] 6.2 Run the core against the issue's night (42.23, −87.88, 2026-10-13, live or recorded forecasts) at a pre-dusk instant and at 21:52 CDT. Verify the pre-dusk score is about 14 and the mid-session verdict is `NO-GO` for no usably clear sky, or `MAYBE` with a single-digit score, and record both results in the PR.
+- [x] 6.1 Run `just check` and verify it is green.
+- [x] 6.2 Run the core against the issue's night (42.23, −87.88, 2026-10-13, live or recorded forecasts) at a pre-dusk instant and at 21:52 CDT. Verify the pre-dusk score is about 14 and the mid-session verdict is `NO-GO` for no usably clear sky, or `MAYBE` with a single-digit score, and record both results in the PR.
