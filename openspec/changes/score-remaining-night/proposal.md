@@ -41,8 +41,9 @@ Issue: #97. Issue #98 (rain) builds on this change.
   The seeing and transparency lines say how much of the usable sky their data
   covers, when it is not all of it.
 - **Less than an hour of dark time is never a `GO`.** A scored window shorter
-  than 60 minutes caps the verdict at `MAYBE`, with a reason, whether it is
-  the rest of a night or a whole short night. The score is still computed. A
+  than 60 minutes caps the verdict at `MAYBE`, with a reason that reads the
+  same before dusk and during the night, whether the window is the rest of a
+  night or a whole short night. The score is still computed. A
   clear last half hour is honest about the sky, but not worth setting up for.
 - **A verdict in the last second of the night scores zero usable time.**
   `dark_window.end` is dawn floored to a whole second. An instant inside that

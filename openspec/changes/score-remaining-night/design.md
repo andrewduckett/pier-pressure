@@ -85,17 +85,19 @@ a whole second at validation. Clamping with the raw instant would score from
 22:00:00.400 and report 22:00:00. Flooring first keeps the document honest, and
 costs at most one second of already-elapsed time.
 
-*Why the outer `min`:* `dark_window` picks the first exact end (a dawn
-crossing, or the solar-day boundary in polar night) at or after the raw
-instant, then floors both bounds to a whole second. So an
-instant in the last partial second of the night, up to and including the
-crossing, selects the ending night. Its floored `end` equals `now`. Without
-the `min`, a raw instant later in that second would start after the end and
-tile no slots, which reads as "no cloud data". The `min` folds that case into
-the empty-window path (D2). An instant after the crossing selects the next
-night. In polar night the exact noon already selects the next day, so the
-empty window there stops just short of the boundary. Tests pin both
-boundaries with instants that carry microseconds.
+*Why the outer `min`:* `dark_window` picks the exact end that qualifies
+against the raw instant, then floors both bounds to a whole second. On an
+ordinary night the dawn crossing qualifies at or after the instant. So an
+instant in the last partial second, up to and including the crossing, still
+selects the ending night, and its floored `end` equals `now`. Without the
+`min`, a raw instant later in that second would start after the end. The
+window would tile no slots, which reads as "no cloud data". The `min` folds
+that case into the empty-window path (D2).
+
+An instant after the crossing selects the next night. In polar night the
+exact noon already selects the next day, so the empty window there stops just
+short of the boundary. Tests pin both boundaries with instants that carry
+microseconds.
 
 *Why clamp inside `evaluate` and not in `dark_window`:* the `dark_window` field
 is a frozen contract, and the moon and the targets still need the whole night.
@@ -116,7 +118,8 @@ gate and before the wind gate.
 
 When `scored` is shorter than `MIN_SCORED` (60 minutes), narrowed or not,
 the gates and the score run as usual, but a `GO` is capped at `MAYBE` with the
-reason "Less than an hour of dark time remains." This is the same cap shape
+reason "Less than an hour of dark time to score: not worth setting up." This
+wording is true before dusk and during the night. It is the same cap shape
 as the missing-wind rule. `MIN_SCORED` matches the ranking's minimum target
 window, so the verdict and the target list agree on what a usable span is.
 Applying it to a whole short night too keeps one rule: a 50-minute night is
@@ -207,9 +210,11 @@ cloud term:* gives the same ordering with a less readable formula. Rejected.
 The scored window is narrowed when `scored.start > start` (the floored dusk).
 An instant in the dusk second is not narrowed, so its reasons keep the
 whole-night wording, which is true for it. When narrowed, `evaluate` puts a
-span line first in every reason list it returns: "Scored from HH:MM:SS to
-HH:MM:SS UTC (the rest of tonight)." The times are whole seconds, so they equal
-`scored_window` exactly. That covers the scored path, the overcast and wind
+span line first in every reason list it returns: "Scored from
+2026-10-14T02:52:00Z to 2026-10-14T10:30:00Z (the rest of tonight)." Each
+endpoint is the document's own timestamp string for `scored_window.start` and
+`scored_window.end`, so a span that crosses UTC midnight stays unambiguous
+and a test can assert the line against both fields. That covers the scored path, the overcast and wind
 gates, the missing-cloud path, and the empty-window path. The whole-night
 wording of the other reasons changes with it:
 
