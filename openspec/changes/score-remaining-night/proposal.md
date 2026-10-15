@@ -17,8 +17,10 @@ Issue: #97. Issue #98 (rain) builds on this change.
   score becomes the usable-sky term multiplied by an atmosphere factor, then by
   the existing moon and high-cloud factors. The atmosphere factor runs from 0.7
   for the worst seeing and transparency to 1.0 for the best. An hour with no
-  seeing or transparency counts as 1.0, so missing data never lowers the score
-  and more cloud never raises it. Confidence drops for the missing data, as it
+  seeing or transparency counts as 1.0, so missing atmosphere data never
+  lowers the score and never lets more cloud raise it. The high-cloud term is
+  unchanged, so the one case where more cloud can still raise the score, a
+  night with cirrus data for only some hours, stays as it is today (#112). Confidence drops for the missing data, as it
   does today. The night
   in the issue, with the moon down and no cirrus, would score 14 instead of 32.
 - **Once the night has started, the verdict judges the rest of the night.** The
@@ -29,9 +31,10 @@ Issue: #97. Issue #98 (rain) builds on this change.
 - **`dark_window` keeps the whole night.** Its meaning does not change. A new
   additive `scored_window` field, with the same `{ start, end }` shape, reports
   the span the verdict judged. Before dusk the two are equal.
-- **The reasons name the scored span.** Once the night has started, every
-  verdict's first reason states the span judged, and the cloud, overcast and
-  wind reasons say "the rest of the night" instead of "the dark window".
+- **The reasons name the scored span.** Once the scored window is narrower
+  than the night, every verdict's first reason states the span judged, and the
+  cloud, overcast and wind reasons say "the rest of the night" instead of "the
+  dark window".
 - **A verdict in the last second of the night scores zero usable time.**
   `dark_window.end` is dawn floored to a whole second. An instant inside that
   second, before the exact crossing, has an empty remaining span. The verdict
@@ -44,6 +47,7 @@ Out of scope:
   covers ranking the rest of the night.
 - Rain. Issue #98 adds precipitation as a separate change on top of this one.
 - Any change to the clarity curve, the moon penalty, or the high-cloud penalty.
+  Issue #112 covers the high-cloud penalty's own monotonicity gap.
 
 ## Capabilities
 

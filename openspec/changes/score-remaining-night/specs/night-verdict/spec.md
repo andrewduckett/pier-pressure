@@ -73,27 +73,30 @@ When the scored window is empty, the verdict SHALL be `MAYBE` with a `score` of 
 
 ### Requirement: Reasons name the scored span
 
-Once the night has started, every verdict with a dark window SHALL carry, as its first reason, a line that states the scored window's start and end. This holds for a scored verdict, a gated `NO-GO`, a missing-cloud `MAYBE`, and an empty scored window.
+The scored window is **narrowed** when `scored_window.start` is later than `dark_window.start`. That is the test for every rule in this requirement. An evaluation instant in the same whole second as dusk is not narrowed: its scored window is the whole night, so the whole-night wording is true.
 
-Once the night has started, no reason SHALL make a claim about the whole night. On a scored verdict, the cloud reason SHALL state the usable share of the remaining night. A failed overcast gate SHALL say the rest of the night is overcast. A failed wind gate SHALL say the gust falls in the rest of the night.
+When the scored window is narrowed, every verdict with a dark window SHALL carry, as its first reason, a line that states the scored window's start and end. This holds for a scored verdict, a gated `NO-GO`, a missing-cloud `MAYBE`, and an empty scored window.
 
-Before dusk, no span line is present, and the reasons keep their whole-night wording.
+When the scored window is narrowed, no reason SHALL make a claim about the whole night, and no reason SHALL claim more than the forecast covers. On a scored verdict, the cloud reason SHALL state the usable share of the remaining night. A failed overcast gate SHALL say that the forecast shows no usably clear sky for the rest of the night. A failed wind gate SHALL say the gust falls in the rest of the night.
+
+When the scored window is not narrowed, no span line is present, and the reasons keep their whole-night wording.
 
 #### Scenario: A mid-session scored verdict names the span it judged
 
-- **WHEN** a scored verdict is produced at an evaluation instant inside the dark window
+- **WHEN** a scored verdict is produced at an evaluation instant at least one second after `dark_window.start` and inside the dark window
 - **THEN** the first reason states the start and end of the scored window
 - **AND** a reason states the usable share of the remaining night
 
 #### Scenario: A mid-session gated verdict names the span it judged
 
-- **WHEN** a `NO-GO` verdict is produced at an evaluation instant inside the dark window because the overcast gate or the wind gate failed
+- **WHEN** a `NO-GO` verdict is produced at an evaluation instant at least one second after `dark_window.start` and inside the dark window, because the overcast gate or the wind gate failed
 - **THEN** the first reason states the start and end of the scored window
 - **AND** a later reason names the failing gate and refers to the rest of the night, not the whole dark window
+- **AND** when the gate is overcast and some remaining hours lack cloud data, the reason claims no more than that the forecast shows no usably clear sky
 
 #### Scenario: A mid-session missing-cloud verdict names the span it judged
 
-- **WHEN** a verdict is produced at an evaluation instant inside the dark window with no cloud data for the scored window
+- **WHEN** a verdict is produced at an evaluation instant at least one second after `dark_window.start` and inside the dark window, with no cloud data for the scored window
 - **THEN** the first reason states the start and end of the scored window
 - **AND** a later reason states that conditions are unavailable
 
@@ -101,6 +104,12 @@ Before dusk, no span line is present, and the reasons keep their whole-night wor
 
 - **WHEN** a scored verdict is produced at an evaluation instant before astronomical dusk
 - **THEN** the cloud reason states the usable share of the dark window
+- **AND** no reason states a scored span
+
+#### Scenario: A verdict in the dusk second keeps the whole-night wording
+
+- **WHEN** a scored verdict is produced at an evaluation instant in the same whole second as `dark_window.start`
+- **THEN** `scored_window.start` equals `dark_window.start`
 - **AND** no reason states a scored span
 
 ## RENAMED Requirements
@@ -151,7 +160,7 @@ When every hard gate passes, the system SHALL compute an integer score from 0 to
 The score SHALL be the product of four factors, each from 0 to 1, scaled to 100 and rounded to the nearest integer. A value exactly half-way between two integers SHALL round to the even one, so 12.5 gives 12 and 13.5 gives 14. The factors are:
 
 - the **usable-sky term**: the share of the scored window that is usably clear. This is the dominant term;
-- the **atmosphere factor**: `0.7 + 0.3 × A`. Each hour has an atmosphere quality `a`: the mean of whichever of seeing and transparency that hour carries, or 1 when it carries neither. `A` is the mean of `a` over the scored window, weighted by each hour's usably clear share. When no hour carries seeing or transparency, the factor is therefore 1, and the missing data SHALL lower confidence instead. Counting an hour without data as 1 is what keeps more cloud from ever raising the score: clouding out an hour with poor atmosphere removes its usable sky and cannot lift the mean above what that sky was worth;
+- the **atmosphere factor**: `0.7 + 0.3 × A`. Each hour has an atmosphere quality `a`. It is the mean of the seeing and transparency values that hour carries. An hour that carries neither has `a` of 1. `A` is the mean of `a` over the scored window, weighted by each hour's usably clear share. When no hour carries seeing or transparency, the factor is 1. The missing data SHALL lower confidence instead;
 - the **moon factor**: the moon's brightness weighted by how much of the usably clear scored window it is above the horizon, as today;
 - the **high-cloud factor**, as today.
 
@@ -159,7 +168,7 @@ Because every factor is at most 1, the score SHALL never exceed the usable-sky t
 
 The verdict SHALL be `GO` when the score is at or above the pier's go-threshold **and cloud data for the scored window is available**, and `MAYBE` otherwise. Requiring cloud data for a `GO` SHALL hold even when the go-threshold is 0, so a `GO` is never issued without evidence the sky is clear.
 
-A brighter or more clouded night SHALL NOT score higher than an otherwise identical darker or clearer one. This holds for any pattern of missing seeing and transparency, because each hour's usable sky is scaled by that hour's own atmosphere quality. The high-cloud factor keeps today's rule, which reads only the hours that carry a high-cloud component.
+A brighter or more clouded night SHALL NOT score higher than an otherwise identical darker or clearer one. This holds for any pattern of missing seeing and transparency, because an hour without data counts as 1. It holds whenever the high-cloud component is present for every hour of the scored window, or for none of them. When the component is present for only some hours, the high-cloud factor keeps today's rule, and clouding out one of those hours can raise the score. Issue #112 covers that gap.
 
 #### Scenario: A score at or above the go-threshold with cloud data is GO
 

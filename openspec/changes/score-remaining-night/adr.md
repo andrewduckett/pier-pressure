@@ -13,10 +13,8 @@ clamp in the scoring code could reverse it, and every mid-session verdict,
 every reason string and the new document field would change. ADR-0023 records
 it.
 
-The new score formula (design D3) does not need an ADR. It replaces three
-weights with one floor constant in code, and ADR-0002 already allows itemised
-terms that are "a bonus or penalty". The reason wording (D4) and the test
-strategy (D6) are recoverable from the code.
+The score formula (design D3), the reason wording (D4) and the test strategy
+(D6) are recoverable from the code and need no ADR.
 
 ADR-0002 (gates, then a banded score) and ADR-0003 (target windows clamped to
 astronomical night) stay in force. ADR-0023 narrows the span the verdict reads;

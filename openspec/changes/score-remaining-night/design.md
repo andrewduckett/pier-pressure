@@ -81,18 +81,14 @@ a whole second at validation. Clamping with the raw instant would score from
 22:00:00.400 and report 22:00:00. Flooring first keeps the document honest, and
 costs at most one second of already-elapsed time.
 
-*Why the outer `min`:* `dark_window` picks the first dawn at or after the
-instant using the exact crossing, then floors both bounds to a whole second.
-An instant inside the last partial second of the night, such as 03:25:52.400
-with the crossing at 03:25:52.700, selects a night whose floored `end` is
-03:25:52, which equals `now`. Without the `min`, a later raw instant could
-start after the end and tile no slots, which reads as "no cloud data". The
-`min` folds that case into the empty-window path (D2). `dark_window` selects
-the first exact dawn at or after the instant, so an instant exactly on the
-crossing still selects the ending night and its floored `end` equals `now`.
-An instant after the crossing selects the next night. The empty window is
-therefore confined to the floored second, up to and including the crossing. A test pins it with an instant that carries
-microseconds.
+*Why the outer `min`:* `dark_window` picks the first exact dawn crossing at
+or after the raw instant, then floors both bounds to a whole second. So an
+instant in the last partial second of the night, up to and including the
+crossing, selects the ending night. Its floored `end` equals `now`. Without
+the `min`, a raw instant later in that second would start after the end and
+tile no slots, which reads as "no cloud data". The `min` folds that case into
+the empty-window path (D2). An instant after the crossing selects the next
+night. A test pins the boundary with an instant that carries microseconds.
 
 *Why clamp inside `evaluate` and not in `dark_window`:* the `dark_window` field
 is a frozen contract, and the moon and the targets still need the whole night.
@@ -173,28 +169,39 @@ score monotone in cloud without a second rule.
 
 *Why the high-cloud factor keeps its restricted denominator:* changing it is
 out of scope (proposal), and its own design chose not to read a missing cirrus
-component as clear sky. The same monotonicity gap therefore remains for a
-night whose cirrus data is partly missing. The risks section records it.
+component as clear sky. So the score is monotone in cloud only when the
+high-cloud component is present for every hour or for none. The spec says so,
+and issue #112 tracks the gap.
 
 *Alternative, keep the weighted mean but weight the atmosphere terms by the
 cloud term:* gives the same ordering with a less readable formula. Rejected.
 
-### D4. Reasons name the span once the night has started
+### D4. Reasons name the span once the scored window is narrowed
 
-Once `scored` starts after dusk, `evaluate` puts a span line first in every
-reason list it returns: "Scored from HH:MM to HH:MM UTC (the rest of tonight)."
-That covers the scored path, the overcast and wind gates, the missing-cloud
-path, and the empty-window path. The whole-night wording of the other reasons
-changes with it: "Cloud: N% of the remaining night usable.", "Overcast for the
-rest of the night: no usably clear sky.", and "Wind gust over the N km/h limit
-during the rest of the night.". Before dusk the reasons keep today's wording
-and no span line is added. The times use the same UTC formatting as the
-document's timestamps.
+The scored window is narrowed when `scored.start > start` (the floored dusk).
+An instant in the dusk second is not narrowed, so its reasons keep the
+whole-night wording, which is true for it. When narrowed, `evaluate` puts a
+span line first in every reason list it returns: "Scored from HH:MM to HH:MM
+UTC (the rest of tonight)." That covers the scored path, the overcast and wind
+gates, the missing-cloud path, and the empty-window path. The whole-night
+wording of the other reasons changes with it:
+
+- "Cloud: N% of the remaining night usable."
+- "No usably clear sky in the forecast for the rest of the night."
+- "Wind gust over the N km/h limit during the rest of the night."
+
+The times use the same UTC formatting as the document's timestamps.
 
 *Why on every path, and why reword the gates:* a mid-session `NO-GO` for
 overcast is a verdict on the rest of the night, not the whole of it. "Overcast
 for the whole dark window" would be false after a clear evening, whatever line
 precedes it.
+
+*Why "in the forecast" for the overcast gate:* the gate fires when every hour
+with cloud data is overcast. Remaining hours without cloud data are unknown,
+not overcast. The wording claims only what the forecast shows. The pre-dusk
+reason keeps today's text, which has the same gap; changing it is out of
+scope.
 
 *Why change the cloud wording rather than only add a line:* "15% of the dark
 window usable" would be false mid-session, because the share is of the
@@ -245,8 +252,8 @@ changes only.
   the whole night.
 - **Partly missing cirrus data can still break monotonicity.** The high-cloud
   factor keeps its restricted denominator, so clouding out the one hour that
-  carried cirrus can lift the factor. → Out of scope here and unchanged from
-  today. A later change can give that term the same per-hour neutral.
+  carried cirrus can lift the factor. → Unchanged from today, stated as a
+  limit in the spec, and tracked as issue #112.
 - **A sub-second gap at dawn.** The dark window is floored to whole seconds,
   and the instant may carry microseconds, so the selected night can end a
   fraction of a second before the instant. → D1's outer `min` folds that case
