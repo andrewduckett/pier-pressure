@@ -483,6 +483,7 @@ def make_document(
         reasons=["test reason"],
         targets=[],
         dark_window=DarkWindow(start=None, end=None),
+        scored_window=DarkWindow(start=None, end=None),
         moon=Moon(illumination=0.0, phase=MoonPhase.NEW),
     )
 

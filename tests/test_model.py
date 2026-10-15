@@ -83,6 +83,7 @@ def test_naive_generated_at_is_rejected() -> None:
             reasons=["x"],
             targets=[],
             dark_window=DarkWindow(),
+            scored_window=DarkWindow(),
             moon=_STUB_MOON,
         )
 
@@ -100,6 +101,7 @@ def test_non_utc_timezone_is_normalized_to_utc() -> None:
         reasons=["x"],
         targets=[],
         dark_window=DarkWindow(),
+        scored_window=DarkWindow(),
         moon=_STUB_MOON,
     )
     assert json.loads(doc.to_json())["generated_at"] == "2026-09-07T21:30:00Z"
@@ -117,6 +119,7 @@ def test_out_of_range_score_is_rejected(bad_score: int) -> None:
             reasons=["x"],
             targets=[],
             dark_window=DarkWindow(),
+            scored_window=DarkWindow(),
             moon=_STUB_MOON,
         )
 
@@ -138,6 +141,7 @@ def test_unknown_verdict_is_rejected() -> None:
             reasons=["x"],
             targets=[],
             dark_window=DarkWindow(),
+            scored_window=DarkWindow(),
             moon=_STUB_MOON,
         )
 
@@ -162,6 +166,7 @@ def _doc_with_generated_at(instant: datetime) -> VerdictDocument:
         reasons=["x"],
         targets=[],
         dark_window=DarkWindow(),
+        scored_window=DarkWindow(),
         moon=_STUB_MOON,
     )
 

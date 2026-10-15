@@ -174,6 +174,7 @@ def _document(targets: list[Target]) -> VerdictDocument:
         reasons=["Score 80/100."],
         targets=targets,
         dark_window=DarkWindow(start=_START, end=_END),
+        scored_window=DarkWindow(start=_START, end=_END),
         moon=Moon(illumination=0.1, phase=MoonPhase.WANING_CRESCENT),
     )
 
@@ -202,5 +203,6 @@ def test_document_targets_preserve_key_order() -> None:
         "reasons",
         "targets",
         "dark_window",
+        "scored_window",
         "moon",
     ]

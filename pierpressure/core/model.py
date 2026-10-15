@@ -264,6 +264,7 @@ class VerdictDocument(BaseModel):
     reasons: list[str]
     targets: list[Target] = Field(default_factory=list)
     dark_window: DarkWindow
+    scored_window: DarkWindow
     moon: Moon
 
     @field_validator("generated_at")

@@ -54,6 +54,7 @@ def produce_verdict(pier: PierConfig, clock: Clock, conditions: Conditions) -> V
         reasons.extend(equipment_reasons(pier.equipment, targets[0]))
 
     start, end = window
+    scored_start, scored_end = decision.scored_window
     return VerdictDocument(
         pier=pier.id,
         generated_at=instant,
@@ -63,5 +64,7 @@ def produce_verdict(pier: PierConfig, clock: Clock, conditions: Conditions) -> V
         reasons=reasons,
         targets=targets,
         dark_window=DarkWindow(start=start, end=end),
+        # The span the gates and score judged (score-remaining-night design D5).
+        scored_window=DarkWindow(start=scored_start, end=scored_end),
         moon=moon,
     )
