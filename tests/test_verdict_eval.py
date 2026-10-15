@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from pierpressure.core.conditions import (
     BaseGroup,
@@ -14,7 +14,10 @@ from pierpressure.core.conditions import (
 )
 from pierpressure.core.config import PierConfig
 from pierpressure.core.model import Band, Moon, MoonPhase, Verdict
-from pierpressure.core.scoring import evaluate, hour_slots
+from pierpressure.core.scoring import Decision, evaluate, hour_slots
+from pierpressure.core.sky import _local_solar_day, _night_transitions, dark_window
+
+from .offline_guard import no_network
 
 _START = datetime(2026, 9, 8, 21, 0, tzinfo=UTC)
 _END = datetime(2026, 9, 9, 3, 0, tzinfo=UTC)
@@ -318,3 +321,104 @@ def test_completeness_reads_the_scored_window() -> None:
         evaluate(_pier(), _MID, _WINDOW, gappy, _new_moon()).confidence
         == evaluate(_pier(), _MID, _WINDOW, full, _new_moon()).confidence
     )
+
+
+# --------------------------------------------------------------------------- #
+# score-remaining-night 2.3: an empty or short scored window is never GO
+# --------------------------------------------------------------------------- #
+
+_NO_DARK_TIME = "No dark time remains to score."
+_SHORT_WINDOW = "Less than an hour of dark time to score: not worth setting up."
+_LONDON = PierConfig(id="london", latitude=51.5, longitude=-0.12, elevation_m=30.0)
+_HIGH_ARCTIC = PierConfig(id="high-arctic", latitude=88.0, longitude=0.0, elevation_m=0.0)
+
+
+def _exact_dawn(pier: PierConfig, instant: datetime) -> datetime:
+    """The exact (unfloored) astronomical dawn that ends the night selected at ``instant``."""
+    return next(
+        t for t, entering in _night_transitions(pier, instant) if not entering and t >= instant
+    )
+
+
+def _evaluate_at(pier: PierConfig, instant: datetime) -> tuple[tuple[datetime, datetime], Decision]:
+    """Select the night at ``instant`` and evaluate it against a clear sky with cloud data."""
+    with no_network():
+        window = dark_window(pier, instant)
+    start, end = window
+    assert start is not None and end is not None
+    snap = _snapshot(cloud=0.0, window=(start, end), issued_at=instant)
+    return (start, end), evaluate(pier, instant, window, snap, _new_moon())
+
+
+def _assert_no_dark_time(window: tuple[datetime, datetime], decision: Decision) -> None:
+    assert decision.scored_window == (window[1], window[1])
+    assert decision.verdict is Verdict.MAYBE
+    assert decision.score == 0
+    assert _NO_DARK_TIME in decision.reasons
+    assert not any("unavailable" in r.lower() for r in decision.reasons)
+
+
+def test_an_instant_in_the_floored_dawn_second_has_no_dark_time_left() -> None:
+    dawn = _exact_dawn(_LONDON, datetime(2026, 9, 9, 1, 0, tzinfo=UTC))
+    assert dawn.microsecond > 0
+    inside = dawn.replace(microsecond=dawn.microsecond // 2)
+    window, decision = _evaluate_at(_LONDON, inside)
+    assert window[1] == dawn.replace(microsecond=0)
+    _assert_no_dark_time(window, decision)
+
+
+def test_an_instant_exactly_on_the_dawn_crossing_has_no_dark_time_left() -> None:
+    # The crossing as found from inside the night. Searching again from it finds the
+    # same crossing to within Skyfield's precision, still at or after the instant.
+    dawn = _exact_dawn(_LONDON, datetime(2026, 9, 9, 1, 0, tzinfo=UTC))
+    window, decision = _evaluate_at(_LONDON, dawn)
+    assert window[1] == dawn.replace(microsecond=0)
+    _assert_no_dark_time(window, decision)
+
+
+def test_an_instant_after_the_dawn_crossing_judges_the_next_night() -> None:
+    dawn = _exact_dawn(_LONDON, datetime(2026, 9, 9, 1, 0, tzinfo=UTC))
+    # Skyfield finds the crossing to about a millisecond, so step clear of it.
+    window, decision = _evaluate_at(_LONDON, dawn + timedelta(milliseconds=10))
+    assert window[0] > dawn
+    assert decision.scored_window == window
+
+
+def test_in_polar_night_the_exact_noon_starts_the_next_window() -> None:
+    noon = _local_solar_day(_HIGH_ARCTIC, datetime(2026, 12, 21, 15, 0, tzinfo=UTC))[1]
+    window, decision = _evaluate_at(_HIGH_ARCTIC, noon)
+    assert window[0] == noon.replace(microsecond=0)
+    assert decision.scored_window == window
+
+
+def test_in_polar_night_the_floored_second_before_noon_has_no_dark_time_left() -> None:
+    noon = _local_solar_day(_HIGH_ARCTIC, datetime(2026, 12, 21, 15, 0, tzinfo=UTC))[1]
+    assert noon.microsecond > 0
+    window, decision = _evaluate_at(_HIGH_ARCTIC, noon - timedelta(microseconds=1))
+    assert window[1] == noon.replace(microsecond=0)
+    _assert_no_dark_time(window, decision)
+
+
+def test_half_an_hour_left_caps_a_go_at_maybe() -> None:
+    decision = evaluate(
+        _pier(go_threshold=50), _END - timedelta(minutes=30), _WINDOW, _snapshot(), _new_moon()
+    )
+    assert decision.verdict is Verdict.MAYBE
+    assert decision.score is not None and decision.score >= 50
+    assert _SHORT_WINDOW in decision.reasons
+
+
+def test_a_whole_night_under_an_hour_is_capped_before_dusk() -> None:
+    window = (_START, _START + timedelta(minutes=50))
+    snap = _snapshot(window=window)
+    decision = evaluate(_pier(go_threshold=50), _INSTANT, window, snap, _new_moon())
+    assert decision.verdict is Verdict.MAYBE
+    assert _SHORT_WINDOW in decision.reasons
+
+
+def test_an_hour_left_can_still_be_go() -> None:
+    decision = evaluate(
+        _pier(go_threshold=50), _END - timedelta(hours=1), _WINDOW, _snapshot(), _new_moon()
+    )
+    assert decision.verdict is Verdict.GO
+    assert _SHORT_WINDOW not in decision.reasons
