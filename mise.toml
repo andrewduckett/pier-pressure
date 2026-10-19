@@ -13,7 +13,7 @@ just = "1"
 node = "26"
 gh = "2.102"
 "npm:@fission-ai/openspec" = "1.13.2"
-"github:andrewduckett/lets-spec" = { version = "0.3.0", asset_pattern = "lets-spec-0.3.0.tar.gz" }
+"github:andrewduckett/lets-spec" = { version = "0.4.0", asset_pattern = "lets-spec-0.4.0.tar.gz" }
 
 [env]
 # The image's Python version, which compose.yaml needs (#45).
