@@ -41,8 +41,8 @@ backlog is GitHub issues.
   the `opsx:*` skills (propose → apply → verify → archive). OpenSpec changes carry
   product behavior. Repo maintenance (tooling, docs, backlog housekeeping) goes
   through an ordinary branch and PR with Conventional Commits.
-- **Dev shell:** `flake.nix` provides Python (from `.python-version`), `uv`, and
-  `just`; `direnv` loads it through `.envrc`. Without Nix, install uv and just
+- **Dev tools:** `mise.toml` pins `uv` and `just`; run `mise install` once. uv
+  installs the Python in `.python-version`. Without mise, install uv and just
   yourself.
 - **Toolchain:** `uv` (env/deps/lockfile), `just` (tasks), `ruff` (lint AND
   format — no black), `mypy` (strict types), `pytest`. Python 3.14, pinned only in

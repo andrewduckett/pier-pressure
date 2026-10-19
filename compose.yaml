@@ -5,7 +5,7 @@
 #   just broker-down   # stop everything
 #
 # Compose needs PYTHON_VERSION to read this file, even for the broker alone. The
-# Justfile and the Nix dev shell set it from .python-version; elsewhere, set it
+# Justfile and mise.toml set it from .python-version; elsewhere, set it
 # yourself, e.g. `PYTHON_VERSION=$(cat .python-version) docker compose ...`.
 #
 # The broker allows anonymous access on 1883 — dev only (see mosquitto/mosquitto.conf).

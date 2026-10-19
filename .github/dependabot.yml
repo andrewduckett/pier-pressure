@@ -53,11 +53,4 @@ updates:
         patterns: ["*"]
         update-types: [minor, patch]
 
-  # The inputs locked in flake.lock, which give the dev shell its Python, uv and just.
-  - package-ecosystem: nix
-    directory: /
-    schedule:
-      interval: weekly
-    commit-message:
-      prefix: build
-      include: scope
+  # Dependabot does not read mise.toml. Update the tool versions there by hand.

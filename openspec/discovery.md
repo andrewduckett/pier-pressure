@@ -111,7 +111,7 @@ Stage status checked against the code on 2026-10-13.
  supported  supported    supported    supported    partial     supported   supported    partial
 ```
 
-1. **Open the dev shell** — `flake.nix` and `.envrc` give Python, uv, and just;
+1. **Open the dev shell** — `mise.toml` gives uv and just, and uv gives Python;
    `just check` passes inside it — supported
 2. **Pick the next story** — issues with `priority/*` labels, and propose rules in
    `openspec/config.yaml` — supported

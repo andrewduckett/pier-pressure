@@ -462,9 +462,9 @@ openspec/        # product intent, discovery map, specs, and change history
 
 ## 🛠️ Development
 
-With [Nix](https://nixos.org) and [direnv](https://direnv.net), `cd` into the repo
-and run `direnv allow` once. The dev shell provides uv, just, and the Python version set in `.python-version`.
-Without Nix, install uv and just yourself.
+Install [mise](https://mise.jdx.dev), then run `mise install` in the repo once. It
+installs the uv and just versions set in `mise.toml`, and uv installs the Python
+version set in `.python-version`. Without mise, install uv and just yourself.
 
 ```bash
 just install     # uv sync
@@ -477,8 +477,8 @@ just test-integration   # runs integration tests against a throwaway Mosquitto
 just up          # runs PierPressure in its image against a local broker
 ```
 
-CI runs these same commands inside the Nix dev shell, so it tests the tools you
-use.
+CI runs these same commands with the tools in `mise.toml`, so it tests the tools
+you use.
 
 ### Where versions are set
 
@@ -486,29 +486,31 @@ Each tool version is set in one place:
 
 | Tool | Set in |
 | --- | --- |
-| Python | `.python-version`. The dev shell, the project environment, mypy, CI, and the image all read it. |
-| uv, just | `flake.lock`, for the dev shell and CI |
+| Python | `.python-version`. uv, the project environment, mypy, CI, and the image all read it. |
+| uv, just | `mise.toml`, for development and CI |
 | uv in the image | The uv stage in the `Dockerfile` |
 
 `required-version` in `pyproject.toml` is a range, not a pin. uv stops with an
-error if the dev shell or the image falls outside it. `requires-python` is the
+error if the uv from mise or the image falls outside it. `requires-python` is the
 oldest Python the package supports, and ruff takes its target from it.
 
-Compose needs `PYTHON_VERSION` even to start the broker alone. `just` and the
-dev shell set it from `.python-version`. Elsewhere, set it yourself:
+Compose needs `PYTHON_VERSION` even to start the broker alone. `just` and
+`mise.toml` set it from `.python-version`. Elsewhere, set it yourself:
 `PYTHON_VERSION="$(cat .python-version)" docker compose up -d mosquitto`.
 
 ### Dependency updates
 
 Dependabot opens update pull requests every week. Its settings are in
-`.github/dependabot.yml`. It covers four ecosystems:
+`.github/dependabot.yml`. It covers three ecosystems:
 
 | Ecosystem | What it updates |
 | --- | --- |
 | uv | Python packages in `pyproject.toml` and `uv.lock` |
 | GitHub Actions | The actions used in `.github/workflows/` |
 | Docker | The uv stage in the `Dockerfile` |
-| Nix | The inputs in `flake.lock`, which give the dev shell its tools |
+
+Dependabot does not read `mise.toml`. Update the uv and just versions there by
+hand.
 
 - **Minor and patch updates** arrive as one pull request per ecosystem.
 - **Each major update** arrives as its own pull request, so you can review it,

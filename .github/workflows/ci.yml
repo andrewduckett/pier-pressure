@@ -2,7 +2,7 @@ name: CI
 
 # On push and PR, runs the full gate (`just check` = lint + typecheck + test),
 # the opt-in integration tests against a throwaway Mosquitto broker, and an image build.
-# The checks run inside the Nix dev shell, so CI tests what developers run.
+# The checks run with the tools in mise.toml, so CI tests what developers run.
 # Activates once the repo is pushed to GitHub.
 on:
   push:
@@ -26,16 +26,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # The dev shell gives the job the Python, uv and just that a developer gets:
-      # Python from .python-version, uv and just from flake.lock (#45).
-      - name: Install Nix
-        uses: cachix/install-nix-action@v31
-
-      - name: Cache the Nix store
-        uses: nix-community/cache-nix-action@v7
-        with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock', '.python-version') }}
-          restore-prefixes-first-match: nix-${{ runner.os }}-
+      # mise gives the job the tools a developer gets: uv and just from mise.toml,
+      # and Python from .python-version through uv (#45).
+      - name: Install mise and its tools
+        uses: jdx/mise-action@v5
 
       - name: Cache uv packages
         uses: actions/cache@v6
@@ -45,26 +39,20 @@ jobs:
           restore-keys: uv-${{ runner.os }}-
 
       - name: Sync dependencies
-        run: nix develop -c uv sync --frozen
+        run: mise exec -- uv sync --frozen
 
       - name: Run checks
-        run: nix develop -c just check
+        run: mise exec -- just check
 
   integration:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
-      # The dev shell gives the job the Python, uv and just that a developer gets:
-      # Python from .python-version, uv and just from flake.lock (#45).
-      - name: Install Nix
-        uses: cachix/install-nix-action@v31
-
-      - name: Cache the Nix store
-        uses: nix-community/cache-nix-action@v7
-        with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock', '.python-version') }}
-          restore-prefixes-first-match: nix-${{ runner.os }}-
+      # mise gives the job the tools a developer gets: uv and just from mise.toml,
+      # and Python from .python-version through uv (#45).
+      - name: Install mise and its tools
+        uses: jdx/mise-action@v5
 
       - name: Cache uv packages
         uses: actions/cache@v6
@@ -74,12 +62,12 @@ jobs:
           restore-keys: uv-${{ runner.os }}-
 
       - name: Sync dependencies
-        run: nix develop -c uv sync --frozen
+        run: mise exec -- uv sync --frozen
 
       # Brings up the Compose broker (--wait for healthy), runs
       # `pytest -m integration`, and tears the stack down even on failure.
       - name: Run integration tests
-        run: nix develop -c just test-integration
+        run: mise exec -- just test-integration
 
   # Builds the release image (amd64 only, not pushed), so a pull request that
   # changes the Dockerfile, the base image or the uv stage is tested before it

@@ -1,0 +1,13 @@
+# PierPressure development tools. `mise install` installs them; with
+# `mise activate` in your shell, they are on PATH whenever you are in the repo.
+#
+# Python is not listed: uv installs the version in .python-version, its only pin.
+
+[tools]
+# Keep inside [tool.uv] required-version in pyproject.toml (design D5).
+uv = "0.12"
+just = "1"
+
+[env]
+# The image's Python version, which compose.yaml needs (#45).
+PYTHON_VERSION = "{{ read_file(path='.python-version') | trim }}"
