@@ -113,9 +113,10 @@ Stage status checked against the code on 2026-10-13.
 
 1. **Open the dev shell** — `mise.toml` gives uv and just, and uv gives Python;
    `just check` passes inside it — supported
-2. **Pick the next story** — issues with `priority/*` labels, and propose rules in
-   `openspec/config.yaml` — supported
-3. **Propose → archive** — OpenSpec with the `spec-driven-review` schema — supported
+2. **Pick the next story** — `lets-build` picks from the GitHub Project linked to
+   the repo, by its Priority field — supported
+3. **Propose → archive** — OpenSpec with Let's Spec's `lets-standard` schema, and
+   `lets-minimal` for chores and small stories — supported
 4. **Gate the change** — `just check` and integration tests in CI, CodeQL, and a
    `main` ruleset that requires both — supported
 5. **Prove against real Home Assistant** — integration tests run against a real
