@@ -1,0 +1,25 @@
+# PierPressure development tools. `mise install` installs them; with
+# `mise activate` in your shell, they are on PATH whenever you are in the repo.
+#
+# Python is not listed: uv installs the version in .python-version, its only pin.
+
+[tools]
+# Keep inside [tool.uv] required-version in pyproject.toml (design D5).
+uv = "0.12"
+just = "1"
+# Let's Spec: the agent skills, OpenSpec schemas and working rules. Move its
+# version, its asset_pattern and the OpenSpec CLI together: the CLI version is in
+# the Let's Spec release notes.
+node = "26"
+gh = "2.102"
+"npm:@fission-ai/openspec" = "1.13.2"
+"github:andrewduckett/lets-spec" = { version = "0.3.0", asset_pattern = "lets-spec-0.3.0.tar.gz" }
+
+[env]
+# The image's Python version, which compose.yaml needs (#45).
+PYTHON_VERSION = "{{ read_file(path='.python-version') | trim }}"
+LETS_SPEC_FLOW = "standard"
+
+[hooks]
+# Keeps the Let's Spec skills and rules in step with the pin above.
+enter = "lets sync"

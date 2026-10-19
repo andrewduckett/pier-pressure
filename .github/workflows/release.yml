@@ -23,16 +23,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # The dev shell gives the job the Python, uv and just that a developer gets:
-      # Python from .python-version, uv and just from flake.lock (#45).
-      - name: Install Nix
-        uses: cachix/install-nix-action@v31
-
-      - name: Cache the Nix store
-        uses: nix-community/cache-nix-action@v7
-        with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock', '.python-version') }}
-          restore-prefixes-first-match: nix-${{ runner.os }}-
+      # mise gives the job the tools a developer gets: uv and just from mise.toml,
+      # and Python from .python-version through uv (#45).
+      - name: Install mise and its tools
+        uses: jdx/mise-action@v5
 
       - name: Cache uv packages
         uses: actions/cache@v6
@@ -42,10 +36,10 @@ jobs:
           restore-keys: uv-${{ runner.os }}-
 
       - name: Sync dependencies
-        run: nix develop -c uv sync --frozen
+        run: mise exec -- uv sync --frozen
 
       - name: Run checks
-        run: nix develop -c just check
+        run: mise exec -- just check
 
   release:
     needs: check
