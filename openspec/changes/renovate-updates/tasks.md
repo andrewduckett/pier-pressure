@@ -18,7 +18,7 @@
 ## 3. Dependabot stands down [depends-on: 2]
 
 - [x] 3.1 [easy] `.github/dependabot.yml` is gone, so Dependabot opens no version update pull requests. (verify: test ! -e .github/dependabot.yml) (✓ `test ! -e .github/dependabot.yml` passed)
-- [ ] 3.2 [easy] The repository has the dependency graph and Dependabot alerts on, and Dependabot security updates off (design DS8). Then check the Open Question: list the ecosystems the SBOM holds, and file a follow-up issue if PyPI is missing. (verify: gh api repos/andrewduckett/pier-pressure/vulnerability-alerts --silent && test "$(gh api repos/andrewduckett/pier-pressure --jq .security_and_analysis.dependabot_security_updates.status)" = disabled)
+- [x] 3.2 [easy] The repository has the dependency graph and Dependabot alerts on, and Dependabot security updates off (design DS8). Then check the Open Question: list the ecosystems the SBOM holds, and file a follow-up issue if PyPI is missing. (verify: gh api repos/andrewduckett/pier-pressure/vulnerability-alerts --silent && test "$(gh api repos/andrewduckett/pier-pressure --jq .security_and_analysis.dependabot_security_updates.status)" = disabled) (✓ alerts on, security updates `disabled`; the graph is always on for a public repository. SBOM: 75 `pypi`, 11 `githubactions`, 1 `github`, so PyPI is indexed and no follow-up issue is needed)
 
 ## 4. Docs name Renovate [depends-on: 2]
 
