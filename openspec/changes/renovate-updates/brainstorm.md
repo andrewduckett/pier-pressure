@@ -18,10 +18,10 @@ https://github.com/andrewduckett/pier-pressure/issues/119
 | D9 | Are Dependabot alerts on today? | No. The vulnerability-alerts API returns 404, so this change turns on the dependency graph and alerts. | Evidence: GitHub API |
 | D10 | Where does the uv patch-only rule apply? | To every uv pin Renovate reads: the Dockerfile's uv stage and `mise.toml`. `mise.toml`'s `uv = "0.12"` already floats over patches, so in practice only the Dockerfile gets uv PRs. | Evidence: `mise.toml`, `Dockerfile`, `pyproject.toml` |
 | D11 | Does the HA add-on's `version` in `ha-addon/config.yaml` get Renovate PRs? | No. The release workflow owns it, and Renovate has no manager for that file. | Evidence: `.github/workflows/release.yml` |
-| D12 | Which commit prefixes do update PRs use? | Today's: `build(deps)` for uv, Docker and `mise.toml`; `ci(deps)` for Actions. | Assumption |
+| D12 | Which commit prefixes do update PRs use? | Today's: `build(deps)` for uv, Docker and `mise.toml`; `ci(deps)` for Actions. | Evidence: `.github/dependabot.yml` (`prefix`, `include: scope`) |
 | D13 | How do the Python packages that `pyproject.toml` lists without a version get updated? | Each gets a lower bound at its `uv.lock` version, so the weekly uv PR moves it by name, as Dependabot did. No weekly lock refresh: indirect dependencies move only through direct updates and security PRs, as today. A local Renovate dry run showed it skips unversioned packages. | User |
 | D14 | Does Renovate's default limit of two new PRs an hour apply? | No. With one run a day it would hold PRs back for days, so the hourly limit is lifted. The limit on open PRs stays at the default. | Assumption |
-| D15 | How are update PRs labelled? | `dependencies`, as Dependabot did; security PRs also get `security`. | Assumption |
+| D15 | How are update PRs labelled? | `dependencies`, as Dependabot did; security PRs also get `security`. | Evidence: Dependabot's default label |
 
 ## Changes from the story
 

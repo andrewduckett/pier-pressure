@@ -7,7 +7,7 @@
 
 The design has one durable fork: Renovate, self-hosted, owns every version update, and Dependabot only raises alerts. An engineer could plausibly add a Dependabot ecosystem back, or move Renovate to its hosted app. Either would bring back duplicate pull requests or break the Let's Spec bump. ADR-0024 records it.
 
-Running Renovate from npm with the mise toolchain (design DS1), its pins (DS2), the workflow shape (DS3), the app token (DS4), the config split (DS5), the Let's Spec entry (DS6), the lower bounds (DS7) and the repository settings (DS8) are recoverable from the code and its comments. The lower bounds also have a test that guards them. None needs an ADR.
+The other design decisions, DS1 to DS8, can be recovered from the code and its comments. They cover how Renovate runs, its pins, the workflow, the app token, the config, the Let's Spec entry, the lower bounds and the repository settings. A test also guards the lower bounds. None needs an ADR.
 
 No in-force record governs dependency updates, so ADR-0024 supersedes nothing. ADR-0016 (Python 3.14) is the record closest to this change: Renovate never updates Python, so Python changes only by the deliberate edit that record describes.
 

@@ -1,6 +1,6 @@
 ## Why
 
-Dependabot can't read `mise.toml`, so the development tools pinned there are bumped by hand and fall behind: Let's Spec is at 0.4.0 against 0.6.0, OpenSpec at 1.13.2 against 1.15.0, and gh at 2.102 against 2.103.2. Dependabot alerts are also off (D9), so nothing reports a vulnerable dependency. Renovate reads `mise.toml`. Running it beside Dependabot for version updates would open duplicate pull requests, so Renovate takes over every update, and Dependabot only raises alerts.
+Dependabot can't read `mise.toml`, so the development tools pinned there are bumped by hand and fall behind. Let's Spec is at 0.4.0 against 0.6.0, OpenSpec at 1.13.2 against 1.15.0, and gh at 2.102 against 2.103.2. Dependabot alerts are also off (D9), so nothing reports a vulnerable dependency. Renovate reads `mise.toml`. Running it beside Dependabot for version updates would open duplicate pull requests, so Renovate takes over every update, and Dependabot only raises alerts.
 
 ## What Changes
 
@@ -23,7 +23,7 @@ Dependabot can't read `mise.toml`, so the development tools pinned there are bum
 
 ### New Capabilities
 
-- `dependency-updates`: how pinned dependencies are kept current. It covers which files are watched, how updates are grouped and scheduled, how security fixes arrive, how a Let's Spec bump stays in sync, and what is never updated.
+- `dependency-updates`: how pinned dependencies are kept current. It says which files the update bot watches, and how it groups and schedules updates. It also covers how security fixes arrive, how a Let's Spec bump stays in sync, and what the bot never updates.
 
 ### Modified Capabilities
 

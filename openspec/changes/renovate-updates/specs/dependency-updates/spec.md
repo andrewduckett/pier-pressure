@@ -5,7 +5,13 @@ Keeps every pinned dependency current through update pull requests that the main
 ## ADDED Requirements
 
 ### Requirement: Updates cover every pinned dependency file
-The update bot SHALL track the dependencies pinned in `pyproject.toml` and `uv.lock`, the actions used in `.github/workflows/`, the uv stage in the `Dockerfile`, the images in `compose.yaml`, and the tools in `mise.toml`.
+The update bot SHALL track the dependencies pinned in these places:
+
+- `pyproject.toml` and `uv.lock`
+- the actions in `.github/workflows/`
+- the uv stage in the `Dockerfile`
+- the images in `compose.yaml`
+- the tools in `mise.toml`
 
 #### Scenario: A mise tool falls behind
 - **WHEN** `mise.toml` pins gh at `2.102` and gh 2.103.2 is released
@@ -63,7 +69,7 @@ The update bot SHALL open a separate pull request for each Let's Spec update, of
 - **THEN** Let's Spec arrives in its own pull request, and gh arrives in the weekly `mise.toml` pull request
 
 ### Requirement: A Let's Spec update carries what `lets sync` writes
-A Let's Spec update pull request SHALL include the files `lets sync` writes for the new version, so that `mise install` and `lets sync --check` pass on it without a hand edit.
+A Let's Spec update pull request SHALL include the files `lets sync` writes for the new version. `mise install` and `lets sync --check` SHALL then pass on it without a hand edit.
 
 #### Scenario: Let's Spec moves from 0.4.0 to 0.6.0
 - **WHEN** the update bot opens the pull request that moves Let's Spec from 0.4.0 to 0.6.0

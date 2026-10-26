@@ -2,11 +2,11 @@
 
 Two local Renovate dry runs (44.181.8, `--platform=local --dry-run=lookup`) and one mise test shaped this design:
 
-- **Every manager we need is on by default.** Renovate found 56 dependencies in 8 files: `pep621` (`pyproject.toml` with `uv.lock`), `github-actions` (3 workflows), `dockerfile` (the uv stage), `docker-compose` (Mosquitto), and `mise` (all six tools, `github:andrewduckett/lets-spec` included).
+- **Every manager we need is on by default.** Renovate found 56 dependencies in 8 files. The managers were `pep621` (`pyproject.toml` with `uv.lock`), `github-actions` (3 workflows), `dockerfile` (the uv stage) and `docker-compose` (Mosquitto). The `mise` manager found all six tools, `github:andrewduckett/lets-spec` included.
 - **Two defaults are wrong here.** The `pyenv` manager proposes Python 3.15 through `.python-version`. uv 0.13.5 is already out, so both the Dockerfile and `mise.toml` get a uv minor PR on the first run unless a rule stops them.
 - **Packages without a version are skipped.** `ruff`, `mypy`, `pytest`, `pre-commit`, `jsonschema`, `types-pyyaml` and `PyYAML` get `skipReason: unversioned`. Packages with a range move only when `rangeStrategy` is `update-lockfile`: `pydantic-ai-slim` 2.43.0 → 2.61.0 appeared only with that setting.
 - **Renovate does not touch `asset_pattern`.** It changes only the Let's Spec `version`, so the literal `lets-spec-0.4.0.tar.gz` pattern would break `mise install` on the bump.
-- **The mise shim installs a newly pinned version on first use.** In a clone with Let's Spec moved to 0.6.0 and `MISE_TRUSTED_CONFIG_PATHS` set to the clone, `lets sync` installed 0.6.0, then rewrote `AGENTS.md`, 10 skill and schema files, and added one new folder.
+- **The mise shim installs a newly pinned version on first use.** The test moved Let's Spec to 0.6.0 in a clone, and set `MISE_TRUSTED_CONFIG_PATHS` to the clone. `lets sync` then installed 0.6.0. It rewrote `AGENTS.md` and 10 skill and schema files, and added one new folder.
 - **Renovate needs Node `^24.11.0`.** `mise.toml` pins Node 26, which Renovate rejects.
 - **Let's Spec moved to `sidereal-io/lets-spec`.** GitHub redirects the old name, which is how the dry run still found it.
 - **The `main` ruleset** requires the `check` and `image` checks and an up-to-date branch. The repository is public, so Actions minutes are free.
@@ -26,7 +26,10 @@ Two local Renovate dry runs (44.181.8, `--platform=local --dry-run=lookup`) and 
 ## Test Seams
 
 - **Primary test seam:** a local Renovate dry run with the repository config, `--platform=local --dry-run=lookup`. Read its "packageFiles with updates" log entry: it shows which dependencies are found and which updates each rule lets through. This is the before-merge evidence (D5).
-- **Existing seams reused:** `renovate-config-validator --strict` for the config, the CI step "Check the Let's Spec files" for the Let's Spec bump, and pytest for one new guard: `tests/test_dependency_bounds.py` fails if a package in `pyproject.toml`'s dependencies or dependency groups has no version. Without it, a new unversioned package would silently drop out of Renovate.
+- **Existing seams reused:**
+  - `renovate-config-validator --strict` checks the config.
+  - The CI step "Check the Let's Spec files" checks the Let's Spec bump.
+  - pytest runs one new guard, `tests/test_dependency_bounds.py`. It fails if a package in `pyproject.toml`'s dependencies or dependency groups has no version. Without it, a new unversioned package would silently drop out of Renovate.
 
 ## Scrutiny Tier & Blast Radius
 
@@ -37,7 +40,7 @@ Two local Renovate dry runs (44.181.8, `--platform=local --dry-run=lookup`) and 
 
 ### DS1. Renovate runs from npm on the runner, not from its Docker image
 
-The job installs mise with `jdx/mise-action`, then runs `npx renovate@<version>` under Node 24 through `mise exec node@<major> --`. Renovate's `binarySource` is `global`, so it uses the uv and `lets` on PATH.
+The job checks out the repository and installs its toolchain with `jdx/mise-action`, as `ci.yml` does. It puts mise's shims folder on PATH, then runs `npx renovate@<version>` under Node 24 through `mise exec node@<major> --`. Renovate's `binarySource` is `global`. So in Renovate's clone, `uv` and `lets` resolve through the shims to the versions that clone's `mise.toml` pins.
 
 - *Alternative: `renovatebot/github-action`.* It runs Renovate in its own container, which has no mise and no `lets`. `lets sync` would need a custom image to maintain.
 - *Why:* the mise test showed that `lets sync` works through the shim once the clone is trusted. The same toolchain also gives `uv lock` the uv that `[tool.uv] required-version` accepts.
@@ -63,6 +66,21 @@ Its `validate` job runs only on `pull_request`, and runs `renovate-config-valida
 
 The job mints a one-hour token from the `RENOVATE_APP_ID` and `RENOVATE_APP_PRIVATE_KEY` secrets, scoped to this repository, and passes it as `RENOVATE_TOKEN`. With an app token, Renovate's default `platformCommit: auto` makes commits through the GitHub API. They show the app as author and are verified, so no `gitAuthor` lookup is needed.
 
+The app needs these repository permissions, and no others:
+
+| Permission | Access | Why |
+|---|---|---|
+| Contents | Read and write | Push update branches |
+| Pull requests | Read and write | Open and update the pull requests |
+| Issues | Read and write | Labels, and the Dependency Dashboard |
+| Workflows | Read and write | GitHub rejects any commit that changes `.github/workflows/` without it |
+| Checks | Read and write | Read CI results on its branches |
+| Commit statuses | Read and write | Read CI results on its branches |
+| Dependabot alerts | Read-only | The source of the `[SECURITY]` pull requests |
+| Metadata | Read-only | Required by GitHub |
+
+The README's setup steps list the same table.
+
 ### DS5. Runner-only settings are environment variables; rules live in `.github/renovate.json5`
 
 **Settings only the runner may set** go in the workflow's `env`:
@@ -70,7 +88,10 @@ The job mints a one-hour token from the `RENOVATE_APP_ID` and `RENOVATE_APP_PRIV
 - `RENOVATE_ONBOARDING=false` and `RENOVATE_REQUIRE_CONFIG=required`
 - `RENOVATE_ALLOWED_COMMANDS='["^lets sync$"]'`
 - `RENOVATE_BINARY_SOURCE=global`
-- `MISE_TRUSTED_CONFIG_PATHS`, set to Renovate's clone folder, and passed into child processes through `customEnvVariables`
+- `RENOVATE_BASE_DIR`, a fixed folder under `${{ runner.temp }}`, so Renovate's clone has a known path
+- `RENOVATE_CUSTOM_ENV_VARIABLES`, which passes two variables into child processes such as `uv lock` and `lets sync`:
+  - `MISE_TRUSTED_CONFIG_PATHS`, set to `RENOVATE_BASE_DIR`, so mise trusts the `mise.toml` in any clone under it.
+  - `MISE_GITHUB_TOKEN`, set to the workflow's own `GITHUB_TOKEN`, so mise's release downloads are authenticated. That token is read-only (`contents: read`). The app token never reaches a child process.
 
 A repository config can't widen any of these. That is what keeps `lets sync` the only command (spec: the update bot runs no other commands).
 
@@ -84,16 +105,17 @@ A repository config can't widen any of these. That is what keeps `lets sync` the
 | `labels` | `["dependencies"]` | D15 |
 | `semanticCommits` | `enabled`, type `build`, scope `deps` | D12 |
 | `vulnerabilityAlerts` | `addLabels: ["security"]` | Renovate's defaults already give a separate, unscheduled PR with a `[SECURITY]` suffix |
-| `pyenv` | `enabled: false` | D8 |
+| `pyenv` | `enabled: false` | D8, with rule 5 |
 | `pep621` | `rangeStrategy: "update-lockfile"` | Range-satisfying releases move `uv.lock` only |
 
 `packageRules`, in order (a later rule wins):
 1. **Group minor and patch updates by ecosystem:** `pep621`; `github-actions` plus the custom manager; `dockerfile` plus `docker-compose`; `mise`.
-2. **Actions commits:** `matchManagers: ["github-actions"]` gets `semanticCommitType: "ci"`.
+2. **Actions commits:** `matchFileNames: [".github/workflows/**"]` gets `semanticCommitType: "ci"`. It matches by file, so it covers the custom manager's Renovate and Node pins as well as the actions.
 3. **Let's Spec on its own:** `matchPackageNames: ["sidereal-io/lets-spec"]` gets its own `groupName`, plus `postUpgradeTasks` with `commands: ["lets sync"]`, `fileFilters: ["**/*"]` and `executionMode: "branch"`.
 4. **uv by patch only:** `matchPackageNames: ["astral-sh/uv", "ghcr.io/astral-sh/uv"]` with `matchUpdateTypes: ["minor", "major"]` gets `enabled: false`. The dry run classed 0.12 → 0.13 as `minor`.
+5. **Python never:** `matchDepNames: ["python"]` gets `enabled: false`. This covers `requires-python` in `pyproject.toml` (the `pep621` manager reports it as `python`), the Dockerfile's base image and `.python-version`, whatever the managers do in future.
 
-Majors stay ungrouped because the group rules match only `minor` and `patch`. `automerge` stays at its default, off.
+Majors stay out of the weekly groups because rule 1 matches only `minor` and `patch`. Rule 3 has no update-type filter, but Renovate puts a major update into a separate group branch with a `major-` prefix. So a Let's Spec major and minor never share a pull request. `automerge` stays at its default, off.
 
 ### DS6. `mise.toml` points Let's Spec at its new home, with a glob pattern
 
@@ -113,10 +135,10 @@ Two calls, run as their own task:
 
 ## Risks / Trade-offs
 
-- [The App's private key leaks, and someone writes to the repository as the app.] → The app is installed on pier-pressure only, with the permissions in the setup steps. The key lives only in the two secrets and the maintainer's password manager. Rotate it from the app's page.
-- [`MISE_TRUSTED_CONFIG_PATHS` doesn't reach `lets sync`, because Renovate gives child processes a reduced environment.] → It goes through `customEnvVariables`. The first live run's checklist (D5) checks the Let's Spec PR. If it fails, Renovate posts an artifact error on the PR, and a bug issue follows.
+- [The App's private key leaks, and someone writes to the repository as the app.] → The app is installed on pier-pressure only, with only the permissions DS4 lists. The key lives only in the two secrets and the maintainer's password manager. Rotate it from the app's page.
+- [The mise variables don't reach `lets sync`, because Renovate gives child processes a reduced environment.] → They go through `RENOVATE_CUSTOM_ENV_VARIABLES`. The first live run's checklist (D5) checks the Let's Spec PR. If it fails, Renovate posts an artifact error on the PR, and a bug issue follows.
 - [The Monday run fails, and weekly updates wait a week.] → The window is all of Monday, so a manual `workflow_dispatch` that day catches up. The dashboard can also request any held-back update.
-- [A uv minor never gets a PR, and the dashboard doesn't list disabled updates, so the project can fall behind on uv.] → The README says uv minors are moved by hand, and how.
+- [uv falls behind, because a uv minor never gets a PR and the dashboard doesn't list disabled updates.] → The README says to move uv minors by hand, and how.
 - [GitHub's dependency graph doesn't index `uv.lock`, so Python packages raise no alerts.] → See Open Questions. Actions and Docker alerts are unaffected.
 - [Renovate's npm package runs with a write token.] → It's pinned to an exact version, and updates arrive as reviewed PRs. The token expires within an hour.
 
