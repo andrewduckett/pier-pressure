@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # mise gives the job the tools a developer gets: uv and just from mise.toml,
+      # mise gives the job the tools a developer gets: uv and the others in mise.toml,
       # and Python from .python-version through uv (#45).
       - name: Install mise and its tools
         uses: jdx/mise-action@v5
@@ -39,7 +39,7 @@ jobs:
         run: mise exec -- uv sync --frozen
 
       - name: Run checks
-        run: mise exec -- just check
+        run: mise run check
 
   release:
     needs: check

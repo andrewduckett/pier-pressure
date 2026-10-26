@@ -1,6 +1,6 @@
 name: CI
 
-# On push and PR, runs the full gate (`just check` = lint + typecheck + test),
+# On push and PR, runs the full gate (`mise run check` = lint + typecheck + test),
 # the opt-in integration tests against a throwaway Mosquitto broker, and an image build.
 # The checks run with the tools in mise.toml, so CI tests what developers run.
 # Activates once the repo is pushed to GitHub.
@@ -26,7 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # mise gives the job the tools a developer gets: uv and just from mise.toml,
+      # mise gives the job the tools a developer gets: uv and the others in mise.toml,
       # and Python from .python-version through uv (#45).
       - name: Install mise and its tools
         uses: jdx/mise-action@v5
@@ -42,7 +42,7 @@ jobs:
         run: mise exec -- uv sync --frozen
 
       - name: Run checks
-        run: mise exec -- just check
+        run: mise run check
 
       # Fails when the Let's Spec rules, skills or schemas differ from the
       # release pinned in mise.toml. Fix: run `lets sync` and commit what it wrote.
@@ -54,7 +54,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # mise gives the job the tools a developer gets: uv and just from mise.toml,
+      # mise gives the job the tools a developer gets: uv and the others in mise.toml,
       # and Python from .python-version through uv (#45).
       - name: Install mise and its tools
         uses: jdx/mise-action@v5
@@ -72,7 +72,7 @@ jobs:
       # Brings up the Compose broker (--wait for healthy), runs
       # `pytest -m integration`, and tears the stack down even on failure.
       - name: Run integration tests
-        run: mise exec -- just test-integration
+        run: mise run test-integration
 
   # Builds the release image (amd64 only, not pushed), so a pull request that
   # changes the Dockerfile, the base image or the uv stage is tested before it
