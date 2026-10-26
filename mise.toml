@@ -65,3 +65,16 @@ run = "docker compose --profile full up --build"
 [tasks.broker-down]
 description = "Stop the local dev stack."
 run = "docker compose down"
+
+[tasks.test-integration]
+description = "Run the opt-in integration tests against a throwaway local broker."
+# Tear the whole stack down even when the tests fail, and keep pytest's status.
+run = '''
+#!/usr/bin/env bash
+set -uo pipefail
+docker compose up -d --wait mosquitto
+uv run pytest -m integration
+status=$?
+docker compose down
+exit $status
+'''
