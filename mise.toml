@@ -25,9 +25,17 @@ LETS_SPEC_FLOW = "standard"
 enter = "lets sync"
 
 # Thin wrappers over uv (design D10). `mise tasks` lists them.
+[tasks.install]
+description = "Sync the environment, dependencies, and lockfile."
+run = "uv sync"
+
 [tasks.lint]
 description = "Lint with ruff."
 run = "uv run ruff check ."
+
+[tasks.format]
+description = "Format with ruff."
+run = "uv run ruff format ."
 
 [tasks.typecheck]
 description = "Type-check the package and scripts with mypy."
@@ -37,7 +45,23 @@ run = "uv run mypy"
 description = "Run the test suite."
 run = "uv run pytest"
 
+[tasks.run]
+description = "Run the service."
+run = "uv run python -m pierpressure"
+
 [tasks.check]
 description = "The full gate CI runs: lint + typecheck + test."
 # Task references run in order and stop at the first failure.
 run = [{ task = "lint" }, { task = "typecheck" }, { task = "test" }]
+
+[tasks.broker-up]
+description = "Start a local Mosquitto broker (dev only, anonymous on 1883)."
+run = "docker compose up -d mosquitto"
+
+[tasks.up]
+description = "Run PierPressure in its image against a local broker. Needs ./config.yaml."
+run = "docker compose --profile full up --build"
+
+[tasks.broker-down]
+description = "Stop the local dev stack."
+run = "docker compose down"
