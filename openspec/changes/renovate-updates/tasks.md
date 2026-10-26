@@ -5,7 +5,7 @@
 
 ## 2. Renovate [depends-on: 1]
 
-- [ ] 2.1 [medium] `.github/renovate.json5` holds the repository rules in design DS5: the settings table and packageRules 1 to 5, with a comment giving each rule's reason. The config passes the validator. (verify: mise exec node@24 -- npx --yes --package renovate@44.181.8 -- renovate-config-validator --strict .github/renovate.json5)
+- [x] 2.1 [medium] `.github/renovate.json5` holds the repository rules in design DS5: the settings table and packageRules 1 to 5, with a comment giving each rule's reason. The config passes the validator. (verify: mise exec node@24 -- npx --yes --package renovate@44.181.8 -- renovate-config-validator --strict .github/renovate.json5) (✓ validator passed, as global and with `--no-global`; a typo copy fails it)
 - [ ] 2.2 [complex] `.github/workflows/renovate.yml` runs Renovate as design DS1 to DS5 say:
   - **Triggers:** a daily schedule, `workflow_dispatch`, and `pull_request` filtered to the config and the workflow.
   - **`validate` job:** runs on pull requests only.
