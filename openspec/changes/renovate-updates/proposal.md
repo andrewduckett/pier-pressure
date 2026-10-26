@@ -11,6 +11,7 @@ Dependabot can't read `mise.toml`, so the development tools pinned there are bum
 - **New:** the Dependency Dashboard issue lists what Renovate found and what it is holding back (D4).
 - **New:** CI checks the Renovate config on every pull request that changes it (D5).
 - **Kept:** one weekly pull request per ecosystem for minor and patch updates, and each major update in its own pull request. Commit prefixes and labels stay as they are today (D12, D15).
+- **Changed:** each Python package that `pyproject.toml` lists without a version gets a lower bound at its locked version, so it is updated by name, as under Dependabot (D13). Updates within a range move only `uv.lock`.
 - **Kept:** uv moves only by patch releases. A uv minor stays a deliberate change to `mise.toml`, `[tool.uv] required-version` and the Dockerfile together (D10).
 - **Kept:** Python is never updated. It changes only through `.python-version` (D8). The add-on's `version` stays with the release workflow (D11).
 - **Changed:** the OpenSpec CLI is an ordinary pin, no longer moved together with Let's Spec. The Let's Spec `asset_pattern` becomes a glob, so a version bump doesn't break `mise install`.
@@ -32,7 +33,7 @@ None. `release-image` relies on CI building the image on update pull requests, a
 
 - **Added:** a Renovate config file; `.github/workflows/renovate.yml`; a CI job that validates the Renovate config.
 - **Removed:** `.github/dependabot.yml`.
-- **Changed:** `mise.toml` (the Let's Spec `asset_pattern` and comment); comments in `Dockerfile` and `.github/workflows/ci.yml`; `README.md`; `docs/data-updates.md`; `openspec/discovery.md`.
+- **Changed:** `pyproject.toml` (lower bounds for unversioned packages); `mise.toml` (the Let's Spec `asset_pattern` and comment); comments in `Dockerfile` and `.github/workflows/ci.yml`; `README.md`; `docs/data-updates.md`; `openspec/discovery.md`.
 - **Repository settings:** the dependency graph and Dependabot alerts are turned on.
 - **Maintainer setup, outside the repository:** a GitHub App installed on pier-pressure, and its ID and private key stored as the secrets `RENOVATE_APP_ID` and `RENOVATE_APP_PRIVATE_KEY`. The workflow cannot run until these exist.
 - **The verdict core:** unaffected. No code under `pierpressure/` changes.

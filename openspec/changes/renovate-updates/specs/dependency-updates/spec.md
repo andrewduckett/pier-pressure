@@ -19,6 +19,17 @@ The update bot SHALL track the dependencies pinned in `pyproject.toml` and `uv.l
 - **WHEN** the update bot has run on `main`
 - **THEN** the Dependency Dashboard issue lists dependencies from each of `pyproject.toml`, `uv.lock`, `.github/workflows/`, `Dockerfile`, `compose.yaml` and `mise.toml`
 
+### Requirement: Every direct Python package is updated by name
+The update bot SHALL track each package listed in `pyproject.toml`'s dependencies and dependency groups by name. When a newer release still satisfies the listed range, the update SHALL change `uv.lock` and leave the range in `pyproject.toml` as it is.
+
+#### Scenario: A development tool gets a patch release
+- **WHEN** `uv.lock` holds ruff 0.17.1 and ruff 0.17.2 is released
+- **THEN** the weekly uv pull request moves ruff to 0.17.2 in `uv.lock`
+
+#### Scenario: A release inside the listed range
+- **WHEN** `pyproject.toml` lists `pydantic-ai-slim>=2.43.0`, `uv.lock` holds 2.43.0, and 2.61.0 is released
+- **THEN** the weekly uv pull request moves `uv.lock` to 2.61.0, and `pyproject.toml` still says `>=2.43.0`
+
 ### Requirement: Python is never updated
 The update bot SHALL NOT propose a change to `.python-version` or to the Python base image. Python changes only by a hand edit to `.python-version`.
 

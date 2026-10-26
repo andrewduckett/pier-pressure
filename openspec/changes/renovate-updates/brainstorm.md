@@ -19,7 +19,7 @@ https://github.com/andrewduckett/pier-pressure/issues/119
 | D10 | Where does the uv patch-only rule apply? | To every uv pin Renovate reads: the Dockerfile's uv stage and `mise.toml`. `mise.toml`'s `uv = "0.12"` already floats over patches, so in practice only the Dockerfile gets uv PRs. | Evidence: `mise.toml`, `Dockerfile`, `pyproject.toml` |
 | D11 | Does the HA add-on's `version` in `ha-addon/config.yaml` get Renovate PRs? | No. The release workflow owns it, and Renovate has no manager for that file. | Evidence: `.github/workflows/release.yml` |
 | D12 | Which commit prefixes do update PRs use? | Today's: `build(deps)` for uv, Docker and `mise.toml`; `ci(deps)` for Actions. | Assumption |
-| D13 | Does Renovate refresh `uv.lock`'s indirect dependencies on a schedule? | No, the same as today. Indirect dependencies move through direct updates and security PRs. | Assumption |
+| D13 | How do the Python packages that `pyproject.toml` lists without a version get updated? | Each gets a lower bound at its `uv.lock` version, so the weekly uv PR moves it by name, as Dependabot did. No weekly lock refresh: indirect dependencies move only through direct updates and security PRs, as today. A local Renovate dry run showed it skips unversioned packages. | User |
 | D14 | Does Renovate's default limit of two new PRs an hour apply? | No. With one run a day it would hold PRs back for days, so the hourly limit is lifted. The limit on open PRs stays at the default. | Assumption |
 | D15 | How are update PRs labelled? | `dependencies`, as Dependabot did; security PRs also get `security`. | Assumption |
 
@@ -27,6 +27,7 @@ https://github.com/andrewduckett/pier-pressure/issues/119
 
 - Added: Mosquitto in `compose.yaml` is tracked (D2). The story's Docker scope covered only the Dockerfile.
 - Changed: Let's Spec gets its own PR instead of sharing the weekly `mise.toml` group (D6), so its rule changes can be reviewed and reverted alone.
+- Added: each Python package listed without a version in `pyproject.toml` gets a lower bound (D13), so Renovate can track it.
 - Added: CI runs the Renovate config validator on PRs that change the config (D5).
 - Settled: the story's "its own token or GitHub App" is a GitHub App (D1).
 
