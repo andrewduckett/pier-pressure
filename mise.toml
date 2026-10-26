@@ -23,3 +23,21 @@ LETS_SPEC_FLOW = "standard"
 [hooks]
 # Keeps the Let's Spec skills and rules in step with the pin above.
 enter = "lets sync"
+
+# Thin wrappers over uv (design D10). `mise tasks` lists them.
+[tasks.lint]
+description = "Lint with ruff."
+run = "uv run ruff check ."
+
+[tasks.typecheck]
+description = "Type-check the package and scripts with mypy."
+run = "uv run mypy"
+
+[tasks.test]
+description = "Run the test suite."
+run = "uv run pytest"
+
+[tasks.check]
+description = "The full gate CI runs: lint + typecheck + test."
+# Task references run in order and stop at the first failure.
+run = [{ task = "lint" }, { task = "typecheck" }, { task = "test" }]

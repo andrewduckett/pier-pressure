@@ -7,7 +7,7 @@ mention:
 
 `` P='`just|Justfile|\bjust (install|run|lint|format|typecheck|test|check|up|broker)|uv and just|uv, just|\[just\]|-- just|through just|just \(task|^just = ' ``
 
-- [ ] 1.1 [medium] `mise run check` runs the `lint`, `typecheck` and `test` tasks from `[tasks]` in `mise.toml`, in that order, and stops at the first failure (D3, D4) (verify: `mise run check`)
+- [x] 1.1 [medium] `mise run check` runs the `lint`, `typecheck` and `test` tasks from `[tasks]` in `mise.toml`, in that order, and stops at the first failure (D3, D4) (verify: `mise run check`) (✓ `mise run check` passed: 1153 tests)
 - [ ] 1.2 [easy] `install`, `format`, `run`, `broker-up`, `up` and `broker-down` are mise tasks with the same commands and descriptions as their Justfile recipes, and there is no `default` task (D5, D9) (verify: `for t in install lint format typecheck test run check broker-up up broker-down; do mise tasks info "$t" >/dev/null || exit 1; done; ! mise tasks info default 2>/dev/null`)
 - [ ] 1.3 [medium] `mise run test-integration` starts the Compose broker, runs `pytest -m integration`, always tears the stack down, and exits with pytest's status (D7) (verify: `mise run test-integration`)
 - [ ] 1.4 [easy] The `Justfile` and the `just` pin in `mise.toml` are gone, and `PYTHON_VERSION` still comes from `[env]` (D6) (verify: `test ! -e Justfile && ! grep -qE '^just = ' mise.toml && mise install && test -n "$(mise exec -- printenv PYTHON_VERSION)"`)
