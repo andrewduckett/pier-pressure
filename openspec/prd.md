@@ -160,8 +160,8 @@ decision records in [`docs/decisions/`](../docs/decisions/).
 - **Astronomy:** Skyfield, Astroplan, Astropy.
 - **Conditions:** Open-Meteo as the base provider, with 7Timer! for seeing and
   transparency.
-- **Toolchain:** uv, just, ruff (lint and format), mypy, pytest, pre-commit.
-  GitHub Actions CI runs `just check`.
+- **Toolchain:** uv, mise (tasks), ruff (lint and format), mypy, pytest,
+  pre-commit. GitHub Actions CI runs `mise run check`.
 - **Deployment:** a Docker container, with a Compose file that includes a local
   Mosquitto broker for development. Home Assistant OS cannot run arbitrary
   containers, so a Home Assistant add-on wraps the same image for those users.

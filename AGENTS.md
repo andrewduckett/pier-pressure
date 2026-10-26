@@ -39,16 +39,17 @@ backlog is the GitHub Project linked to this repository.
 The shared working rules are in the Let's Spec block at the end of this file.
 This section adds what is specific to PierPressure.
 
-- **Dev tools:** `mise.toml` pins `uv`, `just` and the Let's Spec tools; run
-  `mise install` once. uv installs the Python in `.python-version`. Without mise,
-  install uv and just yourself.
-- **Toolchain:** `uv` (env/deps/lockfile), `just` (tasks), `ruff` (lint AND
-  format — no black), `mypy` (strict types), `pytest`. Python 3.14, pinned only in
-  `.python-version`.
-- **`just check`** (`ruff check`, mypy, pytest) is the CI gate — it must be green
-  before a PR. Formatting is enforced by the pre-commit hooks
-  (`uv run pre-commit install` once per clone), not by `just check`. Practice TDD:
-  write the failing test first.
+- **Dev tools:** `mise.toml` pins `uv` and the Let's Spec tools, and holds the
+  dev tasks; run `mise install` once. uv installs the Python in
+  `.python-version`. Without mise, install uv yourself and run the uv command
+  each task wraps.
+- **Toolchain:** `uv` (env/deps/lockfile), mise (tasks: `mise run <task>`,
+  `mise tasks` lists them), `ruff` (lint AND format — no black), `mypy` (strict
+  types), `pytest`. Python 3.14, pinned only in `.python-version`.
+- **`mise run check`** (`ruff check`, mypy, pytest) is the CI gate — it must be
+  green before a PR. Formatting is enforced by the pre-commit hooks
+  (`uv run pre-commit install` once per clone), not by `mise run check`.
+  Practice TDD: write the failing test first.
 - Add dependencies with `uv add` so `pyproject.toml` and `uv.lock` stay in step.
 - **Plain language:** apply the core standard (`iso-24495-1`) to all prose, and
   the science and technical sector standard (`iso-24495-3`) to architecture specs,
