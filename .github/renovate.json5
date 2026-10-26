@@ -22,6 +22,9 @@
   rebaseWhen: "behind-base-branch",
   labels: ["dependencies"],
   // The commit prefixes Dependabot used: build(deps), and ci(deps) for Actions.
+  // config:recommended's preset would make them chore(deps) through a package
+  // rule, which beats the type set here.
+  ignorePresets: [":semanticPrefixFixDepsChoreOthers"],
   semanticCommits: "enabled",
   semanticCommitType: "build",
   semanticCommitScope: "deps",
