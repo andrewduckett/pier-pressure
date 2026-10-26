@@ -45,7 +45,7 @@
   - Let's Spec in its own group.
 
   Paste a summary into the PR description. (verify: LOG_LEVEL=debug LOG_FORMAT=json mise exec node@24 -- npx --yes renovate@44.181.8 --platform=local --dry-run=lookup > .workspace/renovate-dry-run.ndjson && jq -e -s '[.[] | select(.msg=="packageFiles with updates") | .config[][] | .deps[] | select(.depName=="python" or .depName=="uv" or .depName=="ghcr.io/astral-sh/uv") | .updates[]? | select(.updateType != "patch")] | length == 0' .workspace/renovate-dry-run.ndjson)
-- [ ] 5.2 [easy] The PR description carries the post-merge checklist from D5. Every check passes on the branch. (verify: just check && mise exec -- lets sync --check)
+- [x] 5.2 [easy] The PR description carries the post-merge checklist from D5. Every check passes on the branch. (verify: just check && mise exec -- lets sync --check) (✓ `just check` passed, 1153 tests; `lets sync --check` passed; checklist in PR #120)
 
 ## Deviations Ledger
 
