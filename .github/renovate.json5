@@ -73,6 +73,7 @@
     {
       matchPackageNames: ["sidereal-io/lets-spec"],
       groupName: "Let's Spec",
+      groupSlug: "lets-spec",
       postUpgradeTasks: {
         commands: ["lets sync"],
         fileFilters: ["**/*"],
