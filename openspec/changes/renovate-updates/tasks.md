@@ -38,7 +38,7 @@
 
 ## 5. Proof before merge [depends-on: 3, 4]
 
-- [ ] 5.1 [complex] A full local dry run with the repository config shows the spec's behavior:
+- [x] 5.1 [complex] A full local dry run with the repository config shows the spec's behavior: (✓ dry run shows every file, no Python or uv minor branch, ruff and pydantic-ai-slim in the uv group, Let's Spec alone; post-filter check passed; summary in PR #120)
   - Dependencies are found in `pyproject.toml`, `uv.lock`, the workflows, the `Dockerfile`, `compose.yaml` and `mise.toml`.
   - No update for `python` or `.python-version`, and no uv minor.
   - `ruff` and `pydantic-ai-slim` updates in the uv group.
@@ -55,3 +55,5 @@
 - 2026-10-26, task 2.2: the `validate` job passes `--no-global`, so the file is checked as a repository config. Without it the validator treats any named file as global config, and a runner-only option there would pass.
 - 2026-10-26, task 2.2: `actions/create-github-app-token@v3` deprecates `app-id` for `client-id`. The input takes either, so the existing `RENOVATE_APP_ID` secret goes into `client-id` and keeps its name.
 - 2026-10-26, task 2.2: the workflow's read-only token reaches Renovate as `MISE_READ_TOKEN`, not `GITHUB_TOKEN`, so Renovate never mistakes it for its own token.
+- 2026-10-26, task 5.1: the planned `jq` check reads the `packageFiles with updates` log, which lists updates before package rules disable them, so it fails on the uv minors that rule 4 holds back. The check used reads the post-filter `flattened updates found` entry instead: `jq -e -s '[.[] | select(.msg|test("flattened updates found"))] | length == 1 and (.[0].msg | test("(^|[ ,:])(uv|python|ghcr\\.io/astral-sh/uv)(,|$)") | not)'`. Turning rule 4 off makes a Docker uv branch appear, which confirms the rule works.
+- 2026-10-26, task 5.1: the dry run showed `chore(deps):` commits, because `config:recommended` sets the type through a package rule. The config now has `ignorePresets: [":semanticPrefixFixDepsChoreOthers"]`.
