@@ -522,7 +522,7 @@ Each rule there says why it exists.
   branch, so the pull request also holds the skills, schemas and `AGENTS.md`
   block the new version ships. `lets sync` is the only command Renovate may run.
 - **Security fixes** arrive at once, each in its own pull request whose title
-  ends with `[SECURITY]` and which is labelled `security`. Renovate opens them
+  ends with `[security]` and which is labelled `security`. Renovate opens them
   from Dependabot alerts, which are on for this repository. Dependabot itself
   opens no pull requests.
 - **The Dependency Dashboard** is an open issue that lists every dependency
@@ -545,8 +545,9 @@ OpenNGC catalogue is never updated by Renovate. For both, follow
   releases, because a uv 0.x minor can break. Change these three together in one
   pull request: `[tool.uv] required-version` in `pyproject.toml`, `uv` in
   `mise.toml`, and the uv image tag in the `Dockerfile`. The Dependency Dashboard
-  does not list uv minors, so check the
-  [uv releases](https://github.com/astral-sh/uv/releases) now and then.
+  shows a new uv minor under its detected dependencies, but offers no pull request
+  or checkbox for it. Check there, or the
+  [uv releases](https://github.com/astral-sh/uv/releases), now and then.
 
 #### Set up Renovate
 
@@ -565,7 +566,7 @@ requests opened with a workflow's own token don't trigger CI. Set the app up onc
    | Workflows | Read and write | GitHub rejects any commit that changes `.github/workflows/` without it |
    | Checks | Read and write | Read CI results on its branches |
    | Commit statuses | Read and write | Read CI results on its branches |
-   | Dependabot alerts | Read-only | The source of the `[SECURITY]` pull requests |
+   | Dependabot alerts | Read-only | The source of the `[security]` pull requests |
    | Metadata | Read-only | Required by GitHub |
 
 2. Install the app on this repository only.
