@@ -68,6 +68,12 @@ jobs:
       - name: Put mise's shims on PATH
         run: echo "${MISE_DATA_DIR:-$HOME/.local/share/mise}/shims" >> "$GITHUB_PATH"
 
+      - name: Install Renovate
+        run: >-
+          mise exec node@"$RENOVATE_NODE_VERSION" --
+          npm install --no-audit --no-fund --prefix "$RUNNER_TEMP/renovate-cli"
+          renovate@"$RENOVATE_VERSION"
+
       # Pull requests opened with the workflow's own token don't trigger CI, and
       # main requires the check and image checks. The token expires in an hour.
       - name: Get a token for the Renovate app
@@ -98,4 +104,8 @@ jobs:
             --arg dir "$RENOVATE_BASE_DIR" --arg token "$MISE_READ_TOKEN" \
             '{MISE_TRUSTED_CONFIG_PATHS: $dir, MISE_GITHUB_TOKEN: $token}')"
           export RENOVATE_CUSTOM_ENV_VARIABLES
-          mise exec node@"$RENOVATE_NODE_VERSION" -- npx --yes renovate@"$RENOVATE_VERSION"
+          # Node by its full path, not `mise exec`, which would put Node 24 and
+          # this checkout's lets ahead of the shims for every child process.
+          # lets needs Node 26, and must be the version in the clone's mise.toml.
+          node="$(mise where node@"$RENOVATE_NODE_VERSION")/bin/node"
+          "$node" "$RUNNER_TEMP/renovate-cli/node_modules/renovate/dist/renovate.js"
