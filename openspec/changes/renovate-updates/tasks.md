@@ -1,7 +1,7 @@
 ## 1. Pins Renovate can read
 
 - [x] 1.1 [easy] Every package in `pyproject.toml`'s `[project] dependencies` and `[dependency-groups]` has a lower bound at its `uv.lock` version (design DS7). `tests/test_dependency_bounds.py` fails on any package with no version. `[build-system] requires` stays unversioned, and `uv.lock`'s package versions don't change. (verify: uv run pytest tests/test_dependency_bounds.py && uv lock --check) (✓ `uv run pytest tests/test_dependency_bounds.py && uv lock --check` passed; uv.lock package versions unchanged)
-- [ ] 1.2 [easy] `mise.toml` installs Let's Spec as `github:sidereal-io/lets-spec`, with `asset_pattern = "lets-spec-*.tar.gz"` (design DS6). The comment that tied OpenSpec to Let's Spec now says OpenSpec is an ordinary pin. (verify: mise install && mise exec -- lets sync --check)
+- [x] 1.2 [easy] `mise.toml` installs Let's Spec as `github:sidereal-io/lets-spec`, with `asset_pattern = "lets-spec-*.tar.gz"` (design DS6). The comment that tied OpenSpec to Let's Spec now says OpenSpec is an ordinary pin. (verify: mise install && mise exec -- lets sync --check) (✓ `mise install && mise exec -- lets sync --check` passed)
 
 ## 2. Renovate [depends-on: 1]
 
