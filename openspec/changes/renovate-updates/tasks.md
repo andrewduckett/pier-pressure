@@ -22,7 +22,7 @@
 
 ## 4. Docs name Renovate [depends-on: 2]
 
-- [ ] 4.1 [medium] The README's "Dependency updates" section covers:
+- [x] 4.1 [medium] The README's "Dependency updates" section covers: (✓ verify grep passed)
   - **What Renovate does:** what it updates and how it groups updates, the Let's Spec pull request, `[SECURITY]` pull requests and the Dependency Dashboard.
   - **Setup:** the GitHub App setup, with design DS4's permissions table, and the two secrets.
   - **By hand:** uv minors and Python are moved by hand.
