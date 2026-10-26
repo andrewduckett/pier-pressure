@@ -29,7 +29,7 @@
   semanticCommitType: "build",
   semanticCommitScope: "deps",
   // Security pull requests already skip the schedule and the groups, and their
-  // titles end with [SECURITY].
+  // titles end with [security]. Semantic commits lowercase Renovate's [SECURITY].
   vulnerabilityAlerts: {
     addLabels: ["security"],
   },
