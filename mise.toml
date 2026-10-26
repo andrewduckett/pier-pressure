@@ -13,7 +13,7 @@ gh = "2.103.2"
 "npm:@fission-ai/openspec" = "1.15.0"
 # Let's Spec: the agent skills, OpenSpec schemas and working rules. Renovate moves
 # only the version, so the asset pattern is a glob.
-"github:sidereal-io/lets-spec" = { version = "0.4.0", asset_pattern = "lets-spec-*.tar.gz" }
+"github:sidereal-io/lets-spec" = { version = "0.6.0", asset_pattern = "lets-spec-*.tar.gz" }
 
 [env]
 # The image's Python version, which compose.yaml needs (#45).

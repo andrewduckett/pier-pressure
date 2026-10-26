@@ -7,6 +7,13 @@ artifacts:
     description: Decision ledger from grilling the story with the user, before any plan is written
     template: brainstorm.md
     instruction: |
+      Read [Domain language](.agents/skills/lets-shape/references/domain-language.md)
+      from the code repository root (not the planning store or change directory).
+      Use `planningHome.root` from this artifact's
+      instructions to read project context, the selected shared glossary, and
+      existing ancestor and affected-scope glossaries. Resolve ambiguity before
+      dependent work. Write agreed definitions outside change delta folders.
+
       Shape the story with the user before any plan is written. One change
       delivers one story. Run the `lets-brainstorm` skill: it says how to
       question the user, how to fill the ledger and when to split the story.
@@ -19,6 +26,9 @@ artifacts:
       2. Read the story packet: the issue body. Then read the code, tests and
          specs it touches. `openspec list --specs` lists the project's
          capabilities, and `openspec show <spec-id> --type spec` prints one.
+         Use full capability IDs and read relevant shared behavior too.
+         The brainstorm skill explains how to find affected domains without
+         adding a selection step when the scope is clear.
       3. Question the user as the skill says, until you share one
          understanding of scope, behavior and acceptance. Leave the how to
          design.md.
@@ -51,13 +61,15 @@ artifacts:
         removals. Mark a breaking change **BREAKING**.
       - Capabilities: the contract with the specs step. Run
         `openspec list --specs` and read the specs this change touches before
-        you fill it in.
+        you fill it in. Read relevant shared specs too; list them below only
+        when their requirements change. One change can affect several domains.
         - New Capabilities: each becomes `specs/<capability-path>/spec.md`.
           New path segments are kebab-case, such as `user-auth` or
           `identity/user-auth`, and follow the project's existing layout.
         - Modified Capabilities: only those whose requirements change, not
           their implementation. Use the exact existing path under
-          `openspec/specs/`. Leave it empty when no requirement changes.
+          `openspec/specs/`, confirmed by its full ID in `openspec list --specs`.
+          Leave it empty when no requirement changes.
       - Impact: affected code, APIs, dependencies and systems.
 
       A change declares at least one capability, or opts out of specs:
@@ -75,6 +87,13 @@ artifacts:
     description: Detailed specifications for the change
     template: spec.md
     instruction: |
+      Read [Domain language](.agents/skills/lets-shape/references/domain-language.md)
+      from the code repository root (not the planning store or change directory).
+      Use `planningHome.root` from this artifact's
+      instructions to read project context, the selected shared glossary, and
+      existing ancestor and affected-scope glossaries. Resolve ambiguity before
+      dependent work. Write agreed definitions outside change delta folders.
+
       Write one spec file per capability the proposal lists. The
       `lets-write-specs` skill says what belongs in a requirement, how to write a
       scenario a test can assert, and how to change an existing requirement.
@@ -87,10 +106,16 @@ artifacts:
         layout; do not add a domain level when the project's specs are flat.
       - A modified capability: `specs/<capability-path>/spec.md`, at the exact
         path of the existing spec. Do not move or rename the capability.
+        Confirm its full ID with `openspec list --specs` before writing the
+        delta. Strict validation alone does not prove the path matches.
       - The existing specs live under `<planningHome.root>/openspec/specs/`.
         Take `planningHome.root` from the `openspec instructions ... --json`
         output. It is the repository, or the store when the change lives in
         one.
+
+      Read relevant shared specs, but write deltas only for capabilities whose
+      requirements change. One change can include several domains. The spec
+      writing skill explains how to preserve full paths for every delta type.
 
       There must be at least one spec file, unless the change sets
       `skip_specs: true` as the proposal step describes. If the proposal lists
@@ -254,6 +279,17 @@ apply:
   requires: [ tasks ]
   tracks: tasks.md
   instruction: |
+    Read [Domain language](.agents/skills/lets-shape/references/domain-language.md)
+    from the code repository root (not the planning store or change directory).
+    Use `root.path` from this apply instruction's
+    JSON to resolve project config context, the selected shared glossary, and
+    existing ancestor and affected-scope glossaries. Read them again before
+    implementation, including in a separate planning store. Preserve domain
+    meaning across code representations; investigate apparent contradictions
+    and pause dependent work for discussion. Unrelated work may continue.
+    Review glossary definitions when retiring a capability; spec deletion
+    alone must not remove its glossary. Add no review stage to a flow.
+
     Read brainstorm.md, design.md, the specs and tasks.md. Then work through
     the pending tasks in order. You may run `[parallel]` tasks in concurrent
     subagents once the sections they depend on are done.
