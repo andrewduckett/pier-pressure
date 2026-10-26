@@ -76,7 +76,7 @@ jobs:
 
   # Builds the release image (amd64 only, not pushed), so a pull request that
   # changes the Dockerfile, the base image or the uv stage is tested before it
-  # merges. Dependabot's Docker updates rely on this job (#26).
+  # merges. Renovate's Docker updates rely on this job (#119).
   image:
     runs-on: ubuntu-latest
     steps:

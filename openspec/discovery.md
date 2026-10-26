@@ -124,8 +124,8 @@ Stage status checked against the code on 2026-10-13.
    manual acceptance checklist was removed because it was too long to run on every
    change, and no lighter way has replaced it — partial
 6. **Keep data and pins current** — `docs/data-updates.md` explains how to update
-   the pinned ephemeris and catalogue, and Dependabot opens grouped weekly updates
-   for uv, Actions, and Docker — supported
+   the pinned ephemeris and catalogue, and Renovate opens grouped weekly updates
+   for uv, Actions, Docker, and `mise.toml` — supported
 7. **Notice a provider breaking** — a diagnostic health sensor per weather
    provider shows when it last succeeded, so a Home Assistant automation can alert
    on a long failure — supported

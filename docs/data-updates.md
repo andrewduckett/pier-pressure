@@ -14,8 +14,8 @@ reviewed, not merged by accident.
 
 | Data | What it gives | How it is pinned | Current version | Licence | How an update arrives |
 | --- | --- | --- | --- | --- | --- |
-| de421 ephemeris | Sun, moon, and planet positions | The `skyfield-data` package in `uv.lock` | `skyfield-data` 7.0.0 | MIT (package); the JPL ephemeris data is public domain | A Dependabot pull request |
-| Skyfield's built-in timescale | Leap seconds and Earth-rotation (delta-T) data | The `skyfield` package in `uv.lock` | `skyfield` 1.55 | MIT | A Dependabot pull request |
+| de421 ephemeris | Sun, moon, and planet positions | The `skyfield-data` package in `uv.lock` | `skyfield-data` 7.0.0 | MIT (package); the JPL ephemeris data is public domain | A Renovate pull request |
+| Skyfield's built-in timescale | Leap seconds and Earth-rotation (delta-T) data | The `skyfield` package in `uv.lock` | `skyfield` 1.55 | MIT | A Renovate pull request |
 | OpenNGC catalogue | Deep-sky objects for target ranking | The committed files in `pierpressure/data/openngc/` | Release tag `v20260501` | CC BY-SA 4.0 | By hand; nothing updates it for you |
 
 Where each one is loaded:
@@ -65,7 +65,7 @@ history.
 
 ## Update the ephemeris or the timescale
 
-Dependabot proposes new versions of `skyfield` and `skyfield-data` every week.
+Renovate proposes new versions of `skyfield` and `skyfield-data` every week.
 Minor and patch versions come grouped with other Python packages in one pull
 request; a major version comes on its own.
 
@@ -164,7 +164,7 @@ RuntimeWarning: The file finals2000A.all has expired. Please upgrade your versio
 
 PierPressure never reads that file: it uses Skyfield's built-in timescale
 instead. The warning does not affect the verdict, and the tests do not fail on
-it. It goes away when a newer `skyfield-data` is released and Dependabot proposes
+it. It goes away when a newer `skyfield-data` is released and Renovate proposes
 it.
 
 ## Related decisions

@@ -28,7 +28,7 @@
   - **By hand:** uv minors and Python are moved by hand.
 
   (verify: grep -q RENOVATE_APP_PRIVATE_KEY README.md && ! grep -q -E 'dependabot\.yml|Dependabot opens' README.md)
-- [ ] 4.2 [parallel] [easy] These name Renovate instead of Dependabot:
+- [x] 4.2 [parallel] [easy] These name Renovate instead of Dependabot: (✓ verify grep passed)
   - `docs/data-updates.md`
   - stage 6 of `openspec/discovery.md`
   - the comment on line 11 of the `Dockerfile`
