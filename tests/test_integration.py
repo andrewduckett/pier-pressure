@@ -1,7 +1,7 @@
 """Task 8.5 (optional): opt-in integration test against a real local broker.
 
 Marked ``integration`` and deselected by default (see ``addopts`` in
-pyproject.toml), so ``just test`` is green on a machine with no broker. Run it
+pyproject.toml), so ``mise run test`` is green on a machine with no broker. Run it
 explicitly with ``uv run pytest -m integration`` against a local Mosquitto.
 """
 

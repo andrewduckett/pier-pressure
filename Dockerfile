@@ -3,8 +3,7 @@
 
 # The Python version comes from .python-version, its only pin (#45). The build has
 # no default, so a build that does not pass it fails at the first FROM. CI and the
-# release workflow read .python-version; the Justfile and mise.toml export it for
-# Compose.
+# release workflow read .python-version; mise.toml exports it for Compose.
 ARG PYTHON_VERSION
 
 # Pinned to match [tool.uv] required-version in pyproject.toml (design D5). A named
