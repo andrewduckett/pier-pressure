@@ -6,7 +6,6 @@
 [tools]
 # Keep inside [tool.uv] required-version in pyproject.toml (design D5).
 uv = "0.12"
-just = "1"
 node = "26"
 gh = "2.102"
 # The OpenSpec CLI is an ordinary pin. Renovate moves it with the other tools.
