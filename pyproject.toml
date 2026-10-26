@@ -7,7 +7,7 @@ requires-python = ">=3.14"
 dependencies = [
     "pydantic>=2",
     "paho-mqtt>=2",
-    "PyYAML",
+    "PyYAML>=6.0.3",
     "skyfield>=1.55",
     "skyfield-data>=7.0.0",
     "httpx>=0.28.1",
@@ -40,12 +40,12 @@ artifacts = [
 [dependency-groups]
 # Synced by default by `uv sync`, so `just check` has its tools locally and in CI.
 dev = [
-    "pytest",
-    "ruff",
-    "mypy",
-    "pre-commit",
-    "jsonschema",
-    "types-PyYAML",
+    "pytest>=9.1.1",
+    "ruff>=0.17.1",
+    "mypy>=2.4.0",
+    "pre-commit>=4.7.0",
+    "jsonschema>=4.26.0",
+    "types-PyYAML>=6.0.12.20260906",
 ]
 
 [tool.uv]

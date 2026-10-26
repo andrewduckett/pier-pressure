@@ -500,31 +500,83 @@ Compose needs `PYTHON_VERSION` even to start the broker alone. `just` and
 
 ### Dependency updates
 
-Dependabot opens update pull requests every week. Its settings are in
-`.github/dependabot.yml`. It covers three ecosystems:
+[Renovate](https://docs.renovatebot.com/) opens the dependency update pull
+requests. A GitHub Actions workflow runs it once a day
+(`.github/workflows/renovate.yml`), and its rules are in `.github/renovate.json5`.
+Each rule there says why it exists.
+
+#### What Renovate updates
 
 | Ecosystem | What it updates |
 | --- | --- |
 | uv | Python packages in `pyproject.toml` and `uv.lock` |
-| GitHub Actions | The actions used in `.github/workflows/` |
-| Docker | The uv stage in the `Dockerfile` |
+| GitHub Actions | The actions in `.github/workflows/`, and the Renovate and Node versions the Renovate workflow pins |
+| Docker | The uv stage in the `Dockerfile`, and the Mosquitto image in `compose.yaml` |
+| `mise.toml` | The development tools, such as gh and the OpenSpec CLI |
 
-Dependabot does not read `mise.toml`. Update the uv and just versions there by
-hand.
-
-- **Minor and patch updates** arrive as one pull request per ecosystem.
+- **Minor and patch updates** arrive on Mondays, as one pull request per
+  ecosystem.
 - **Each major update** arrives as its own pull request, so you can review it,
   and revert it if needed, on its own.
-- **Python itself is never updated by Dependabot.** To change the Python
-  version, edit `.python-version` by hand. The Python base image follows it.
+- **Let's Spec** always arrives on its own. Renovate runs `lets sync` on that
+  branch, so the pull request also holds the skills, schemas and `AGENTS.md`
+  block the new version ships. `lets sync` is the only command Renovate may run.
+- **Security fixes** arrive at once, each in its own pull request whose title
+  ends with `[SECURITY]` and which is labelled `security`. Renovate opens them
+  from Dependabot alerts, which are on for this repository. Dependabot itself
+  opens no pull requests.
+- **The Dependency Dashboard** is an open issue that lists every dependency
+  Renovate found and the updates it is holding back. Tick an update there to get
+  its pull request at the next daily run.
 
 CI runs on every update pull request: `just check`, the integration tests, an
 image build, and CodeQL. Merge an update when its checks pass. Nothing merges
 automatically.
 
 An update to `skyfield` or `skyfield-data` can change the verdict, and the bundled
-OpenNGC catalogue is never updated by Dependabot. For both, follow
+OpenNGC catalogue is never updated by Renovate. For both, follow
 [docs/data-updates.md](docs/data-updates.md).
+
+#### What you update by hand
+
+- **Python.** Renovate never updates it. Edit `.python-version`; the Python base
+  image follows it.
+- **A new uv minor version, such as 0.13.** Renovate offers only uv patch
+  releases, because a uv 0.x minor can break. Change these three together in one
+  pull request: `[tool.uv] required-version` in `pyproject.toml`, `uv` in
+  `mise.toml`, and the uv image tag in the `Dockerfile`. The Dependency Dashboard
+  does not list uv minors, so check the
+  [uv releases](https://github.com/astral-sh/uv/releases) now and then.
+
+#### Set up Renovate
+
+Renovate signs in as a GitHub App, so that CI runs on its pull requests. Pull
+requests opened with a workflow's own token don't trigger CI. Set the app up once:
+
+1. Create a GitHub App under your account: **Settings → Developer settings →
+   GitHub Apps → New GitHub App**. Turn off the webhook. Give it these
+   repository permissions, and no others:
+
+   | Permission | Access | Why |
+   | --- | --- | --- |
+   | Contents | Read and write | Push update branches |
+   | Pull requests | Read and write | Open and update the pull requests |
+   | Issues | Read and write | Labels, and the Dependency Dashboard |
+   | Workflows | Read and write | GitHub rejects any commit that changes `.github/workflows/` without it |
+   | Checks | Read and write | Read CI results on its branches |
+   | Commit statuses | Read and write | Read CI results on its branches |
+   | Dependabot alerts | Read-only | The source of the `[SECURITY]` pull requests |
+   | Metadata | Read-only | Required by GitHub |
+
+2. Install the app on this repository only.
+3. Generate a private key on the app's page.
+4. Add two repository secrets: **Settings → Secrets and variables → Actions**.
+   - `RENOVATE_APP_ID`: the app's ID or client ID, both shown on its page.
+   - `RENOVATE_APP_PRIVATE_KEY`: the whole private key file.
+5. Run it: **Actions → Renovate → Run workflow**.
+
+If the key leaks, generate a new one on the app's page, delete the old one, and
+update the secret.
 
 ### Releasing
 

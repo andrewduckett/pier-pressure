@@ -8,7 +8,7 @@
 ARG PYTHON_VERSION
 
 # Pinned to match [tool.uv] required-version in pyproject.toml (design D5). A named
-# stage, not `COPY --from=<image>`, because Dependabot reads only FROM lines (#26).
+# stage keeps the pin on one FROM line, where Renovate updates it (#26, #119).
 FROM ghcr.io/astral-sh/uv:0.12.24 AS uv
 
 FROM python:${PYTHON_VERSION}-slim AS builder

@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.14"
 resolution-markers = [
     "python_full_version >= '3.15'",
@@ -925,19 +925,19 @@ requires-dist = [
     { name = "paho-mqtt", specifier = ">=2" },
     { name = "pydantic", specifier = ">=2" },
     { name = "pydantic-ai-slim", extras = ["anthropic", "google", "openai"], specifier = ">=2.43.0" },
-    { name = "pyyaml" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "skyfield", specifier = ">=1.55" },
     { name = "skyfield-data", specifier = ">=7.0.0" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "jsonschema" },
-    { name = "mypy" },
-    { name = "pre-commit" },
-    { name = "pytest" },
-    { name = "ruff" },
-    { name = "types-pyyaml" },
+    { name = "jsonschema", specifier = ">=4.26.0" },
+    { name = "mypy", specifier = ">=2.4.0" },
+    { name = "pre-commit", specifier = ">=4.7.0" },
+    { name = "pytest", specifier = ">=9.1.1" },
+    { name = "ruff", specifier = ">=0.17.1" },
+    { name = "types-pyyaml", specifier = ">=6.0.12.20260906" },
 ]
 
 [[package]]
