@@ -63,14 +63,17 @@ The build needs `PYTHON_VERSION` and stops with an error without it.
 Then run it as in step 2, with `pierpressure` as the image name. An image you
 build yourself reports the version `0.0.0+unreleased`.
 
-To run from source instead, install [uv](https://docs.astral.sh/uv/) and
-[just](https://github.com/casey/just), then:
+To run from source instead, install [mise](https://mise.jdx.dev) and run
+`mise install` in the repo, then:
 
 ```bash
-just install                   # create the environment
-just run                       # reads ./config.yaml
+mise run install               # create the environment (uv sync)
+mise run run                   # reads ./config.yaml
 uv run python -m pierpressure /path/to/config.yaml   # or name a file
 ```
+
+Without mise, install [uv](https://docs.astral.sh/uv/) and run `uv sync`, then
+`uv run python -m pierpressure`.
 
 ## 🏡 Install as a Home Assistant add-on (app)
 
@@ -463,19 +466,23 @@ openspec/        # product intent, discovery map, specs, and change history
 ## 🛠️ Development
 
 Install [mise](https://mise.jdx.dev), then run `mise install` in the repo once. It
-installs the uv and just versions set in `mise.toml`, and uv installs the Python
-version set in `.python-version`. Without mise, install uv and just yourself.
+installs the tool versions set in `mise.toml`, and uv installs the Python version
+set in `.python-version`. The tasks are in `mise.toml`, and `mise tasks` lists
+them. Each line below shows the uv command the task runs:
 
 ```bash
-just install     # uv sync
-just lint        # ruff check
-just format      # ruff format
-just typecheck   # mypy
-just test        # pytest (integration tests are skipped by default)
-just check       # lint + typecheck + test: the CI gate
-just test-integration   # runs integration tests against a throwaway Mosquitto
-just up          # runs PierPressure in its image against a local broker
+mise run install     # uv sync
+mise run lint        # uv run ruff check .
+mise run format      # uv run ruff format .
+mise run typecheck   # uv run mypy
+mise run test        # uv run pytest (integration tests are skipped by default)
+mise run check       # lint + typecheck + test: the CI gate
+mise run test-integration   # integration tests against a throwaway Mosquitto
+mise run up          # PierPressure in its image against a local broker
 ```
+
+Without mise, install [uv](https://docs.astral.sh/uv/) and run the uv command
+shown for each task. For `check`, run lint, typecheck and test in turn.
 
 CI runs these same commands with the tools in `mise.toml`, so it tests the tools
 you use.
@@ -487,15 +494,15 @@ Each tool version is set in one place:
 | Tool | Set in |
 | --- | --- |
 | Python | `.python-version`. uv, the project environment, mypy, CI, and the image all read it. |
-| uv, just | `mise.toml`, for development and CI |
+| uv | `mise.toml`, for development and CI |
 | uv in the image | The uv stage in the `Dockerfile` |
 
 `required-version` in `pyproject.toml` is a range, not a pin. uv stops with an
 error if the uv from mise or the image falls outside it. `requires-python` is the
 oldest Python the package supports, and ruff takes its target from it.
 
-Compose needs `PYTHON_VERSION` even to start the broker alone. `just` and
-`mise.toml` set it from `.python-version`. Elsewhere, set it yourself:
+Compose needs `PYTHON_VERSION` even to start the broker alone. `mise.toml` sets
+it from `.python-version`. Elsewhere, set it yourself:
 `PYTHON_VERSION="$(cat .python-version)" docker compose up -d mosquitto`.
 
 ### Dependency updates
@@ -529,7 +536,7 @@ Each rule there says why it exists.
   Renovate found and the updates it is holding back. Tick an update there to get
   its pull request at the next daily run.
 
-CI runs on every update pull request: `just check`, the integration tests, an
+CI runs on every update pull request: `mise run check`, the integration tests, an
 image build, and CodeQL. Merge an update when its checks pass. Nothing merges
 automatically.
 
@@ -584,7 +591,7 @@ Releases are for the maintainer. Each one publishes an image to
 `ghcr.io/andrewduckett/pier-pressure` and creates a GitHub release.
 
 1. On GitHub, open **Actions → Release → Run workflow**, choose `main`, and run
-   it. The workflow re-runs `just check`, builds and pushes the image for amd64
+   it. The workflow re-runs `mise run check`, builds and pushes the image for amd64
    and arm64, and then tags the commit and creates the release.
 2. The version is monthly CalVer, `YYYY.M.N`: the UTC year and month, and a
    counter that starts at 0 each month. The first release in October 2026 is
