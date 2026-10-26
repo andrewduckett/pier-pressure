@@ -95,11 +95,11 @@ The update bot SHALL offer only patch releases of uv. A uv minor release SHALL N
 - **THEN** no update pull request moves uv to 0.13 in the `Dockerfile` or `mise.toml`
 
 ### Requirement: Security fixes arrive at once, on their own
-When a Dependabot alert reports a vulnerable dependency, the update bot SHALL open a separate pull request that moves it to a fixed version. The pull request's title SHALL start with `[SECURITY]`, and it SHALL ignore the weekly schedule.
+When a Dependabot alert reports a vulnerable dependency, the update bot SHALL open a separate pull request that moves it to a fixed version. The pull request's title SHALL end with `[SECURITY]`, and it SHALL ignore the weekly schedule.
 
 #### Scenario: An alert on a Python package
 - **WHEN** a Dependabot alert opens on Tuesday for a package in `uv.lock`, and a fixed version exists
-- **THEN** by the end of the next daily run, a pull request titled `[SECURITY] ...` moves that package to the fixed version, and it is labelled `security`
+- **THEN** by the end of the next daily run, a pull request whose title ends with `[SECURITY]` moves that package to the fixed version, and it is labelled `security`
 
 ### Requirement: The update bot runs every day
 The update bot SHALL run once a day on `main`.
