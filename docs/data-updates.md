@@ -71,13 +71,13 @@ request; a major version comes on its own.
 
 1. Check whether the pull request changes `skyfield` or `skyfield-data` in
    `uv.lock`. If it does not, this section does not apply.
-2. Wait for CI. If `just check` passes, no published number moved, and you can
-   merge as usual.
+2. Wait for CI. If `mise run check` passes, no published number moved, and you
+   can merge as usual.
 3. If `tests/test_golden_verdict.py` fails, check out the pull request branch and
    run the regeneration command above.
 4. Review the golden difference. If it is expected, commit the new golden
    documents to the same branch with a message that says which package moved them.
-5. Run `just check` again and merge once it passes.
+5. Run `mise run check` again and merge once it passes.
 
 If a grouped pull request mixes a data change with unrelated updates and the
 difference is hard to read, close it and update `skyfield` or `skyfield-data` on
@@ -105,7 +105,7 @@ deliberate commit of new files, made on its own branch.
 4. Check the licence. If the release still uses CC BY-SA 4.0, keep
    `pierpressure/data/openngc/LICENSE-CC-BY-SA-4.0.txt` as it is. If the licence or
    the author list changed, update the licence file and `NOTICE` to match.
-5. Run `just check`. If OpenNGC changed a column or a type code, `test_catalog.py`
+5. Run `mise run check`. If OpenNGC changed a column or a type code, `test_catalog.py`
    or the parser fails; fix the parser before going further.
 6. Regenerate the golden documents and review the difference.
 7. Commit the data, `NOTICE`, and the golden documents in one commit, with a

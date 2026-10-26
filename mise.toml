@@ -6,7 +6,6 @@
 [tools]
 # Keep inside [tool.uv] required-version in pyproject.toml (design D5).
 uv = "0.12"
-just = "1"
 node = "26"
 gh = "2.103.2"
 # The OpenSpec CLI is an ordinary pin. Renovate moves it with the other tools.
@@ -23,3 +22,58 @@ LETS_SPEC_FLOW = "standard"
 [hooks]
 # Keeps the Let's Spec skills and rules in step with the pin above.
 enter = "lets sync"
+
+# Thin wrappers over uv (design D10). `mise tasks` lists them.
+[tasks.install]
+description = "Sync the environment, dependencies, and lockfile."
+run = "uv sync"
+
+[tasks.lint]
+description = "Lint with ruff."
+run = "uv run ruff check ."
+
+[tasks.format]
+description = "Format with ruff."
+run = "uv run ruff format ."
+
+[tasks.typecheck]
+description = "Type-check the package and scripts with mypy."
+run = "uv run mypy"
+
+[tasks.test]
+description = "Run the test suite."
+run = "uv run pytest"
+
+[tasks.run]
+description = "Run the service."
+run = "uv run python -m pierpressure"
+
+[tasks.check]
+description = "The full gate CI runs: lint + typecheck + test."
+# Task references run in order and stop at the first failure.
+run = [{ task = "lint" }, { task = "typecheck" }, { task = "test" }]
+
+[tasks.broker-up]
+description = "Start a local Mosquitto broker (dev only, anonymous on 1883)."
+run = "docker compose up -d mosquitto"
+
+[tasks.up]
+description = "Run PierPressure in its image against a local broker. Needs ./config.yaml."
+run = "docker compose --profile full up --build"
+
+[tasks.broker-down]
+description = "Stop the local dev stack."
+run = "docker compose down"
+
+[tasks.test-integration]
+description = "Run the opt-in integration tests against a throwaway local broker."
+# Tear the whole stack down even when the tests fail, and keep pytest's status.
+run = '''
+#!/usr/bin/env bash
+set -uo pipefail
+docker compose up -d --wait mosquitto
+uv run pytest -m integration
+status=$?
+docker compose down
+exit $status
+'''

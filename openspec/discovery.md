@@ -111,13 +111,13 @@ Stage status checked against the code on 2026-10-13.
  supported  supported    supported    supported    partial     supported   supported    partial
 ```
 
-1. **Open the dev shell** — `mise.toml` gives uv and just, and uv gives Python;
-   `just check` passes inside it — supported
+1. **Open the dev shell** — `mise.toml` gives uv and the dev tasks, and uv gives
+   Python; `mise run check` passes inside it — supported
 2. **Pick the next story** — `lets-build` picks from the GitHub Project linked to
    the repo, by its Priority field — supported
 3. **Propose → archive** — OpenSpec with Let's Spec's `lets-standard` schema, and
    `lets-minimal` for chores and small stories — supported
-4. **Gate the change** — `just check` and integration tests in CI, CodeQL, and a
+4. **Gate the change** — `mise run check` and integration tests in CI, CodeQL, and a
    `main` ruleset that requires both — supported
 5. **Prove against real Home Assistant** — integration tests run against a real
    Mosquitto broker, but nothing checks a change in a real Home Assistant. The
