@@ -6,7 +6,7 @@
 ## 2. Renovate [depends-on: 1]
 
 - [x] 2.1 [medium] `.github/renovate.json5` holds the repository rules in design DS5: the settings table and packageRules 1 to 5, with a comment giving each rule's reason. The config passes the validator. (verify: mise exec node@24 -- npx --yes --package renovate@44.181.8 -- renovate-config-validator --strict .github/renovate.json5) (✓ validator passed, as global and with `--no-global`; a typo copy fails it)
-- [ ] 2.2 [complex] `.github/workflows/renovate.yml` runs Renovate as design DS1 to DS5 say:
+- [x] 2.2 [complex] `.github/workflows/renovate.yml` runs Renovate as design DS1 to DS5 say: (✓ local dry run finds `renovate` and `node` in the workflow through the custom manager; file staged, since the local platform reads tracked files)
   - **Triggers:** a daily schedule, `workflow_dispatch`, and `pull_request` filtered to the config and the workflow.
   - **`validate` job:** runs on pull requests only.
   - **`renovate` job:** checkout, `jdx/mise-action`, mise's shims on PATH, an app token from `actions/create-github-app-token`, and the runner settings as environment variables.
@@ -50,3 +50,8 @@
 ## Deviations Ledger
 
 <!-- Dated notes on small departures from the plan, written during apply. Stop and ask the user about a large one. -->
+
+- 2026-10-26, task 2.1: rule 3 also sets `groupSlug: "lets-spec"`. The group name alone gave the branch `renovate/let's-spec`.
+- 2026-10-26, task 2.2: the `validate` job passes `--no-global`, so the file is checked as a repository config. Without it the validator treats any named file as global config, and a runner-only option there would pass.
+- 2026-10-26, task 2.2: `actions/create-github-app-token@v3` deprecates `app-id` for `client-id`. The input takes either, so the existing `RENOVATE_APP_ID` secret goes into `client-id` and keeps its name.
+- 2026-10-26, task 2.2: the workflow's read-only token reaches Renovate as `MISE_READ_TOKEN`, not `GITHUB_TOKEN`, so Renovate never mistakes it for its own token.
