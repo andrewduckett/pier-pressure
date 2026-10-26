@@ -7,12 +7,12 @@
 # Keep inside [tool.uv] required-version in pyproject.toml (design D5).
 uv = "0.12"
 node = "26"
-gh = "2.102"
+gh = "2.103.2"
 # The OpenSpec CLI is an ordinary pin. Renovate moves it with the other tools.
-"npm:@fission-ai/openspec" = "1.13.2"
+"npm:@fission-ai/openspec" = "1.15.0"
 # Let's Spec: the agent skills, OpenSpec schemas and working rules. Renovate moves
 # only the version, so the asset pattern is a glob.
-"github:sidereal-io/lets-spec" = { version = "0.4.0", asset_pattern = "lets-spec-*.tar.gz" }
+"github:sidereal-io/lets-spec" = { version = "0.6.0", asset_pattern = "lets-spec-*.tar.gz" }
 
 [env]
 # The image's Python version, which compose.yaml needs (#45).

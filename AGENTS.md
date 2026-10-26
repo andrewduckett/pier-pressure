@@ -55,7 +55,7 @@ This section adds what is specific to PierPressure.
   the science and technical sector standard (`iso-24495-3`) to architecture specs,
   design docs and software documentation.
 
-<!-- BEGIN lets-spec rules. lets-sync rewrites this block: change lets-spec, not this text. -->
+<!-- BEGIN lets-spec rules. lets sync rewrites this block: change lets-spec, not this text. -->
 ## Workflow
 
 These rules come from lets-spec, and apply to every agent.
@@ -77,7 +77,7 @@ These rules come from lets-spec, and apply to every agent.
 - **When you review code, also apply the project's `REVIEW.md`,** if it
   has one.
 - **The backlog is the GitHub Project linked to this repository.**
-  `lets-shape` sets kind, priority, size and readiness; `lets-build`
+  `lets-shape` sets Kind, Priority, Size and Status; `lets-build`
   picks, claims and routes. Never set a Project field with `gh` outside
   those skills. Every piece of work is an issue, and its pull request
   says `Closes #<n>`. An epic is a parent issue with its stories as
@@ -93,10 +93,10 @@ These rules come from lets-spec, and apply to every agent.
   mark it ready. A rejected pull request is closed and its branch
   deleted.
 - **Never edit what lets-spec puts in the project:** this section,
-  between its markers, the skills in `.agents/skills/` and the schema
-  folders in `openspec/schemas/`. `lets sync` rewrites this section, and
-  the skills and the schema are read-only links into the Nix store that
-  git ignores. Change lets-spec instead. Never run `openspec init` or
+  between its markers, the `lets-*` and `openspec-*` skills in
+  `.agents/skills/` and the `lets-*` schema folders in
+  `openspec/schemas/`. `lets sync` rewrites all of these, so an edit
+  there is lost. Change lets-spec instead. Never run `openspec init` or
   `openspec update`; they write skills of their own.
 
 ### Routing
@@ -107,6 +107,15 @@ These rules come from lets-spec, and apply to every agent.
 | A bug, a chore or a single story with no issue yet, or an issue with no packet | The `lets-shape` skill |
 | Start the next story, or move the current branch's change on | The `lets-build` skill |
 | Set up or check this repository's backlog | The `lets-setup-backlog` skill |
+
+### Domain language
+
+Read `.agents/skills/lets-shape/references/domain-language.md` before
+shaping, planning, implementing or reviewing. The shared glossary is
+`openspec/glossary.md`, unless the `context` in `openspec/config.yaml`
+names another file. A spec folder may hold its own `glossary.md` for
+narrower meanings. Agree a term's meaning and scope with the user before
+you write it down. Keep that meaning in code names and reviews.
 
 ### Writing
 

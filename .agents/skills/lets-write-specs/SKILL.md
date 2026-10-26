@@ -8,6 +8,29 @@ description: Use when writing or changing an OpenSpec spec. Says what belongs in
 A spec is a behavior contract, not an implementation plan. It says what the
 system does as seen from outside. The design says how.
 
+## Read and maintain domain language
+
+Read [Domain language](../lets-shape/references/domain-language.md) before
+using domain terms. Resolve project vocabulary from `planningHome.root` in
+OpenSpec's artifact instructions, including a selected planning store. Read
+the context-selected shared glossary plus existing ancestor and local
+glossaries for all affected full capability paths. Do not assume an earlier
+session loaded them. Missing optional files need no empty replacements;
+a missing declared pointer needs discussion before dependent work proceeds.
+
+Use the agreed concepts consistently in requirements and scenarios. Surface
+semantic contradictions before writing dependent requirements; qualify
+explicit scoped meanings instead of letting a local definition override an
+ancestor. If new meaning is needed, settle it with the user and update the
+authoritative glossary outside change deltas as a separate `docs:` unit.
+When retiring a capability, review actual remaining uses: move surviving
+definitions to the appropriate remaining scope, update references, and
+remove obsolete definitions explicitly. Spec retirement does not authorize
+deleting its glossary. When removing a capability's final requirement, set
+`retire_capabilities: true` alongside `schema:` in the change's
+`.openspec.yaml` before archive. Glossary cleanup remains an explicit author
+decision; this option retires the spec, not its glossary.
+
 ## What belongs in a spec
 
 - Observable behavior that users or downstream systems rely on.
@@ -47,6 +70,29 @@ Cover the failure path as well as the success path when the requirement has
 one: the missing input, the denied request, the timeout.
 
 ## Changing an existing requirement
+
+### Choose the capability paths
+
+Use `planningHome.root` from `openspec instructions ... --json` to locate the
+main specs under `openspec/specs/`. A capability path is the directory relative
+to that spec folder, such as `user-auth` or `identity/user-auth`. Preserve the
+full path in the change's `specs/<capability-path>/spec.md`.
+
+Before writing a delta for an existing capability, confirm its full ID with
+`openspec list --specs` and read it with `openspec show <spec-id> --type spec`.
+This includes MODIFIED, REMOVED and RENAMED requirements. Do not shorten an ID
+to its leaf name: strict validation can pass a wrong path that archive later
+refuses. For new capabilities, follow the project's existing layout and check
+that the behavior is not already covered under another path.
+
+Read shared specs the change depends on, but write a delta only when their
+requirements change. One change can carry deltas for several domains. Leave
+specs read only for context out of the change's delta files. Keep flat paths
+flat; grouping by domain is optional and needs no migration or registry.
+Domain names do not map to source folders, so find the specs a change
+touches from the project context, the request and the code.
+
+### Preserve the requirement
 
 Archive replaces the whole requirement with what the delta holds. So:
 
