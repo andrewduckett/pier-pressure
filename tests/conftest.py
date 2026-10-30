@@ -33,6 +33,7 @@ from pierpressure.core.model import (
     DarkWindow,
     Moon,
     MoonPhase,
+    TimelineEntry,
     Verdict,
     VerdictDocument,
 )
@@ -473,6 +474,7 @@ def make_document(
     verdict: Verdict = Verdict.MAYBE,
     score: int | None = 50,
     generated_at: datetime | None = None,
+    timeline: list[TimelineEntry] | None = None,
 ) -> VerdictDocument:
     return VerdictDocument(
         pier=pier,
@@ -485,7 +487,33 @@ def make_document(
         dark_window=DarkWindow(start=None, end=None),
         scored_window=DarkWindow(start=None, end=None),
         moon=Moon(illumination=0.0, phase=MoonPhase.NEW),
+        timeline=timeline or [],
     )
+
+
+def make_timeline(
+    count: int,
+    *,
+    start: datetime | None = None,
+    cloud_cover: float | None = 37.0,
+) -> list[TimelineEntry]:
+    """``count`` consecutive hourly entries with every field filled."""
+    first = start or datetime(2026, 9, 7, 18, tzinfo=UTC)
+    return [
+        TimelineEntry(
+            time=first + timedelta(hours=i),
+            sun_altitude=-25.123,
+            moon_altitude=12.5,
+            cloud_cover=cloud_cover,
+            cloud_low=5.0,
+            cloud_mid=12.5,
+            cloud_high=30.0,
+            wind_gust=23.4,
+            seeing=0.57,
+            transparency=0.33,
+        )
+        for i in range(count)
+    ]
 
 
 def fixed_conditions(conditions: Conditions) -> Callable[[PierConfig], FetchResult]:

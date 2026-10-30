@@ -900,7 +900,14 @@ class MqttDelivery:
         self._publish(
             verdict_state_topic(base, pier), document.verdict.value, retain=True, pier=pier
         )
-        self._publish(attributes_topic(base, pier), document.to_json(), retain=True, pier=pier)
+        # The timeline would push the attributes past Home Assistant's recorder limit;
+        # it travels per variable on its own sensors instead (ADR-0025).
+        self._publish(
+            attributes_topic(base, pier),
+            document.model_dump_json(exclude={"timeline"}),
+            retain=True,
+            pier=pier,
+        )
         self._publish(
             top_target_state_topic(base, pier), top_target_state(document), retain=True, pier=pier
         )
