@@ -52,7 +52,7 @@
 
 ## Journey Map
 
-Stage status checked against the code on 2026-10-13.
+Stage status checked against the code on 2026-10-29.
 
 ### People who use PierPressure
 
@@ -63,7 +63,7 @@ Stage status checked against the code on 2026-10-13.
  project      & run       to HA      my site     tonight's    told in     a target    through the
  (adopter)                (MQTT)                 verdict      time                    night
     │           │           │           │           │            │           │            │
- supported   supported   supported   partial    supported    supported   supported  supported
+ supported   supported   supported   partial     partial     supported   supported  supported
 ```
 
 1. **Find the project** (adopter) — the README explains what it does, how to set it
@@ -87,7 +87,12 @@ Stage status checked against the code on 2026-10-13.
    [#101](https://github.com/andrewduckett/pier-pressure/issues/101),
    [#102](https://github.com/andrewduckett/pier-pressure/issues/102))
 5. **See tonight's verdict** — verdict, score, confidence, and reasons; a refresh
-   button; an optional plain-language narrative — supported
+   button; an optional plain-language narrative. No hour-by-hour view of the night
+   reaches Home Assistant, so no dashboard can show how the conditions change
+   through it — partial
+   ([#133](https://github.com/andrewduckett/pier-pressure/issues/133),
+   [#134](https://github.com/andrewduckett/pier-pressure/issues/134),
+   [#135](https://github.com/andrewduckett/pier-pressure/issues/135))
 6. **Get told in time** — the README gives a Home Assistant automation that
    notifies at a chosen time — supported
 7. **Choose a target** — the Top target sensor and one sensor per rank, Target 1
