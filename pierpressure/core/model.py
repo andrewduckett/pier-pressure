@@ -121,6 +121,19 @@ def _round_catalog(value: float) -> float:
 
 CatalogValue = Annotated[float, AfterValidator(_round_catalog)]
 
+# Seeing and transparency are normalized quality, emitted at the same precision as
+# ``moon.illumination``. Unlike that fraction, no 0 to 1 bound is enforced: a bad
+# provider value must not stop the producer from emitting a document.
+QUALITY_DECIMALS = 2
+
+
+def _round_quality(value: float) -> float:
+    """Round a seeing or transparency quality to the fixed emitted precision."""
+    return round(float(value), QUALITY_DECIMALS)
+
+
+Quality = Annotated[float, AfterValidator(_round_quality)]
+
 
 class Confidence(BaseModel):
     """How much to trust the verdict given forecast lead-time and freshness."""
@@ -246,6 +259,40 @@ class Target(BaseModel):
         return iso_z(value)
 
 
+class TimelineEntry(BaseModel):
+    """One clock hour of the ``timeline``: the sky and weather at ``time`` (ADR-0025).
+
+    ``time`` is the aware-UTC top of the hour. The altitudes are the sun's and the
+    moon's geometric centre, computed by the core and always present. The cloud and
+    gust fields carry the base source's reading exactly as reported; ``seeing`` and
+    ``transparency`` carry the secondary source's. Each is null when its source
+    lacks the hour or the value. The entry is flat so that later variables append
+    as new keys without reshaping it.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    time: datetime
+    sun_altitude: Degrees
+    moon_altitude: Degrees
+    cloud_cover: float | None = None
+    cloud_low: float | None = None
+    cloud_mid: float | None = None
+    cloud_high: float | None = None
+    wind_gust: float | None = None
+    seeing: Quality | None = None
+    transparency: Quality | None = None
+
+    @field_validator("time")
+    @classmethod
+    def _aware_utc(cls, value: datetime) -> datetime:
+        return _require_aware_utc(value)
+
+    @field_serializer("time")
+    def _serialize_time(self, value: datetime) -> str:
+        return iso_z(value)
+
+
 class VerdictDocument(BaseModel):
     """The one JSON document the whole system is built around.
 
@@ -266,6 +313,8 @@ class VerdictDocument(BaseModel):
     dark_window: DarkWindow
     scored_window: DarkWindow
     moon: Moon
+    # Last, so every earlier key keeps its position (additive growth, ADR-0025).
+    timeline: list[TimelineEntry] = Field(default_factory=list)
 
     @field_validator("generated_at")
     @classmethod

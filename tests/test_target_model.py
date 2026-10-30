@@ -205,4 +205,5 @@ def test_document_targets_preserve_key_order() -> None:
         "dark_window",
         "scored_window",
         "moon",
+        "timeline",
     ]
