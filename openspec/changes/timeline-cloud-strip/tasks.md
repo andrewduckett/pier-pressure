@@ -14,7 +14,7 @@
 ## 3. Documentation [depends-on: 2]
 
 - [x] 3.1 [parallel] [easy] `docs/night-timeline.md` explains the timeline, the Cloud cover sensor's `forecast` and `hour` attributes, that the state can lag by one recompute interval, why the Verdict attributes leave the timeline out, a recorder exclusion note, and one apexcharts-card example reading `forecast`, guarded by a `tests/test_docs.py` style test (verify: `uv run pytest tests/test_timeline_docs.py -k page`) (✓ `uv run pytest tests/test_timeline_docs.py -k page` passed, 10 tests)
-- [ ] 3.2 [parallel] [easy] `README.md` gains the Cloud cover row in the entity table, the two Cloud cover topics, the `verdict/attributes` topic relabelled as the document without `timeline`, the `timeline` row in the verdict document table and the sentence that the Verdict attributes exclude it, guarded by the same test module (verify: `uv run pytest tests/test_timeline_docs.py -k readme`)
+- [x] 3.2 [parallel] [easy] `README.md` gains the Cloud cover row in the entity table, the two Cloud cover topics, the `verdict/attributes` topic relabelled as the document without `timeline`, the `timeline` row in the verdict document table and the sentence that the Verdict attributes exclude it, guarded by the same test module (verify: `uv run pytest tests/test_timeline_docs.py -k readme`) (✓ `uv run pytest tests/test_timeline_docs.py -k readme` passed, 6 tests)
 
 ## 4. Integration [depends-on: 3]
 
@@ -26,3 +26,4 @@
 
 - 2026-10-30, task 1.1: three earlier pins listed the document's keys and broke on the new last key. `tests/test_target_model.py` now expects `timeline` last; `tests/test_moon_model.py` asserts `moon` is followed only by `timeline`; `tests/test_producer_targets.py` compares against its pre-targets stub with `timeline` excluded, since the stub predates it. Each guard keeps its intent.
 - 2026-10-30, task 2.1: the Cloud cover topics do not exist until task 2.2, so the existing-entities pin in `tests/test_rank_targets.py` gains its Cloud cover filter in 2.2. Task 2.1 changes only its attributes row. `tests/conftest.py` also gains a `make_timeline` helper for the delivery tests.
+- 2026-10-30, task 3.2: the README's "Removing the entities" loop also gains the Cloud cover discovery topic, so the rollback note in design.md holds. A guard test covers it.
