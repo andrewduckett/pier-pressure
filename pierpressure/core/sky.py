@@ -13,7 +13,8 @@ The exposed engine is:
   relative to the evaluation instant, or ``(None, None)`` when there is no
   usable astronomical darkness;
 - :func:`moon_info` — the moon's illumination, phase, and behaviour across a
-  given dark window.
+  given dark window;
+- :func:`altitudes_at` — the sun's and the moon's altitude at each timeline hour.
 """
 
 from __future__ import annotations
@@ -226,6 +227,24 @@ def _altitude_deg(pier: PierConfig, target: object, when: datetime) -> float:
     observer = _observer(pier)
     alt, _, _ = observer.at(ts.from_datetime(when)).observe(target).apparent().altaz()
     return float(alt.degrees)
+
+
+def altitudes_at(pier: PierConfig, times: list[datetime]) -> list[tuple[float, float]]:
+    """The ``(sun, moon)`` altitude in degrees at each of ``times`` (ADR-0025).
+
+    The same geometric-centre, refraction-free altitude as :func:`_altitude_deg`,
+    evaluated for every hour in one vectorised Skyfield call per body. Rounding is
+    left to the document model.
+    """
+    # Skyfield cannot build a Time from no datetimes, and an empty timeline is the
+    # normal astronomy-only case.
+    if not times:
+        return []
+    eph = _ephemeris()
+    observer = _observer(pier).at(_timescale().from_datetimes(times))
+    sun, _, _ = observer.observe(eph["sun"]).apparent().altaz()
+    moon, _, _ = observer.observe(eph["moon"]).apparent().altaz()
+    return [(float(s), float(m)) for s, m in zip(sun.degrees, moon.degrees, strict=True)]
 
 
 def moon_info(
