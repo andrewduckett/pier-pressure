@@ -13,7 +13,7 @@
 
 ## 3. Documentation [depends-on: 2]
 
-- [ ] 3.1 [parallel] [easy] `docs/night-timeline.md` explains the timeline, the Cloud cover sensor's `forecast` and `hour` attributes, that the state can lag by one recompute interval, why the Verdict attributes leave the timeline out, a recorder exclusion note, and one apexcharts-card example reading `forecast`, guarded by a `tests/test_docs.py` style test (verify: `uv run pytest tests/test_timeline_docs.py -k page`)
+- [x] 3.1 [parallel] [easy] `docs/night-timeline.md` explains the timeline, the Cloud cover sensor's `forecast` and `hour` attributes, that the state can lag by one recompute interval, why the Verdict attributes leave the timeline out, a recorder exclusion note, and one apexcharts-card example reading `forecast`, guarded by a `tests/test_docs.py` style test (verify: `uv run pytest tests/test_timeline_docs.py -k page`) (✓ `uv run pytest tests/test_timeline_docs.py -k page` passed, 10 tests)
 - [ ] 3.2 [parallel] [easy] `README.md` gains the Cloud cover row in the entity table, the two Cloud cover topics, the `verdict/attributes` topic relabelled as the document without `timeline`, the `timeline` row in the verdict document table and the sentence that the Verdict attributes exclude it, guarded by the same test module (verify: `uv run pytest tests/test_timeline_docs.py -k readme`)
 
 ## 4. Integration [depends-on: 3]
