@@ -27,6 +27,8 @@ from pierpressure.delivery.mqtt import (
     build_score_discovery,
     build_top_target_discovery,
     build_verdict_discovery,
+    cloud_cover_attributes_topic,
+    cloud_cover_state_topic,
     discovery_topic,
     rank_target_attributes,
     rank_target_attributes_topic,
@@ -278,8 +280,15 @@ def test_existing_entities_publish_the_same_topics_and_payloads() -> None:
     delivery.publish_verdict(document)
 
     rank_topics = {topic for rank in RANKS for topic in _rank_topics(rank)}
+    cloud_cover_topics = {
+        discovery_topic(PREFIX, "sensor", "backyard", "cloud_cover"),
+        cloud_cover_state_topic(BASE, "backyard"),
+        cloud_cover_attributes_topic(BASE, "backyard"),
+    }
     others = [
-        (p.topic, p.payload, p.retain) for p in client.published if p.topic not in rank_topics
+        (p.topic, p.payload, p.retain)
+        for p in client.published
+        if p.topic not in rank_topics | cloud_cover_topics
     ]
     assert others == [
         (availability_topic(BASE), "online", True),

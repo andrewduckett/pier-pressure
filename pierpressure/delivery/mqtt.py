@@ -136,6 +136,14 @@ def rank_target_attributes_topic(base_topic: str, pier_id: str, rank: int) -> st
     return f"{base_topic}/{pier_id}/target_{rank}/attributes"
 
 
+def cloud_cover_state_topic(base_topic: str, pier_id: str) -> str:
+    return f"{base_topic}/{pier_id}/cloud_cover/state"
+
+
+def cloud_cover_attributes_topic(base_topic: str, pier_id: str) -> str:
+    return f"{base_topic}/{pier_id}/cloud_cover/attributes"
+
+
 def narrative_state_topic(base_topic: str, pier_id: str) -> str:
     return f"{base_topic}/{pier_id}/narrative/state"
 
@@ -342,6 +350,39 @@ def rank_target_attributes(document: VerdictDocument, rank: int) -> dict[str, An
     # replace them; ``update`` keeps them first in the payload.
     payload.update(available=True, rank=rank)
     return payload
+
+
+def build_cloud_cover_discovery(pier_id: str, base_topic: str) -> dict[str, Any]:
+    """The Cloud cover sensor: the current hour's value, with the forecast attached.
+
+    Availability follows the rank sensors: the shared LWT topic AND the attributes'
+    ``available`` flag, so an hour with no value renders ``unavailable`` rather than
+    ``0`` or an earlier value. No ``state_class``: the value is a forecast rewritten
+    every recompute, so long-term statistics would be noise (ADR-0025).
+    """
+    attrs = cloud_cover_attributes_topic(base_topic, pier_id)
+    return {
+        "name": "Cloud cover",
+        "has_entity_name": True,
+        "unique_id": f"{node_id(pier_id)}_cloud_cover",
+        "state_topic": cloud_cover_state_topic(base_topic, pier_id),
+        "json_attributes_topic": attrs,
+        "unit_of_measurement": "%",
+        "availability_mode": "all",
+        "availability": [
+            {
+                "topic": availability_topic(base_topic),
+                "payload_available": PAYLOAD_ONLINE,
+                "payload_not_available": PAYLOAD_OFFLINE,
+            },
+            {
+                "topic": attrs,
+                "value_template": ("{{ 'online' if value_json.available else 'offline' }}"),
+            },
+        ],
+        "icon": "mdi:weather-cloudy",
+        "device": _device_block(pier_id),
+    }
 
 
 def build_narrative_discovery(pier_id: str, base_topic: str) -> dict[str, Any]:
@@ -932,6 +973,12 @@ class MqttDelivery:
                 retain=True,
                 pier=pier,
             )
+        self._publish(
+            discovery_topic(prefix, "sensor", pier, "cloud_cover"),
+            json.dumps(build_cloud_cover_discovery(pier, base)),
+            retain=True,
+            pier=pier,
+        )
         if self._manage_narrative:
             self._publish(
                 discovery_topic(prefix, "sensor", pier, "narrative"),
