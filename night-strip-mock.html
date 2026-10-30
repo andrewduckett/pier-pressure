@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Night strip: target rendering</title>
+<!--
+  Target rendering for the night strip (epic #130, story #135).
+  Mock data for the golden-fixture night: London, dusk 20:30, dawn 03:25 UTC, asked at 23:30.
+  Open this file in a browser. It needs no network.
+-->
+<style>
+  :root { --s100:#cde2fb; --s200:#9ec5f4; --s300:#6da7ec; --s400:#3987e5; --s500:#256abf; --s600:#184f95; --s700:#0d366b; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #f0efec; background: #1a1a19; line-height: 1.45; margin: 0; }
+  .panel { background: #1a1a19; padding: 18px 20px 16px; max-width: 960px; }
+  h1 { font-size: 15px; margin: 0 0 4px; font-weight: 600; }
+  .sub { font-size: 12px; color: #c3c2b7; margin: 0 0 14px; }
+  .strip { display: grid; grid-template-columns: 150px 1fr 200px; column-gap: 10px; row-gap: 4px; font-size: 12px; }
+  .lbl { color: #f0efec; display: flex; align-items: center; white-space: nowrap; }
+  .tag { color: #898781; display: flex; align-items: center; white-space: nowrap; }
+  .tag.now { color: #0ca30c; font-weight: 600; }
+  .tag.exists { color: #6da7ec; }
+  .cells { position: relative; display: grid; grid-template-columns: repeat(17, 1fr); gap: 2px; height: 22px; }
+  .cell { border-radius: 2px; background: var(--s100); }
+  .cell.nul { background: transparent; border: 1px solid #383835; background-image: repeating-linear-gradient(135deg, #383835 0 1px, transparent 1px 5px); }
+  .hours { display: grid; grid-template-columns: repeat(17, 1fr); gap: 2px; font-size: 11px; color: #898781; text-align: center; font-variant-numeric: tabular-nums; }
+  .span { position: absolute; box-shadow: 0 0 0 2px #1a1a19; top: 3px; height: 16px; border-radius: 4px; background: #6250d6; color: #fff; font-size: 11px; line-height: 16px; padding: 0 6px; white-space: nowrap; overflow: hidden; }
+  .strip-wrap { position: relative; }
+  .ov { position: absolute; pointer-events: none; }
+  .vline { position: absolute; top: 0; height: 100%; width: 0; border-left: 2px dashed #898781; }
+  .vline.now { border-left: 2px solid #e66767; }
+  .vline span { position: absolute; bottom: -16px; left: -16px; font-size: 11px; white-space: nowrap; color: #c3c2b7; }
+  .vline.now span { bottom: -30px; color: #e66767; }
+  .spacer { height: 30px; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 11px; color: #c3c2b7; margin-top: 8px; align-items: center; }
+  .legend .ramp { display: inline-flex; gap: 1px; vertical-align: middle; margin: 0 4px; }
+  .legend .ramp i { width: 11px; height: 11px; display: inline-block; border-radius: 1px; }
+  .legend .sw { width: 11px; height: 11px; display: inline-block; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
+</style>
+</head>
+<body>
+<div class="panel">
+  <h1>Night strip: target rendering (Astrospheric style)</h1>
+  <p class="sub">Hours across, one row per condition, dusk, dawn, the moon and the targets on one axis. Mock data for the golden-fixture night: London, dusk 20:30, dawn 03:25 UTC, asked at 23:30. Right column: where each row's data comes from after #133.</p>
+  <div class="strip-wrap" id="sw"><div class="strip" id="strip"></div><div class="ov" id="ov"></div></div>
+  <div class="legend">
+    <span>Darker = more<span class="ramp"><i style="background:var(--s100)"></i><i style="background:var(--s200)"></i><i style="background:var(--s300)"></i><i style="background:var(--s400)"></i><i style="background:var(--s500)"></i><i style="background:var(--s600)"></i><i style="background:var(--s700)"></i></span></span>
+    <span><span class="sw" style="border:1px solid #383835;background-image:repeating-linear-gradient(135deg,#383835 0 1px,transparent 1px 5px)"></span>null: that source lacks the hour</span>
+    <span><span class="sw" style="background:#6250d6"></span>target window</span>
+    <span><span class="sw" style="border-top:2px solid #e66767;height:0"></span>now</span>
+    <span><span class="sw" style="border-top:2px dashed #898781;height:0"></span>dusk / dawn</span>
+  </div>
+</div>
+<script>
+(function () {
+  const hours = ['16','17','18','19','20','21','22','23','00','01','02','03','04','05','06','07','08'];
+  const ramp = ['var(--s100)','var(--s200)','var(--s300)','var(--s400)','var(--s500)','var(--s600)','var(--s700)'];
+  const sun   = [22,12,3,-5,-11,-17,-23,-28,-31,-32,-30,-25,-19,-13,-7,1,9];
+  const moon  = [-30,-25,-18,-10,-2,6,14,21,27,30,29,24,17,9,1,-7,-15];
+  function pct(v){ return ramp[Math.min(6,Math.floor(v/15))]; }
+  const rows = [
+    {lbl:'Sun altitude', vals:sun, tag:'document only until #134', color:v => v>0?ramp[0]: v>-6?ramp[1]: v>-12?ramp[2]: v>-18?ramp[3]: ramp[6]},
+    {lbl:'Moon altitude', vals:moon, tag:'document only until #134', color:v => v<=0?ramp[0]: ramp[Math.min(6,1+Math.floor(v/6))]},
+    {lbl:'Cloud cover', vals:[80,75,60,40,30,20,15,10,10,25,45,70,85,90,90,80,70], tag:'Cloud cover sensor (#133)', cls:'now', color:pct},
+    {lbl:'Cloud, low',  vals:[50,40,30,15,10,5,0,0,0,10,30,55,70,80,80,60,50], tag:'document only until #134', color:pct},
+    {lbl:'Cloud, mid',  vals:[30,30,20,20,15,10,5,5,5,10,10,15,20,20,20,20,20], tag:'document only until #134', color:pct},
+    {lbl:'Cloud, high', vals:[40,45,45,40,30,25,20,15,15,20,25,30,35,40,45,50,50], tag:'document only until #134', color:pct},
+    {lbl:'Wind gust', vals:[30,28,25,22,18,15,14,12,12,14,18,25,32,36,38,35,30], tag:'document only until #134', color:v=>ramp[Math.min(6,Math.floor(v/7))]},
+    {lbl:'Seeing (poor = dark)', vals:[null,null,0.43,0.43,0.43,0.57,0.57,0.57,0.71,0.71,0.71,0.57,0.57,0.57,0.43,0.43,0.43], tag:'document only until #134', color:q=>ramp[Math.min(6,Math.round((1-q)*7))]},
+    {lbl:'Transparency (poor = dark)', vals:[null,null,0.57,0.57,0.57,0.71,0.71,0.71,0.86,0.86,0.86,0.71,0.71,0.71,0.57,0.57,0.57], tag:'document only until #134', color:q=>ramp[Math.min(6,Math.round((1-q)*7))]},
+  ];
+  const strip = document.getElementById('strip');
+  const colW = 100/17;
+  function add(el){ strip.appendChild(el); return el; }
+  function div(cls, text){ const d=document.createElement('div'); d.className=cls; if(text!=null) d.textContent=text; return d; }
+  add(div('lbl','UTC'));
+  const hh = add(div('hours')); hours.forEach(h => hh.appendChild(div('', h)));
+  add(div('tag','Where it comes from'));
+  rows.forEach(r => {
+    add(div('lbl', r.lbl));
+    const c = add(div('cells'));
+    r.vals.forEach(v => { const cell = div('cell' + (v==null?' nul':'')); if (v!=null) cell.style.background = r.color(v); c.appendChild(cell); });
+    add(div('tag ' + (r.cls||''), r.tag));
+  });
+  add(div('lbl','Targets'));
+  const t = add(div('cells'));
+  [['M31 Andromeda', 5, 10], ['M42 Orion', 9, 12]].forEach(([n,a,b],k) => {
+    const s = div('span', n); s.style.left = (a*colW)+'%'; s.style.width = ((b-a)*colW)+'%'; if (k===1) s.style.opacity = '0.8'; t.appendChild(s);
+  });
+  add(div('tag exists','Target 1..10 sensors (exist)'));
+  add(div('lbl','')); add(div('spacer')); add(div('tag exists','dark_window, generated_at (exist)'));
+  const ov = document.getElementById('ov');
+  const swr = document.getElementById('sw').getBoundingClientRect();
+  const first = strip.querySelectorAll('.cells')[0].getBoundingClientRect();
+  const last = t.getBoundingClientRect();
+  ov.style.left = (first.left - swr.left) + 'px'; ov.style.top = (first.top - swr.top) + 'px';
+  ov.style.width = first.width + 'px'; ov.style.height = (last.bottom - first.top) + 'px';
+  function vline(frac, cls, label){ const v = div('vline ' + cls); v.style.left = (frac*100)+'%'; const s = document.createElement('span'); s.textContent = label; v.appendChild(s); ov.appendChild(v); }
+  vline(4.5/17, '', 'dusk 20:30'); vline(11.42/17, '', 'dawn 03:25'); vline(7.5/17, 'now', 'now 23:30');
+})();
+</script>
+</body>
+</html>
