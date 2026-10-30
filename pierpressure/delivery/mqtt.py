@@ -51,7 +51,7 @@ from typing import Any, Protocol
 import paho.mqtt.client as mqtt
 
 from pierpressure.core.config import MqttConfig
-from pierpressure.core.model import Target, VerdictDocument
+from pierpressure.core.model import Target, TimelineEntry, VerdictDocument, iso_z
 from pierpressure.core.ranking import TOP_N
 from pierpressure.health import ProviderHealth
 
@@ -382,6 +382,47 @@ def build_cloud_cover_discovery(pier_id: str, base_topic: str) -> dict[str, Any]
         ],
         "icon": "mdi:weather-cloudy",
         "device": _device_block(pier_id),
+    }
+
+
+def _current_hour_entry(document: VerdictDocument) -> TimelineEntry | None:
+    """The timeline entry for the hour containing ``generated_at``, if it has a value.
+
+    Both providers key hours by the UTC top of the hour, so flooring
+    ``generated_at`` matches exactly.
+    """
+    hour = document.generated_at.replace(minute=0, second=0, microsecond=0)
+    for entry in document.timeline:
+        if entry.time == hour:
+            return entry if entry.cloud_cover is not None else None
+    return None
+
+
+def cloud_cover_state(document: VerdictDocument) -> str:
+    """The current hour's cloud cover, written as the document writes the number.
+
+    No value publishes an empty string; the availability flag makes it unavailable.
+    """
+    import json
+
+    entry = _current_hour_entry(document)
+    return "" if entry is None else json.dumps(entry.cloud_cover)
+
+
+def cloud_cover_attributes(document: VerdictDocument) -> dict[str, Any]:
+    """The flag, the hour the state belongs to, and one forecast point per timeline hour.
+
+    ``hour`` says which hour the state is for, since the state is only as fresh as
+    the last recompute. Hours with no value stay in ``forecast`` as nulls, so the
+    arrays of later per-variable sensors line up hour for hour.
+    """
+    entry = _current_hour_entry(document)
+    return {
+        "available": entry is not None,
+        "hour": None if entry is None else iso_z(entry.time),
+        "forecast": [
+            {"datetime": iso_z(e.time), "value": e.cloud_cover} for e in document.timeline
+        ],
     }
 
 
@@ -976,6 +1017,18 @@ class MqttDelivery:
         self._publish(
             discovery_topic(prefix, "sensor", pier, "cloud_cover"),
             json.dumps(build_cloud_cover_discovery(pier, base)),
+            retain=True,
+            pier=pier,
+        )
+        self._publish(
+            cloud_cover_state_topic(base, pier),
+            cloud_cover_state(document),
+            retain=True,
+            pier=pier,
+        )
+        self._publish(
+            cloud_cover_attributes_topic(base, pier),
+            json.dumps(cloud_cover_attributes(document)),
             retain=True,
             pier=pier,
         )
