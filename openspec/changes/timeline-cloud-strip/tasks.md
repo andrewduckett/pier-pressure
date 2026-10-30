@@ -18,7 +18,7 @@
 
 ## 4. Integration [depends-on: 3]
 
-- [ ] 4.1 [easy] The whole gate is green: lint, strict types and the full suite including the core boundary and offline guards (verify: `mise run check`)
+- [x] 4.1 [easy] The whole gate is green: lint, strict types and the full suite including the core boundary and offline guards (verify: `mise run check`) (✓ `mise run check` passed: lint, mypy, 1207 tests)
 
 ## Deviations Ledger
 
