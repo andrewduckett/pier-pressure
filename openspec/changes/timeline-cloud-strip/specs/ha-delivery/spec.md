@@ -18,9 +18,14 @@ The verdict entity's state SHALL be published as the verdict value (`GO`, `MAYBE
 
 #### Scenario: The attributes payload leaves the timeline out
 
-- **WHEN** a verdict document whose `timeline` holds 72 entries is published
+- **WHEN** a verdict document whose `timeline` holds 120 entries is published
 - **THEN** the published attributes payload has no `timeline` key
 - **AND** it carries every other key of the document, in the document's order, with the same values
+
+#### Scenario: An empty timeline leaves the attributes payload as it was
+
+- **WHEN** a verdict document whose `timeline` is empty is published
+- **THEN** the published attributes payload is byte-identical to the document's JSON with the `timeline` key removed
 
 ## ADDED Requirements
 
@@ -41,38 +46,48 @@ On publishing, the system SHALL publish MQTT discovery configuration for one Clo
 - **THEN** the verdict, score, top-target, rank, narrative, health and refresh entities keep their existing topics, payloads and unique identities
 - **AND** re-publishing for the same pier introduces no additional Cloud cover identity
 
-### Requirement: The Cloud cover forecast mirrors the timeline
+### Requirement: The Cloud cover attributes carry the forecast and the current hour
 
-The Cloud cover sensor's JSON attributes payload SHALL carry a `forecast` list with one entry per timeline entry, in the timeline's order. Each entry SHALL hold `datetime`, the timeline entry's `time`, and `value`, the timeline entry's `cloud_cover`, null when that is null. The list SHALL be empty when the timeline is empty. Every publish SHALL update the payload, so a retained payload never outlives the verdict it came from.
+The Cloud cover sensor's JSON attributes payload SHALL carry exactly `available`, `hour` and `forecast`. `forecast` SHALL hold one `{datetime, value}` entry per timeline entry, in the timeline's order: `datetime` is the entry's `time` and `value` its `cloud_cover` as the document emits it, null when null. `hour` SHALL be the `time` of the entry the state comes from, or null. `available` SHALL be true exactly when `hour` is not null. Every publish SHALL replace the payload.
 
 #### Scenario: The forecast array mirrors the timeline
 
-- **WHEN** the adapter publishes a document whose timeline holds entries at 20:00 with cloud cover 37 and at 21:00 with cloud cover null
-- **THEN** the sensor's attributes payload holds `forecast` with exactly two entries in that order: `{datetime: <20:00>, value: 37}` and `{datetime: <21:00>, value: null}`
+- **WHEN** the adapter publishes a document whose timeline holds entries at 20:00 with cloud cover `37.0` and at 21:00 with cloud cover null
+- **THEN** the sensor's attributes payload holds `forecast` with exactly two entries in that order: `{datetime: <20:00>, value: 37.0}` and `{datetime: <21:00>, value: null}`
+
+#### Scenario: The hour names the entry the state comes from
+
+- **WHEN** the adapter publishes a document generated at 23:30 whose timeline has an entry at 23:00 with a cloud cover value
+- **THEN** the sensor's attributes payload has `hour` equal to that entry's `time` and `available` true
 
 #### Scenario: An empty timeline publishes an empty forecast
 
 - **WHEN** the adapter publishes a document whose timeline is empty
-- **THEN** the sensor's attributes payload holds an empty `forecast` list
+- **THEN** the sensor's attributes payload holds an empty `forecast` list, `hour` null and `available` false
 
 #### Scenario: A later publish replaces the forecast
 
 - **WHEN** the adapter publishes a document with 72 timeline entries and then one with 48 for the same pier
 - **THEN** the retained attributes payload holds exactly the 48 entries of the second document
 
+#### Scenario: The attributes stay under the recorder limit
+
+- **WHEN** the adapter publishes a document whose timeline holds 120 entries
+- **THEN** the sensor's attributes payload is smaller than 16 KiB
+
 ### Requirement: The Cloud cover state is the current hour's value
 
-The Cloud cover sensor's state SHALL be the `cloud_cover` of the timeline entry whose hour contains the document's generation timestamp. When no entry has that hour, or its `cloud_cover` is null, the sensor SHALL resolve to unavailable rather than `0`, an empty value or an earlier value.
+The Cloud cover sensor's state SHALL be the `cloud_cover` of the timeline entry whose hour contains the document's generation timestamp, written as the document emits the number. When no entry has that hour, or its `cloud_cover` is null, the sensor SHALL resolve to unavailable rather than `0`, an empty value or an earlier value. The state is as fresh as the last recompute: it can lag by up to one recompute interval, and `hour` says which hour it belongs to.
 
 #### Scenario: The state is the current hour's cloud cover
 
-- **WHEN** the adapter publishes a document generated at 23:30 whose timeline has an entry at 23:00 with cloud cover 15
-- **THEN** the sensor's state is `15`
+- **WHEN** the adapter publishes a document generated at 23:30 whose timeline has an entry at 23:00 with cloud cover `15.0`
+- **THEN** the sensor's state is `15.0`
 
 #### Scenario: A missing or null current hour renders unavailable
 
 - **WHEN** the adapter publishes a document generated at 23:30 whose timeline has no entry at 23:00, or whose 23:00 entry has a null cloud cover
-- **THEN** the adapter publishes a retained attributes payload that marks the sensor as having no current value
+- **THEN** the adapter publishes a retained attributes payload with `available` false and `hour` null
 - **AND** the sensor's discovery payload declares an availability that makes the sensor unavailable in that case, rather than showing `0`, an empty value or an earlier value
 
 #### Scenario: An empty timeline renders unavailable

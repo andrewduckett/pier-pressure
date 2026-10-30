@@ -1,14 +1,14 @@
 ## Why
 
-PierPressure already fetches hourly cloud, wind, seeing and transparency and computes the dark window and the moon, but publishes only the verdict and its summary fields. None of the hourly series reaches Home Assistant, so no card can draw the night as a strip. This story is the walking skeleton of epic #130: it carries the hourly readings through the document, the MQTT adapter and one chart card in a single pass, so every later story adds variables or cards to a path that already works.
+PierPressure already fetches hourly cloud, wind, seeing and transparency and computes the dark window and the moon, but publishes only the verdict and its summary fields. None of the hourly series reaches Home Assistant, so no card can draw the night as a strip. This story is the walking skeleton of epic #130. It carries the hourly readings through the document, the MQTT adapter and one chart card in a single pass. Every later story then adds variables or cards to a path that already works.
 
 ## What Changes
 
-- The verdict document gains an additive `timeline` field: one entry per clock hour across the union of the hours both sources returned, sorted ascending (D4). Each entry is flat: `time`, `sun_altitude`, `moon_altitude`, `cloud_cover`, `cloud_low`, `cloud_mid`, `cloud_high`, `wind_gust`, `seeing`, `transparency`, with null where a source lacks the hour (D1).
+- The verdict document gains an additive `timeline` field: one entry per clock hour across the union of the hours both providers returned, sorted ascending (D4). Each entry is flat: `time`, `sun_altitude`, `moon_altitude`, `cloud_cover`, `cloud_low`, `cloud_mid`, `cloud_high`, `wind_gust`, `seeing`, `transparency`, with null where a source lacks the hour (D1).
 - The core computes sun and moon altitude per hour from the pinned ephemeris, rounded like the other emitted angles, so the document stays byte-identical (D1).
 - The timeline fills whenever a provider returned rows, dark window or not. It is evidence beside the verdict and carries no verdict of its own; ADR 0023 stands (D5, D8).
 - The Verdict entity's attributes exclude the timeline, so they stay under the recorder's 16 KiB limit. Every existing attribute key stays. After this change no MQTT topic carries the whole timeline; Home Assistant sees it per variable, which #134 completes (D3).
-- A new ordinary **Cloud cover** sensor on the pier's device. Its state is the cloud cover for the hour containing `generated_at`; its attributes hold a `forecast` array of `{datetime, value}` with one entry per timeline hour, null where the hour has no value. It is unavailable when the current hour is missing or null (D2, D6).
+- A new ordinary **Cloud cover** sensor on the pier's device. Its state is the cloud cover for the hour containing `generated_at`. Its attributes hold `available`, `hour` (the hour the state belongs to) and a `forecast` array of `{datetime, value}` with one entry per timeline hour, null where the hour has no value. It is unavailable when the current hour is missing or null (D2, D6).
 - A new ADR records the timeline's shape, its evidence-not-verdict rule, the attribute exclusion and the per-variable delivery consequence (D8).
 - A short docs page with one apexcharts-card example reading the `forecast` array, plus README rows for the new sensor and the attribute change (D7).
 - The golden fixtures are regenerated once, additively (D9).

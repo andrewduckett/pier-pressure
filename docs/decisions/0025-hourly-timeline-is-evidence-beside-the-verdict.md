@@ -51,8 +51,9 @@ timeline.
   rather than by clock time, because the altitude comes from the same offline
   astronomy as the dark window.
 - **Easier:** the document stays byte-identical for the same inputs. The timeline
-  is a pure function of the conditions value and the pier, rounded at
-  construction like every other field.
+  is a pure function of the conditions value and the pier. Its altitudes and
+  qualities are rounded at construction like every other computed field, and
+  its cloud and wind values pass through exactly as the provider reported them.
 - **Easier:** one name per value, from the core's hour records to the document
   and the sensors, so code, specs and dashboards agree without a mapping.
 - **Harder:** the timeline carries hours after tonight, and a reader may be
@@ -82,14 +83,15 @@ timeline.
   including the ones automations read today.
 - **Why not**: it would break the entity that the product's core promise hangs on.
 
-### Alternative 3: Publish the timeline only as a separate MQTT topic, not in the document
-- **Pros**: the document stays exactly as it is; the topic can be as large as it likes.
-- **Cons**: the per-hour astronomy would then live outside the one document the
-  core guarantees, so the determinism tests would not cover it, and every
-  consumer would need a second contract beside the document.
-- **Why not**: the document is the core's one contract and may grow additively.
-  Putting the timeline in it keeps one contract, one set of tests and one place
-  the numbers come from.
+### Alternative 3: Also publish the whole timeline on its own retained MQTT topic
+- **Pros**: a reader outside Home Assistant gets the whole timeline in one
+  message, and the per-variable sensors still serve the cards.
+- **Cons**: one more retained topic joins the frozen delivery surface for a
+  reader that does not exist yet, and the message repeats what the sensors carry.
+- **Why not**: the sensors are the route every known consumer uses, and the
+  document itself remains the whole timeline's source. A whole-timeline topic
+  can be added later without changing anything decided here, so there is no
+  reason to freeze it now.
 
 ### Alternative 4: Limit the timeline to tonight's dark window
 - **Pros**: smaller payloads; no hours a verdict does not judge.
