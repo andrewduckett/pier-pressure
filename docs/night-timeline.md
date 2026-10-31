@@ -41,8 +41,10 @@ Each pier's device has a **Cloud cover** sensor, entity id
 - **`hour` attribute:** the start of the hour the state belongs to, or `null`.
 - **`available` attribute:** `true` when the state has a value.
 
-The sensor is unavailable when the current hour has no cloud cover value, or
-when the timeline is empty. It never shows `0` or an older value instead.
+When the current hour has no cloud cover value, or the timeline is empty, the
+state is `unknown`. It never shows `0` or an older value instead. The sensor stays
+available, so `forecast` is still there for a chart. It is unavailable only when
+PierPressure is offline, and then Home Assistant hides all its attributes.
 
 ### The state can be up to one recompute old
 

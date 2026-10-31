@@ -89,3 +89,13 @@ def test_readme_documents_the_timeline_field(readme_text: str) -> None:
 
 def test_readme_removal_loop_clears_the_cloud_cover_entity(readme_text: str) -> None:
     assert "sensor/pierpressure_backyard/cloud_cover" in readme_text
+
+
+def test_page_says_a_missing_hour_shows_unknown_and_keeps_the_forecast(page_text: str) -> None:
+    assert "The sensor is unavailable when the current hour" not in page_text
+    assert "`unknown`" in page_text
+
+
+def test_readme_says_cloud_cover_shows_unknown(readme_text: str) -> None:
+    assert "Unavailable when the current hour has no value." not in readme_text
+    assert "Unknown when the current hour has no value" in readme_text

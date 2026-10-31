@@ -208,7 +208,7 @@ Each pier becomes one device, `PierPressure <pier>`, with these entities:
 | **Score** (sensor) | 0–100 | Shows as unavailable on a `NO-GO` caused by a gate, rather than `0`. |
 | **Top target** (sensor) | The best target's name, or its catalogue id | The full ranked list is in its attributes. Unavailable when nothing is rankable. See [docs/target-ranking.md](docs/target-ranking.md). |
 | **Target 1** to **Target 10** (sensors) | The name, or catalogue id, of the target at that rank | One sensor per rank, so any dashboard card can list the whole ranking. Its attributes hold the rank and that target's fields. Unavailable when no target holds that rank tonight. |
-| **Cloud cover** (sensor) | The current hour's cloud cover, in % | Its `forecast` attribute holds every timeline hour, for a chart card. Unavailable when the current hour has no value. See [docs/night-timeline.md](docs/night-timeline.md). |
+| **Cloud cover** (sensor) | The current hour's cloud cover, in % | Its `forecast` attribute holds every timeline hour, for a chart card. Unknown when the current hour has no value; the forecast stays readable. See [docs/night-timeline.md](docs/night-timeline.md). |
 | **Refresh** (button) | — | "Show me now": recomputes and republishes straight away. |
 | **Narrative** (sensor) | `ready` or unavailable | Only when the explainer is on. The text is in its attributes. |
 | **Open-Meteo health**, **7Timer! health** (diagnostic sensors) | When that weather source last succeeded, or unknown | One per weather source. See [Watching provider health](#watching-provider-health). |
