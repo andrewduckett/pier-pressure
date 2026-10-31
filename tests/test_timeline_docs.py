@@ -99,3 +99,8 @@ def test_page_says_a_missing_hour_shows_unknown_and_keeps_the_forecast(page_text
 def test_readme_says_cloud_cover_shows_unknown(readme_text: str) -> None:
     assert "Unavailable when the current hour has no value." not in readme_text
     assert "Unknown when the current hour has no value" in readme_text
+
+
+def test_page_apexcharts_example_guards_a_missing_forecast(page_text: str) -> None:
+    # Home Assistant hides every attribute while the sensor is unavailable.
+    assert "(entity.attributes.forecast ?? []).map(" in page_text

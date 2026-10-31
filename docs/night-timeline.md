@@ -87,13 +87,14 @@ series:
     type: column
     unit: "%"
     data_generator: |
-      return entity.attributes.forecast.map((point) => [
+      return (entity.attributes.forecast ?? []).map((point) => [
         new Date(point.datetime).getTime(),
         point.value,
       ]);
 ```
 
-Replace `backyard` with your pier's id.
+Replace `backyard` with your pier's id. The `?? []` keeps the card working while
+PierPressure is offline, when Home Assistant hides the sensor's attributes.
 
 ## Keep the forecast out of the recorder
 
