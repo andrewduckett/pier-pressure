@@ -44,6 +44,7 @@ import logging
 import sys
 import threading
 from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
 from typing import Any, Protocol
@@ -65,6 +66,36 @@ PAYLOAD_OFFLINE = "offline"
 
 # How long a stop waits for the broker to confirm ``offline`` (stop-goes-offline D2).
 OFFLINE_WAIT_SECONDS = 2.0
+
+
+@dataclass(frozen=True)
+class TimelineSensor:
+    """One timeline variable published as its own sensor (timeline-sensors DD1).
+
+    ``key`` is a float field of :class:`TimelineEntry`, and also names the
+    sensor's topics and unique id. ``name`` slugs to ``key``, so Home Assistant's
+    entity id ends in it. ``unit`` is ``None`` for a unitless quality.
+    """
+
+    key: str
+    name: str
+    unit: str | None
+    icon: str
+
+
+# Cloud cover comes first, so the messages before and including it keep their
+# places in a publish (timeline-sensors DD6).
+TIMELINE_SENSORS = (
+    TimelineSensor("cloud_cover", "Cloud cover", "%", "mdi:weather-cloudy"),
+    TimelineSensor("cloud_low", "Cloud low", "%", "mdi:weather-cloudy"),
+    TimelineSensor("cloud_mid", "Cloud mid", "%", "mdi:weather-cloudy"),
+    TimelineSensor("cloud_high", "Cloud high", "%", "mdi:weather-cloudy"),
+    TimelineSensor("wind_gust", "Wind gust", "km/h", "mdi:weather-windy"),
+    TimelineSensor("seeing", "Seeing", None, "mdi:eye"),
+    TimelineSensor("transparency", "Transparency", None, "mdi:telescope"),
+    TimelineSensor("sun_altitude", "Sun altitude", "°", "mdi:weather-sunny"),
+    TimelineSensor("moon_altitude", "Moon altitude", "°", "mdi:weather-night"),
+)
 
 
 class DeliveryError(Exception):
