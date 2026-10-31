@@ -104,3 +104,8 @@ def test_readme_says_cloud_cover_shows_unknown(readme_text: str) -> None:
 def test_page_apexcharts_example_guards_a_missing_forecast(page_text: str) -> None:
     # Home Assistant hides every attribute while the sensor is unavailable.
     assert "(entity.attributes.forecast ?? []).map(" in page_text
+
+
+def test_page_does_not_document_an_available_attribute(page_text: str) -> None:
+    # Home Assistant's MQTT integration strips an attribute named `available`.
+    assert "`available` attribute" not in page_text

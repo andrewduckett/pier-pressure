@@ -39,7 +39,6 @@ Each pier's device has a **Cloud cover** sensor, entity id
   in the list with `value: null`, so the points line up with the timeline hour
   for hour.
 - **`hour` attribute:** the start of the hour the state belongs to, or `null`.
-- **`available` attribute:** `true` when the state has a value.
 
 When the current hour has no cloud cover value, or the timeline is empty, the
 state is `unknown`. It never shows `0` or an older value instead. The sensor stays
