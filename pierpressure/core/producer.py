@@ -15,13 +15,15 @@ document.
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from .clock import Clock
 from .conditions import Conditions
 from .config import PierConfig
-from .model import Confidence, DarkWindow, VerdictDocument
+from .model import Confidence, DarkWindow, TimelineEntry, VerdictDocument
 from .ranking import equipment_reasons, rank_targets
 from .scoring import MIN_USABLE_WINDOW, evaluate
-from .sky import dark_window, moon_info
+from .sky import altitudes_at, dark_window, moon_info
 
 
 def produce_verdict(pier: PierConfig, clock: Clock, conditions: Conditions) -> VerdictDocument:
@@ -33,9 +35,11 @@ def produce_verdict(pier: PierConfig, clock: Clock, conditions: Conditions) -> V
     ``generated_at``, the astronomy, and the lead-time confidence, so the whole
     document is a pure function of ``(pier, clock, conditions)``.
 
-    When the selected night has no dark window, astronomy alone decides
-    (a NO-GO) and the conditions value is not consulted — matching the rule that no
-    dark window means conditions are not required.
+    When the selected night has no dark window, astronomy alone decides the
+    verdict (a NO-GO) and ignores the conditions, matching the rule that no dark
+    window means conditions are not required. The ``timeline`` still carries every
+    hour the providers returned: it is evidence beside the verdict, never an input
+    to it (ADR-0025).
     """
     instant = clock.now()
     window = dark_window(pier, instant)
@@ -73,4 +77,36 @@ def produce_verdict(pier: PierConfig, clock: Clock, conditions: Conditions) -> V
         # The span the gates and score judged (score-remaining-night design D5).
         scored_window=DarkWindow(start=scored_start, end=scored_end),
         moon=moon,
+        timeline=_timeline(pier, conditions),
     )
+
+
+def _timeline(pier: PierConfig, conditions: Conditions) -> list[TimelineEntry]:
+    """One entry per hour either source returned, sorted, with that hour's readings."""
+    base, secondary = conditions.base, conditions.secondary
+    hours: set[datetime] = set()
+    if base is not None:
+        hours.update(hour.time for hour in base.hours)
+    if secondary is not None:
+        hours.update(hour.time for hour in secondary.hours)
+    times = sorted(hours)
+
+    entries: list[TimelineEntry] = []
+    for time, (sun, moon) in zip(times, altitudes_at(pier, times), strict=True):
+        b = base.at(time) if base is not None else None
+        s = secondary.at(time) if secondary is not None else None
+        entries.append(
+            TimelineEntry(
+                time=time,
+                sun_altitude=sun,
+                moon_altitude=moon,
+                cloud_cover=b.cloud_cover if b is not None else None,
+                cloud_low=b.cloud_low if b is not None else None,
+                cloud_mid=b.cloud_mid if b is not None else None,
+                cloud_high=b.cloud_high if b is not None else None,
+                wind_gust=b.wind_gust if b is not None else None,
+                seeing=s.seeing if s is not None else None,
+                transparency=s.transparency if s is not None else None,
+            )
+        )
+    return entries

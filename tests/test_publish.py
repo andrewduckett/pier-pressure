@@ -19,7 +19,7 @@ from pierpressure.delivery.mqtt import (
     verdict_state_topic,
 )
 
-from .conftest import FakeMqttClient, make_document, make_mqtt_config
+from .conftest import FakeMqttClient, make_document, make_mqtt_config, make_timeline
 
 PASSWORD = "secret"
 
@@ -50,6 +50,33 @@ def test_verdict_state_and_attributes_are_published_from_the_document() -> None:
     assert payload["score"] == 50
     assert payload["confidence"] == {"band": "LOW", "value": 0}
     assert payload["reasons"] == ["test reason"]
+
+
+def test_the_attributes_payload_leaves_the_timeline_out() -> None:
+    delivery, client = _connected_delivery()
+    doc = make_document(timeline=make_timeline(120))
+    delivery.publish_verdict(doc)
+
+    [attrs] = client.publishes_to(attributes_topic("pierpressure", "backyard"))
+    payload = json.loads(attrs.payload)
+    document = json.loads(doc.to_json())
+    del document["timeline"]
+    assert "timeline" not in payload
+    assert list(payload.items()) == list(document.items())
+    assert attrs.payload == doc.model_dump_json(exclude={"timeline"})
+
+
+def test_an_empty_timeline_leaves_the_attributes_payload_as_it_was() -> None:
+    delivery, client = _connected_delivery()
+    doc = make_document()
+    delivery.publish_verdict(doc)
+
+    [attrs] = client.publishes_to(attributes_topic("pierpressure", "backyard"))
+    # The payload before the timeline existed: the whole document, which then ended
+    # at the moon.
+    full = doc.to_json()
+    assert full.endswith(',"timeline":[]}')
+    assert attrs.payload == full.removesuffix(',"timeline":[]}') + "}"
 
 
 def test_discovery_state_and_availability_are_all_retained() -> None:

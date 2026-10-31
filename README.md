@@ -204,10 +204,11 @@ Each pier becomes one device, `PierPressure <pier>`, with these entities:
 
 | Entity | State | Notes |
 |---|---|---|
-| **Verdict** (sensor) | `GO`, `MAYBE`, or `NO-GO` | The full verdict document is in its attributes. |
+| **Verdict** (sensor) | `GO`, `MAYBE`, or `NO-GO` | Its attributes hold the verdict document, except `timeline`. |
 | **Score** (sensor) | 0–100 | Shows as unavailable on a `NO-GO` caused by a gate, rather than `0`. |
 | **Top target** (sensor) | The best target's name, or its catalogue id | The full ranked list is in its attributes. Unavailable when nothing is rankable. See [docs/target-ranking.md](docs/target-ranking.md). |
 | **Target 1** to **Target 10** (sensors) | The name, or catalogue id, of the target at that rank | One sensor per rank, so any dashboard card can list the whole ranking. Its attributes hold the rank and that target's fields. Unavailable when no target holds that rank tonight. |
+| **Cloud cover** (sensor) | The current hour's cloud cover, in % | Its `forecast` attribute holds every timeline hour, for a chart card. Unknown when the current hour has no value; the forecast stays readable. See [docs/night-timeline.md](docs/night-timeline.md). |
 | **Refresh** (button) | — | "Show me now": recomputes and republishes straight away. |
 | **Narrative** (sensor) | `ready` or unavailable | Only when the explainer is on. The text is in its attributes. |
 | **Open-Meteo health**, **7Timer! health** (diagnostic sensors) | When that weather source last succeeded, or unknown | One per weather source. See [Watching provider health](#watching-provider-health). |
@@ -221,12 +222,13 @@ connection, the broker sends PierPressure's last-will message instead.
 
 | Purpose | Topic | Retained |
 |---|---|---|
-| Discovery configs | `homeassistant/<sensor\|button>/pierpressure_<pier>/<verdict\|score\|top_target\|target_<n>\|narrative\|refresh>/config` | yes |
+| Discovery configs | `homeassistant/<sensor\|button>/pierpressure_<pier>/<verdict\|score\|top_target\|target_<n>\|cloud_cover\|narrative\|refresh>/config` | yes |
 | Health discovery configs | `homeassistant/sensor/pierpressure_<pier>/<open_meteo\|seven_timer>_health/config` | yes |
 | Verdict state | `pierpressure/<pier>/verdict/state` | yes |
-| Verdict document | `pierpressure/<pier>/verdict/attributes` | yes |
+| Verdict attributes (the document without `timeline`) | `pierpressure/<pier>/verdict/attributes` | yes |
 | Top target state and list | `pierpressure/<pier>/top_target/state`, `.../top_target/attributes` | yes |
 | Target rank `<n>` (1 to 10) state and details | `pierpressure/<pier>/target_<n>/state`, `.../target_<n>/attributes` | yes |
+| Cloud cover state and forecast | `pierpressure/<pier>/cloud_cover/state`, `.../cloud_cover/attributes` | yes |
 | Narrative state and text | `pierpressure/<pier>/narrative/state`, `.../narrative/attributes` | yes |
 | Provider health state and details | `pierpressure/<pier>/health/<open_meteo\|seven_timer>/state`, `.../attributes` | yes |
 | Refresh command | `pierpressure/<pier>/refresh/command` | no |
@@ -236,9 +238,11 @@ connection, the broker sends PierPressure's last-will message instead.
 
 ### The verdict document
 
-The Verdict sensor's attributes hold one JSON document. Every key is always
-present; a value with no data is `null`, never left out. Times are UTC ISO-8601,
-to the whole second, ending in `Z`.
+PierPressure computes one JSON document per pier. The Verdict sensor's attributes
+hold every key except `timeline`, which would push them past Home Assistant's
+16 KiB limit for attributes. Every key is always present; a value with no data is
+`null`, never left out. Times are UTC ISO-8601, to the whole second, ending in
+`Z`.
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -252,6 +256,7 @@ to the whole second, ending in `Z`.
 | `dark_window` | object | Tonight's astronomical night: `{ start, end }`. |
 | `scored_window` | object | The part of `dark_window` that the verdict judged: `{ start, end }`. |
 | `moon` | object | The moon's illumination, phase, and behaviour during the dark window. |
+| `timeline` | list | One entry per hour of weather the sources returned, with the sun and moon altitude. Evidence beside the verdict, not part of it. Delivered on the Cloud cover sensor; see [docs/night-timeline.md](docs/night-timeline.md). |
 
 **`dark_window`** is when the sun's centre is more than 18° below the horizon.
 "Tonight" is the night whose dawn is the first one at or after `generated_at`, so
@@ -426,6 +431,7 @@ empty retained message to each discovery topic. For a pier called `backyard`:
 ```bash
 for e in sensor/pierpressure_backyard/verdict sensor/pierpressure_backyard/score \
          sensor/pierpressure_backyard/top_target sensor/pierpressure_backyard/narrative \
+         sensor/pierpressure_backyard/cloud_cover \
          button/pierpressure_backyard/refresh \
          sensor/pierpressure_backyard/open_meteo_health \
          sensor/pierpressure_backyard/seven_timer_health \

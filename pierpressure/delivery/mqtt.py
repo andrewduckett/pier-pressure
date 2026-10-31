@@ -51,7 +51,7 @@ from typing import Any, Protocol
 import paho.mqtt.client as mqtt
 
 from pierpressure.core.config import MqttConfig
-from pierpressure.core.model import Target, VerdictDocument
+from pierpressure.core.model import Target, TimelineEntry, VerdictDocument, iso_z
 from pierpressure.core.ranking import TOP_N
 from pierpressure.health import ProviderHealth
 
@@ -134,6 +134,14 @@ def rank_target_state_topic(base_topic: str, pier_id: str, rank: int) -> str:
 
 def rank_target_attributes_topic(base_topic: str, pier_id: str, rank: int) -> str:
     return f"{base_topic}/{pier_id}/target_{rank}/attributes"
+
+
+def cloud_cover_state_topic(base_topic: str, pier_id: str) -> str:
+    return f"{base_topic}/{pier_id}/cloud_cover/state"
+
+
+def cloud_cover_attributes_topic(base_topic: str, pier_id: str) -> str:
+    return f"{base_topic}/{pier_id}/cloud_cover/attributes"
 
 
 def narrative_state_topic(base_topic: str, pier_id: str) -> str:
@@ -342,6 +350,71 @@ def rank_target_attributes(document: VerdictDocument, rank: int) -> dict[str, An
     # replace them; ``update`` keeps them first in the payload.
     payload.update(available=True, rank=rank)
     return payload
+
+
+def build_cloud_cover_discovery(pier_id: str, base_topic: str) -> dict[str, Any]:
+    """The Cloud cover sensor: the current hour's value, with the forecast attached.
+
+    Available exactly when PierPressure is online, like the Verdict sensor. Home
+    Assistant drops every attribute of an unavailable entity, so availability must
+    not depend on the current hour, or a chart would lose the forecast on an hour
+    with no value. No ``state_class``: the value is a forecast rewritten every
+    recompute, so long-term statistics would be noise (ADR-0025).
+    """
+    return {
+        "name": "Cloud cover",
+        "has_entity_name": True,
+        "unique_id": f"{node_id(pier_id)}_cloud_cover",
+        "state_topic": cloud_cover_state_topic(base_topic, pier_id),
+        "json_attributes_topic": cloud_cover_attributes_topic(base_topic, pier_id),
+        "unit_of_measurement": "%",
+        "availability_topic": availability_topic(base_topic),
+        "payload_available": PAYLOAD_ONLINE,
+        "payload_not_available": PAYLOAD_OFFLINE,
+        "icon": "mdi:weather-cloudy",
+        "device": _device_block(pier_id),
+    }
+
+
+def _current_hour_entry(document: VerdictDocument) -> TimelineEntry | None:
+    """The timeline entry for the hour containing ``generated_at``, if it has a value.
+
+    Both providers key hours by the UTC top of the hour, so flooring
+    ``generated_at`` matches exactly.
+    """
+    hour = document.generated_at.replace(minute=0, second=0, microsecond=0)
+    for entry in document.timeline:
+        if entry.time == hour:
+            return entry if entry.cloud_cover is not None else None
+    return None
+
+
+def cloud_cover_state(document: VerdictDocument) -> str:
+    """The current hour's cloud cover, written as the document writes the number.
+
+    No value publishes the literal ``None``, which reads as unknown and replaces any
+    earlier retained value.
+    """
+    import json
+
+    entry = _current_hour_entry(document)
+    return "None" if entry is None else json.dumps(entry.cloud_cover)
+
+
+def cloud_cover_attributes(document: VerdictDocument) -> dict[str, Any]:
+    """The hour the state belongs to, and one forecast point per timeline hour.
+
+    ``hour`` says which hour the state is for, since the state is only as fresh as
+    the last recompute. Hours with no value stay in ``forecast`` as nulls, so the
+    arrays of later per-variable sensors line up hour for hour.
+    """
+    entry = _current_hour_entry(document)
+    return {
+        "hour": None if entry is None else iso_z(entry.time),
+        "forecast": [
+            {"datetime": iso_z(e.time), "value": e.cloud_cover} for e in document.timeline
+        ],
+    }
 
 
 def build_narrative_discovery(pier_id: str, base_topic: str) -> dict[str, Any]:
@@ -900,7 +973,14 @@ class MqttDelivery:
         self._publish(
             verdict_state_topic(base, pier), document.verdict.value, retain=True, pier=pier
         )
-        self._publish(attributes_topic(base, pier), document.to_json(), retain=True, pier=pier)
+        # The timeline would push the attributes past Home Assistant's recorder limit;
+        # it travels per variable on its own sensors instead (ADR-0025).
+        self._publish(
+            attributes_topic(base, pier),
+            document.model_dump_json(exclude={"timeline"}),
+            retain=True,
+            pier=pier,
+        )
         self._publish(
             top_target_state_topic(base, pier), top_target_state(document), retain=True, pier=pier
         )
@@ -925,6 +1005,24 @@ class MqttDelivery:
                 retain=True,
                 pier=pier,
             )
+        self._publish(
+            discovery_topic(prefix, "sensor", pier, "cloud_cover"),
+            json.dumps(build_cloud_cover_discovery(pier, base)),
+            retain=True,
+            pier=pier,
+        )
+        self._publish(
+            cloud_cover_state_topic(base, pier),
+            cloud_cover_state(document),
+            retain=True,
+            pier=pier,
+        )
+        self._publish(
+            cloud_cover_attributes_topic(base, pier),
+            json.dumps(cloud_cover_attributes(document)),
+            retain=True,
+            pier=pier,
+        )
         if self._manage_narrative:
             self._publish(
                 discovery_topic(prefix, "sensor", pier, "narrative"),

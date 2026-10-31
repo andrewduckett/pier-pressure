@@ -116,11 +116,12 @@ def _document_with_moon(moon: Moon) -> VerdictDocument:
     )
 
 
-def test_verdict_document_has_moon_as_last_key() -> None:
+def test_verdict_document_has_moon_after_every_earlier_key() -> None:
+    # Only the timeline, added after the moon, may follow it (ADR-0025).
     moon = Moon(illumination=0.5, phase=MoonPhase.FIRST_QUARTER)
     payload = json.loads(_document_with_moon(moon).to_json())
     assert "moon" in payload
-    assert list(payload.keys())[-1] == "moon"
+    assert list(payload.keys())[-2:] == ["moon", "timeline"]
     assert payload["moon"]["illumination"] == 0.5
     assert payload["moon"]["phase"] == "first quarter"
 
