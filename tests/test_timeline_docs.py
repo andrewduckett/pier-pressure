@@ -166,3 +166,50 @@ def test_readme_says_the_timeline_rides_on_the_timeline_sensors(readme_text: str
     [row] = [line for line in readme_text.splitlines() if line.startswith("| `timeline` | list |")]
     assert "Delivered on the Cloud cover sensor;" not in row
     assert "timeline sensors" in row
+
+
+def _section(text: str, heading: str) -> str:
+    """The body of the section under ``heading``, up to the next heading of its level."""
+    level = heading.split(" ", 1)[0]
+    body = text.split(f"\n{heading}\n", 1)[1]
+    return body.split(f"\n{level} ", 1)[0]
+
+
+@pytest.mark.parametrize("key", ("cloud_cover", *_NEW_KEYS))
+def test_page_tables_each_timeline_sensor(page_text: str, key: str) -> None:
+    section = _section(page_text, "## The timeline sensors")
+    [row] = [line for line in section.splitlines() if f"`sensor.pierpressure_<pier>_{key}`" in line]
+    assert row.startswith("|")
+
+
+def test_page_tables_each_sensors_unit(page_text: str) -> None:
+    section = _section(page_text, "## The timeline sensors")
+    assert "| Entity id | Unit | State |" in section
+    for unit in ("%", "km/h", "°"):
+        assert f"| {unit} |" in section
+
+
+def test_page_says_an_altitude_is_for_the_start_of_the_hour(page_text: str) -> None:
+    lowered = " ".join(page_text.lower().split())
+    assert "start of the current hour" in lowered
+    assert "one hour plus one recompute interval" in lowered
+
+
+def test_page_says_an_altitude_shows_unknown_with_no_source(page_text: str) -> None:
+    section = " ".join(_section(page_text, "## The timeline sensors").lower().split())
+    assert "the altitudes too" in section
+    assert "no weather source returned the current hour" in section
+
+
+def test_page_names_all_nine_sensors_in_the_verdict_section(page_text: str) -> None:
+    section = _section(page_text, "## Why the Verdict sensor leaves the timeline out")
+    assert "starting with Cloud cover" not in section
+    for name in ("Cloud cover", *_NEW_NAMES):
+        assert name in section
+
+
+def test_page_recorder_example_lists_all_nine_entities(page_text: str) -> None:
+    section = _section(page_text, "## Keep the forecast out of the recorder")
+    for key in ("cloud_cover", *_NEW_KEYS):
+        assert f"- sensor.pierpressure_backyard_{key}\n" in section
+    assert "each pier has its own" in " ".join(section.lower().split())
