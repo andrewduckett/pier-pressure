@@ -17,7 +17,7 @@ from typing import Annotated, Any, get_args, get_origin, get_type_hints
 import jsonschema
 import pytest
 
-from pierpressure.core.model import TimelineEntry
+from pierpressure.core.model import TimelineEntry, iso_z
 from pierpressure.delivery.ha_schema import SENSOR_SCHEMA
 from pierpressure.delivery.mqtt import (
     PAYLOAD_OFFLINE,
@@ -260,3 +260,53 @@ def test_an_empty_timeline_renders_unknown(key: str) -> None:
 
     assert timeline_state(doc, key) == "None"
     assert timeline_attributes(doc, key)["hour"] is None
+
+
+# --------------------------------------------------------------------------- #
+# Forecast
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize("key", NEW_KEYS)
+def test_the_attributes_carry_exactly_hour_and_forecast(key: str) -> None:
+    doc = make_document(generated_at=_GENERATED, timeline=make_timeline(3, start=_CURRENT_HOUR))
+    assert list(timeline_attributes(doc, key)) == ["hour", "forecast"]
+
+
+def test_the_forecast_mirrors_the_variable_with_nulls_kept() -> None:
+    timeline = [
+        _entry(datetime(2026, 9, 7, 20, tzinfo=UTC), seeing=0.62),
+        _entry(datetime(2026, 9, 7, 21, tzinfo=UTC), seeing=None),
+    ]
+    doc = make_document(generated_at=_GENERATED, timeline=timeline)
+
+    assert timeline_attributes(doc, "seeing")["forecast"] == [
+        {"datetime": "2026-09-07T20:00:00Z", "value": 0.62},
+        {"datetime": "2026-09-07T21:00:00Z", "value": None},
+    ]
+
+
+@pytest.mark.parametrize("key", NEW_KEYS)
+def test_the_forecast_carries_the_sensors_own_key(key: str) -> None:
+    doc = make_document(timeline=make_timeline(2))
+    assert [p["value"] for p in timeline_attributes(doc, key)["forecast"]] == [
+        getattr(e, key) for e in doc.timeline
+    ]
+
+
+def test_every_sensors_forecast_lines_up_with_the_timeline() -> None:
+    doc = make_document(timeline=make_timeline(48))
+    times = [iso_z(e.time) for e in doc.timeline]
+    for key in NEW_KEYS:
+        assert [p["datetime"] for p in timeline_attributes(doc, key)["forecast"]] == times
+
+
+@pytest.mark.parametrize("key", NEW_KEYS)
+def test_an_empty_timeline_publishes_an_empty_forecast(key: str) -> None:
+    assert timeline_attributes(make_document(), key) == {"hour": None, "forecast": []}
+
+
+@pytest.mark.parametrize("key", NEW_KEYS)
+def test_120_full_entries_stay_under_the_recorder_limit(key: str) -> None:
+    doc = make_document(timeline=make_timeline(120))
+    assert len(json.dumps(timeline_attributes(doc, key)).encode()) < 16 * 1024
