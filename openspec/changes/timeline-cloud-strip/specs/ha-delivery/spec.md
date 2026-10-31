@@ -48,7 +48,7 @@ On publishing, the system SHALL publish MQTT discovery configuration for one Clo
 
 ### Requirement: The Cloud cover attributes carry the forecast and the current hour
 
-The Cloud cover sensor's JSON attributes payload SHALL carry exactly `available`, `hour` and `forecast`. `forecast` SHALL hold one `{datetime, value}` entry per timeline entry, in the timeline's order: `datetime` is the entry's `time` and `value` its `cloud_cover` as the document emits it, null when null. `hour` SHALL be the `time` of the entry the state comes from, or null. `available` SHALL be true exactly when `hour` is not null. Every publish SHALL replace the payload.
+The Cloud cover sensor's JSON attributes payload SHALL carry exactly `hour` and `forecast`. `forecast` SHALL hold one `{datetime, value}` entry per timeline entry, in the timeline's order: `datetime` is the entry's `time` and `value` its `cloud_cover` as the document emits it, null when null. `hour` SHALL be the `time` of the entry the state comes from, or null. Every publish SHALL replace the payload.
 
 #### Scenario: The forecast array mirrors the timeline
 
@@ -58,12 +58,12 @@ The Cloud cover sensor's JSON attributes payload SHALL carry exactly `available`
 #### Scenario: The hour names the entry the state comes from
 
 - **WHEN** the adapter publishes a document generated at 23:30 whose timeline has an entry at 23:00 with a cloud cover value
-- **THEN** the sensor's attributes payload has `hour` equal to that entry's `time` and `available` true
+- **THEN** the sensor's attributes payload has `hour` equal to that entry's `time`
 
 #### Scenario: An empty timeline publishes an empty forecast
 
 - **WHEN** the adapter publishes a document whose timeline is empty
-- **THEN** the sensor's attributes payload holds an empty `forecast` list, `hour` null and `available` false
+- **THEN** the sensor's attributes payload holds an empty `forecast` list and `hour` null
 
 #### Scenario: A later publish replaces the forecast
 
@@ -77,20 +77,22 @@ The Cloud cover sensor's JSON attributes payload SHALL carry exactly `available`
 
 ### Requirement: The Cloud cover state is the current hour's value
 
-The Cloud cover sensor's state SHALL be the `cloud_cover` of the timeline entry whose hour contains the document's generation timestamp, written as the document emits the number. When no entry has that hour, or its `cloud_cover` is null, the sensor SHALL resolve to unavailable rather than `0`, an empty value or an earlier value. The state is as fresh as the last recompute: it can lag by up to one recompute interval, and `hour` says which hour it belongs to.
+The Cloud cover sensor's state SHALL be the `cloud_cover` of the timeline entry whose hour contains the document's generation timestamp, written as the document emits the number. When no entry has that hour, or its `cloud_cover` is null, the state SHALL be published as `None`, which Home Assistant shows as unknown, rather than `0`, an empty value or an earlier value. The sensor SHALL be available exactly when the process is online, so its attributes, including `forecast`, stay readable when the current hour has no value. The state is as fresh as the last recompute: it can lag by up to one recompute interval, and `hour` says which hour it belongs to.
 
 #### Scenario: The state is the current hour's cloud cover
 
 - **WHEN** the adapter publishes a document generated at 23:30 whose timeline has an entry at 23:00 with cloud cover `15.0`
 - **THEN** the sensor's state is `15.0`
 
-#### Scenario: A missing or null current hour renders unavailable
+#### Scenario: A missing or null current hour renders unknown
 
 - **WHEN** the adapter publishes a document generated at 23:30 whose timeline has no entry at 23:00, or whose 23:00 entry has a null cloud cover
-- **THEN** the adapter publishes a retained attributes payload with `available` false and `hour` null
-- **AND** the sensor's discovery payload declares an availability that makes the sensor unavailable in that case, rather than showing `0`, an empty value or an earlier value
+- **THEN** the adapter publishes the retained state `None`, rather than `0`, an empty value or an earlier value
+- **AND** a retained attributes payload with `hour` null and a `forecast` entry for every timeline hour
+- **AND** the sensor's discovery payload makes it available exactly when the process is online, with no condition on the current hour
 
-#### Scenario: An empty timeline renders unavailable
+#### Scenario: An empty timeline renders unknown
 
 - **WHEN** the adapter publishes a document whose timeline is empty
-- **THEN** the sensor resolves to unavailable
+- **THEN** the adapter publishes the retained state `None`
+- **AND** the sensor stays available while the process is online
