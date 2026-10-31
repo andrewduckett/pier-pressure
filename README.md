@@ -209,6 +209,7 @@ Each pier becomes one device, `PierPressure <pier>`, with these entities:
 | **Top target** (sensor) | The best target's name, or its catalogue id | The full ranked list is in its attributes. Unavailable when nothing is rankable. See [docs/target-ranking.md](docs/target-ranking.md). |
 | **Target 1** to **Target 10** (sensors) | The name, or catalogue id, of the target at that rank | One sensor per rank, so any dashboard card can list the whole ranking. Its attributes hold the rank and that target's fields. Unavailable when no target holds that rank tonight. |
 | **Cloud cover** (sensor) | The current hour's cloud cover, in % | Its `forecast` attribute holds every timeline hour, for a chart card. Unknown when the current hour has no value; the forecast stays readable. See [docs/night-timeline.md](docs/night-timeline.md). |
+| **Cloud low**, **Cloud mid**, **Cloud high** (%), **Wind gust** (km/h), **Seeing**, **Transparency** (0 to 1), **Sun altitude**, **Moon altitude** (°) (sensors) | The current hour's value | Like Cloud cover: one sensor per timeline variable, each with its own `forecast` attribute. Unknown when the current hour has no value. An altitude is for the start of the hour, not the live sky. See [docs/night-timeline.md](docs/night-timeline.md). |
 | **Refresh** (button) | — | "Show me now": recomputes and republishes straight away. |
 | **Narrative** (sensor) | `ready` or unavailable | Only when the explainer is on. The text is in its attributes. |
 | **Open-Meteo health**, **7Timer! health** (diagnostic sensors) | When that weather source last succeeded, or unknown | One per weather source. See [Watching provider health](#watching-provider-health). |
@@ -222,13 +223,14 @@ connection, the broker sends PierPressure's last-will message instead.
 
 | Purpose | Topic | Retained |
 |---|---|---|
-| Discovery configs | `homeassistant/<sensor\|button>/pierpressure_<pier>/<verdict\|score\|top_target\|target_<n>\|cloud_cover\|narrative\|refresh>/config` | yes |
+| Discovery configs | `homeassistant/<sensor\|button>/pierpressure_<pier>/<verdict\|score\|top_target\|target_<n>\|cloud_cover\|cloud_low\|cloud_mid\|cloud_high\|wind_gust\|seeing\|transparency\|sun_altitude\|moon_altitude\|narrative\|refresh>/config` | yes |
 | Health discovery configs | `homeassistant/sensor/pierpressure_<pier>/<open_meteo\|seven_timer>_health/config` | yes |
 | Verdict state | `pierpressure/<pier>/verdict/state` | yes |
 | Verdict attributes (the document without `timeline`) | `pierpressure/<pier>/verdict/attributes` | yes |
 | Top target state and list | `pierpressure/<pier>/top_target/state`, `.../top_target/attributes` | yes |
 | Target rank `<n>` (1 to 10) state and details | `pierpressure/<pier>/target_<n>/state`, `.../target_<n>/attributes` | yes |
 | Cloud cover state and forecast | `pierpressure/<pier>/cloud_cover/state`, `.../cloud_cover/attributes` | yes |
+| Timeline sensor state and forecast, where `<var>` is `cloud_low`, `cloud_mid`, `cloud_high`, `wind_gust`, `seeing`, `transparency`, `sun_altitude` or `moon_altitude` | `pierpressure/<pier>/<var>/state`, `.../<var>/attributes` | yes |
 | Narrative state and text | `pierpressure/<pier>/narrative/state`, `.../narrative/attributes` | yes |
 | Provider health state and details | `pierpressure/<pier>/health/<open_meteo\|seven_timer>/state`, `.../attributes` | yes |
 | Refresh command | `pierpressure/<pier>/refresh/command` | no |
@@ -256,7 +258,7 @@ hold every key except `timeline`, which would push them past Home Assistant's
 | `dark_window` | object | Tonight's astronomical night: `{ start, end }`. |
 | `scored_window` | object | The part of `dark_window` that the verdict judged: `{ start, end }`. |
 | `moon` | object | The moon's illumination, phase, and behaviour during the dark window. |
-| `timeline` | list | One entry per hour of weather the sources returned, with the sun and moon altitude. Evidence beside the verdict, not part of it. Delivered on the Cloud cover sensor; see [docs/night-timeline.md](docs/night-timeline.md). |
+| `timeline` | list | One entry per hour of weather the sources returned, with the sun and moon altitude. Evidence beside the verdict, not part of it. Delivered on the timeline sensors, one per variable; see [docs/night-timeline.md](docs/night-timeline.md). |
 
 **`dark_window`** is when the sun's centre is more than 18° below the horizon.
 "Tonight" is the night whose dawn is the first one at or after `generated_at`, so
@@ -432,6 +434,10 @@ empty retained message to each discovery topic. For a pier called `backyard`:
 for e in sensor/pierpressure_backyard/verdict sensor/pierpressure_backyard/score \
          sensor/pierpressure_backyard/top_target sensor/pierpressure_backyard/narrative \
          sensor/pierpressure_backyard/cloud_cover \
+         sensor/pierpressure_backyard/cloud_low sensor/pierpressure_backyard/cloud_mid \
+         sensor/pierpressure_backyard/cloud_high sensor/pierpressure_backyard/wind_gust \
+         sensor/pierpressure_backyard/seeing sensor/pierpressure_backyard/transparency \
+         sensor/pierpressure_backyard/sun_altitude sensor/pierpressure_backyard/moon_altitude \
          button/pierpressure_backyard/refresh \
          sensor/pierpressure_backyard/open_meteo_health \
          sensor/pierpressure_backyard/seven_timer_health \

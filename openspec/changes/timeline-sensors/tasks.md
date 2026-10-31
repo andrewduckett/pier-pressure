@@ -8,7 +8,7 @@
 
 ## 2. Documentation [depends-on: 1]
 
-- [ ] 2.1 [easy] The README lists the eight new sensors in one entity row, adds a topic row for them beside Cloud cover's literal row, names the keys in the discovery-topic pattern, writes the eight entries into the "Removing the entities" loop without brace expansion, and says the `timeline` row is delivered on the timeline sensors; `tests/test_timeline_docs.py` checks each, and its Cloud cover checks stay green (design DD8) (verify: uv run pytest tests/test_timeline_docs.py -q)
+- [x] 2.1 [easy] The README lists the eight new sensors in one entity row, adds a topic row for them beside Cloud cover's literal row, names the keys in the discovery-topic pattern, writes the eight entries into the "Removing the entities" loop without brace expansion, and says the `timeline` row is delivered on the timeline sensors; `tests/test_timeline_docs.py` checks each, and its Cloud cover checks stay green (design DD8) (verify: uv run pytest tests/test_timeline_docs.py -q) (✓ uv run pytest tests/test_timeline_docs.py -q passed)
 - [ ] 2.2 [easy] `docs/night-timeline.md` describes all nine timeline sensors in a table of entity ids, units and state meaning; says an altitude state is for the start of the hour, can trail the live sky by up to one hour plus one recompute interval, and shows unknown when no source returned the current hour; names all nine sensors where it said "starting with Cloud cover"; and lists all nine entities in the recorder example with a note that each pier has its own; `tests/test_timeline_docs.py` checks each (design DD8) (verify: uv run pytest tests/test_timeline_docs.py -q)
 
 ## 3. Integration [depends-on: 2]

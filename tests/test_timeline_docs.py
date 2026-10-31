@@ -14,6 +14,28 @@ _ROOT = Path(__file__).resolve().parent.parent
 _PAGE = _ROOT / "docs" / "night-timeline.md"
 _README = _ROOT / "README.md"
 
+# The timeline sensors besides Cloud cover (timeline-sensors).
+_NEW_KEYS = (
+    "cloud_low",
+    "cloud_mid",
+    "cloud_high",
+    "wind_gust",
+    "seeing",
+    "transparency",
+    "sun_altitude",
+    "moon_altitude",
+)
+_NEW_NAMES = (
+    "Cloud low",
+    "Cloud mid",
+    "Cloud high",
+    "Wind gust",
+    "Seeing",
+    "Transparency",
+    "Sun altitude",
+    "Moon altitude",
+)
+
 
 @pytest.fixture
 def page_text() -> str:
@@ -109,3 +131,38 @@ def test_page_apexcharts_example_guards_a_missing_forecast(page_text: str) -> No
 def test_page_does_not_document_an_available_attribute(page_text: str) -> None:
     # Home Assistant's MQTT integration strips an attribute named `available`.
     assert "`available` attribute" not in page_text
+
+
+def test_readme_lists_the_new_timeline_sensors_in_one_row(readme_text: str) -> None:
+    [row] = [line for line in readme_text.splitlines() if "**Cloud low**" in line]
+    for name in _NEW_NAMES:
+        assert f"**{name}**" in row
+
+
+def test_readme_lists_the_new_timeline_sensor_topics(readme_text: str) -> None:
+    [row] = [
+        line
+        for line in readme_text.splitlines()
+        if line.startswith("| Timeline sensor state and forecast")
+    ]
+    assert "`pierpressure/<pier>/<var>/state`" in row
+    assert "`.../<var>/attributes`" in row
+    for key in _NEW_KEYS:
+        assert f"`{key}`" in row
+
+
+def test_readme_discovery_pattern_names_every_timeline_key(readme_text: str) -> None:
+    [row] = [line for line in readme_text.splitlines() if line.startswith("| Discovery configs |")]
+    for key in _NEW_KEYS:
+        assert f"\\|{key}\\|" in row
+
+
+@pytest.mark.parametrize("key", _NEW_KEYS)
+def test_readme_removal_loop_clears_each_timeline_sensor(readme_text: str, key: str) -> None:
+    assert f"sensor/pierpressure_backyard/{key} " in readme_text
+
+
+def test_readme_says_the_timeline_rides_on_the_timeline_sensors(readme_text: str) -> None:
+    [row] = [line for line in readme_text.splitlines() if line.startswith("| `timeline` | list |")]
+    assert "Delivered on the Cloud cover sensor;" not in row
+    assert "timeline sensors" in row
