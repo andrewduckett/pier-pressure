@@ -13,7 +13,7 @@
 
 ## 3. Integration [depends-on: 2]
 
-- [ ] 3.1 [easy] The full gate passes: lint, strict types and the whole test suite (verify: mise run check)
+- [x] 3.1 [easy] The full gate passes: lint, strict types and the whole test suite (verify: mise run check) (✓ mise run check passed: 1399 tests)
 
 ## Deviations Ledger
 
