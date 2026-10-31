@@ -355,31 +355,22 @@ def rank_target_attributes(document: VerdictDocument, rank: int) -> dict[str, An
 def build_cloud_cover_discovery(pier_id: str, base_topic: str) -> dict[str, Any]:
     """The Cloud cover sensor: the current hour's value, with the forecast attached.
 
-    Availability follows the rank sensors: the shared LWT topic AND the attributes'
-    ``available`` flag, so an hour with no value renders ``unavailable`` rather than
-    ``0`` or an earlier value. No ``state_class``: the value is a forecast rewritten
-    every recompute, so long-term statistics would be noise (ADR-0025).
+    Available exactly when PierPressure is online, like the Verdict sensor. Home
+    Assistant drops every attribute of an unavailable entity, so availability must
+    not depend on the current hour, or a chart would lose the forecast on an hour
+    with no value. No ``state_class``: the value is a forecast rewritten every
+    recompute, so long-term statistics would be noise (ADR-0025).
     """
-    attrs = cloud_cover_attributes_topic(base_topic, pier_id)
     return {
         "name": "Cloud cover",
         "has_entity_name": True,
         "unique_id": f"{node_id(pier_id)}_cloud_cover",
         "state_topic": cloud_cover_state_topic(base_topic, pier_id),
-        "json_attributes_topic": attrs,
+        "json_attributes_topic": cloud_cover_attributes_topic(base_topic, pier_id),
         "unit_of_measurement": "%",
-        "availability_mode": "all",
-        "availability": [
-            {
-                "topic": availability_topic(base_topic),
-                "payload_available": PAYLOAD_ONLINE,
-                "payload_not_available": PAYLOAD_OFFLINE,
-            },
-            {
-                "topic": attrs,
-                "value_template": ("{{ 'online' if value_json.available else 'offline' }}"),
-            },
-        ],
+        "availability_topic": availability_topic(base_topic),
+        "payload_available": PAYLOAD_ONLINE,
+        "payload_not_available": PAYLOAD_OFFLINE,
         "icon": "mdi:weather-cloudy",
         "device": _device_block(pier_id),
     }
@@ -401,16 +392,17 @@ def _current_hour_entry(document: VerdictDocument) -> TimelineEntry | None:
 def cloud_cover_state(document: VerdictDocument) -> str:
     """The current hour's cloud cover, written as the document writes the number.
 
-    No value publishes an empty string; the availability flag makes it unavailable.
+    No value publishes the literal ``None``, which reads as unknown and replaces any
+    earlier retained value.
     """
     import json
 
     entry = _current_hour_entry(document)
-    return "" if entry is None else json.dumps(entry.cloud_cover)
+    return "None" if entry is None else json.dumps(entry.cloud_cover)
 
 
 def cloud_cover_attributes(document: VerdictDocument) -> dict[str, Any]:
-    """The flag, the hour the state belongs to, and one forecast point per timeline hour.
+    """The hour the state belongs to, and one forecast point per timeline hour.
 
     ``hour`` says which hour the state is for, since the state is only as fresh as
     the last recompute. Hours with no value stay in ``forecast`` as nulls, so the
@@ -418,7 +410,6 @@ def cloud_cover_attributes(document: VerdictDocument) -> dict[str, Any]:
     """
     entry = _current_hour_entry(document)
     return {
-        "available": entry is not None,
         "hour": None if entry is None else iso_z(entry.time),
         "forecast": [
             {"datetime": iso_z(e.time), "value": e.cloud_cover} for e in document.timeline

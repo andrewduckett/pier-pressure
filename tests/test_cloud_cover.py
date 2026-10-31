@@ -2,8 +2,9 @@
 
 One sensor per pier carries the timeline's cloud cover: its state is the current
 hour's value, and its attributes carry the whole forecast so a chart card can
-draw it. Availability follows the rank sensors: the shared LWT AND an
-``available`` flag in the attributes.
+draw it. It is available exactly when PierPressure is online: Home Assistant
+drops every attribute of an unavailable entity, so an hour with no value shows
+as unknown instead, and the forecast stays readable.
 """
 
 from __future__ import annotations
@@ -79,17 +80,14 @@ def test_cloud_cover_discovery_is_a_percent_sensor_on_the_pier_device() -> None:
     assert "device_class" not in config
 
 
-def test_cloud_cover_discovery_availability_requires_online_and_available() -> None:
+def test_cloud_cover_discovery_availability_is_only_the_shared_online_topic() -> None:
     config = build_cloud_cover_discovery("backyard", BASE)
-    assert config["availability_mode"] == "all"
-    lwt, flag = config["availability"]
-    assert lwt == {
-        "topic": availability_topic(BASE),
-        "payload_available": PAYLOAD_ONLINE,
-        "payload_not_available": PAYLOAD_OFFLINE,
-    }
-    assert flag["topic"] == cloud_cover_attributes_topic(BASE, "backyard")
-    assert "value_json.available" in flag["value_template"]
+    assert config["availability_topic"] == availability_topic(BASE)
+    assert config["payload_available"] == PAYLOAD_ONLINE
+    assert config["payload_not_available"] == PAYLOAD_OFFLINE
+    # No condition on the current hour: an unavailable entity loses its forecast.
+    assert "availability" not in config
+    assert "availability_mode" not in config
 
 
 def test_cloud_cover_discovery_validates_against_the_sensor_schema() -> None:
@@ -133,12 +131,11 @@ def test_the_state_is_the_current_hours_cloud_cover_as_the_document_emits_it() -
     emitted = json.loads(make_document(timeline=timeline).to_json())["timeline"][0]
     assert json.loads(state) == emitted["cloud_cover"]
     assert attrs["hour"] == "2026-09-07T23:00:00Z"
-    assert attrs["available"] is True
 
 
-def test_the_attributes_carry_exactly_available_hour_and_forecast() -> None:
+def test_the_attributes_carry_exactly_hour_and_forecast() -> None:
     doc = make_document(generated_at=_GENERATED, timeline=make_timeline(3, start=_CURRENT_HOUR))
-    assert list(cloud_cover_attributes(doc)) == ["available", "hour", "forecast"]
+    assert list(cloud_cover_attributes(doc)) == ["hour", "forecast"]
 
 
 def test_the_forecast_mirrors_the_timeline_with_nulls_kept() -> None:
@@ -154,36 +151,49 @@ def test_the_forecast_mirrors_the_timeline_with_nulls_kept() -> None:
     ]
 
 
-def test_a_missing_current_hour_publishes_unavailable() -> None:
+def test_a_missing_current_hour_publishes_unknown_and_keeps_the_forecast() -> None:
     timeline = make_timeline(2, start=datetime(2026, 9, 7, 20, tzinfo=UTC))
     delivery, client = _connected()
     delivery.publish_verdict(make_document(generated_at=_GENERATED, timeline=timeline))
 
     state, attrs = _published_state_and_attributes(client)
-    assert state == ""
-    assert attrs["available"] is False
+    assert state == "None"
     assert attrs["hour"] is None
-    assert len(attrs["forecast"]) == 2  # type: ignore[arg-type]
+    assert [p["datetime"] for p in attrs["forecast"]] == [  # type: ignore[attr-defined]
+        "2026-09-07T20:00:00Z",
+        "2026-09-07T21:00:00Z",
+    ]
 
 
-def test_a_null_current_hour_publishes_unavailable() -> None:
+def test_a_missing_hour_replaces_an_earlier_retained_value() -> None:
+    delivery, client = _connected()
+    delivery.publish_verdict(
+        make_document(generated_at=_GENERATED, timeline=make_timeline(1, start=_CURRENT_HOUR))
+    )
+    delivery.publish_verdict(make_document(generated_at=_GENERATED))
+
+    *_, last = client.publishes_to(cloud_cover_state_topic(BASE, "backyard"))
+    assert last.payload == "None"
+    assert last.retain is True
+
+
+def test_a_null_current_hour_publishes_unknown() -> None:
     timeline = make_timeline(1, start=_CURRENT_HOUR, cloud_cover=None)
     doc = make_document(generated_at=_GENERATED, timeline=timeline)
 
-    assert cloud_cover_state(doc) == ""
+    assert cloud_cover_state(doc) == "None"
     attrs = cloud_cover_attributes(doc)
-    assert attrs["available"] is False
     assert attrs["hour"] is None
     assert attrs["forecast"] == [{"datetime": "2026-09-07T23:00:00Z", "value": None}]
 
 
-def test_an_empty_timeline_publishes_an_empty_forecast_and_unavailable() -> None:
+def test_an_empty_timeline_publishes_an_empty_forecast_and_unknown() -> None:
     delivery, client = _connected()
     delivery.publish_verdict(make_document(generated_at=_GENERATED))
 
     state, attrs = _published_state_and_attributes(client)
-    assert state == ""
-    assert attrs == {"available": False, "hour": None, "forecast": []}
+    assert state == "None"
+    assert attrs == {"hour": None, "forecast": []}
 
 
 def test_a_later_publish_replaces_the_forecast() -> None:
