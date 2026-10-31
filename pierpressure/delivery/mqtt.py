@@ -27,15 +27,21 @@ Score discovery cfg          ``P/sensor/pierpressure_<pier>/score/config``      
 Refresh discovery cfg        ``P/button/pierpressure_<pier>/refresh/config``       yes
 Rank n discovery cfg         ``P/sensor/pierpressure_<pier>/target_<n>/config``    yes
 Health discovery cfg         ``P/sensor/pierpressure_<pier>/<key>_health/config``  yes
+Timeline discovery cfg       ``P/sensor/pierpressure_<pier>/<var>/config``         yes
 Verdict state                ``B/<pier>/verdict/state``                            yes
 Document attributes (JSON)   ``B/<pier>/verdict/attributes``                       yes
 Rank n state                 ``B/<pier>/target_<n>/state``                         yes
 Rank n attributes (JSON)     ``B/<pier>/target_<n>/attributes``                    yes
+Timeline state               ``B/<pier>/<var>/state``                              yes
+Timeline attributes (JSON)   ``B/<pier>/<var>/attributes``                         yes
 Health state                 ``B/<pier>/health/<key>/state``                       yes
 Health attributes (JSON)     ``B/<pier>/health/<key>/attributes``                  yes
 Refresh command              ``B/<pier>/refresh/command``                          no
 Availability (LWT)           ``B/status``                                          yes
 ===========================  ====================================================  ======
+
+``<var>`` is a timeline sensor's key in :data:`TIMELINE_SENSORS`, such as
+``cloud_cover`` or ``seeing``.
 """
 
 from __future__ import annotations
@@ -44,6 +50,7 @@ import logging
 import sys
 import threading
 from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
 from typing import Any, Protocol
@@ -65,6 +72,37 @@ PAYLOAD_OFFLINE = "offline"
 
 # How long a stop waits for the broker to confirm ``offline`` (stop-goes-offline D2).
 OFFLINE_WAIT_SECONDS = 2.0
+
+
+@dataclass(frozen=True)
+class TimelineSensor:
+    """One timeline variable published as its own sensor (timeline-sensors DD1).
+
+    ``key`` is a float field of :class:`TimelineEntry`, and also names the
+    sensor's topics and unique id. ``name`` slugs to ``key``, so Home Assistant's
+    entity id ends in it. ``unit`` is ``None`` for a unitless quality.
+    """
+
+    key: str
+    name: str
+    unit: str | None
+    icon: str
+
+
+# Cloud cover comes first, so the messages before and including it keep their
+# places in a publish (timeline-sensors DD6).
+TIMELINE_SENSORS = (
+    TimelineSensor("cloud_cover", "Cloud cover", "%", "mdi:weather-cloudy"),
+    TimelineSensor("cloud_low", "Cloud low", "%", "mdi:weather-cloudy"),
+    TimelineSensor("cloud_mid", "Cloud mid", "%", "mdi:weather-cloudy"),
+    TimelineSensor("cloud_high", "Cloud high", "%", "mdi:weather-cloudy"),
+    TimelineSensor("wind_gust", "Wind gust", "km/h", "mdi:weather-windy"),
+    TimelineSensor("seeing", "Seeing", None, "mdi:eye"),
+    TimelineSensor("transparency", "Transparency", None, "mdi:telescope"),
+    TimelineSensor("sun_altitude", "Sun altitude", "°", "mdi:weather-sunny"),
+    TimelineSensor("moon_altitude", "Moon altitude", "°", "mdi:weather-night"),
+)
+_CLOUD_COVER = TIMELINE_SENSORS[0]
 
 
 class DeliveryError(Exception):
@@ -136,12 +174,20 @@ def rank_target_attributes_topic(base_topic: str, pier_id: str, rank: int) -> st
     return f"{base_topic}/{pier_id}/target_{rank}/attributes"
 
 
+def timeline_state_topic(base_topic: str, pier_id: str, key: str) -> str:
+    return f"{base_topic}/{pier_id}/{key}/state"
+
+
+def timeline_attributes_topic(base_topic: str, pier_id: str, key: str) -> str:
+    return f"{base_topic}/{pier_id}/{key}/attributes"
+
+
 def cloud_cover_state_topic(base_topic: str, pier_id: str) -> str:
-    return f"{base_topic}/{pier_id}/cloud_cover/state"
+    return timeline_state_topic(base_topic, pier_id, "cloud_cover")
 
 
 def cloud_cover_attributes_topic(base_topic: str, pier_id: str) -> str:
-    return f"{base_topic}/{pier_id}/cloud_cover/attributes"
+    return timeline_attributes_topic(base_topic, pier_id, "cloud_cover")
 
 
 def narrative_state_topic(base_topic: str, pier_id: str) -> str:
@@ -352,32 +398,45 @@ def rank_target_attributes(document: VerdictDocument, rank: int) -> dict[str, An
     return payload
 
 
-def build_cloud_cover_discovery(pier_id: str, base_topic: str) -> dict[str, Any]:
-    """The Cloud cover sensor: the current hour's value, with the forecast attached.
+def build_timeline_discovery(
+    pier_id: str, base_topic: str, sensor: TimelineSensor
+) -> dict[str, Any]:
+    """A timeline sensor: the current hour's value, with the forecast attached.
 
     Available exactly when PierPressure is online, like the Verdict sensor. Home
     Assistant drops every attribute of an unavailable entity, so availability must
     not depend on the current hour, or a chart would lose the forecast on an hour
     with no value. No ``state_class``: the value is a forecast rewritten every
-    recompute, so long-term statistics would be noise (ADR-0025).
+    recompute, so long-term statistics would be noise (ADR-0025). No
+    ``device_class`` either, so Home Assistant never converts the state away from
+    the forecast's unit.
     """
-    return {
-        "name": "Cloud cover",
+    config: dict[str, Any] = {
+        "name": sensor.name,
         "has_entity_name": True,
-        "unique_id": f"{node_id(pier_id)}_cloud_cover",
-        "state_topic": cloud_cover_state_topic(base_topic, pier_id),
-        "json_attributes_topic": cloud_cover_attributes_topic(base_topic, pier_id),
-        "unit_of_measurement": "%",
+        "unique_id": f"{node_id(pier_id)}_{sensor.key}",
+        "state_topic": timeline_state_topic(base_topic, pier_id, sensor.key),
+        "json_attributes_topic": timeline_attributes_topic(base_topic, pier_id, sensor.key),
+    }
+    if sensor.unit is not None:
+        config["unit_of_measurement"] = sensor.unit
+    config |= {
         "availability_topic": availability_topic(base_topic),
         "payload_available": PAYLOAD_ONLINE,
         "payload_not_available": PAYLOAD_OFFLINE,
-        "icon": "mdi:weather-cloudy",
+        "icon": sensor.icon,
         "device": _device_block(pier_id),
     }
+    return config
+
+
+def build_cloud_cover_discovery(pier_id: str, base_topic: str) -> dict[str, Any]:
+    """The Cloud cover sensor, the first row of :data:`TIMELINE_SENSORS`."""
+    return build_timeline_discovery(pier_id, base_topic, _CLOUD_COVER)
 
 
 def _current_hour_entry(document: VerdictDocument) -> TimelineEntry | None:
-    """The timeline entry for the hour containing ``generated_at``, if it has a value.
+    """The timeline entry for the hour containing ``generated_at``, whatever its values.
 
     Both providers key hours by the UTC top of the hour, so flooring
     ``generated_at`` matches exactly.
@@ -385,36 +444,56 @@ def _current_hour_entry(document: VerdictDocument) -> TimelineEntry | None:
     hour = document.generated_at.replace(minute=0, second=0, microsecond=0)
     for entry in document.timeline:
         if entry.time == hour:
-            return entry if entry.cloud_cover is not None else None
+            return entry
     return None
 
 
-def cloud_cover_state(document: VerdictDocument) -> str:
-    """The current hour's cloud cover, written as the document writes the number.
+def _current_value(document: VerdictDocument, key: str) -> tuple[TimelineEntry, float] | None:
+    """The current hour's entry and its value for ``key``, or ``None`` when either is missing.
+
+    Judged per key, so one variable's null leaves the others known (timeline-sensors DD5).
+    """
+    entry = _current_hour_entry(document)
+    if entry is None:
+        return None
+    value: float | None = getattr(entry, key)
+    return None if value is None else (entry, value)
+
+
+def timeline_state(document: VerdictDocument, key: str) -> str:
+    """The current hour's value for ``key``, written as the document writes the number.
 
     No value publishes the literal ``None``, which reads as unknown and replaces any
     earlier retained value.
     """
     import json
 
-    entry = _current_hour_entry(document)
-    return "None" if entry is None else json.dumps(entry.cloud_cover)
+    current = _current_value(document, key)
+    return "None" if current is None else json.dumps(current[1])
 
 
-def cloud_cover_attributes(document: VerdictDocument) -> dict[str, Any]:
+def timeline_attributes(document: VerdictDocument, key: str) -> dict[str, Any]:
     """The hour the state belongs to, and one forecast point per timeline hour.
 
     ``hour`` says which hour the state is for, since the state is only as fresh as
-    the last recompute. Hours with no value stay in ``forecast`` as nulls, so the
-    arrays of later per-variable sensors line up hour for hour.
+    the last recompute. Hours with no value stay in ``forecast`` as nulls, so every
+    timeline sensor's array lines up hour for hour.
     """
-    entry = _current_hour_entry(document)
+    current = _current_value(document, key)
     return {
-        "hour": None if entry is None else iso_z(entry.time),
+        "hour": None if current is None else iso_z(current[0].time),
         "forecast": [
-            {"datetime": iso_z(e.time), "value": e.cloud_cover} for e in document.timeline
+            {"datetime": iso_z(e.time), "value": getattr(e, key)} for e in document.timeline
         ],
     }
+
+
+def cloud_cover_state(document: VerdictDocument) -> str:
+    return timeline_state(document, _CLOUD_COVER.key)
+
+
+def cloud_cover_attributes(document: VerdictDocument) -> dict[str, Any]:
+    return timeline_attributes(document, _CLOUD_COVER.key)
 
 
 def build_narrative_discovery(pier_id: str, base_topic: str) -> dict[str, Any]:
@@ -1005,24 +1084,25 @@ class MqttDelivery:
                 retain=True,
                 pier=pier,
             )
-        self._publish(
-            discovery_topic(prefix, "sensor", pier, "cloud_cover"),
-            json.dumps(build_cloud_cover_discovery(pier, base)),
-            retain=True,
-            pier=pier,
-        )
-        self._publish(
-            cloud_cover_state_topic(base, pier),
-            cloud_cover_state(document),
-            retain=True,
-            pier=pier,
-        )
-        self._publish(
-            cloud_cover_attributes_topic(base, pier),
-            json.dumps(cloud_cover_attributes(document)),
-            retain=True,
-            pier=pier,
-        )
+        for sensor in TIMELINE_SENSORS:
+            self._publish(
+                discovery_topic(prefix, "sensor", pier, sensor.key),
+                json.dumps(build_timeline_discovery(pier, base, sensor)),
+                retain=True,
+                pier=pier,
+            )
+            self._publish(
+                timeline_state_topic(base, pier, sensor.key),
+                timeline_state(document, sensor.key),
+                retain=True,
+                pier=pier,
+            )
+            self._publish(
+                timeline_attributes_topic(base, pier, sensor.key),
+                json.dumps(timeline_attributes(document, sensor.key)),
+                retain=True,
+                pier=pier,
+            )
         if self._manage_narrative:
             self._publish(
                 discovery_topic(prefix, "sensor", pier, "narrative"),

@@ -2,7 +2,7 @@
 
 The verdict tells you whether tonight is worth setting up for. The timeline
 shows you why, hour by hour. This page explains what the timeline holds, how the
-Cloud cover sensor delivers it to Home Assistant, and how to chart it.
+timeline sensors deliver it to Home Assistant, and how to chart it.
 
 ## What the timeline is
 
@@ -27,23 +27,53 @@ The timeline is evidence, not a decision. The verdict still judges one night,
 the one `dark_window` names. Clear hours on a later night do not change
 tonight's verdict, and the timeline makes no verdict about that later night.
 
-## The Cloud cover sensor
+## The timeline sensors
 
-Each pier's device has a **Cloud cover** sensor, entity id
-`sensor.pierpressure_<pier>_cloud_cover`. For a pier called `backyard`, that is
+Each pier's device has one sensor per timeline value. Its entity id ends in the
+value's key. For a pier called `backyard`, the Cloud cover sensor is
 `sensor.pierpressure_backyard_cloud_cover`.
 
-- **State:** the cloud cover, in percent, for the current hour.
-- **`forecast` attribute:** one point per timeline hour, in order. Each point is
-  `{ "datetime": "<time>", "value": <cloud_cover> }`. An hour with no value stays
-  in the list with `value: null`, so the points line up with the timeline hour
-  for hour.
-- **`hour` attribute:** the start of the hour the state belongs to, or `null`.
+| Entity id | Unit | State |
+|---|---|---|
+| `sensor.pierpressure_<pier>_cloud_cover` | % | Total cloud cover |
+| `sensor.pierpressure_<pier>_cloud_low` | % | Low cloud cover |
+| `sensor.pierpressure_<pier>_cloud_mid` | % | Middle cloud cover |
+| `sensor.pierpressure_<pier>_cloud_high` | % | High cloud cover |
+| `sensor.pierpressure_<pier>_wind_gust` | km/h | The forecast gust |
+| `sensor.pierpressure_<pier>_seeing` | none | Seeing, from 0 to 1, where 1 is best |
+| `sensor.pierpressure_<pier>_transparency` | none | Transparency, from 0 to 1, where 1 is best |
+| `sensor.pierpressure_<pier>_sun_altitude` | ° | The sun's altitude at the start of the current hour |
+| `sensor.pierpressure_<pier>_moon_altitude` | ° | The moon's altitude at the start of the current hour |
 
-When the current hour has no cloud cover value, or the timeline is empty, the
+Every timeline sensor works the same way:
+
+- **State:** the value for the current hour, as the timeline holds it.
+- **`forecast` attribute:** one point per timeline hour, in order. Each point is
+  `{ "datetime": "<time>", "value": <value> }`. An hour with no value stays in
+  the list with `value: null`, so every sensor's points line up with the
+  timeline hour for hour.
+- **`hour` attribute:** the start of the hour the state belongs to, or `null`.
+  Each sensor judges its own value, so Seeing can be unknown while Cloud low has
+  a value in the same hour.
+
+When the current hour has no value for a sensor, or the timeline is empty, its
 state is `unknown`. It never shows `0` or an older value instead. The sensor stays
 available, so `forecast` is still there for a chart. It is unavailable only when
 PierPressure is offline, and then Home Assistant hides all its attributes.
+
+Every timeline sensor shows `unknown` when no weather source returned the
+current hour: the altitudes too. A timeline entry, and the altitudes in it, is
+always present for each hour a source returned, but there is no entry for an
+hour no source returned. To tell whether it is dark, use the Verdict sensor's
+`dark_window` instead.
+
+### An altitude is for the start of the hour
+
+The Sun altitude and Moon altitude states are the altitude at the start of the
+current hour, as the timeline holds it, not the live sky. Together with the
+recompute interval, a state can trail the live sky by up to one hour plus one
+recompute interval. Do not use them for an automation that needs the sun's or
+moon's position to the minute.
 
 ### The state can be up to one recompute old
 
@@ -59,7 +89,8 @@ Home Assistant does not store state attributes larger than 16 KiB. A timeline of
 around 120 hours with ten values each would push the Verdict sensor past that
 limit. So the Verdict sensor's attributes hold every field of the verdict
 document except `timeline`. Each timeline value reaches Home Assistant on its own
-sensor instead, starting with Cloud cover.
+sensor instead: Cloud cover, Cloud low, Cloud mid, Cloud high, Wind gust,
+Seeing, Transparency, Sun altitude and Moon altitude.
 
 ## Chart the forecast
 
@@ -99,15 +130,26 @@ PierPressure is offline, when Home Assistant hides the sensor's attributes.
 
 PierPressure rewrites the forecast on every recompute. Home Assistant's recorder
 saves each new copy, which adds to your database over time, and the history of a
-forecast is rarely useful. To stop recording the sensor, add it to the recorder's
-exclusions in `configuration.yaml`:
+forecast is rarely useful. To stop recording the timeline sensors, add them to
+the recorder's exclusions in `configuration.yaml`:
 
 ```yaml
 recorder:
   exclude:
     entities:
       - sensor.pierpressure_backyard_cloud_cover
+      - sensor.pierpressure_backyard_cloud_low
+      - sensor.pierpressure_backyard_cloud_mid
+      - sensor.pierpressure_backyard_cloud_high
+      - sensor.pierpressure_backyard_wind_gust
+      - sensor.pierpressure_backyard_seeing
+      - sensor.pierpressure_backyard_transparency
+      - sensor.pierpressure_backyard_sun_altitude
+      - sensor.pierpressure_backyard_moon_altitude
 ```
+
+Each pier has its own nine sensors. For a second pier, add its nine entity ids
+too.
 
 The card above reads the live attributes, so it keeps working.
 
