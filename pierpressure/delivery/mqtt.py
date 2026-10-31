@@ -96,6 +96,7 @@ TIMELINE_SENSORS = (
     TimelineSensor("sun_altitude", "Sun altitude", "°", "mdi:weather-sunny"),
     TimelineSensor("moon_altitude", "Moon altitude", "°", "mdi:weather-night"),
 )
+_CLOUD_COVER = TIMELINE_SENSORS[0]
 
 
 class DeliveryError(Exception):
@@ -167,12 +168,20 @@ def rank_target_attributes_topic(base_topic: str, pier_id: str, rank: int) -> st
     return f"{base_topic}/{pier_id}/target_{rank}/attributes"
 
 
+def timeline_state_topic(base_topic: str, pier_id: str, key: str) -> str:
+    return f"{base_topic}/{pier_id}/{key}/state"
+
+
+def timeline_attributes_topic(base_topic: str, pier_id: str, key: str) -> str:
+    return f"{base_topic}/{pier_id}/{key}/attributes"
+
+
 def cloud_cover_state_topic(base_topic: str, pier_id: str) -> str:
-    return f"{base_topic}/{pier_id}/cloud_cover/state"
+    return timeline_state_topic(base_topic, pier_id, "cloud_cover")
 
 
 def cloud_cover_attributes_topic(base_topic: str, pier_id: str) -> str:
-    return f"{base_topic}/{pier_id}/cloud_cover/attributes"
+    return timeline_attributes_topic(base_topic, pier_id, "cloud_cover")
 
 
 def narrative_state_topic(base_topic: str, pier_id: str) -> str:
@@ -383,28 +392,41 @@ def rank_target_attributes(document: VerdictDocument, rank: int) -> dict[str, An
     return payload
 
 
-def build_cloud_cover_discovery(pier_id: str, base_topic: str) -> dict[str, Any]:
-    """The Cloud cover sensor: the current hour's value, with the forecast attached.
+def build_timeline_discovery(
+    pier_id: str, base_topic: str, sensor: TimelineSensor
+) -> dict[str, Any]:
+    """A timeline sensor: the current hour's value, with the forecast attached.
 
     Available exactly when PierPressure is online, like the Verdict sensor. Home
     Assistant drops every attribute of an unavailable entity, so availability must
     not depend on the current hour, or a chart would lose the forecast on an hour
     with no value. No ``state_class``: the value is a forecast rewritten every
-    recompute, so long-term statistics would be noise (ADR-0025).
+    recompute, so long-term statistics would be noise (ADR-0025). No
+    ``device_class`` either, so Home Assistant never converts the state away from
+    the forecast's unit.
     """
-    return {
-        "name": "Cloud cover",
+    config: dict[str, Any] = {
+        "name": sensor.name,
         "has_entity_name": True,
-        "unique_id": f"{node_id(pier_id)}_cloud_cover",
-        "state_topic": cloud_cover_state_topic(base_topic, pier_id),
-        "json_attributes_topic": cloud_cover_attributes_topic(base_topic, pier_id),
-        "unit_of_measurement": "%",
+        "unique_id": f"{node_id(pier_id)}_{sensor.key}",
+        "state_topic": timeline_state_topic(base_topic, pier_id, sensor.key),
+        "json_attributes_topic": timeline_attributes_topic(base_topic, pier_id, sensor.key),
+    }
+    if sensor.unit is not None:
+        config["unit_of_measurement"] = sensor.unit
+    config |= {
         "availability_topic": availability_topic(base_topic),
         "payload_available": PAYLOAD_ONLINE,
         "payload_not_available": PAYLOAD_OFFLINE,
-        "icon": "mdi:weather-cloudy",
+        "icon": sensor.icon,
         "device": _device_block(pier_id),
     }
+    return config
+
+
+def build_cloud_cover_discovery(pier_id: str, base_topic: str) -> dict[str, Any]:
+    """The Cloud cover sensor, the first row of :data:`TIMELINE_SENSORS`."""
+    return build_timeline_discovery(pier_id, base_topic, _CLOUD_COVER)
 
 
 def _current_hour_entry(document: VerdictDocument) -> TimelineEntry | None:
