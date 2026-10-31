@@ -11,7 +11,8 @@ from __future__ import annotations
 import json
 import types
 import typing
-from typing import Annotated, get_args, get_origin, get_type_hints
+from datetime import UTC, datetime
+from typing import Annotated, Any, get_args, get_origin, get_type_hints
 
 import jsonschema
 import pytest
@@ -26,11 +27,17 @@ from pierpressure.delivery.mqtt import (
     availability_topic,
     build_cloud_cover_discovery,
     build_timeline_discovery,
+    timeline_attributes,
     timeline_attributes_topic,
+    timeline_state,
     timeline_state_topic,
 )
 
+from .conftest import make_document, make_timeline
+
 BASE = "pierpressure"
+_GENERATED = datetime(2026, 9, 7, 23, 30, tzinfo=UTC)
+_CURRENT_HOUR = datetime(2026, 9, 7, 23, tzinfo=UTC)
 
 NEW_KEYS = (
     "cloud_low",
@@ -43,8 +50,16 @@ NEW_KEYS = (
     "moon_altitude",
 )
 
+# The keys a source can leave null; the core always computes the altitudes.
+NULLABLE_KEYS = tuple(k for k in NEW_KEYS if not k.endswith("_altitude"))
 NEW_SENSORS = TIMELINE_SENSORS[1:]
 SENSORS_BY_KEY = {s.key: s for s in TIMELINE_SENSORS}
+
+
+def _entry(time: datetime, **values: Any) -> TimelineEntry:
+    """A full entry at ``time``, as ``make_timeline`` fills it, with ``values`` replaced."""
+    [entry] = make_timeline(1, start=time)
+    return entry.model_copy(update=values)
 
 
 def _unwrap(hint: object) -> object:
@@ -190,3 +205,58 @@ def test_the_cloud_cover_discovery_is_byte_identical_to_before() -> None:
         },
     }
     assert json.dumps(build_cloud_cover_discovery("backyard", BASE)) == json.dumps(before)
+
+
+# --------------------------------------------------------------------------- #
+# State and hour
+# --------------------------------------------------------------------------- #
+
+
+def test_the_state_is_the_current_hours_value_as_the_document_emits_it() -> None:
+    entry = _entry(_CURRENT_HOUR, wind_gust=18.4, moon_altitude=-12.345)
+    doc = make_document(generated_at=_GENERATED, timeline=[entry])
+
+    assert timeline_state(doc, "wind_gust") == "18.4"
+    assert timeline_state(doc, "moon_altitude") == "-12.345"
+    emitted = json.loads(doc.to_json())["timeline"][0]
+    for key in NEW_KEYS:
+        assert json.loads(timeline_state(doc, key)) == emitted[key]
+
+
+@pytest.mark.parametrize("key", NEW_KEYS)
+def test_the_hour_is_the_entry_the_state_comes_from(key: str) -> None:
+    doc = make_document(generated_at=_GENERATED, timeline=[_entry(_CURRENT_HOUR)])
+    assert timeline_attributes(doc, key)["hour"] == "2026-09-07T23:00:00Z"
+
+
+@pytest.mark.parametrize("key", NULLABLE_KEYS)
+def test_a_null_value_renders_unknown_for_that_sensor_only(key: str) -> None:
+    doc = make_document(generated_at=_GENERATED, timeline=[_entry(_CURRENT_HOUR, **{key: None})])
+
+    assert timeline_state(doc, key) == "None"
+    assert timeline_attributes(doc, key)["hour"] is None
+    for other in (k for k in NEW_KEYS if k != key):
+        assert timeline_state(doc, other) != "None"
+        assert timeline_attributes(doc, other)["hour"] == "2026-09-07T23:00:00Z"
+
+
+def test_a_null_cloud_cover_leaves_the_other_sensors_known() -> None:
+    doc = make_document(generated_at=_GENERATED, timeline=[_entry(_CURRENT_HOUR, cloud_cover=None)])
+    assert timeline_state(doc, "cloud_low") == "5.0"
+
+
+@pytest.mark.parametrize("key", NEW_KEYS)
+def test_a_missing_current_hour_renders_unknown(key: str) -> None:
+    timeline = make_timeline(2, start=datetime(2026, 9, 7, 20, tzinfo=UTC))
+    doc = make_document(generated_at=_GENERATED, timeline=timeline)
+
+    assert timeline_state(doc, key) == "None"
+    assert timeline_attributes(doc, key)["hour"] is None
+
+
+@pytest.mark.parametrize("key", NEW_KEYS)
+def test_an_empty_timeline_renders_unknown(key: str) -> None:
+    doc = make_document(generated_at=_GENERATED)
+
+    assert timeline_state(doc, key) == "None"
+    assert timeline_attributes(doc, key)["hour"] is None

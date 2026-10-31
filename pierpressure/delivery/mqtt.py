@@ -430,7 +430,7 @@ def build_cloud_cover_discovery(pier_id: str, base_topic: str) -> dict[str, Any]
 
 
 def _current_hour_entry(document: VerdictDocument) -> TimelineEntry | None:
-    """The timeline entry for the hour containing ``generated_at``, if it has a value.
+    """The timeline entry for the hour containing ``generated_at``, whatever its values.
 
     Both providers key hours by the UTC top of the hour, so flooring
     ``generated_at`` matches exactly.
@@ -438,36 +438,56 @@ def _current_hour_entry(document: VerdictDocument) -> TimelineEntry | None:
     hour = document.generated_at.replace(minute=0, second=0, microsecond=0)
     for entry in document.timeline:
         if entry.time == hour:
-            return entry if entry.cloud_cover is not None else None
+            return entry
     return None
 
 
-def cloud_cover_state(document: VerdictDocument) -> str:
-    """The current hour's cloud cover, written as the document writes the number.
+def _current_value(document: VerdictDocument, key: str) -> tuple[TimelineEntry, float] | None:
+    """The current hour's entry and its value for ``key``, or ``None`` when either is missing.
+
+    Judged per key, so one variable's null leaves the others known (timeline-sensors DD5).
+    """
+    entry = _current_hour_entry(document)
+    if entry is None:
+        return None
+    value: float | None = getattr(entry, key)
+    return None if value is None else (entry, value)
+
+
+def timeline_state(document: VerdictDocument, key: str) -> str:
+    """The current hour's value for ``key``, written as the document writes the number.
 
     No value publishes the literal ``None``, which reads as unknown and replaces any
     earlier retained value.
     """
     import json
 
-    entry = _current_hour_entry(document)
-    return "None" if entry is None else json.dumps(entry.cloud_cover)
+    current = _current_value(document, key)
+    return "None" if current is None else json.dumps(current[1])
 
 
-def cloud_cover_attributes(document: VerdictDocument) -> dict[str, Any]:
+def timeline_attributes(document: VerdictDocument, key: str) -> dict[str, Any]:
     """The hour the state belongs to, and one forecast point per timeline hour.
 
     ``hour`` says which hour the state is for, since the state is only as fresh as
-    the last recompute. Hours with no value stay in ``forecast`` as nulls, so the
-    arrays of later per-variable sensors line up hour for hour.
+    the last recompute. Hours with no value stay in ``forecast`` as nulls, so every
+    timeline sensor's array lines up hour for hour.
     """
-    entry = _current_hour_entry(document)
+    current = _current_value(document, key)
     return {
-        "hour": None if entry is None else iso_z(entry.time),
+        "hour": None if current is None else iso_z(current[0].time),
         "forecast": [
-            {"datetime": iso_z(e.time), "value": e.cloud_cover} for e in document.timeline
+            {"datetime": iso_z(e.time), "value": getattr(e, key)} for e in document.timeline
         ],
     }
+
+
+def cloud_cover_state(document: VerdictDocument) -> str:
+    return timeline_state(document, _CLOUD_COVER.key)
+
+
+def cloud_cover_attributes(document: VerdictDocument) -> dict[str, Any]:
+    return timeline_attributes(document, _CLOUD_COVER.key)
 
 
 def build_narrative_discovery(pier_id: str, base_topic: str) -> dict[str, Any]:
