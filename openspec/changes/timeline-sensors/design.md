@@ -45,7 +45,21 @@ reads it. The retained-message replay after a reconnect resends whatever
   tests them.
 - **Existing seams reused:** `tests/test_cloud_cover.py` stays unchanged and
   proves Cloud cover is unchanged. `tests/test_timeline_docs.py` gains the docs
-  checks.
+  checks, and its existing Cloud cover checks stay green.
+- **An existing pin that must change:**
+  `test_existing_entities_publish_the_same_topics_and_payloads` in
+  `tests/test_rank_targets.py` lists every message `publish_verdict` sends
+  besides the rank and Cloud cover ones. Its filter widens to the eight new
+  sensors' topics. A test in `tests/test_timeline_sensors.py` then pins the
+  order and payloads of the Cloud cover messages and of the eight new sensors.
+- **Test details:**
+  - Scenarios with a null value in the current entry run over the six nullable
+    keys only. `sun_altitude` and `moon_altitude` are never null on an entry.
+    Missing-hour and empty-timeline scenarios run over all eight keys. Tests
+    build entries directly, or extend `make_timeline` with keyword overrides.
+  - Discovery payloads are validated against
+    `{**SENSOR_SCHEMA, "additionalProperties": False}`, as
+    `tests/test_cloud_cover.py` does, so a misspelled key fails.
 
 ## Scrutiny Tier & Blast Radius
 
@@ -53,7 +67,8 @@ reads it. The retained-message replay after a reconnect resends whatever
   and topics to the frozen delivery surface, so names, unique identities and
   topics cannot be changed once released.
 - **Blast radius:** `pierpressure/delivery/mqtt.py`; the retained MQTT topics
-  per pier; `README.md` and `docs/night-timeline.md`. The core is untouched.
+  per pier; `tests/test_rank_targets.py`'s message pin; `README.md` and
+  `docs/night-timeline.md`. The core is untouched.
 
 ## Decisions
 
@@ -95,8 +110,9 @@ to the key (brainstorm D4), Home Assistant's entity id is
 ### DD4: The value is read from the entry by key, checked by a test
 
 The generic functions read `getattr(entry, key)`. A unit test asserts every
-table key is a `TimelineEntry` field whose type is a number or null, so a typo
-or a renamed field fails the suite rather than raising at publish time.
+table key is a `TimelineEntry` field. It also asserts that the field's type,
+with any `Annotated` wrapper removed, is `float` or `float | None`. A typo or a
+renamed field then fails the suite, not a publish.
 
 - **Alternative:** each descriptor carries an accessor such as
   `lambda e: e.cloud_low`. Typed, but it repeats each key twice per row and
@@ -125,14 +141,28 @@ cosmetic, and a user can change them in Home Assistant.
 
 ### DD8: Documentation
 
-- `docs/night-timeline.md`: the Cloud cover section becomes a section on the
-  timeline sensors, with a table of the nine entity ids, units and what the
-  state means, including that an altitude state is for the start of the current
-  hour. The recorder example lists all nine entities.
-- `README.md`: one entity row for the eight new sensors, the topic table row
-  and discovery-topic pattern widened to the nine keys, and the nine keys in the
-  "Removing the entities" loop.
-- The `mqtt.py` module docstring's topic table gains the timeline sensor rows.
+- `docs/night-timeline.md`:
+  - The Cloud cover section becomes a section on the timeline sensors. A table
+    gives the nine entity ids, their units and what each state means.
+  - It says an altitude state is for the start of the current hour. It can
+    trail the live sky by up to one hour plus one recompute interval, so it does
+    not suit a time-critical automation.
+  - It says every timeline sensor, the altitudes included, shows unknown when no
+    weather source returned the current hour. "Always present" stays true of the
+    timeline entries, and the page says so.
+  - "starting with Cloud cover" in the Verdict section names all nine sensors.
+  - The recorder example lists all nine entities, and says each pier has its
+    own nine to add.
+- `README.md`:
+  - One entity row for the eight new sensors.
+  - A new topic row for the eight new sensors, beside the Cloud cover row,
+    which keeps its literal topics. The discovery-topic pattern lists the keys.
+  - The eight new entries in the "Removing the entities" loop, written out
+    without brace expansion, beside the Cloud cover entry.
+  - The `timeline` row of the document table says the timeline is delivered on
+    the timeline sensors, not only on Cloud cover.
+- The `mqtt.py` module docstring's topic table gains the timeline sensor rows,
+  with the placeholder `<var>`, since `<key>` already names a provider there.
 
 No dashboard YAML beyond the existing Cloud cover example: that is #135.
 
@@ -151,6 +181,11 @@ No dashboard YAML beyond the existing Cloud cover example: that is #135.
 - [An entity name that does not slug to its key gives a mismatched entity id]
   → A test asserts each name, lower-cased with spaces as underscores, equals
   its key.
+- [The altitude sensors go unknown during a weather outage, though the core
+  can compute altitude offline] → Accepted: the sensors follow the timeline,
+  which has an entry only for an hour a source returned (ADR-0025). The docs
+  say so, and the dark window on the Verdict sensor stays the reliable signal
+  for darkness.
 
 ## Migration & Rollback
 

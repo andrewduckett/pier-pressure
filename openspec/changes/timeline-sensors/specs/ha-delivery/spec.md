@@ -2,7 +2,7 @@
 
 ### Requirement: Each further timeline variable is exposed as an entity
 
-On publishing, the system SHALL publish retained MQTT discovery configuration for one timeline sensor per pier for each of the keys `cloud_low`, `cloud_mid`, `cloud_high`, `wind_gust`, `seeing`, `transparency`, `sun_altitude` and `moon_altitude`, on the pier's device. Each payload SHALL be a valid Home Assistant sensor discovery payload, with a topic and unique identity derived from the pier identifier and the key.
+On publishing, the system SHALL publish one further timeline sensor per pier, on the pier's device, for each of these keys: `cloud_low`, `cloud_mid`, `cloud_high`, `wind_gust`, `seeing`, `transparency`, `sun_altitude` and `moon_altitude`. Its retained discovery payload SHALL be a valid Home Assistant sensor discovery payload. Its topic and unique identity SHALL derive from the pier identifier and the key.
 
 #### Scenario: A timeline sensor's discovery is published
 
@@ -17,9 +17,9 @@ On publishing, the system SHALL publish retained MQTT discovery configuration fo
 - **THEN** the verdict, score, top-target, rank, Cloud cover, narrative, health and refresh entities keep their existing topics, payloads and unique identities
 - **AND** re-publishing for the same pier introduces no additional identity for any of the eight sensors
 
-### Requirement: Each timeline sensor has a fixed name and unit
+### Requirement: Each further timeline sensor has a fixed name and unit
 
-Each timeline sensor SHALL carry the name and unit its key is given in the scenarios below, and no device class, so Home Assistant never converts its state away from the unit of its forecast.
+Each further timeline sensor SHALL carry the name and unit that the scenarios below give its key. It SHALL carry no device class, so Home Assistant never converts its state away from the unit of its forecast.
 
 #### Scenario: Names and units follow the key
 
@@ -35,9 +35,9 @@ Each timeline sensor SHALL carry the name and unit its key is given in the scena
 - **THEN** the `seeing` and `transparency` sensors are named Seeing and Transparency
 - **AND** their discovery payloads carry no `unit_of_measurement`
 
-### Requirement: A timeline sensor's forecast mirrors its variable
+### Requirement: A further timeline sensor's forecast mirrors its variable
 
-The JSON attributes payload of each timeline sensor SHALL carry exactly `hour` and `forecast`. `forecast` SHALL hold one `{datetime, value}` entry per timeline entry, in the timeline's order: `datetime` is the entry's `time` and `value` is that entry's value for the sensor's key as the document emits it, null when null. Every publish SHALL replace the payload.
+The JSON attributes payload of each further timeline sensor SHALL carry exactly `hour` and `forecast`. `forecast` SHALL hold one `{datetime, value}` entry per timeline entry, in the timeline's order. `datetime` is the entry's `time`. `value` is the entry's value for the sensor's key as the document emits it, or null. Every publish SHALL replace the payload.
 
 #### Scenario: The forecast array mirrors the variable's timeline values
 
@@ -64,9 +64,9 @@ The JSON attributes payload of each timeline sensor SHALL carry exactly `hour` a
 - **WHEN** the adapter publishes a document whose timeline holds 120 entries with every value present
 - **THEN** each of the eight sensors' attributes payload is smaller than 16 KiB
 
-### Requirement: A timeline sensor's hour names the entry its state comes from
+### Requirement: A further timeline sensor's hour names the entry its state comes from
 
-Each timeline sensor's `hour` attribute SHALL be the `time` of the timeline entry its state comes from, or null when its state is unknown. It SHALL depend only on the sensor's own key.
+Each further timeline sensor's `hour` attribute SHALL be the `time` of the timeline entry its state comes from, or null when its state is unknown. It SHALL depend only on the sensor's own key.
 
 #### Scenario: The hour is judged per variable
 
@@ -74,9 +74,9 @@ Each timeline sensor's `hour` attribute SHALL be the `time` of the timeline entr
 - **THEN** the Cloud low sensor's attributes payload has `hour` equal to that entry's `time`
 - **AND** the Seeing sensor's attributes payload has `hour` null
 
-### Requirement: A timeline sensor's state is its variable's current-hour value
+### Requirement: A further timeline sensor's state is its variable's current-hour value
 
-The state of each timeline sensor SHALL be its key's value in the timeline entry whose hour contains the document's generation timestamp, written as the document emits the number. The state is as fresh as the last recompute, so it can lag by up to one recompute interval. For the Sun altitude and Moon altitude sensors, it is the altitude at the start of that hour, not at the moment of publishing.
+The state of each further timeline sensor SHALL be its key's value in the timeline entry whose hour contains the document's generation timestamp. The adapter SHALL write the number as the document emits it. The state can lag by up to one recompute interval. An altitude state is the altitude at the start of that hour, so it can trail the live sky by up to one hour plus one recompute interval.
 
 #### Scenario: The state is the current hour's value
 
@@ -84,9 +84,9 @@ The state of each timeline sensor SHALL be its key's value in the timeline entry
 - **THEN** the Wind gust sensor's state is `18.4`
 - **AND** the Moon altitude sensor's state is `-12.345`
 
-### Requirement: A timeline sensor with no current-hour value shows unknown and stays available
+### Requirement: A further timeline sensor with no current-hour value shows unknown and stays available
 
-When no timeline entry has the current hour, or that entry's value for a sensor's key is null, that sensor's state SHALL be published as `None`, which Home Assistant shows as unknown, rather than `0`, an empty value or an earlier value. Each timeline sensor SHALL be available exactly when the process is online, so its `forecast` stays readable when the current hour has no value.
+When no timeline entry has the current hour, or that entry's value for a sensor's key is null, the adapter SHALL publish that sensor's state as `None`, which Home Assistant shows as unknown. It SHALL NOT publish `0`, an empty value or an earlier value instead. Each further timeline sensor SHALL be available exactly when the process is online, so its `forecast` stays readable.
 
 #### Scenario: A null current-hour value renders unknown for that sensor only
 
@@ -97,7 +97,7 @@ When no timeline entry has the current hour, or that entry's value for a sensor'
 #### Scenario: A missing current hour renders unknown
 
 - **WHEN** the adapter publishes a document generated at 23:30 whose timeline has no entry at 23:00
-- **THEN** the adapter publishes the retained state `None` for each of the eight sensors
+- **THEN** the adapter publishes the retained state `None` for each of the eight sensors, including Sun altitude and Moon altitude
 - **AND** a retained attributes payload for each with `hour` null and a `forecast` entry for every timeline hour
 - **AND** each sensor's discovery payload makes it available exactly when the process is online, with no condition on the current hour
 
