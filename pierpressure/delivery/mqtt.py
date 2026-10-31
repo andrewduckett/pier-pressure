@@ -27,15 +27,21 @@ Score discovery cfg          ``P/sensor/pierpressure_<pier>/score/config``      
 Refresh discovery cfg        ``P/button/pierpressure_<pier>/refresh/config``       yes
 Rank n discovery cfg         ``P/sensor/pierpressure_<pier>/target_<n>/config``    yes
 Health discovery cfg         ``P/sensor/pierpressure_<pier>/<key>_health/config``  yes
+Timeline discovery cfg       ``P/sensor/pierpressure_<pier>/<var>/config``         yes
 Verdict state                ``B/<pier>/verdict/state``                            yes
 Document attributes (JSON)   ``B/<pier>/verdict/attributes``                       yes
 Rank n state                 ``B/<pier>/target_<n>/state``                         yes
 Rank n attributes (JSON)     ``B/<pier>/target_<n>/attributes``                    yes
+Timeline state               ``B/<pier>/<var>/state``                              yes
+Timeline attributes (JSON)   ``B/<pier>/<var>/attributes``                         yes
 Health state                 ``B/<pier>/health/<key>/state``                       yes
 Health attributes (JSON)     ``B/<pier>/health/<key>/attributes``                  yes
 Refresh command              ``B/<pier>/refresh/command``                          no
 Availability (LWT)           ``B/status``                                          yes
 ===========================  ====================================================  ======
+
+``<var>`` is a timeline sensor's key in :data:`TIMELINE_SENSORS`, such as
+``cloud_cover`` or ``seeing``.
 """
 
 from __future__ import annotations
@@ -1078,24 +1084,25 @@ class MqttDelivery:
                 retain=True,
                 pier=pier,
             )
-        self._publish(
-            discovery_topic(prefix, "sensor", pier, "cloud_cover"),
-            json.dumps(build_cloud_cover_discovery(pier, base)),
-            retain=True,
-            pier=pier,
-        )
-        self._publish(
-            cloud_cover_state_topic(base, pier),
-            cloud_cover_state(document),
-            retain=True,
-            pier=pier,
-        )
-        self._publish(
-            cloud_cover_attributes_topic(base, pier),
-            json.dumps(cloud_cover_attributes(document)),
-            retain=True,
-            pier=pier,
-        )
+        for sensor in TIMELINE_SENSORS:
+            self._publish(
+                discovery_topic(prefix, "sensor", pier, sensor.key),
+                json.dumps(build_timeline_discovery(pier, base, sensor)),
+                retain=True,
+                pier=pier,
+            )
+            self._publish(
+                timeline_state_topic(base, pier, sensor.key),
+                timeline_state(document, sensor.key),
+                retain=True,
+                pier=pier,
+            )
+            self._publish(
+                timeline_attributes_topic(base, pier, sensor.key),
+                json.dumps(timeline_attributes(document, sensor.key)),
+                retain=True,
+                pier=pier,
+            )
         if self._manage_narrative:
             self._publish(
                 discovery_topic(prefix, "sensor", pier, "narrative"),

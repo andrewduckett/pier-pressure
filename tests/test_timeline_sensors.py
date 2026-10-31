@@ -22,20 +22,25 @@ from pierpressure.delivery.ha_schema import SENSOR_SCHEMA
 from pierpressure.delivery.mqtt import (
     PAYLOAD_OFFLINE,
     PAYLOAD_ONLINE,
+    RANKS,
     TIMELINE_SENSORS,
+    MqttDelivery,
     TimelineSensor,
     availability_topic,
     build_cloud_cover_discovery,
     build_timeline_discovery,
+    discovery_topic,
+    rank_target_attributes_topic,
     timeline_attributes,
     timeline_attributes_topic,
     timeline_state,
     timeline_state_topic,
 )
 
-from .conftest import make_document, make_timeline
+from .conftest import FakeMqttClient, make_document, make_mqtt_config, make_timeline
 
 BASE = "pierpressure"
+PREFIX = "homeassistant"
 _GENERATED = datetime(2026, 9, 7, 23, 30, tzinfo=UTC)
 _CURRENT_HOUR = datetime(2026, 9, 7, 23, tzinfo=UTC)
 
@@ -310,3 +315,97 @@ def test_an_empty_timeline_publishes_an_empty_forecast(key: str) -> None:
 def test_120_full_entries_stay_under_the_recorder_limit(key: str) -> None:
     doc = make_document(timeline=make_timeline(120))
     assert len(json.dumps(timeline_attributes(doc, key)).encode()) < 16 * 1024
+
+
+# --------------------------------------------------------------------------- #
+# Publishing
+# --------------------------------------------------------------------------- #
+
+
+def _connected() -> tuple[MqttDelivery, FakeMqttClient]:
+    client = FakeMqttClient()
+    delivery = MqttDelivery(make_mqtt_config(), client=client)
+    delivery.connect()
+    delivery.go_online()
+    return delivery, client
+
+
+def _topics(key: str) -> tuple[str, str, str]:
+    """The discovery, state and attributes topics of a timeline sensor."""
+    return (
+        discovery_topic(PREFIX, "sensor", "backyard", key),
+        timeline_state_topic(BASE, "backyard", key),
+        timeline_attributes_topic(BASE, "backyard", key),
+    )
+
+
+def _expected_messages(document: Any) -> list[tuple[str, str, bool]]:
+    messages = []
+    for sensor in TIMELINE_SENSORS:
+        config, state, attrs = _topics(sensor.key)
+        messages += [
+            (config, json.dumps(build_timeline_discovery("backyard", BASE, sensor)), True),
+            (state, timeline_state(document, sensor.key), True),
+            (attrs, json.dumps(timeline_attributes(document, sensor.key)), True),
+        ]
+    return messages
+
+
+@pytest.mark.parametrize("key", NEW_KEYS)
+def test_every_publish_sends_a_retained_timeline_discovery(key: str) -> None:
+    delivery, client = _connected()
+    delivery.publish_verdict(make_document())
+
+    [config] = client.publishes_to(_topics(key)[0])
+    assert config.retain is True
+    assert json.loads(config.payload) == build_timeline_discovery(
+        "backyard", BASE, SENSORS_BY_KEY[key]
+    )
+
+
+def test_the_nine_sensors_publish_in_table_order_after_the_ranks() -> None:
+    document = make_document(
+        generated_at=_GENERATED, timeline=make_timeline(3, start=_CURRENT_HOUR)
+    )
+    delivery, client = _connected()
+    delivery.publish_verdict(document)
+
+    sent = [(p.topic, p.payload, p.retain) for p in client.published]
+    last_rank = [t for t, _, _ in sent].index(
+        rank_target_attributes_topic(BASE, "backyard", RANKS[-1])
+    )
+    expected = _expected_messages(document)
+    assert sent[last_rank + 1 : last_rank + 1 + len(expected)] == expected
+
+
+def test_the_states_published_are_the_current_hours_values() -> None:
+    entry = _entry(_CURRENT_HOUR, transparency=None, cloud_high=5.0)
+    delivery, client = _connected()
+    delivery.publish_verdict(make_document(generated_at=_GENERATED, timeline=[entry]))
+
+    [transparency] = client.publishes_to(_topics("transparency")[1])
+    [cloud_high] = client.publishes_to(_topics("cloud_high")[1])
+    assert (transparency.payload, transparency.retain) == ("None", True)
+    assert (cloud_high.payload, cloud_high.retain) == ("5.0", True)
+
+
+@pytest.mark.parametrize("key", NEW_KEYS)
+def test_a_later_publish_replaces_the_forecast(key: str) -> None:
+    delivery, client = _connected()
+    delivery.publish_verdict(make_document(timeline=make_timeline(72)))
+    delivery.publish_verdict(make_document(timeline=make_timeline(48)))
+
+    *_, last = client.publishes_to(_topics(key)[2])
+    assert last.retain is True
+    assert len(json.loads(last.payload)["forecast"]) == 48
+
+
+@pytest.mark.parametrize("key", NEW_KEYS)
+def test_republishing_introduces_no_new_identity(key: str) -> None:
+    delivery, client = _connected()
+    delivery.publish_verdict(make_document())
+    delivery.publish_verdict(make_document())
+
+    configs = client.publishes_to(_topics(key)[0])
+    assert len(configs) == 2
+    assert {json.loads(p.payload)["unique_id"] for p in configs} == {f"pierpressure_backyard_{key}"}
