@@ -75,6 +75,38 @@ def test_open_meteo_leaves_a_null_component_absent() -> None:
     assert reading.cloud_mid == 8.0
 
 
+def test_open_meteo_parses_the_weather_variables_unrounded() -> None:
+    forecast = parse_open_meteo(_load("open_meteo.json"), issued_at=_ISSUED)
+    reading = forecast.readings[_hour(20)]
+    assert reading.temperature == 12.34
+    assert reading.dew_point == 9.8
+    assert reading.humidity == 85.0
+    assert reading.wind_speed == 14.25
+    assert reading.wind_direction == 230.0
+    assert reading.precipitation_probability == 35.0
+
+
+def test_open_meteo_leaves_a_null_weather_value_absent() -> None:
+    forecast = parse_open_meteo(_load("open_meteo.json"), issued_at=_ISSUED)
+    # dew_point_2m is null at 22:00; the other weather values are present there.
+    reading = forecast.readings[_hour(22)]
+    assert reading.dew_point is None
+    assert reading.temperature == 11.2
+    assert reading.humidity == 90.0
+    assert reading.wind_speed == 10.4
+    assert reading.wind_direction == 240.0
+    assert reading.precipitation_probability == 10.0
+
+
+def test_open_meteo_absent_weather_array_leaves_that_field_none_every_hour() -> None:
+    payload = _load("open_meteo.json")
+    del payload["hourly"]["precipitation_probability"]
+    forecast = parse_open_meteo(payload, issued_at=_ISSUED)
+    assert all(r.precipitation_probability is None for r in forecast.readings.values())
+    assert forecast.readings[_hour(20)].temperature == 12.34
+    assert forecast.readings[_hour(23)].wind_direction == 250.0
+
+
 # --------------------------------------------------------------------------- #
 # 3.3 secondary provider parsing + resample to hourly (7Timer!)
 # --------------------------------------------------------------------------- #
