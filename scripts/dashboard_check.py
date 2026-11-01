@@ -141,6 +141,14 @@ def install_plotly_graph_card(www: Path, version: str = PLOTLY_GRAPH_CARD_VERSIO
 # --------------------------------------------------------------------------- #
 
 
+class HttpError(RuntimeError):
+    """Home Assistant answered with an HTTP error status."""
+
+    def __init__(self, request: str, code: int, detail: str) -> None:
+        super().__init__(f"{request} failed: {code} {detail}")
+        self.code = code
+
+
 def mqtt_flow_input(step: dict[str, Any]) -> dict[str, Any]:
     """What to send for one step of the MQTT config flow, or why to stop."""
     if step.get("type") == "menu" and "broker" in step.get("menu_options", []):
@@ -181,7 +189,7 @@ def _request(
             payload = response.read()
     except urllib.error.HTTPError as error:
         detail = error.read().decode(errors="replace")
-        raise RuntimeError(f"{method} {path} failed: {error.code} {detail}") from error
+        raise HttpError(f"{method} {path}", error.code, detail) from error
     return json.loads(payload) if payload else None
 
 
@@ -189,12 +197,22 @@ def _get_json(url: str) -> Any:
     return _request("GET", url)
 
 
-def _wait_for(what: str, check: Any, timeout: float, interval: float = 3.0) -> Any:
+def wait_for(what: str, check: Any, timeout: float, interval: float = 3.0) -> Any:
+    """Call ``check`` until it returns something truthy.
+
+    Home Assistant refuses connections while it starts, and answers 404 for an
+    entity that does not exist yet, so those are retried. Any other HTTP error is
+    a real failure and stops the wait at once.
+    """
     deadline = time.monotonic() + timeout
     while True:
         try:
             result = check()
-        except OSError, RuntimeError:
+        except HttpError as error:
+            if error.code != 404 and error.code < 500:
+                raise
+            result = None
+        except OSError:
             result = None
         if result:
             return result
@@ -205,7 +223,7 @@ def _wait_for(what: str, check: Any, timeout: float, interval: float = 3.0) -> A
 
 def onboard() -> str:
     """Create the owner, finish the onboarding steps, and return an access token."""
-    _wait_for("Home Assistant to answer", lambda: _get_json("/api/onboarding"), timeout=300)
+    wait_for("Home Assistant to answer", lambda: _get_json("/api/onboarding"), timeout=300)
     created = _request(
         "POST",
         "/api/onboarding/users",
@@ -289,7 +307,7 @@ def main() -> int:
         _compose("up", "-d", "--build", "--wait")
         token = onboard()
         add_mqtt_integration(token)
-        _wait_for(
+        wait_for(
             f"{VERDICT_ENTITY} to have a state",
             lambda: (
                 _request("GET", f"/api/states/{VERDICT_ENTITY}", token=token).get("state")
@@ -297,7 +315,8 @@ def main() -> int:
             ),
             timeout=300,
         )
-    except (RuntimeError, OSError, subprocess.CalledProcessError) as error:
+    # ValueError covers a reply that is not JSON; KeyError, one missing a field.
+    except (RuntimeError, OSError, ValueError, KeyError, subprocess.CalledProcessError) as error:
         print(f"dashboard-check failed: {error}", file=sys.stderr)
         return 1
     print(

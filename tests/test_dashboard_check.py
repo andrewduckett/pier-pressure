@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from dashboard_check import mqtt_flow_input, write_config
+from dashboard_check import HttpError, mqtt_flow_input, wait_for, write_config
 
 _PAGE = "# Night\n\n```yaml\nviews:\n  - title: Tonight\n```\n"
 
@@ -68,3 +68,25 @@ def test_mqtt_flow_fills_the_broker_form() -> None:
 def test_mqtt_flow_stops_on_anything_else(step: dict[str, object]) -> None:
     with pytest.raises(RuntimeError, match="MQTT"):
         mqtt_flow_input(step)
+
+
+def test_wait_stops_at_once_on_a_client_error() -> None:
+    def rejected() -> None:
+        raise HttpError("GET /api/states/x", 401, "unauthorized")
+
+    with pytest.raises(HttpError, match="401"):
+        wait_for("the verdict", rejected, timeout=60, interval=0)
+
+
+@pytest.mark.parametrize("code", [404, 502])
+def test_wait_retries_not_found_and_server_errors(code: int) -> None:
+    calls: list[int] = []
+
+    def not_yet() -> bool:
+        calls.append(code)
+        if len(calls) < 3:
+            raise HttpError("GET /api/states/x", code, "")
+        return True
+
+    assert wait_for("the verdict", not_yet, timeout=60, interval=0) is True
+    assert len(calls) == 3
