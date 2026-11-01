@@ -38,7 +38,7 @@ def _conditions(
     return Conditions(series={**(base or {}), **(secondary or {})})
 
 
-def test_the_timeline_spans_the_sorted_union_of_both_sources() -> None:
+def test_the_timeline_spans_the_sorted_union_of_both_providers() -> None:
     day = datetime(2026, 9, 8, 0, tzinfo=UTC)
     base_times = _hours(day, 24)
     secondary_times = _hours(day + timedelta(hours=12), 48)
@@ -55,7 +55,7 @@ def test_the_timeline_spans_the_sorted_union_of_both_sources() -> None:
     assert [entry.time for entry in doc.timeline] == _hours(day, 60)
 
 
-def test_an_hour_one_source_lacks_carries_null_for_that_source() -> None:
+def test_an_hour_one_provider_lacks_carries_null_for_its_series() -> None:
     day = datetime(2026, 9, 8, 18, tzinfo=UTC)
     conditions = _conditions(
         base=_base(
@@ -79,7 +79,7 @@ def test_an_hour_one_source_lacks_carries_null_for_that_source() -> None:
     assert second.sun_altitude is not None and second.moon_altitude is not None
 
 
-def test_a_missing_secondary_source_leaves_seeing_and_transparency_null() -> None:
+def test_a_missing_seven_timer_leaves_seeing_and_transparency_null() -> None:
     day = datetime(2026, 9, 8, 18, tzinfo=UTC)
     conditions = Conditions(series=_base([day], cloud_cover=50.0))
     with no_network():
@@ -118,7 +118,7 @@ def test_weather_values_pass_through_unchanged() -> None:
     assert _weather(entry) == _WEATHER
 
 
-def test_a_weather_value_the_base_source_lacks_is_null_on_its_own() -> None:
+def test_a_weather_value_the_provider_lacks_is_null_on_its_own() -> None:
     day = datetime(2026, 9, 8, 18, tzinfo=UTC)
     reported = {**_WEATHER, "dew_point": None}
     conditions = Conditions(series=_base([day], **reported))
@@ -131,7 +131,7 @@ def test_a_weather_value_the_base_source_lacks_is_null_on_its_own() -> None:
     assert _weather(entry) == reported
 
 
-def test_an_hour_the_base_source_lacks_carries_null_weather_values() -> None:
+def test_an_hour_the_weather_series_lack_carries_null_weather_values() -> None:
     day = datetime(2026, 9, 8, 18, tzinfo=UTC)
     conditions = _conditions(
         base=_base([day], **_WEATHER),
@@ -166,6 +166,25 @@ def test_weather_variables_do_not_change_the_verdict() -> None:
             for key in _WEATHER:
                 entry.pop(key)
     assert plain == wet
+
+
+def test_each_key_reads_its_own_series_and_the_hours_are_their_union() -> None:
+    first = datetime(2026, 9, 8, 20, tzinfo=UTC)
+    second = first + timedelta(hours=1)
+    conditions = Conditions(
+        series={
+            "cloud_cover": Series(provider="a", issued_at=_ISSUED, values={first: 37.0}),
+            "wind_gust": Series(provider="b", issued_at=_ISSUED, values={second: 23.4}),
+        }
+    )
+    with no_network():
+        doc = produce_verdict(
+            make_pier(), FixedClock(datetime(2026, 9, 8, 14, tzinfo=UTC)), conditions
+        )
+
+    early, late = doc.timeline
+    assert (early.time, early.cloud_cover, early.wind_gust) == (first, 37.0, None)
+    assert (late.time, late.cloud_cover, late.wind_gust) == (second, None, 23.4)
 
 
 def test_empty_conditions_yield_an_empty_timeline() -> None:
