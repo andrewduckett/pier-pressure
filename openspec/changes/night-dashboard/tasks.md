@@ -6,7 +6,7 @@
 ## 2. The Docker check
 
 - [x] 2.1 [complex] `mise run dashboard-check` brings up Home Assistant, pinned by tag, beside mosquitto and PierPressure under a `dashboard` compose profile. Its config lives under `.workspace/dashboard-check/`, with every `.js` file of the pinned plotly-graph-card release in `www/plotly-graph-card/`. The task completes onboarding, adds the MQTT integration through the API, loads the docs page's YAML as a YAML-mode dashboard, and prints the URL and the login. It exits non-zero if any step fails (verify: mise run dashboard-check) (✓ mise run dashboard-check passed)
-- [ ] 2.2 [medium] In the Docker check, a probe plotly-graph card shows whether an absolute `layout.xaxis.range` of two `Date` objects, starting in the future, is honoured over the card's relative window. Record the result in the Deviations Ledger, and use DD5's fallback if it is not honoured (verify: mise run dashboard-check)
+- [x] 2.2 [medium] In the Docker check, a probe plotly-graph card shows whether an absolute `layout.xaxis.range` of two `Date` objects, starting in the future, is honoured over the card's relative window. Record the result in the Deviations Ledger, and use DD5's fallback if it is not honoured (verify: mise run dashboard-check) (✓ mise run dashboard-check passed; probe honoured the range, see ledger)
 
 ## 3. The dashboard YAML [depends-on: 1, 2]
 
@@ -26,3 +26,5 @@
 ## Deviations Ledger
 
 <!-- Dated notes on small departures from the plan, written during apply. Stop and ask the user about a large one. -->
+
+- 2026-10-31, task 2.2: the probe passed. In Home Assistant 2026.10.4 with plotly-graph-card v4.0.2, a card with `time_zone: server` and `layout.xaxis.range` set by `$ex` to two `Date` objects 2 h and 20 h ahead drew exactly that range (`_fullLayout.xaxis.range` read back as now + 2 h to now + 20 h, `autorange: false`), not the card's default relative window. DD5's primary mechanism stands; the `hours_to_show` and `time_offset` fallback is not needed.
