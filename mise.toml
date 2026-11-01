@@ -65,6 +65,10 @@ run = "docker compose --profile full up --build"
 description = "Stop the local dev stack."
 run = "docker compose down"
 
+[tasks.dashboard-check]
+description = "Start a throwaway Home Assistant with the night dashboard, for checking it by eye."
+run = "uv run python scripts/dashboard_check.py"
+
 [tasks.test-integration]
 description = "Run the opt-in integration tests against a throwaway local broker."
 # Tear the whole stack down even when the tests fail, and keep pytest's status.

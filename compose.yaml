@@ -3,6 +3,7 @@
 #   mise run broker-up     # just the broker (for integration tests)
 #   mise run up            # broker + PierPressure against it
 #   mise run broker-down   # stop everything
+#   mise run dashboard-check  # broker + PierPressure + a throwaway Home Assistant
 #
 # Compose needs PYTHON_VERSION to read this file, even for the broker alone.
 # mise.toml sets it from .python-version; elsewhere, set it yourself,
@@ -24,9 +25,10 @@ services:
       retries: 5
 
   # Optional: run PierPressure against the local broker. Enable with `mise run up`.
-  # Needs a ./config.yaml pointing mqtt.host at "mosquitto".
+  # Needs a ./config.yaml pointing mqtt.host at "mosquitto"; the dashboard check
+  # names its own through PIERPRESSURE_CONFIG.
   pierpressure:
-    profiles: ["full"]
+    profiles: ["full", "dashboard"]
     build:
       context: .
       args:
@@ -35,6 +37,19 @@ services:
       mosquitto:
         condition: service_healthy
     volumes:
-      - ./config.yaml:/app/config.yaml:ro
+      - ${PIERPRESSURE_CONFIG:-./config.yaml}:/app/config.yaml:ro
     environment:
       PIERPRESSURE_MQTT_PASSWORD: "${PIERPRESSURE_MQTT_PASSWORD:-}"
+
+  # A throwaway Home Assistant for checking the night dashboard. Dev only: started
+  # by `mise run dashboard-check`, which writes its config (scripts/dashboard_check.py).
+  homeassistant:
+    profiles: ["dashboard"]
+    image: ghcr.io/home-assistant/home-assistant:2026.10.4
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    ports:
+      - "8123:8123"
+    volumes:
+      - ./.workspace/dashboard-check/config:/config
