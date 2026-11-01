@@ -17,7 +17,7 @@
 
 ## 4. The page around the YAML [depends-on: 3]
 
-- [ ] 4.1 [easy] The page tells the reader to install plotly-graph-card through HACS before pasting the YAML, and to replace `backyard` with their pier id. `README.md`'s entity section and `docs/night-timeline.md` link to the page (verify: uv run pytest tests/test_night_dashboard_doc.py -k "install or links")
+- [x] 4.1 [easy] The page tells the reader to install plotly-graph-card through HACS before pasting the YAML, and to replace `backyard` with their pier id. `README.md`'s entity section and `docs/night-timeline.md` link to the page (verify: uv run pytest tests/test_night_dashboard_doc.py -k "install or links") (✓ uv run pytest tests/test_night_dashboard_doc.py -k "install or links" passed)
 
 ## 5. Check in a real Home Assistant [depends-on: 2, 4]
 

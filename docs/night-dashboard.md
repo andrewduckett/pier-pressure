@@ -1,6 +1,94 @@
-# Night dashboard
+# The night dashboard: tonight at a glance in Home Assistant
 
-A Home Assistant dashboard that shows tonight's verdict for one pier.
+This page gives you a complete Home Assistant dashboard for one pier. It shows
+tonight's verdict, the moon, the ranked targets and the health of the weather
+sources. In the middle is the night strip: the hours across, one row per
+condition, with dusk, dawn, the moon and your targets on the same time line.
+
+The dashboard reads only the entities PierPressure already publishes. You paste
+it in once, and it updates itself.
+
+## What the dashboard shows
+
+| Card | What it shows | Where it comes from |
+|---|---|---|
+| **Tonight** | The verdict, the score, the confidence band and value, the dark window, and the reasons | The **Verdict** sensor's attributes |
+| **Moon** | Illumination, phase, and moonrise and moonset when they fall in the dark window | The Verdict's `moon` attribute |
+| **Night strip** | One row per condition, hour by hour, then a **Moon up** lane and one lane per ranked target | The nine timeline sensors' `forecast` attributes, the Verdict's `dark_window`, and **Target 1** to **Target 10** |
+| **Targets** | Target 1 to Target 10 | The rank sensors. A rank with no target tonight shows as unavailable. |
+| **Weather sources** | When Open-Meteo and 7Timer! last succeeded | The two health sensors |
+
+### How to read the night strip
+
+The strip runs from 4 hours before dusk to 5 hours after dawn. Times are in
+your Home Assistant time zone. On a night with no astronomical darkness, it runs
+from 6 hours before now to 18 hours after.
+
+Each cell is one hour. Darker means more of what the row names:
+
+| Row | Lightest | Darkest |
+|---|---|---|
+| Sun altitude | Sun above the horizon | Astronomical night (sun below −18°). The steps between follow civil, nautical and astronomical twilight. |
+| Moon altitude | Moon below the horizon | Moon high. One step darker for every 6° of altitude. |
+| Cloud cover, Cloud low, Cloud mid, Cloud high | Clear | Overcast |
+| Wind gust | Calm | Gusts of 42 km/h or more |
+| Seeing, Transparency | Excellent | Poor. For these two rows, darker means worse. |
+
+An empty cell means the weather source has no value for that hour. Hover over a
+cell to see its value.
+
+Under the rows, the **Moon up** lane has a bar for each stretch of hours when the
+moon is above the horizon. Each target lane has a bar from the start to the end
+of that target's observable window, labelled with its name. A rank with no
+target tonight leaves no lane.
+
+Dashed lines mark dusk and dawn, the two ends of the dark window. A red line
+marks now. It follows your browser's clock and moves every 5 minutes.
+
+## Before you start
+
+You need:
+
+- Home Assistant with PierPressure's entities in it. See the
+  [README](../README.md#-home-assistant-entities).
+- [HACS](https://hacs.xyz), the Home Assistant Community Store.
+
+Install Plotly Graph Card through HACS before you paste the dashboard. The night
+strip needs it, and the other cards are built into Home Assistant.
+
+1. In Home Assistant, open **HACS**.
+2. Search for **Plotly Graph Card** and open it.
+3. Select **Download**, then confirm.
+4. Reload the browser page when HACS asks you to.
+
+## Add the dashboard
+
+1. Go to **Settings** > **Dashboards** and select **Add dashboard**.
+2. Choose **New dashboard from scratch**, give it a name such as `Night`, and
+   select **Create**.
+3. Open the new dashboard. Select the pencil to edit it, then the three-dot menu
+   > **Raw configuration editor**.
+4. Delete what is there and paste the YAML below.
+5. Replace `backyard` with your pier's id everywhere it appears. The YAML uses it
+   only in entity ids such as `sensor.pierpressure_backyard_verdict`, so a find
+   and replace of `pierpressure_backyard_` works. Your pier's id is the `id` in
+   PierPressure's `piers` setting.
+6. Select **Save**, then close the editor.
+
+## If something looks wrong
+
+- **The strip shows "Custom element doesn't exist: plotly-graph".** Plotly
+  Graph Card is not installed, or the browser has not loaded it yet. Install it
+  as above, then reload the page.
+- **The strip is empty and the cards say PierPressure is unavailable.**
+  PierPressure is offline. The dashboard fills in again when it comes back.
+- **The strip is empty but PierPressure is running.** Check that you replaced
+  every `backyard` with your pier's id.
+
+Excluding the timeline sensors from the recorder, as
+[the night timeline page](night-timeline.md#keep-the-forecast-out-of-the-recorder)
+suggests, does not affect the dashboard. It reads the live attributes, not their
+history.
 
 ## The dashboard YAML
 
@@ -285,3 +373,9 @@ views:
                 show_state: true
                 show_icon: true
 ```
+
+## Related
+
+- [The night timeline](night-timeline.md): what each timeline sensor holds, and a
+  simpler chart example
+- [ADR-0026: the night dashboard ships as YAML on plotly-graph-card](decisions/0026-night-dashboard-ships-as-yaml-on-plotly-graph-card.md)

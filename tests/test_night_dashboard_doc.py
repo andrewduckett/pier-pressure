@@ -559,3 +559,35 @@ def test_cards_include_health_chips(dashboard: dict[str, Any]) -> None:
         "sensor.pierpressure_backyard_open_meteo_health",
         "sensor.pierpressure_backyard_7timer_health",
     } <= badges
+
+
+# --------------------------------------------------------------------------- #
+# The page around the YAML
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture(scope="module")
+def page_before_yaml() -> str:
+    page = _PAGE.read_text(encoding="utf-8")
+    return page[: page.index("```yaml")]
+
+
+def test_install_steps_come_before_the_yaml(page_before_yaml: str) -> None:
+    assert "HACS" in page_before_yaml
+    assert "Plotly Graph Card" in page_before_yaml
+
+
+def test_install_steps_say_to_replace_the_pier_id(page_before_yaml: str) -> None:
+    assert "replace `backyard`" in page_before_yaml.lower()
+
+
+def test_links_from_the_readme_entity_section() -> None:
+    readme = (_ROOT / "README.md").read_text(encoding="utf-8")
+    start = readme.index("## 🏠 Home Assistant entities")
+    section = readme[start : readme.index("\n### ", start)]
+    assert "(docs/night-dashboard.md)" in section
+
+
+def test_links_from_the_night_timeline_page() -> None:
+    timeline = (_ROOT / "docs" / "night-timeline.md").read_text(encoding="utf-8")
+    assert "(night-dashboard.md)" in timeline
