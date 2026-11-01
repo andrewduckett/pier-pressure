@@ -502,6 +502,15 @@ def test_strip_lanes_are_bars_on_their_own_axis(dashboard: dict[str, Any]) -> No
     assert yaxis2["overlaying"] == "free"
 
 
+def test_strip_cells_and_lane_bars_have_rounded_corners(dashboard: dict[str, Any]) -> None:
+    card = strip_card(dashboard)
+    rows, lanes = _trace_on(card, "y"), _trace_on(card, "y2")
+    assert (rows["marker"]["cornerradius"], rows["width"]) == (2, 0.85)
+    assert lanes["marker"]["cornerradius"] == 4
+    # Overlay keeps cells on the same row at their own base, not grouped side by side.
+    assert card["layout"]["barmode"] == "overlay"
+
+
 def test_strip_lanes_keep_one_height_whatever_their_number(dashboard: dict[str, Any]) -> None:
     card = strip_card(dashboard)
     assert "rowsPx + lanePx * vars.lanes.length" in card["pier_lanes"]

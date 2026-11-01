@@ -271,10 +271,12 @@ views:
                 y: $ex vars.strip.cells.map((c) => c.y)
                 base: $ex vars.strip.cells.map((c) => c.base)
                 x: $ex vars.strip.cells.map((c) => c.x)
+                width: 0.85
                 text: $ex vars.strip.cells.map((c) => c.text)
                 textposition: none
                 marker:
                   color: $ex vars.strip.cells.map((c) => c.color)
+                  cornerradius: 2
                 hovertemplate: "%{y}, the hour from %{text}<extra></extra>"
               - entity: ""
                 name: Lanes
@@ -290,11 +292,13 @@ views:
                 marker:
                   color: >-
                     $ex vars.bars.map((b) => (b.lane === "Moon up" ? "#898781" : "#6250d6"))
+                  cornerradius: 4
                 hovertemplate: "%{text}<extra></extra>"
             layout:
               height: $ex vars.height
               margin: { t: 30, b: 50, l: 100, r: 10 }
               showlegend: false
+              barmode: overlay
               bargap: 0.25
               xaxis:
                 type: date
