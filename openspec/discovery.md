@@ -52,7 +52,7 @@
 
 ## Journey Map
 
-Stage status checked against the code on 2026-10-29.
+Stage status checked against the code on 2026-11-01.
 
 ### People who use PierPressure
 
@@ -82,17 +82,19 @@ Stage status checked against the code on 2026-10-29.
    the interval, and each pier's location, horizon, equipment, and gates; the add-on's
    `config.yaml` adds what the form cannot hold, such as a horizon file or the
    explainer. Each pier on the form is one flat list of 13 fields with uniform help
-   text, which makes it slow to fill in — partial
+   text, which makes it slow to fill in, and the form has no field for an API key,
+   so a key sits in plain text in the add-on's `config.yaml` — partial
    ([#100](https://github.com/andrewduckett/pier-pressure/issues/100),
    [#101](https://github.com/andrewduckett/pier-pressure/issues/101),
-   [#102](https://github.com/andrewduckett/pier-pressure/issues/102))
+   [#102](https://github.com/andrewduckett/pier-pressure/issues/102),
+   [#150](https://github.com/andrewduckett/pier-pressure/issues/150))
 5. **See tonight's verdict** — verdict, score, confidence, and reasons; a refresh
-   button; an optional plain-language narrative. No hour-by-hour view of the night
-   reaches Home Assistant, so no dashboard can show how the conditions change
-   through it — partial
-   ([#133](https://github.com/andrewduckett/pier-pressure/issues/133),
-   [#134](https://github.com/andrewduckett/pier-pressure/issues/134),
-   [#135](https://github.com/andrewduckett/pier-pressure/issues/135))
+   button; an optional plain-language narrative; an hourly timeline on one sensor
+   per variable, with a documented night strip. Seeing and transparency come only
+   from 7Timer!, which is coarse over North America, and a better source cannot be
+   chosen because the providers are fixed in code — partial
+   ([#146](https://github.com/andrewduckett/pier-pressure/issues/146),
+   [#147](https://github.com/andrewduckett/pier-pressure/issues/147))
 6. **Get told in time** — the README gives a Home Assistant automation that
    notifies at a chosen time — supported
 7. **Choose a target** — the Top target sensor and one sensor per rank, Target 1
