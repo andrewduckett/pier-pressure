@@ -337,3 +337,69 @@ def test_js_attribute_with_no_entity_in_the_expression_fails() -> None:
     assert _problems_in(sample) == [
         "attribute 'forecast' is read with no PierPressure entity in the same expression"
     ]
+
+
+# --------------------------------------------------------------------------- #
+# The night strip (design DD1 to DD5)
+# --------------------------------------------------------------------------- #
+
+_ROW_LABELS = [
+    "Sun altitude",
+    "Moon altitude",
+    "Cloud cover",
+    "Cloud low",
+    "Cloud mid",
+    "Cloud high",
+    "Wind gust",
+    "Seeing",
+    "Transparency",
+]
+# The reference rendering's seven blues, lightest to darkest (design DD2).
+_RAMP = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"]
+_ROW = re.compile(r'\["([^"]+)", "(sensor\.pierpressure_backyard_[a-z0-9_]+)"')
+
+
+def strip_card(dashboard: dict[str, Any]) -> dict[str, Any]:
+    cards = [c for c in iter_cards(dashboard) if c.get("type") == "custom:plotly-graph"]
+    assert len(cards) == 1
+    return cards[0]
+
+
+def _traces(card: dict[str, Any], kind: str) -> list[dict[str, Any]]:
+    return [e for e in card["entities"] if e.get("type") == kind]
+
+
+def test_strip_rows_are_the_nine_timeline_sensors_in_order(dashboard: dict[str, Any]) -> None:
+    rows = _ROW.findall(strip_card(dashboard)["pier_timeline"])
+    assert [label for label, _ in rows] == _ROW_LABELS
+    assert [entity for _, entity in rows] == [
+        f"sensor.pierpressure_backyard_{_slug(label)}" for label in _ROW_LABELS
+    ]
+
+
+def test_strip_rows_read_forecast_into_one_heatmap(dashboard: dict[str, Any]) -> None:
+    card = strip_card(dashboard)
+    assert ".attributes?.forecast" in card["pier_timeline"]
+    [heatmap] = _traces(card, "heatmap")
+    assert heatmap["entity"] == ""
+    assert (heatmap["x"], heatmap["y"], heatmap["z"]) == (
+        "$ex vars.strip.x",
+        "$ex vars.strip.y",
+        "$ex vars.strip.z",
+    )
+    assert card["layout"]["yaxis"]["categoryarray"] == _ROW_LABELS
+
+
+def test_strip_rows_centre_each_cell_and_leave_a_null_as_a_gap(dashboard: dict[str, Any]) -> None:
+    card = strip_card(dashboard)
+    assert "Date.parse(h) + 30 * 60 * 1000" in card["pier_timeline"]
+    assert "v == null ? null : band(v)" in card["pier_timeline"]
+    [heatmap] = _traces(card, "heatmap")
+    assert heatmap["hoverongaps"] is False
+
+
+def test_strip_rows_shade_on_the_seven_step_ramp(dashboard: dict[str, Any]) -> None:
+    [heatmap] = _traces(strip_card(dashboard), "heatmap")
+    colours = list(dict.fromkeys(colour for _, colour in heatmap["colorscale"]))
+    assert colours == _RAMP
+    assert (heatmap["zmin"], heatmap["zmax"]) == (-0.5, 6.5)
