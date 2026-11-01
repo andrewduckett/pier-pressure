@@ -37,6 +37,26 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Literal
+
+# The per-hour quantities the conditions carry, named by their timeline keys, in
+# timeline order. Every iteration over variables walks this order, so the fill and
+# the document never depend on dict or set order.
+Variable = Literal[
+    "cloud_cover",
+    "cloud_low",
+    "cloud_mid",
+    "cloud_high",
+    "wind_gust",
+    "seeing",
+    "transparency",
+    "temperature",
+    "dew_point",
+    "humidity",
+    "wind_speed",
+    "wind_direction",
+    "precipitation_probability",
+]
 
 
 @dataclass(frozen=True)
