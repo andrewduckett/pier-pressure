@@ -121,6 +121,12 @@ def assemble_snapshot(base: SourceForecast, secondary: SourceForecast) -> Condit
             cloud_low=reading.cloud_low,
             cloud_mid=reading.cloud_mid,
             cloud_high=reading.cloud_high,
+            temperature=reading.temperature,
+            dew_point=reading.dew_point,
+            humidity=reading.humidity,
+            wind_speed=reading.wind_speed,
+            wind_direction=reading.wind_direction,
+            precipitation_probability=reading.precipitation_probability,
         )
         for time, reading in sorted(base.readings.items())
     )

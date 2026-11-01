@@ -248,6 +248,53 @@ def test_assemble_total_only_source_leaves_the_components_none() -> None:
     assert base_hour.cloud_high is None
 
 
+def test_assemble_copies_the_weather_variables_onto_the_base_hour() -> None:
+    base = SourceForecast(
+        issued_at=_hour(18),
+        readings={
+            _hour(21): SourceReading(
+                cloud_cover=40.0,
+                temperature=12.3,
+                dew_point=9.8,
+                humidity=85.0,
+                wind_speed=14.2,
+                wind_direction=230.0,
+                precipitation_probability=35.0,
+            )
+        },
+    )
+    conditions = assemble_snapshot(base, SourceForecast())
+    assert conditions.base is not None
+    base_hour = conditions.base.at(_hour(21))
+    assert base_hour is not None
+    assert (
+        base_hour.temperature,
+        base_hour.dew_point,
+        base_hour.humidity,
+        base_hour.wind_speed,
+        base_hour.wind_direction,
+        base_hour.precipitation_probability,
+    ) == (12.3, 9.8, 85.0, 14.2, 230.0, 35.0)
+
+
+def test_assemble_source_without_weather_leaves_the_weather_fields_none() -> None:
+    base = SourceForecast(
+        issued_at=_hour(18),
+        readings={_hour(21): SourceReading(cloud_cover=40.0, wind_gust=15.0)},
+    )
+    conditions = assemble_snapshot(base, SourceForecast())
+    assert conditions.base is not None
+    base_hour = conditions.base.at(_hour(21))
+    assert base_hour is not None
+    assert (base_hour.cloud_cover, base_hour.wind_gust) == (40.0, 15.0)
+    assert base_hour.temperature is None
+    assert base_hour.dew_point is None
+    assert base_hour.humidity is None
+    assert base_hour.wind_speed is None
+    assert base_hour.wind_direction is None
+    assert base_hour.precipitation_probability is None
+
+
 def test_assemble_base_wind_without_cloud_keeps_the_base_group_and_its_issue_time() -> None:
     # The round-2 Critical case: base returns wind rows but no cloud. The base
     # group is still present (rows exist), so its issue time survives — exactly as
