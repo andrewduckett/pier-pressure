@@ -80,3 +80,8 @@ inputs. Network lives only at the provider edge.
   earlier forecast when a fetch fails. Reused data hid a failing source for up to
   12 hours, and its single shared slot could give one pier another pier's weather.
   The seam itself is unchanged.
+- **2026-11-01, change `provider-order`:** the base and secondary roles named
+  in the Consequences are gone. Providers sit in one ordered list and each
+  variable is filled by the first that returned it (ADR-0027). Losing the
+  provider that filled cloud cover still degrades the verdict as described.
+  The seam itself is unchanged.
