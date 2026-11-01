@@ -609,3 +609,8 @@ def test_page_names_the_versions_it_was_checked_against() -> None:
     page = " ".join(_PAGE.read_text(encoding="utf-8").split())
     assert f"Home Assistant {ha_version}" in page
     assert f"Plotly Graph Card {PLOTLY_GRAPH_CARD_VERSION}" in page
+
+
+def test_install_steps_say_how_home_assistant_writes_the_pier_id(page_before_yaml: str) -> None:
+    text = " ".join(page_before_yaml.split())
+    assert "sensor.pierpressure_back_yard_verdict" in text

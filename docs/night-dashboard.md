@@ -74,7 +74,11 @@ strip needs it, and the other cards are built into Home Assistant.
 5. Replace `backyard` with your pier's id everywhere it appears. The YAML uses it
    only in entity ids such as `sensor.pierpressure_backyard_verdict`, so a find
    and replace of `pierpressure_backyard_` works. Your pier's id is the `id` in
-   PierPressure's `piers` setting.
+   PierPressure's `piers` setting, written the way Home Assistant writes it in an
+   entity id: in lower case, with each run of other characters as one `_`. A
+   pier with the id `Back-Yard` has `sensor.pierpressure_back_yard_verdict`. To
+   be sure, find your **Verdict** sensor under **Settings** > **Entities** and
+   copy the part between `pierpressure_` and `_verdict`.
 6. Select **Save**, then close the editor.
 
 ## If something looks wrong
@@ -85,7 +89,8 @@ strip needs it, and the other cards are built into Home Assistant.
 - **The strip is empty and the cards say PierPressure is unavailable.**
   PierPressure is offline. The dashboard fills in again when it comes back.
 - **The strip is empty but PierPressure is running.** Check that you replaced
-  every `backyard` with your pier's id.
+  every `backyard`, and that you used your pier's id as it appears in your
+  entity ids, as step 5 says.
 
 Excluding the timeline sensors from the recorder, as
 [the night timeline page](night-timeline.md#keep-the-forecast-out-of-the-recorder)
