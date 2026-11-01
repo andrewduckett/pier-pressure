@@ -623,3 +623,9 @@ def test_strip_rows_hover_with_the_start_of_the_hour(dashboard: dict[str, Any]) 
     assert "%{x" not in heatmap["hovertemplate"]
     assert "timeZone: hass.config.time_zone" in card["pier_timeline"]
     assert "clock.format(new Date(h))" in card["pier_timeline"]
+
+
+def test_strip_lanes_are_hidden_without_a_timeline(dashboard: dict[str, Any]) -> None:
+    # Offline, Home Assistant drops the forecast, and the strip shows no lane at all.
+    yaxis2 = strip_card(dashboard)["layout"]["yaxis2"]
+    assert yaxis2["visible"] == "$ex vars.strip.x.length > 0"

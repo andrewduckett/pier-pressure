@@ -323,6 +323,8 @@ views:
               yaxis2:
                 # The card overlays extra y-axes on the first by default; the lanes need their own band.
                 overlaying: free
+                # Offline there is no timeline, so no Moon up lane to label.
+                visible: $ex vars.strip.x.length > 0
                 side: left
                 anchor: x
                 domain: $ex [0, vars.split]
