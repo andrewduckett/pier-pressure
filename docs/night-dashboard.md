@@ -8,6 +8,8 @@ condition, with dusk, dawn, the moon and your targets on the same time line.
 The dashboard reads only the entities PierPressure already publishes. You paste
 it in once, and it updates itself.
 
+![The night dashboard: the Tonight and Moon cards, then the night strip with nine condition rows, a Moon up lane and ten target lanes, crossed by dusk, now and dawn lines](images/night-dashboard.png)
+
 ## What the dashboard shows
 
 | Card | What it shows | Where it comes from |
@@ -89,6 +91,17 @@ Excluding the timeline sensors from the recorder, as
 [the night timeline page](night-timeline.md#keep-the-forecast-out-of-the-recorder)
 suggests, does not affect the dashboard. It reads the live attributes, not their
 history.
+
+## Versions it was checked with
+
+The YAML below was checked with a running PierPressure in Home Assistant
+2026.10.4, using Plotly Graph Card v4.0.2. The screenshot comes from that
+check. A later release of either may change how the strip looks.
+
+To repeat the check after changing the YAML, run `mise run dashboard-check` from
+a clone of this repository. It starts a throwaway Home Assistant in Docker, with
+its own MQTT broker and PierPressure, and loads the YAML from this page. It
+never touches your own Home Assistant.
 
 ## The dashboard YAML
 
@@ -356,21 +369,21 @@ views:
               - entity: sensor.pierpressure_backyard_target_10
                 name: Target 10
       - type: grid
+        column_span: 2
         cards:
           - type: heading
             heading: Weather sources
+            heading_style: subtitle
             badges:
               - type: entity
                 entity: sensor.pierpressure_backyard_open_meteo_health
                 name: Open-Meteo
-                show_name: true
-                show_state: true
+                state_content: [name, state]
                 show_icon: true
               - type: entity
                 entity: sensor.pierpressure_backyard_7timer_health
                 name: 7Timer!
-                show_name: true
-                show_state: true
+                state_content: [name, state]
                 show_icon: true
 ```
 

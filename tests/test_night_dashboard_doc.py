@@ -591,3 +591,21 @@ def test_links_from_the_readme_entity_section() -> None:
 def test_links_from_the_night_timeline_page() -> None:
     timeline = (_ROOT / "docs" / "night-timeline.md").read_text(encoding="utf-8")
     assert "(night-dashboard.md)" in timeline
+
+
+def test_page_shows_a_screenshot_stored_in_docs_images() -> None:
+    page = _PAGE.read_text(encoding="utf-8")
+    images = re.findall(r"!\[[^\]]+\]\((images/[^)]+\.png)\)", page)
+    assert images
+    for image in images:
+        assert (_PAGE.parent / image).is_file(), image
+
+
+def test_page_names_the_versions_it_was_checked_against() -> None:
+    from dashboard_check import PLOTLY_GRAPH_CARD_VERSION
+
+    compose = (_ROOT / "compose.yaml").read_text(encoding="utf-8")
+    [ha_version] = re.findall(r"ghcr\.io/home-assistant/home-assistant:(\S+)", compose)
+    page = " ".join(_PAGE.read_text(encoding="utf-8").split())
+    assert f"Home Assistant {ha_version}" in page
+    assert f"Plotly Graph Card {PLOTLY_GRAPH_CARD_VERSION}" in page

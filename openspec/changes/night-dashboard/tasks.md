@@ -21,7 +21,7 @@
 
 ## 5. Check in a real Home Assistant [depends-on: 2, 4]
 
-- [ ] 5.1 [complex] In the Docker check, the page's YAML renders with no card error: nine rows, the lanes, and the dusk, dawn and now lines. With PierPressure stopped, the strip is empty and still shows no card error. Save a screenshot under `docs/images/`, show it on the page, and name the Home Assistant and plotly-graph-card versions checked. A test asserts that the image the page shows exists (verify: mise run check)
+- [x] 5.1 [complex] In the Docker check, the page's YAML renders with no card error: nine rows, the lanes, and the dusk, dawn and now lines. With PierPressure stopped, the strip is empty and still shows no card error. Save a screenshot under `docs/images/`, show it on the page, and name the Home Assistant and plotly-graph-card versions checked. A test asserts that the image the page shows exists (verify: mise run check) (✓ mise run check passed; Docker check: no card errors online or with PierPressure stopped)
 
 ## Deviations Ledger
 
@@ -31,3 +31,5 @@
 - 2026-10-31, task 3.1: the strip is one heatmap trace with a nine-row `z`, not nine heatmap traces (DD1). In the Docker check, two heatmap traces on one card made Plotly 4.1.2's heatmap `calc` throw (`Cannot read properties of undefined (reading 'length')`), and the card drew nothing. One trace renders. DD1 rejected one trace only because it has one colour scale; DD2 already maps every row onto band indexes 0 to 6 of one shared ramp, so one scale is exactly right. The rows, their order, labels, gaps and shading are unchanged. One `$ex` (`pier_timeline`) reads the nine `forecast` attributes and builds the rows, so the guard's pairing rule still holds.
 - 2026-10-31, task 3.3: the guard now leaves out the keys Home Assistant's MQTT integration drops from a JSON attributes payload (`MQTT_ATTRIBUTES_BLOCKED`, read from the 2026.10.4 image). The Target sensors publish `available`, but Home Assistant never shows it, so a dashboard that read it would silently get nothing. The lanes test an unavailable rank by its missing `window` instead, since Home Assistant drops every attribute of an unavailable entity.
 - 2026-10-31, task 3.3: all lanes are one horizontal bar trace (DD3 said bar traces), on a `yaxis2` set to `overlaying: free`. plotly-graph-card overlays every extra y-axis on the first by default, which ignores the lanes' domain.
+- 2026-10-31, task 5.1: in the Docker check, the Weather sources heading badges were cut off in a one-column section and showed no names. The badges now use `state_content: [name, state]`, and that section spans two columns, which puts it beside Targets on a three-column screen. The small sections otherwise take one column each, so Tonight and Moon sit side by side.
+- 2026-10-31, task 5.1: with PierPressure stopped, plotly-graph-card pads the empty lane trace with one point at `y: null`. Nothing is drawn, and no card shows an error.

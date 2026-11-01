@@ -302,7 +302,7 @@ def main() -> int:
         return 1
     print(
         f"\nHome Assistant is up with the night dashboard.\n"
-        f"  Dashboard: {HA_URL}/{DASHBOARD_PATH}/0\n"
+        f"  Dashboard: {HA_URL}/{DASHBOARD_PATH}\n"
         f"  Login:     {USERNAME} / {PASSWORD}\n"
         f"  Stop it:   docker compose --profile dashboard down\n"
     )
