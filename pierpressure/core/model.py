@@ -265,9 +265,10 @@ class TimelineEntry(BaseModel):
     ``time`` is the aware-UTC top of the hour. The altitudes are the sun's and the
     moon's geometric centre, computed by the core and always present. The cloud and
     gust fields carry the base source's reading exactly as reported; ``seeing`` and
-    ``transparency`` carry the secondary source's. Each is null when its source
-    lacks the hour or the value. The entry is flat so that later variables append
-    as new keys without reshaping it.
+    ``transparency`` carry the secondary source's. The weather fields carry the
+    base source's reading unrounded, in °C, %, km/h and degrees. Each is null when
+    its source lacks the hour or the value. The entry is flat so that later
+    variables append as new keys without reshaping it.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -282,6 +283,12 @@ class TimelineEntry(BaseModel):
     wind_gust: float | None = None
     seeing: Quality | None = None
     transparency: Quality | None = None
+    temperature: float | None = None
+    dew_point: float | None = None
+    humidity: float | None = None
+    wind_speed: float | None = None
+    wind_direction: float | None = None
+    precipitation_probability: float | None = None
 
     @field_validator("time")
     @classmethod
