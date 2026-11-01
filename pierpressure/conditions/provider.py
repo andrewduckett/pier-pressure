@@ -19,10 +19,10 @@ provider health and never reach the verdict (provider-health-entities D1).
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Protocol
+from typing import Protocol, get_args
 
 from pierpressure.core.conditions import Conditions, Series, Variable
 from pierpressure.core.config import PierConfig
@@ -93,27 +93,53 @@ class Provider(Protocol):
     def fetch(self, pier: PierConfig) -> SourceForecast: ...
 
 
-def _series_from(spec: ProviderSpec, forecast: SourceForecast) -> dict[Variable, Series]:
-    if forecast.is_empty:
-        return {}
-    return {
-        variable: Series(
-            provider=spec.key,
-            issued_at=forecast.issued_at,
-            values={
-                time: getattr(reading, variable)
-                for time, reading in sorted(forecast.readings.items())
-            },
-        )
-        for variable in spec.variables
-    }
-
-
-def assemble_snapshot(base: SourceForecast, secondary: SourceForecast) -> Conditions:
-    """Promote the base and secondary forecasts into per-variable :class:`Conditions`."""
-    return Conditions(
-        series={**_series_from(OPEN_METEO, base), **_series_from(SEVEN_TIMER, secondary)}
+def _returned(forecast: SourceForecast, variables: Iterable[Variable]) -> bool:
+    """Whether any hour of ``forecast`` carries a value for any of ``variables``."""
+    return any(
+        getattr(reading, variable) is not None
+        for reading in forecast.readings.values()
+        for variable in variables
     )
+
+
+def _series(spec: ProviderSpec, forecast: SourceForecast, variable: Variable) -> Series:
+    """``variable``'s series over every hour ``forecast`` returned, blanks as ``None``."""
+    return Series(
+        provider=spec.key,
+        issued_at=forecast.issued_at,
+        values={
+            time: getattr(reading, variable) for time, reading in sorted(forecast.readings.items())
+        },
+    )
+
+
+def assemble_snapshot(fills: Sequence[tuple[ProviderSpec, SourceForecast]]) -> Conditions:
+    """Fill each variable from the first provider in order that returned it (provider-order D3).
+
+    ``fills`` pairs each provider's declaration with its forecast, in the
+    configured order. A provider returned a variable when at least one hour
+    carries a value for it or for another member of its bundle. A bundle is
+    decided once, so every member comes from the same provider, a member with no
+    values included. A series is whole: hours its provider did not cover stay
+    absent and are never taken from another provider. A failed fetch is an empty
+    forecast, so it is passed over like any provider that returned nothing.
+
+    Variables are walked in the fixed :data:`Variable` order and providers in
+    ``fills`` order, so the result depends on nothing but the inputs.
+    """
+    series: dict[Variable, Series] = {}
+    for variable in get_args(Variable):
+        if variable in series:
+            continue
+        for spec, forecast in fills:
+            if variable not in spec.variables:
+                continue
+            bundle = [member for member in spec.variables if member in spec.bundle_of(variable)]
+            if _returned(forecast, bundle):
+                for member in bundle:
+                    series[member] = _series(spec, forecast, member)
+                break
+    return Conditions(series=series)
 
 
 def _utcnow() -> datetime:
@@ -158,7 +184,7 @@ class CompositeProvider:
         base, base_outcome = self._safe_fetch(self.base, pier, OPEN_METEO.variables)
         secondary, secondary_outcome = self._safe_fetch(self.secondary, pier, SEVEN_TIMER.variables)
         return FetchResult(
-            conditions=assemble_snapshot(base, secondary),
+            conditions=assemble_snapshot([(OPEN_METEO, base), (SEVEN_TIMER, secondary)]),
             outcomes=(base_outcome, secondary_outcome),
         )
 

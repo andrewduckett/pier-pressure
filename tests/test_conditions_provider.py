@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -19,7 +20,7 @@ from pierpressure.conditions.provider import (
 )
 from pierpressure.conditions.seven_timer import SevenTimerProvider, parse_seven_timer
 from pierpressure.core.conditions import Conditions
-from pierpressure.core.providers import OPEN_METEO, SEVEN_TIMER
+from pierpressure.core.providers import OPEN_METEO, SEVEN_TIMER, ProviderSpec
 from pierpressure.health import FetchOutcome, ProviderInfo, describe_error
 
 from .conftest import make_pier
@@ -178,134 +179,154 @@ def test_seven_timer_follows_the_redirect_to_its_astro_endpoint() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# 3.1 assembly builds one self-stamped group per source (design D1, D2)
+# The fill: each variable from the first provider in order that returned it
+# (provider-order D3)
 # --------------------------------------------------------------------------- #
 
-
-def test_assemble_builds_both_groups_with_their_own_issue_times() -> None:
-    base = SourceForecast(
-        issued_at=_hour(18),
-        readings={_hour(21): SourceReading(cloud_cover=20.0, wind_gust=15.0)},
-    )
-    secondary = SourceForecast(
-        issued_at=_hour(17),
-        readings={_hour(21): SourceReading(seeing=0.8, transparency=0.7)},
-    )
-    conditions = assemble_snapshot(base, secondary)
-    assert {"cloud_cover", "seeing"} <= conditions.series.keys()
-    assert (
-        conditions.value_at("cloud_cover", _hour(21)),
-        conditions.value_at("wind_gust", _hour(21)),
-    ) == (20.0, 15.0)
-    assert (
-        conditions.value_at("seeing", _hour(21)),
-        conditions.value_at("transparency", _hour(21)),
-    ) == (0.8, 0.7)
-    # Each source's issue time now travels on its own group's meta, mirroring
-    # today's base_issued_at / secondary_issued_at.
-    assert conditions.issued_at("cloud_cover") == _hour(18)
-    assert conditions.issued_at("seeing") == _hour(17)
+_FIRST = ProviderSpec(
+    key="first",
+    name="First",
+    needs_key=False,
+    variables=("cloud_cover", "cloud_low", "cloud_mid", "cloud_high", "wind_gust"),
+    bundles=(frozenset({"cloud_cover", "cloud_low", "cloud_mid", "cloud_high"}),),
+)
+_SECOND = replace(_FIRST, key="second", name="Second")
 
 
-def test_assemble_absent_secondary_yields_a_none_group_but_keeps_base() -> None:
-    base = SourceForecast(
-        issued_at=_hour(18),
-        readings={_hour(21): SourceReading(cloud_cover=20.0, wind_gust=15.0)},
+def _forecast(issued: int, **columns: dict[int, float | None]) -> SourceForecast:
+    """A forecast whose readings hold each named variable at the given hours."""
+    hours = sorted({h for column in columns.values() for h in column})
+    return SourceForecast(
+        issued_at=_hour(issued),
+        readings={
+            _hour(h): SourceReading(**{name: column.get(h) for name, column in columns.items()})
+            for h in hours
+        },
     )
-    conditions = assemble_snapshot(base, SourceForecast())  # secondary empty
-    assert "seeing" not in conditions.series  # no rows -> no group, no issue time
+
+
+def test_assemble_the_default_order_gives_cloud_to_open_meteo_and_seeing_to_seven_timer() -> None:
+    base = _forecast(18, cloud_cover={21: 20.0}, wind_gust={21: 15.0})
+    secondary = _forecast(17, seeing={21: 0.8}, transparency={21: 0.7})
+    conditions = assemble_snapshot([(OPEN_METEO, base), (SEVEN_TIMER, secondary)])
+    for variable in ("cloud_cover", "wind_gust"):
+        assert conditions.series[variable].provider == "open_meteo"
+        assert conditions.issued_at(variable) == _hour(18)
+    for variable in ("seeing", "transparency"):
+        assert conditions.series[variable].provider == "seven_timer"
+        assert conditions.issued_at(variable) == _hour(17)
     assert conditions.value_at("cloud_cover", _hour(21)) == 20.0
+    assert conditions.value_at("wind_gust", _hour(21)) == 15.0
+    assert conditions.value_at("seeing", _hour(21)) == 0.8
+    assert conditions.value_at("transparency", _hour(21)) == 0.7
 
 
-def test_assemble_copies_the_cloud_component_split_onto_the_base_hour() -> None:
-    base = SourceForecast(
-        issued_at=_hour(18),
-        readings={
-            _hour(21): SourceReading(
-                cloud_cover=40.0, cloud_low=10.0, cloud_mid=20.0, cloud_high=30.0
-            )
-        },
+def test_assemble_an_earlier_provider_wins_a_variable_both_returned() -> None:
+    conditions = assemble_snapshot(
+        [
+            (_FIRST, _forecast(18, cloud_cover={21: 40.0})),
+            (_SECOND, _forecast(17, cloud_cover={21: 70.0})),
+        ]
     )
-    conditions = assemble_snapshot(base, SourceForecast())
-    assert (
-        conditions.value_at("cloud_low", _hour(21)),
-        conditions.value_at("cloud_mid", _hour(21)),
-        conditions.value_at("cloud_high", _hour(21)),
-    ) == (10.0, 20.0, 30.0)
-
-
-def test_assemble_total_only_source_leaves_the_components_none() -> None:
-    # A source that reports a total but no split yields a present group whose
-    # component fields are all None (design D1).
-    base = SourceForecast(
-        issued_at=_hour(18),
-        readings={_hour(21): SourceReading(cloud_cover=40.0)},
-    )
-    conditions = assemble_snapshot(base, SourceForecast())
+    assert conditions.series["cloud_cover"].provider == "first"
     assert conditions.value_at("cloud_cover", _hour(21)) == 40.0
-    assert conditions.value_at("cloud_low", _hour(21)) is None
-    assert conditions.value_at("cloud_mid", _hour(21)) is None
-    assert conditions.value_at("cloud_high", _hour(21)) is None
 
 
-def test_assemble_copies_the_weather_variables_onto_the_base_hour() -> None:
-    base = SourceForecast(
-        issued_at=_hour(18),
-        readings={
-            _hour(21): SourceReading(
-                cloud_cover=40.0,
-                temperature=12.3,
-                dew_point=9.8,
-                humidity=85.0,
-                wind_speed=14.2,
-                wind_direction=230.0,
-                precipitation_probability=35.0,
-            )
-        },
+def test_assemble_an_empty_column_falls_through_to_the_next_provider() -> None:
+    conditions = assemble_snapshot(
+        [
+            (_FIRST, _forecast(18, cloud_cover={21: None, 22: None}, wind_gust={21: 9.0})),
+            (_SECOND, _forecast(17, cloud_cover={21: 70.0, 22: 60.0})),
+        ]
     )
-    conditions = assemble_snapshot(base, SourceForecast())
-    assert (
-        conditions.value_at("temperature", _hour(21)),
-        conditions.value_at("dew_point", _hour(21)),
-        conditions.value_at("humidity", _hour(21)),
-        conditions.value_at("wind_speed", _hour(21)),
-        conditions.value_at("wind_direction", _hour(21)),
-        conditions.value_at("precipitation_probability", _hour(21)),
-    ) == (12.3, 9.8, 85.0, 14.2, 230.0, 35.0)
+    assert conditions.series["cloud_cover"].provider == "second"
+    assert conditions.series["cloud_cover"].values == {_hour(21): 70.0, _hour(22): 60.0}
+    assert conditions.series["wind_gust"].provider == "first"
 
 
-def test_assemble_source_without_weather_leaves_the_weather_fields_none() -> None:
-    base = SourceForecast(
-        issued_at=_hour(18),
-        readings={_hour(21): SourceReading(cloud_cover=40.0, wind_gust=15.0)},
+def test_assemble_a_bundle_travels_together() -> None:
+    four = {
+        "cloud_cover": {21: 70.0},
+        "cloud_low": {21: 1.0},
+        "cloud_mid": {21: 2.0},
+        "cloud_high": {21: 3.0},
+    }
+    conditions = assemble_snapshot(
+        [(_FIRST, _forecast(18, cloud_cover={21: 40.0})), (_SECOND, _forecast(17, **four))]
     )
-    conditions = assemble_snapshot(base, SourceForecast())
-    assert (
-        conditions.value_at("cloud_cover", _hour(21)),
-        conditions.value_at("wind_gust", _hour(21)),
-    ) == (40.0, 15.0)
-    assert conditions.value_at("temperature", _hour(21)) is None
-    assert conditions.value_at("dew_point", _hour(21)) is None
-    assert conditions.value_at("humidity", _hour(21)) is None
-    assert conditions.value_at("wind_speed", _hour(21)) is None
-    assert conditions.value_at("wind_direction", _hour(21)) is None
-    assert conditions.value_at("precipitation_probability", _hour(21)) is None
+    assert conditions.series["cloud_cover"].provider == "first"
+    for layer in ("cloud_low", "cloud_mid", "cloud_high"):
+        series = conditions.series[layer]
+        assert series.provider == "first"
+        assert series.issued_at == _hour(18)
+        assert series.values == {_hour(21): None}
 
 
-def test_assemble_base_wind_without_cloud_keeps_the_base_group_and_its_issue_time() -> None:
-    # The round-2 Critical case: base returns wind rows but no cloud. The base
-    # group is still present (rows exist), so its issue time survives — exactly as
-    # today's base_issued_at was retained on any base reading (design D1, D2).
-    base = SourceForecast(
-        issued_at=_hour(18),
-        readings={_hour(21): SourceReading(cloud_cover=None, wind_gust=15.0)},
+def test_assemble_a_series_is_whole_never_merged_per_hour() -> None:
+    conditions = assemble_snapshot(
+        [
+            (_FIRST, _forecast(18, cloud_cover={h: 10.0 for h in range(20, 24)})),
+            (_SECOND, _forecast(17, cloud_cover={h: 90.0 for h in range(18, 24)})),
+        ]
     )
-    conditions = assemble_snapshot(base, SourceForecast())
-    assert conditions.issued_at("cloud_cover") == _hour(18)
-    assert (
-        conditions.value_at("cloud_cover", _hour(21)) is None
-        and conditions.value_at("wind_gust", _hour(21)) == 15.0
+    series = conditions.series["cloud_cover"]
+    assert series.provider == "first"
+    assert series.values == {_hour(h): 10.0 for h in range(20, 24)}
+    assert conditions.value_at("cloud_cover", _hour(19)) is None
+
+
+def test_assemble_a_failed_or_empty_forecast_is_passed_over() -> None:
+    conditions = assemble_snapshot(
+        [(_FIRST, SourceForecast()), (_SECOND, _forecast(17, cloud_cover={21: 70.0}))]
     )
+    assert conditions.series["cloud_cover"].provider == "second"
+    assert "wind_gust" not in conditions.series
+
+
+def test_assemble_a_variable_no_provider_returned_has_no_series() -> None:
+    conditions = assemble_snapshot([(OPEN_METEO, _forecast(18, cloud_cover={21: 20.0}))])
+    assert "seeing" not in conditions.series
+    assert "wind_gust" not in conditions.series
+    assert assemble_snapshot([]) == Conditions()
+
+
+def test_assemble_a_series_keeps_every_hour_its_provider_returned() -> None:
+    base = _forecast(18, cloud_cover={21: 20.0, 22: None}, wind_gust={21: None, 22: 15.0})
+    conditions = assemble_snapshot([(OPEN_METEO, base)])
+    assert conditions.series["cloud_cover"].values == {_hour(21): 20.0, _hour(22): None}
+    assert conditions.series["wind_gust"].values == {_hour(21): None, _hour(22): 15.0}
+
+
+def test_assemble_a_total_only_provider_leaves_the_components_without_values() -> None:
+    conditions = assemble_snapshot([(OPEN_METEO, _forecast(18, cloud_cover={21: 40.0}))])
+    assert conditions.value_at("cloud_cover", _hour(21)) == 40.0
+    for layer in ("cloud_low", "cloud_mid", "cloud_high"):
+        assert conditions.value_at(layer, _hour(21)) is None
+
+
+def test_assemble_carries_the_weather_variables_and_a_missing_one_alone_is_null() -> None:
+    weather = {
+        "temperature": {21: 12.34, 22: 11.0},
+        "dew_point": {21: 9.8, 22: None},
+        "humidity": {21: 85.0, 22: 86.0},
+        "wind_speed": {21: 14.25, 22: 13.0},
+        "wind_direction": {21: 230.0, 22: 231.0},
+        "precipitation_probability": {21: 35.0, 22: 30.0},
+    }
+    conditions = assemble_snapshot([(OPEN_METEO, _forecast(18, **weather))])
+    for variable, column in weather.items():
+        for h, value in column.items():
+            assert conditions.value_at(variable, _hour(h)) == value  # type: ignore[arg-type]
+
+
+def test_assemble_a_provider_without_weather_leaves_the_weather_variables_unfilled() -> None:
+    conditions = assemble_snapshot(
+        [(OPEN_METEO, _forecast(18, cloud_cover={21: 40.0}, wind_gust={21: 15.0}))]
+    )
+    assert conditions.value_at("cloud_cover", _hour(21)) == 40.0
+    for variable in ("temperature", "dew_point", "humidity", "wind_speed", "wind_direction"):
+        assert variable not in conditions.series
+    assert "precipitation_probability" not in conditions.series
 
 
 # --------------------------------------------------------------------------- #
@@ -450,7 +471,9 @@ def test_get_returns_the_same_conditions_and_one_outcome_per_provider() -> None:
         _StubProvider(_SECONDARY_FORECAST, key="s", name="S"),
     )
     result = composite.get(make_pier())
-    assert result.conditions == assemble_snapshot(_BASE_FORECAST, _SECONDARY_FORECAST)
+    assert result.conditions == assemble_snapshot(
+        [(OPEN_METEO, _BASE_FORECAST), (SEVEN_TIMER, _SECONDARY_FORECAST)]
+    )
     assert result.outcomes == (
         FetchOutcome(
             key="b",
@@ -524,7 +547,7 @@ def test_forecast_horizon_beyond_the_data_is_unavailable() -> None:
             _hour(22): SourceReading(cloud_cover=25.0),
         },
     )
-    conditions = assemble_snapshot(base, SourceForecast())
+    conditions = assemble_snapshot([(OPEN_METEO, base)])
     assert _hour(21) in conditions.series["cloud_cover"].values
     assert _hour(23) not in conditions.series["cloud_cover"].values  # beyond the forecast horizon
 

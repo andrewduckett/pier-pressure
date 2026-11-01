@@ -17,6 +17,7 @@ from pierpressure.conditions.provider import assemble_snapshot
 from pierpressure.core.clock import FixedClock
 from pierpressure.core.config import PierConfig
 from pierpressure.core.producer import produce_verdict
+from pierpressure.core.providers import OPEN_METEO, SEVEN_TIMER
 
 from .conftest import make_conditions
 from .offline_guard import no_network
@@ -30,7 +31,7 @@ _STUB = Path(__file__).parent / "fixtures" / "golden" / "stub"
 @pytest.mark.parametrize("case", sorted(_CASES))
 def test_filling_targets_leaves_other_fields_byte_identical(case: str) -> None:
     pier, base, secondary = _CASES[case]()
-    conditions = assemble_snapshot(base, secondary)
+    conditions = assemble_snapshot([(OPEN_METEO, base), (SEVEN_TIMER, secondary)])
     with no_network():
         document = produce_verdict(pier, FixedClock(_INSTANT), conditions)
 
@@ -56,7 +57,7 @@ def _equipped_pier() -> PierConfig:
 def test_an_equipped_pier_emits_an_equipment_reason_for_the_top_pick() -> None:
     # Task 5.4: with equipment and a top pick that has a known size, the reasons carry
     # an additive framing entry naming that top pick, alongside the score terms.
-    conditions = assemble_snapshot(_base_full(), _secondary_full())
+    conditions = assemble_snapshot([(OPEN_METEO, _base_full()), (SEVEN_TIMER, _secondary_full())])
     with no_network():
         document = produce_verdict(_equipped_pier(), FixedClock(_INSTANT), conditions)
     assert document.targets
@@ -96,7 +97,7 @@ def test_a_window_not_worth_setting_up_for_carries_no_equipment_reason() -> None
 
     from pierpressure.core.model import Verdict
 
-    conditions = assemble_snapshot(_base_full(), _secondary_full())
+    conditions = assemble_snapshot([(OPEN_METEO, _base_full()), (SEVEN_TIMER, _secondary_full())])
     with no_network():
         before_dusk = produce_verdict(_equipped_pier(), FixedClock(_INSTANT), conditions)
         assert before_dusk.dark_window.end is not None
@@ -110,7 +111,7 @@ def test_a_window_not_worth_setting_up_for_carries_no_equipment_reason() -> None
 
 
 def test_equipment_reasons_are_deterministic() -> None:
-    conditions = assemble_snapshot(_base_full(), _secondary_full())
+    conditions = assemble_snapshot([(OPEN_METEO, _base_full()), (SEVEN_TIMER, _secondary_full())])
     with no_network():
         first = produce_verdict(_equipped_pier(), FixedClock(_INSTANT), conditions).reasons
         second = produce_verdict(_equipped_pier(), FixedClock(_INSTANT), conditions).reasons
@@ -121,7 +122,7 @@ def test_targets_are_actually_populated_when_a_night_exists() -> None:
     # The additive test strips targets, so this guards that the fill really runs:
     # the London night in the golden cases yields a non-empty ranked list.
     pier, base, secondary = _CASES["both_present"]()
-    conditions = assemble_snapshot(base, secondary)
+    conditions = assemble_snapshot([(OPEN_METEO, base), (SEVEN_TIMER, secondary)])
     with no_network():
         document = produce_verdict(pier, FixedClock(_INSTANT), conditions)
     assert document.targets

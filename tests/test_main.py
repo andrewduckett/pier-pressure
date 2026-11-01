@@ -31,6 +31,7 @@ from pierpressure.core.config import (
 from pierpressure.core.horizon import parse_horizon_text
 from pierpressure.core.model import Verdict
 from pierpressure.core.producer import produce_verdict
+from pierpressure.core.providers import OPEN_METEO, SEVEN_TIMER
 from pierpressure.delivery.mqtt import (
     DeliveryError,
     LoginRejected,
@@ -1235,7 +1236,7 @@ def test_form_equipment_ranks_like_file_equipment(
     [file_pier] = _load(_config(tmp_path / "docker", file_text)).piers
     form = {**BACKYARD, **EQUIPMENT_FORM, "min_altitude": 15}
     [form_pier] = _form_piers(tmp_path, monkeypatch, options_file, form).piers
-    conditions = assemble_snapshot(_base_full(), _secondary_full())
+    conditions = assemble_snapshot([(OPEN_METEO, _base_full()), (SEVEN_TIMER, _secondary_full())])
 
     with no_network():
         from_file = produce_verdict(file_pier, FixedClock(_INSTANT), conditions)
@@ -1253,7 +1254,7 @@ def test_a_form_pier_without_equipment_has_no_field_of_view_reason(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
 ) -> None:
     [pier] = _form_piers(tmp_path, monkeypatch, options_file, BACKYARD).piers
-    conditions = assemble_snapshot(_base_full(), _secondary_full())
+    conditions = assemble_snapshot([(OPEN_METEO, _base_full()), (SEVEN_TIMER, _secondary_full())])
 
     with no_network():
         document = produce_verdict(pier, FixedClock(_INSTANT), conditions)
@@ -1370,7 +1371,7 @@ def test_form_gates_give_the_same_verdict_as_file_gates(
     [file_pier] = _load(_config(tmp_path / "docker", file_text)).piers
     form = {**BACKYARD, "go_threshold": 75, "max_gust": 40}
     [form_pier] = _form_piers(tmp_path, monkeypatch, options_file, form).piers
-    conditions = assemble_snapshot(_base_full(), _secondary_full())
+    conditions = assemble_snapshot([(OPEN_METEO, _base_full()), (SEVEN_TIMER, _secondary_full())])
 
     with no_network():
         from_file = produce_verdict(file_pier, FixedClock(_INSTANT), conditions)
@@ -1394,7 +1395,9 @@ def test_a_gust_over_the_forms_limit_is_a_no_go(
 ) -> None:
     [gated] = _form_piers(tmp_path, monkeypatch, options_file, {**BACKYARD, "max_gust": 30}).piers
     [open_pier] = _form_piers(tmp_path, monkeypatch, options_file, BACKYARD).piers
-    conditions = assemble_snapshot(_with_gusts(_base_full(), 45.0), _secondary_full())
+    conditions = assemble_snapshot(
+        [(OPEN_METEO, _with_gusts(_base_full(), 45.0)), (SEVEN_TIMER, _secondary_full())]
+    )
 
     with no_network():
         document = produce_verdict(gated, FixedClock(_INSTANT), conditions)

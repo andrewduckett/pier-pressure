@@ -16,7 +16,7 @@
 
 ## 3. The provider layer fills per variable [depends-on: 2]
 
-- [ ] 3.1 [complex] `assemble_snapshot(fills)` takes ordered `(spec, forecast)` pairs and fills each variable from the first provider that returned it: the earlier provider wins a variable both returned, an all-blank column falls through, a bundle travels together with its empty members staying on the winner, a series is whole and never merged per hour, and a failed or empty forecast is passed over (verify: uv run pytest tests/test_conditions_provider.py -k assemble)
+- [x] 3.1 [complex] `assemble_snapshot(fills)` takes ordered `(spec, forecast)` pairs and fills each variable from the first provider that returned it: the earlier provider wins a variable both returned, an all-blank column falls through, a bundle travels together with its empty members staying on the winner, a series is whole and never merged per hour, and a failed or empty forecast is passed over (verify: uv run pytest tests/test_conditions_provider.py -k assemble) (✓ uv run pytest tests/test_conditions_provider.py -k assemble passed)
 - [ ] 3.2 [medium] `CompositeProvider` holds an ordered sequence, fetches every provider in order on every `get`, reports one `FetchOutcome` per provider naming its declared variables, success for a provider the fill passed over, and fills after all fetches; `build_provider(keys, ...)` builds the fetchers from the catalog in the configured order and `__main__` passes `config.conditions.providers` (verify: uv run pytest tests/test_conditions_provider.py tests/test_main.py tests/test_integration.py)
 
 ## 4. Documentation and the whole gate [depends-on: 3]
@@ -35,3 +35,8 @@
   `assemble_snapshot(base, secondary)` a transitional body that builds series. Tasks
   1.3 and 1.4 then add their own scenarios as tests; 3.1 replaces the transitional
   `assemble_snapshot`. No behaviour or guarantee changes.
+- 2026-11-01, task 3.1: the new `assemble_snapshot(fills)` signature broke every
+  caller, so 3.1 also moved the golden suite's `_verdict_json`, `test_main` and
+  `test_producer_targets` to ordered `(spec, forecast)` pairs, and gave
+  `CompositeProvider.get` a transitional two-pair call until 3.2. Task 4.2 then
+  confirms the goldens and the whole gate.
