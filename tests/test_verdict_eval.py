@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
-from pierpressure.core.conditions import Conditions, Series
+from pierpressure.core.clock import FixedClock
+from pierpressure.core.conditions import Conditions, Series, Variable
 from pierpressure.core.config import PierConfig
-from pierpressure.core.model import Band, Moon, MoonPhase, Verdict
+from pierpressure.core.model import Band, Moon, MoonPhase, Verdict, VerdictDocument
+from pierpressure.core.producer import produce_verdict
 from pierpressure.core.scoring import Decision, evaluate, hour_slots
 from pierpressure.core.sky import _local_solar_day, _night_transitions, dark_window
 
+from .conftest import make_conditions, make_pier
 from .offline_guard import no_network
 
 _START = datetime(2026, 9, 8, 21, 0, tzinfo=UTC)
@@ -178,6 +182,34 @@ def test_confidence_rises_as_dusk_nears_with_freshness_held_equal() -> None:
         _pier(), near, _WINDOW, _snapshot(cloud=0.0, issued_at=near), _new_moon()
     ).confidence
     assert conf_near >= conf_far
+
+
+# An hour before the London night's dusk, so lead time is full and freshness shows.
+_BEFORE_DUSK = datetime(2026, 9, 8, 20, 0, tzinfo=UTC)
+
+
+def _issued(conditions: Conditions, variable: Variable, issued_at: datetime) -> Conditions:
+    """``conditions`` with one series' issue time changed."""
+    series = dict(conditions.series)
+    series[variable] = replace(series[variable], issued_at=issued_at)
+    return Conditions(series=series)
+
+
+def _document(conditions: Conditions) -> VerdictDocument:
+    with no_network():
+        return produce_verdict(make_pier(), FixedClock(_BEFORE_DUSK), conditions)
+
+
+def test_a_stale_seeing_series_does_not_change_the_document() -> None:
+    fresh = _issued(make_conditions(), "seeing", _BEFORE_DUSK - timedelta(hours=1))
+    stale = _issued(make_conditions(), "seeing", _BEFORE_DUSK - timedelta(hours=11))
+    assert _document(fresh).to_json() == _document(stale).to_json()
+
+
+def test_a_stale_cloud_series_lowers_confidence() -> None:
+    fresh = _issued(make_conditions(), "cloud_cover", _BEFORE_DUSK - timedelta(hours=1))
+    stale = _issued(make_conditions(), "cloud_cover", _BEFORE_DUSK - timedelta(hours=11))
+    assert _document(stale).confidence.value < _document(fresh).confidence.value
 
 
 def test_missing_optional_data_lowers_confidence_without_gating() -> None:
