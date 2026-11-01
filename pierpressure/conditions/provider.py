@@ -1,17 +1,16 @@
-"""Provider interface, group assembly, and graceful fallback (design D6).
+"""Provider interface, the per-variable fill, and graceful fallback (ADR-0027).
 
-A source provider parses one external forecast into a :class:`SourceForecast` — a
-per-hour set of readings plus the data's issue time. :func:`assemble_snapshot`
-promotes the base and secondary forecasts into the core's per-source
-:class:`~pierpressure.core.conditions.Conditions`: one self-stamped
-:class:`~pierpressure.core.conditions.BaseGroup` (cloud/wind) and
-:class:`~pierpressure.core.conditions.SecondaryGroup` (seeing/transparency), each
-present only when its source returned rows (design D1). :class:`CompositeProvider`
-fetches the two sources independently so one failing never fails the other. A
-failed or empty fetch leaves its source unavailable until the next good fetch; it
-is never filled from an earlier one.
+A provider parses one external forecast into a :class:`SourceForecast` — a
+per-hour set of readings plus the data's issue time — and points at its
+:class:`~pierpressure.core.providers.ProviderSpec`, which declares the variables
+it supplies and its bundles. :func:`assemble_snapshot` fills the core's
+:class:`~pierpressure.core.conditions.Conditions` one series per variable, from
+the first provider in the configured order that returned it.
+:class:`CompositeProvider` fetches every provider in that order, each guarded so
+one failing never fails another, then runs the fill. A failed or empty fetch is
+passed over; its variables are never filled from an earlier fetch.
 
-Each fetch also reports a :class:`~pierpressure.health.FetchOutcome` per source.
+Each fetch also reports a :class:`~pierpressure.health.FetchOutcome` per provider.
 The outcomes travel beside the conditions in a :class:`FetchResult`, so they feed
 provider health and never reach the verdict (provider-health-entities D1).
 """
@@ -34,13 +33,13 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class SourceReading:
-    """One source's readings for a single hour. Absent fields are ``None``.
+    """One provider's readings for a single hour. Absent fields are ``None``.
 
     ``cloud_low``/``cloud_mid``/``cloud_high`` carry the low/mid/high split of the
-    total cloud cover (percent), each independently present-or-absent: a source
+    total cloud cover (percent), each independently present-or-absent: a provider
     reporting only a total leaves all three ``None``.
 
-    The weather fields carry the source's values unrounded: temperature and dew
+    The weather fields carry the provider's values unrounded: temperature and dew
     point in °C, humidity and precipitation probability in %, wind speed in km/h
     and wind direction in degrees.
     """
@@ -62,10 +61,10 @@ class SourceReading:
 
 @dataclass(frozen=True)
 class SourceForecast:
-    """A source's parsed hourly readings, keyed by top-of-hour UTC, plus issue time.
+    """A provider's parsed hourly readings, keyed by top-of-hour UTC, plus issue time.
 
-    ``issued_at`` is the time the source issued this data (not when it was
-    fetched), so the data's own age stays visible (design's per-source issue-time
+    ``issued_at`` is the time the provider issued this data (not when it was
+    fetched), so the data's own age stays visible (the per-series issue-time
     rule).
     """
 
@@ -145,7 +144,7 @@ def _utcnow() -> datetime:
 
 @dataclass(frozen=True)
 class FetchResult:
-    """One pier's conditions, and the outcome of each source fetch behind them."""
+    """One pier's conditions, and the outcome of each provider fetch behind them."""
 
     conditions: Conditions
     outcomes: tuple[FetchOutcome, ...] = ()

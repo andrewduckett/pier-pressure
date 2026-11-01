@@ -1,4 +1,4 @@
-"""The secondary conditions source: 7Timer! seeing and transparency (task 3.3).
+"""The 7Timer! provider: seeing and transparency (task 3.3).
 
 7Timer!'s astro product reports on a 3-hourly cadence, coarser than the hourly
 grid the core consumes. This module maps its integer seeing and transparency
@@ -50,8 +50,8 @@ def parse_seven_timer(payload: dict[str, Any]) -> SourceForecast:
     """Map a 7Timer! astro payload to an hourly :class:`SourceForecast`.
 
     Each 3-hourly entry is expanded (held) to its three hourly slots, so the
-    result is on the same hourly grid as the base source before it reaches the
-    core.
+    result is on the same hourly grid as every other provider before it reaches
+    the core.
     """
     init = payload.get("init")
     if not isinstance(init, str):

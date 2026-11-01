@@ -1,4 +1,4 @@
-"""The base conditions source: Open-Meteo hourly cloud, wind and weather (task 3.2).
+"""The Open-Meteo provider: hourly cloud, wind and weather (task 3.2).
 
 Open-Meteo returns an hourly forecast; this maps its ``cloud_cover`` (percent),
 its ``cloud_cover_low``/``cloud_cover_mid``/``cloud_cover_high`` layer split,

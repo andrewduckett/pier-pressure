@@ -21,7 +21,7 @@
 
 ## 4. Documentation and the whole gate [depends-on: 3]
 
-- [ ] 4.1 [easy] [parallel] The README's configuration table gains a `conditions` row with the default list and the four rejected cases, "Watching provider health" describes `variables` in place of `role` and drops the base/secondary wording, "How it is built" says providers sit in an ordered list, and the module docstrings of `pierpressure/conditions/__init__.py`, `provider.py` and `pierpressure/core/conditions.py` describe the series model (verify: uv run pytest tests/test_docs.py)
+- [x] 4.1 [easy] [parallel] The README's configuration table gains a `conditions` row with the default list and the four rejected cases, "Watching provider health" describes `variables` in place of `role` and drops the base/secondary wording, "How it is built" says providers sit in an ordered list, and the module docstrings of `pierpressure/conditions/__init__.py`, `provider.py` and `pierpressure/core/conditions.py` describe the series model (verify: uv run pytest tests/test_docs.py) (✓ uv run pytest tests/test_docs.py passed)
 - [ ] 4.2 [medium] The golden suite's `_verdict_json` passes the recorded forecasts as ordered `(spec, forecast)` pairs and every expected JSON file is byte-identical with no regeneration; the determinism test passes; the full gate is green (verify: mise run check)
 
 ## Deviations Ledger
