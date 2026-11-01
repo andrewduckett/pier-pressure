@@ -214,6 +214,9 @@ Each pier becomes one device, `PierPressure <pier>`, with these entities:
 | **Narrative** (sensor) | `ready` or unavailable | Only when the explainer is on. The text is in its attributes. |
 | **Open-Meteo health**, **7Timer! health** (diagnostic sensors) | When that weather source last succeeded, or unknown | One per weather source. See [Watching provider health](#watching-provider-health). |
 
+For a ready-made dashboard that shows all of these together, with an hour-by-hour
+night strip, see [docs/night-dashboard.md](docs/night-dashboard.md).
+
 If PierPressure stops, every entity shows as unavailable. A planned stop, such as
 `docker stop`, publishes `offline` before it disconnects. After a crash or a lost
 connection, the broker sends PierPressure's last-will message instead.
