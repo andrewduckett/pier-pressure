@@ -1,0 +1,28 @@
+## 1. The docs page and its guard
+
+- [ ] 1.1 [medium] `docs/night-dashboard.md` holds exactly one YAML block, which parses into a dashboard with at least one view, and every card `type` in it, nested ones included, is a listed core card type or `custom:plotly-graph`. Start the page with a minimal dashboard that passes (verify: uv run pytest tests/test_night_dashboard_doc.py -k "parses or card_types")
+- [ ] 1.2 [complex] The guard test fails, naming the entity and the key, when the YAML names a `sensor.pierpressure_backyard_*` id that the adapter does not announce, or reads an attribute the adapter does not publish for it. Pair Jinja `state_attr` and `entities` rows with their entity. A JavaScript `.attributes` read must be published by every PierPressure entity in the same expression. Take the Verdict's keys from `model_dump_json(exclude={"timeline"})` (design DD7). Prove the failure cases with small inline YAML samples (verify: uv run pytest tests/test_night_dashboard_doc.py -k "entity or attribute")
+
+## 2. The Docker check
+
+- [ ] 2.1 [complex] `mise run dashboard-check` brings up Home Assistant, pinned by tag, beside mosquitto and PierPressure under a `dashboard` compose profile. Its config lives under `.workspace/dashboard-check/`, with every `.js` file of the pinned plotly-graph-card release in `www/plotly-graph-card/`. The task completes onboarding, adds the MQTT integration through the API, loads the docs page's YAML as a YAML-mode dashboard, and prints the URL and the login. It exits non-zero if any step fails (verify: mise run dashboard-check)
+- [ ] 2.2 [medium] In the Docker check, a probe plotly-graph card shows whether an absolute `layout.xaxis.range` of two `Date` objects, starting in the future, is honoured over the card's relative window. Record the result in the Deviations Ledger, and use DD5's fallback if it is not honoured (verify: mise run dashboard-check)
+
+## 3. The dashboard YAML [depends-on: 1, 2]
+
+- [ ] 3.1 [medium] The strip draws nine heatmap rows, top to bottom: Sun altitude, Moon altitude, Cloud cover, Cloud low, Cloud mid, Cloud high, Wind gust, Seeing, Transparency. Each row reads its timeline sensor's `forecast`, centres each cell on its hour, leaves a null as a gap and shades by design DD2's bands (verify: uv run pytest tests/test_night_dashboard_doc.py -k rows)
+- [ ] 3.2 [medium] The strip's x-axis spans `dark_window.start − 4 h` to `dark_window.end + 5 h`, or `now − 6 h` to `now + 18 h` when `dark_window` is null, using the mechanism task 2.2 chose. It sets `time_zone: server` and `refresh_interval: 300`, with dusk and dawn lines from `dark_window` and a now line at `new Date()` (verify: uv run pytest tests/test_night_dashboard_doc.py -k "axis or lines")
+- [ ] 3.3 [complex] Under the rows, the strip draws a "Moon up" lane with one bar per run of Moon altitude forecast hours above 0°. Then it draws one lane per available Target 1 to 10, from `window.start` to `window.end`, labelled with the target's state. Every lane has the same fixed height, whatever the number of lanes (verify: uv run pytest tests/test_night_dashboard_doc.py -k lanes)
+- [ ] 3.4 [easy] The `sections` view also holds a tonight card (verdict, score, confidence, dark window, reasons) and a moon card (illumination, phase, rise, set), both reading the Verdict. It holds an `entities` card listing Target 1 to Target 10, and a `heading` card with badges for `open_meteo_health` and `7timer_health` (verify: uv run pytest tests/test_night_dashboard_doc.py -k cards)
+
+## 4. The page around the YAML [depends-on: 3]
+
+- [ ] 4.1 [easy] The page tells the reader to install plotly-graph-card through HACS before pasting the YAML, and to replace `backyard` with their pier id. `README.md`'s entity section and `docs/night-timeline.md` link to the page (verify: uv run pytest tests/test_night_dashboard_doc.py -k "install or links")
+
+## 5. Check in a real Home Assistant [depends-on: 2, 4]
+
+- [ ] 5.1 [complex] In the Docker check, the page's YAML renders with no card error: nine rows, the lanes, and the dusk, dawn and now lines. With PierPressure stopped, the strip is empty and still shows no card error. Save a screenshot under `docs/images/`, show it on the page, and name the Home Assistant and plotly-graph-card versions checked. A test asserts that the image the page shows exists (verify: mise run check)
+
+## Deviations Ledger
+
+<!-- Dated notes on small departures from the plan, written during apply. Stop and ask the user about a large one. -->
