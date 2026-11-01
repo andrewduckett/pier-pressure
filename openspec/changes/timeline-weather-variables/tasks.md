@@ -13,7 +13,7 @@
 
 ## 3. The docs name the six sensors [depends-on: 1]
 
-- [ ] 3.1 [parallel] [easy] `README.md` lists the six sensors with their units in the timeline sensor row, in the discovery-topic pattern, in the timeline topic row and in the "Removing the entities" loop; `docs/night-timeline.md` adds six rows to the sensor table and names the six under "Why the Verdict sensor leaves the timeline out". Extend the key, name and unit guards in `tests/test_timeline_docs.py`, including `°C` (verify: `uv run pytest tests/test_timeline_docs.py tests/test_docs.py`)
+- [x] 3.1 [parallel] [easy] `README.md` lists the six sensors with their units in the timeline sensor row, in the discovery-topic pattern, in the timeline topic row and in the "Removing the entities" loop; `docs/night-timeline.md` adds six rows to the sensor table and names the six under "Why the Verdict sensor leaves the timeline out". Extend the key, name and unit guards in `tests/test_timeline_docs.py`, including `°C` (verify: `uv run pytest tests/test_timeline_docs.py tests/test_docs.py`) (✓ `uv run pytest tests/test_timeline_docs.py tests/test_docs.py` passed)
 
 ## 4. Everything together [depends-on: 2, 3]
 
@@ -22,3 +22,6 @@
 ## Deviations Ledger
 
 <!-- Dated notes on small departures from the plan, written during apply. Stop and ask the user about a large one. -->
+
+- 2026-11-01, task 3.1: `docs/night-timeline.md` also gains four rows in its timeline entry key table, the six entities in its recorder exclusion example, and updated counts ("sixteen values", "fifteen sensors"). Widening `_NEW_KEYS` in `tests/test_timeline_docs.py` makes the existing recorder-example guard cover the six, and the key table would otherwise be incomplete. The two count-named tests were renamed so they no longer say "nine".
+- 2026-11-01, task 3.1: `docs/night-dashboard.md` still says "the nine timeline sensors". It is left alone, because the design rules out changes to that page, and the strip it describes does read those nine.
