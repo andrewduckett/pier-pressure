@@ -8,7 +8,7 @@ condition, with dusk, dawn, the moon and your targets on the same time line.
 The dashboard reads only the entities PierPressure already publishes. You paste
 it in once, and it updates itself.
 
-![The night dashboard: the Tonight and Moon cards, then the night strip with nine condition rows, a Moon up lane and ten target lanes, crossed by dusk, now and dawn lines](images/night-dashboard.png)
+![The night dashboard: the Tonight and Moon cards, then the night strip with nine rows of rounded hour cells, a Moon up lane and ten target lanes, crossed by dusk and dawn lines](images/night-dashboard.png)
 
 ## What the dashboard shows
 
@@ -26,7 +26,8 @@ The strip runs from 4 hours before dusk to 5 hours after dawn. Times are in
 your Home Assistant time zone. On a night with no astronomical darkness, it runs
 from 6 hours before now to 18 hours after.
 
-Each cell is one hour. Darker means more of what the row names:
+Each cell is one hour, drawn as a rounded block with a small gap to the next.
+Darker means more of what the row names:
 
 | Row | Lightest | Darkest |
 |---|---|---|
@@ -36,8 +37,8 @@ Each cell is one hour. Darker means more of what the row names:
 | Wind gust | Calm | Gusts of 42 km/h or more |
 | Seeing, Transparency | Excellent | Poor. For these two rows, darker means worse. |
 
-An empty cell means the weather source has no value for that hour. Hover over a
-cell to see its value.
+A blank space in a row means the weather source has no value for that hour.
+Hover over a cell to see its value.
 
 Under the rows, the **Moon up** lane has a bar for each stretch of hours when the
 moon is above the horizon. Each target lane has a bar from the start to the end
