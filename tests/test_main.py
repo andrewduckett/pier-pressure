@@ -934,6 +934,27 @@ def test_sigterm_before_the_service_runs_still_closes_the_delivery(
 
 
 @pytest.mark.usefixtures("sigterm_guard")
+def test_the_service_gets_the_providers_in_the_configured_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    RunningStub(monkeypatch, terminate_in="run")
+    seen: list[Any] = []
+    stub_service = entry.Service
+
+    class RecordingService(stub_service):  # type: ignore[misc, valid-type]
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            seen.append(kwargs["providers"])
+            super().__init__(*args, **kwargs)
+
+    monkeypatch.setattr(entry, "Service", RecordingService)
+    text = FILE_BROKER + PIERS + "conditions:\n  providers: [seven_timer, open_meteo]\n"
+    assert entry.main([_config(tmp_path, text)]) == 0
+    [providers] = seen
+    assert [info.key for info in providers] == ["seven_timer", "open_meteo"]
+
+
+@pytest.mark.usefixtures("sigterm_guard")
 def test_sigterm_while_loading_the_config_exits_0(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

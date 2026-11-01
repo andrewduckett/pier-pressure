@@ -17,6 +17,7 @@ from typing import Any, ClassVar
 import httpx
 
 from pierpressure.core.config import PierConfig
+from pierpressure.core.providers import SEVEN_TIMER, ProviderSpec
 
 from .provider import SourceForecast, SourceReading
 
@@ -77,8 +78,7 @@ def parse_seven_timer(payload: dict[str, Any]) -> SourceForecast:
 class SevenTimerProvider:
     """Fetches 3-hourly seeing and transparency from 7Timer! and resamples hourly."""
 
-    key: ClassVar[str] = "seven_timer"
-    name: ClassVar[str] = "7Timer!"
+    spec: ClassVar[ProviderSpec] = SEVEN_TIMER
 
     client: httpx.Client | None = None
 

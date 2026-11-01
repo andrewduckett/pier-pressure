@@ -26,7 +26,7 @@ from typing import Protocol, get_args
 
 from pierpressure.core.conditions import Conditions, Series, Variable
 from pierpressure.core.config import PierConfig
-from pierpressure.core.providers import OPEN_METEO, SEVEN_TIMER, ProviderSpec
+from pierpressure.core.providers import ProviderSpec
 from pierpressure.health import NO_READINGS, FetchOutcome, ProviderInfo, describe_error
 
 logger = logging.getLogger(__name__)
@@ -78,17 +78,14 @@ class SourceForecast:
 
 
 class Provider(Protocol):
-    """Anything that can fetch one source's forecast for a pier.
+    """Anything that can fetch one provider's forecast for a pier.
 
-    ``key`` is the provider's stable identifier, used in health topics and entity
-    identities; ``name`` is its display name.
+    ``spec`` is the provider's fixed declaration in the core: its stable key, used
+    in health topics and entity identities, its display name, and its variables.
     """
 
     @property
-    def key(self) -> str: ...
-
-    @property
-    def name(self) -> str: ...
+    def spec(self) -> ProviderSpec: ...
 
     def fetch(self, pier: PierConfig) -> SourceForecast: ...
 
@@ -156,60 +153,60 @@ class FetchResult:
 
 @dataclass
 class CompositeProvider:
-    """Fetch the base and secondary sources independently and merge them.
+    """Fetch every provider in order, then fill each variable (provider-order D4).
 
-    Each fetch is guarded, so one source failing never fails the other: losing the
-    secondary source still yields cloud and wind, and losing the base source still
-    yields whatever the secondary provided. A partial snapshot is a valid result,
-    not an error.
+    Each fetch is guarded, so one provider failing never fails another: a failed
+    provider is passed over for every variable, and the snapshot holds whatever
+    the rest returned. A partial snapshot is a valid result, not an error.
 
     ``now`` stamps each outcome's fetch time; tests pass a fixed clock.
     """
 
-    base: Provider
-    secondary: Provider
+    fetchers: Sequence[Provider]
     now: Callable[[], datetime] = _utcnow
 
     @property
     def providers(self) -> tuple[ProviderInfo, ...]:
-        """Each source's key, display name, and declared variables, in fetch order."""
-        return (
-            ProviderInfo(key=self.base.key, name=self.base.name, variables=OPEN_METEO.variables),
-            ProviderInfo(
-                key=self.secondary.key, name=self.secondary.name, variables=SEVEN_TIMER.variables
-            ),
+        """Each provider's key, display name, and declared variables, in order."""
+        return tuple(
+            ProviderInfo(key=f.spec.key, name=f.spec.name, variables=f.spec.variables)
+            for f in self.fetchers
         )
 
     def get(self, pier: PierConfig) -> FetchResult:
-        base, base_outcome = self._safe_fetch(self.base, pier, OPEN_METEO.variables)
-        secondary, secondary_outcome = self._safe_fetch(self.secondary, pier, SEVEN_TIMER.variables)
+        fetched = [self._safe_fetch(fetcher, pier) for fetcher in self.fetchers]
+        fills = [
+            (fetcher.spec, forecast)
+            for fetcher, (forecast, _) in zip(self.fetchers, fetched, strict=True)
+        ]
         return FetchResult(
-            conditions=assemble_snapshot([(OPEN_METEO, base), (SEVEN_TIMER, secondary)]),
-            outcomes=(base_outcome, secondary_outcome),
+            conditions=assemble_snapshot(fills),
+            outcomes=tuple(outcome for _, outcome in fetched),
         )
 
     def _safe_fetch(
-        self, provider: Provider, pier: PierConfig, variables: tuple[str, ...]
+        self, provider: Provider, pier: PierConfig
     ) -> tuple[SourceForecast, FetchOutcome]:
-        """Fetch one source; a failure or an empty forecast is a failed outcome.
+        """Fetch one provider; a failure or an empty forecast is a failed outcome.
 
         The full error text goes to the log only. The outcome carries the safe
         description from :func:`~pierpressure.health.describe_error`.
         """
+        spec = provider.spec
         fetched_at = self.now()
         error: str | None = None
         try:
             forecast = provider.fetch(pier)
-        except Exception as exc:  # noqa: BLE001 - a failed source degrades, never fails
-            logger.warning("conditions provider %s failed: %s", provider.key, exc)
+        except Exception as exc:  # noqa: BLE001 - a failed provider degrades, never fails
+            logger.warning("conditions provider %s failed: %s", spec.key, exc)
             forecast, error = SourceForecast(), describe_error(exc)
         else:
             if forecast.is_empty:
                 error = NO_READINGS
         return forecast, FetchOutcome(
-            key=provider.key,
-            name=provider.name,
-            variables=variables,
+            key=spec.key,
+            name=spec.name,
+            variables=spec.variables,
             fetched_at=fetched_at,
             ok=error is None,
             error=error,
@@ -218,21 +215,27 @@ class CompositeProvider:
 
 
 def build_provider(
-    base: Provider | None = None,
-    secondary: Provider | None = None,
+    keys: Sequence[str],
+    *,
     now: Callable[[], datetime] = _utcnow,
+    fetchers: Mapping[str, Provider] | None = None,
 ) -> CompositeProvider:
-    """Assemble the production provider stack: both sources, composed.
+    """Assemble the production provider stack from the configured provider order.
 
-    ``base`` and ``secondary`` default to the real sources; tests pass stubs to run
-    the production stack without the network. ``now`` stamps each fetch outcome,
-    and Open-Meteo's issue time, so the two always come from the same clock.
+    ``keys`` are catalog keys, already checked by the configuration. ``fetchers``
+    replaces the real fetcher for a key; tests pass stubs to run the production
+    stack without the network. ``now`` stamps each fetch outcome, and
+    Open-Meteo's issue time, so the two always come from the same clock.
     """
     from .open_meteo import OpenMeteoProvider
     from .seven_timer import SevenTimerProvider
 
+    real: dict[str, Callable[[], Provider]] = {
+        OpenMeteoProvider.spec.key: lambda: OpenMeteoProvider(now=now),
+        SevenTimerProvider.spec.key: SevenTimerProvider,
+    }
+    overrides = fetchers or {}
     return CompositeProvider(
-        base=base if base is not None else OpenMeteoProvider(now=now),
-        secondary=secondary if secondary is not None else SevenTimerProvider(),
+        fetchers=tuple(overrides[key] if key in overrides else real[key]() for key in keys),
         now=now,
     )

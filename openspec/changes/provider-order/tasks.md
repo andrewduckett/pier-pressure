@@ -17,7 +17,7 @@
 ## 3. The provider layer fills per variable [depends-on: 2]
 
 - [x] 3.1 [complex] `assemble_snapshot(fills)` takes ordered `(spec, forecast)` pairs and fills each variable from the first provider that returned it: the earlier provider wins a variable both returned, an all-blank column falls through, a bundle travels together with its empty members staying on the winner, a series is whole and never merged per hour, and a failed or empty forecast is passed over (verify: uv run pytest tests/test_conditions_provider.py -k assemble) (✓ uv run pytest tests/test_conditions_provider.py -k assemble passed)
-- [ ] 3.2 [medium] `CompositeProvider` holds an ordered sequence, fetches every provider in order on every `get`, reports one `FetchOutcome` per provider naming its declared variables, success for a provider the fill passed over, and fills after all fetches; `build_provider(keys, ...)` builds the fetchers from the catalog in the configured order and `__main__` passes `config.conditions.providers` (verify: uv run pytest tests/test_conditions_provider.py tests/test_main.py tests/test_integration.py)
+- [x] 3.2 [medium] `CompositeProvider` holds an ordered sequence, fetches every provider in order on every `get`, reports one `FetchOutcome` per provider naming its declared variables, success for a provider the fill passed over, and fills after all fetches; `build_provider(keys, ...)` builds the fetchers from the catalog in the configured order and `__main__` passes `config.conditions.providers` (verify: uv run pytest tests/test_conditions_provider.py tests/test_main.py tests/test_integration.py) (✓ uv run pytest tests/test_conditions_provider.py tests/test_main.py tests/test_integration.py passed)
 
 ## 4. Documentation and the whole gate [depends-on: 3]
 

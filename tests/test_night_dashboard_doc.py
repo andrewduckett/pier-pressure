@@ -23,7 +23,6 @@ from dashboard_check import PLOTLY_GRAPH_CARD_VERSION, dashboard_yaml
 from pierpressure.conditions.open_meteo import OpenMeteoProvider
 from pierpressure.conditions.seven_timer import SevenTimerProvider
 from pierpressure.core.model import Target, TargetWindow
-from pierpressure.core.providers import OPEN_METEO
 from pierpressure.delivery.mqtt import (
     RANKS,
     TIMELINE_SENSORS,
@@ -159,17 +158,14 @@ def published_entities(pier: str = "backyard") -> dict[str, frozenset[str]]:
     entries += [
         (
             "sensor",
-            build_health_discovery(pier, base, provider.key, provider.name),
+            build_health_discovery(pier, base, spec.key, spec.name),
             health_attributes(
                 ProviderHealth.empty(
-                    key=provider.key,
-                    name=provider.name,
-                    variables=OPEN_METEO.variables,
-                    tracking_since=tracking,
+                    key=spec.key, name=spec.name, variables=spec.variables, tracking_since=tracking
                 )
             ),
         )
-        for provider in (OpenMeteoProvider, SevenTimerProvider)
+        for spec in (OpenMeteoProvider.spec, SevenTimerProvider.spec)
     ]
     return {
         f"{domain}.{_slug(config['device']['name'] + ' ' + config['name'])}": (
