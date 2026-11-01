@@ -422,6 +422,13 @@ def test_strip_rows_read_forecast_into_one_bar_trace(dashboard: dict[str, Any]) 
     assert card["layout"]["yaxis"]["categoryarray"] == _ROW_LABELS
 
 
+def test_strip_rows_keep_all_nine_labels_when_a_row_has_no_data(dashboard: dict[str, Any]) -> None:
+    # A row with every hour null has no bar, so autorange would fit the axis to the other rows.
+    yaxis = strip_card(dashboard)["layout"]["yaxis"]
+    assert yaxis["range"] == [len(_ROW_LABELS) - 0.5, -0.5]
+    assert "autorange" not in yaxis
+
+
 def test_strip_rows_trim_each_cell_and_leave_a_null_as_a_gap(dashboard: dict[str, Any]) -> None:
     card = strip_card(dashboard)
     timeline = card["pier_timeline"]

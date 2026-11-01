@@ -311,7 +311,8 @@ views:
                 type: category
                 categoryorder: array
                 categoryarray: [Sun altitude, Moon altitude, Cloud cover, Cloud low, Cloud mid, Cloud high, Wind gust, Seeing, Transparency]
-                autorange: reversed
+                # Top to bottom, fixed, so a row with no data keeps its label.
+                range: [8.5, -0.5]
                 fixedrange: true
                 showgrid: false
               yaxis2:
