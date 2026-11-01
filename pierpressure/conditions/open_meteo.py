@@ -90,7 +90,7 @@ def parse_open_meteo(payload: dict[str, Any], issued_at: datetime) -> SourceFore
 
 @dataclass
 class OpenMeteoProvider:
-    """Fetches hourly cloud and wind gust from Open-Meteo."""
+    """Fetches hourly cloud, wind and weather from Open-Meteo."""
 
     key: ClassVar[str] = "open_meteo"
     name: ClassVar[str] = "Open-Meteo"
@@ -102,8 +102,20 @@ class OpenMeteoProvider:
         params: dict[str, str | float | int] = {
             "latitude": pier.latitude,
             "longitude": pier.longitude,
-            "hourly": (
-                "cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_gusts_10m"
+            "hourly": ",".join(
+                (
+                    "cloud_cover",
+                    "cloud_cover_low",
+                    "cloud_cover_mid",
+                    "cloud_cover_high",
+                    "wind_gusts_10m",
+                    "temperature_2m",
+                    "dew_point_2m",
+                    "relative_humidity_2m",
+                    "wind_speed_10m",
+                    "wind_direction_10m",
+                    "precipitation_probability",
+                )
             ),
             "wind_speed_unit": "kmh",
             "timezone": "UTC",

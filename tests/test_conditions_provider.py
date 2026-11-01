@@ -9,7 +9,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from pierpressure.conditions.open_meteo import parse_open_meteo
+from pierpressure.conditions.open_meteo import OpenMeteoProvider, parse_open_meteo
 from pierpressure.conditions.provider import (
     CompositeProvider,
     SourceForecast,
@@ -105,6 +105,29 @@ def test_open_meteo_absent_weather_array_leaves_that_field_none_every_hour() -> 
     assert all(r.precipitation_probability is None for r in forecast.readings.values())
     assert forecast.readings[_hour(20)].temperature == 12.34
     assert forecast.readings[_hour(23)].wind_direction == 250.0
+
+
+def test_open_meteo_fetch_requests_the_weather_variables_in_kmh() -> None:
+    requests: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json=_load("open_meteo.json"))
+
+    client = httpx.Client(transport=httpx.MockTransport(handle))
+    OpenMeteoProvider(client=client, now=lambda: _ISSUED).fetch(make_pier())
+    (request,) = requests
+    hourly = request.url.params["hourly"].split(",")
+    for variable in (
+        "temperature_2m",
+        "dew_point_2m",
+        "relative_humidity_2m",
+        "wind_speed_10m",
+        "wind_direction_10m",
+        "precipitation_probability",
+    ):
+        assert variable in hourly
+    assert request.url.params["wind_speed_unit"] == "kmh"
 
 
 # --------------------------------------------------------------------------- #
