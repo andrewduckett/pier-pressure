@@ -5,7 +5,7 @@ The night-dashboard capability documents a Home Assistant dashboard that a user 
 ## ADDED Requirements
 
 ### Requirement: The docs publish one complete dashboard
-The project SHALL publish a docs page, `docs/night-dashboard.md`, that holds one complete Home Assistant dashboard as a single YAML block. The dashboard SHALL use only Home Assistant core cards and `custom:plotly-graph-card`. It SHALL add no JavaScript of its own beyond the expressions that plotly-graph-card evaluates.
+The project SHALL publish a docs page, `docs/night-dashboard.md`, that holds one complete Home Assistant dashboard as a single YAML block. The dashboard SHALL use only Home Assistant core cards and plotly-graph-card, whose card type is `custom:plotly-graph`. It SHALL add no JavaScript of its own beyond the expressions that plotly-graph-card evaluates.
 
 #### Scenario: The YAML parses as a dashboard
 - **WHEN** the dashboard YAML block is read from `docs/night-dashboard.md` and parsed
@@ -13,7 +13,7 @@ The project SHALL publish a docs page, `docs/night-dashboard.md`, that holds one
 
 #### Scenario: Only core cards and plotly-graph-card
 - **WHEN** every card `type` in the parsed dashboard is listed, including cards nested in stacks and grids
-- **THEN** each type is either a Home Assistant core card type or `custom:plotly-graph-card`
+- **THEN** each type is either a Home Assistant core card type or `custom:plotly-graph`
 
 ### Requirement: The dashboard reads only what PierPressure publishes
 Every PierPressure entity id the dashboard YAML names SHALL be one the MQTT adapter announces for the example pier `backyard`. Every attribute of a PierPressure entity that the YAML reads SHALL be a key the adapter publishes in that entity's attributes payload.
@@ -120,7 +120,7 @@ Beside the strip, the dashboard SHALL show:
 - **THEN** it holds a card that reads `verdict`, `score`, `confidence`, `dark_window` and `reasons` from `sensor.pierpressure_backyard_verdict`
 - **AND** a card that reads `moon` from `sensor.pierpressure_backyard_verdict`
 - **AND** a card that lists `sensor.pierpressure_backyard_target_1` through `sensor.pierpressure_backyard_target_10`
-- **AND** chips for `sensor.pierpressure_backyard_open_meteo_health` and `sensor.pierpressure_backyard_seven_timer_health`
+- **AND** chips for `sensor.pierpressure_backyard_open_meteo_health` and `sensor.pierpressure_backyard_7timer_health`
 
 ### Requirement: The dashboard survives PierPressure going offline
 When PierPressure is offline, Home Assistant drops the attributes of its entities. The dashboard SHALL then still render, with an empty strip and its cards showing the entities as unavailable, and SHALL show no card error.
