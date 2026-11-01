@@ -10,7 +10,15 @@ from pathlib import Path
 
 import pytest
 import yaml
-from dashboard_check import HttpError, mqtt_flow_input, wait_for, write_config
+from dashboard_check import (
+    PASSWORD,
+    USERNAME,
+    HttpError,
+    mqtt_flow_input,
+    ready_message,
+    wait_for,
+    write_config,
+)
 
 _PAGE = "# Night\n\n```yaml\nviews:\n  - title: Tonight\n```\n"
 
@@ -90,3 +98,10 @@ def test_wait_retries_not_found_and_server_errors(code: int) -> None:
 
     assert wait_for("the verdict", not_yet, timeout=60, interval=0) is True
     assert len(calls) == 3
+
+
+def test_ready_message_names_the_login_but_never_prints_the_password() -> None:
+    message = ready_message()
+    assert USERNAME in message
+    assert PASSWORD not in message
+    assert "scripts/dashboard_check.py" in message

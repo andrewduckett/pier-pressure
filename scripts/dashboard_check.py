@@ -303,6 +303,16 @@ def _reset_home_assistant_state() -> None:
     )  # fmt: skip
 
 
+def ready_message() -> str:
+    """What to open and how to log in. The password stays in this file, never in output."""
+    return (
+        f"\nHome Assistant is up with the night dashboard.\n"
+        f"  Dashboard: {HA_URL}/{DASHBOARD_PATH}\n"
+        f"  Login:     {USERNAME}, with the PASSWORD in scripts/dashboard_check.py\n"
+        f"  Stop it:   docker compose --profile dashboard down\n"
+    )
+
+
 def main() -> int:
     try:
         _compose("down")
@@ -324,12 +334,7 @@ def main() -> int:
     except (RuntimeError, OSError, ValueError, KeyError, subprocess.CalledProcessError) as error:
         print(f"dashboard-check failed: {error}", file=sys.stderr)
         return 1
-    print(
-        f"\nHome Assistant is up with the night dashboard.\n"
-        f"  Dashboard: {HA_URL}/{DASHBOARD_PATH}\n"
-        f"  Login:     {USERNAME} / {PASSWORD}\n"
-        f"  Stop it:   docker compose --profile dashboard down\n"
-    )
+    print(ready_message())
     return 0
 
 
