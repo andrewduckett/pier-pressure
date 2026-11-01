@@ -55,17 +55,22 @@ _YAML_FENCE = re.compile(r"^```yaml\n(.*?)^```", re.MULTILINE | re.DOTALL)
 # --------------------------------------------------------------------------- #
 
 
+def dashboard_yaml(page: str) -> str:
+    """The docs page's one ```yaml block: the dashboard, as a reader pastes it."""
+    blocks = _YAML_FENCE.findall(page)
+    if len(blocks) != 1:
+        raise RuntimeError(f"the docs page should hold one ```yaml block, found {len(blocks)}")
+    return str(blocks[0])
+
+
 def write_config(workdir: Path, page: str) -> None:
     """Write Home Assistant's config and PierPressure's config under ``workdir``.
 
     The dashboard file is the page's YAML block, unchanged.
     """
-    blocks = _YAML_FENCE.findall(page)
-    if len(blocks) != 1:
-        raise RuntimeError(f"the docs page should hold one ```yaml block, found {len(blocks)}")
     config_dir = workdir / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
-    (config_dir / DASHBOARD_FILE).write_text(blocks[0], encoding="utf-8")
+    (config_dir / DASHBOARD_FILE).write_text(dashboard_yaml(page), encoding="utf-8")
     configuration = {
         "default_config": None,
         "homeassistant": {

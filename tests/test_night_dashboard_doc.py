@@ -18,6 +18,7 @@ from typing import Any
 
 import pytest
 import yaml
+from dashboard_check import PLOTLY_GRAPH_CARD_VERSION, dashboard_yaml
 
 from pierpressure.conditions.open_meteo import OpenMeteoProvider
 from pierpressure.conditions.seven_timer import SevenTimerProvider
@@ -46,18 +47,10 @@ from .conftest import make_document
 _ROOT = Path(__file__).resolve().parent.parent
 _PAGE = _ROOT / "docs" / "night-dashboard.md"
 
-_YAML_FENCE = re.compile(r"^```yaml\n(.*?)^```", re.MULTILINE | re.DOTALL)
-
 # The core cards the dashboard uses, plus the one custom card it allows.
 _ALLOWED_CARD_TYPES = frozenset(
     {"grid", "heading", "markdown", "entities", "vertical-stack", "custom:plotly-graph"}
 )
-
-
-def dashboard_yaml(page: str) -> str:
-    blocks = _YAML_FENCE.findall(page)
-    assert len(blocks) == 1, f"expected one ```yaml block, found {len(blocks)}"
-    return str(blocks[0])
 
 
 def iter_cards(dashboard: dict[str, Any]) -> Iterator[dict[str, Any]]:
@@ -255,7 +248,7 @@ def test_page_yaml_parses_into_a_dashboard_with_a_view(dashboard: dict[str, Any]
 
 def test_page_with_two_yaml_blocks_is_rejected() -> None:
     page = "```yaml\na: 1\n```\n\n```yaml\nb: 2\n```\n"
-    with pytest.raises(AssertionError, match="found 2"):
+    with pytest.raises(RuntimeError, match="found 2"):
         dashboard_yaml(page)
 
 
@@ -602,8 +595,6 @@ def test_page_shows_a_screenshot_stored_in_docs_images() -> None:
 
 
 def test_page_names_the_versions_it_was_checked_against() -> None:
-    from dashboard_check import PLOTLY_GRAPH_CARD_VERSION
-
     compose = (_ROOT / "compose.yaml").read_text(encoding="utf-8")
     [ha_version] = re.findall(r"ghcr\.io/home-assistant/home-assistant:(\S+)", compose)
     page = " ".join(_PAGE.read_text(encoding="utf-8").split())
