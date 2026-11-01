@@ -509,3 +509,53 @@ def test_attribute_home_assistant_blocks_fails_even_when_published() -> None:
     assert _problems_in(sample) == [
         "sensor.pierpressure_backyard_target_1 does not publish attribute 'available'"
     ]
+
+
+# --------------------------------------------------------------------------- #
+# The cards around the strip (design DD6)
+# --------------------------------------------------------------------------- #
+
+_VERDICT = "sensor.pierpressure_backyard_verdict"
+
+
+def _jinja_reads(card: dict[str, Any]) -> set[tuple[str, str]]:
+    return set(_JINJA_ATTR.findall(str(card.get("content", ""))))
+
+
+def test_view_is_a_sections_view(dashboard: dict[str, Any]) -> None:
+    assert [view.get("type") for view in dashboard["views"]] == ["sections"]
+
+
+def test_cards_include_a_tonight_card(dashboard: dict[str, Any]) -> None:
+    wanted = {
+        (_VERDICT, key) for key in ("verdict", "score", "confidence", "dark_window", "reasons")
+    }
+    markdown = [c for c in iter_cards(dashboard) if c.get("type") == "markdown"]
+    assert any(wanted <= _jinja_reads(card) for card in markdown)
+
+
+def test_cards_include_a_moon_card(dashboard: dict[str, Any]) -> None:
+    markdown = [c for c in iter_cards(dashboard) if c.get("type") == "markdown"]
+    moon = [card for card in markdown if (_VERDICT, "moon") in _jinja_reads(card)]
+    assert moon
+    content = moon[0]["content"]
+    for field in ("moon.illumination", "moon.phase", "moon.rise", "moon.set"):
+        assert field in content
+
+
+def test_cards_include_a_target_table(dashboard: dict[str, Any]) -> None:
+    tables = [c for c in iter_cards(dashboard) if c.get("type") == "entities"]
+    listed = [
+        [row["entity"] if isinstance(row, dict) else row for row in card["entities"]]
+        for card in tables
+    ]
+    assert [f"sensor.pierpressure_backyard_target_{rank}" for rank in RANKS] in listed
+
+
+def test_cards_include_health_chips(dashboard: dict[str, Any]) -> None:
+    headings = [c for c in iter_cards(dashboard) if c.get("type") == "heading"]
+    badges = {b.get("entity") for card in headings for b in card.get("badges", [])}
+    assert {
+        "sensor.pierpressure_backyard_open_meteo_health",
+        "sensor.pierpressure_backyard_7timer_health",
+    } <= badges

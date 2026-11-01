@@ -13,6 +13,46 @@ views:
     max_columns: 4
     sections:
       - type: grid
+        cards:
+          - type: heading
+            heading: Tonight
+          - type: markdown
+            content: |
+              {% set verdict = state_attr('sensor.pierpressure_backyard_verdict', 'verdict') %}
+              {% set score = state_attr('sensor.pierpressure_backyard_verdict', 'score') %}
+              {% set confidence = state_attr('sensor.pierpressure_backyard_verdict', 'confidence') %}
+              {% set dark = state_attr('sensor.pierpressure_backyard_verdict', 'dark_window') %}
+              {% set reasons = state_attr('sensor.pierpressure_backyard_verdict', 'reasons') %}
+              {% if verdict %}
+              ## {{ verdict }}{% if score is not none %} · {{ score }}/100{% endif %}
+
+              **Confidence:** {{ confidence.band | lower }} ({{ confidence.value }})
+              **Dark window:** {% if dark.start and dark.end %}{{ (dark.start | as_datetime | as_local).strftime('%H:%M') }} to {{ (dark.end | as_datetime | as_local).strftime('%H:%M') }}{% else %}no astronomical night{% endif %}
+
+              {% for reason in reasons %}
+              - {{ reason }}
+              {% endfor %}
+              {% else %}
+              PierPressure is unavailable.
+              {% endif %}
+      - type: grid
+        cards:
+          - type: heading
+            heading: Moon
+          - type: markdown
+            content: |
+              {% set moon = state_attr('sensor.pierpressure_backyard_verdict', 'moon') %}
+              {% if moon %}
+              **Illumination:** {{ (moon.illumination * 100) | round | int }} %
+              **Phase:** {{ moon.phase }}
+              **Rise:** {{ (moon.rise | as_datetime | as_local).strftime('%H:%M') if moon.rise else '—' }}
+              **Set:** {{ (moon.set | as_datetime | as_local).strftime('%H:%M') if moon.set else '—' }}
+
+              Rise and set are given only when they fall in the dark window.
+              {% else %}
+              PierPressure is unavailable.
+              {% endif %}
+      - type: grid
         column_span: 4
         cards:
           - type: heading
@@ -201,4 +241,47 @@ views:
                   { x: vars.now, text: "now", xref: "x", yref: "paper", y: 1, yanchor: "bottom",
                     showarrow: false, font: { color: "#e66767", size: 11 } },
                 ]
+      - type: grid
+        cards:
+          - type: heading
+            heading: Targets
+          - type: entities
+            entities:
+              - entity: sensor.pierpressure_backyard_target_1
+                name: Target 1
+              - entity: sensor.pierpressure_backyard_target_2
+                name: Target 2
+              - entity: sensor.pierpressure_backyard_target_3
+                name: Target 3
+              - entity: sensor.pierpressure_backyard_target_4
+                name: Target 4
+              - entity: sensor.pierpressure_backyard_target_5
+                name: Target 5
+              - entity: sensor.pierpressure_backyard_target_6
+                name: Target 6
+              - entity: sensor.pierpressure_backyard_target_7
+                name: Target 7
+              - entity: sensor.pierpressure_backyard_target_8
+                name: Target 8
+              - entity: sensor.pierpressure_backyard_target_9
+                name: Target 9
+              - entity: sensor.pierpressure_backyard_target_10
+                name: Target 10
+      - type: grid
+        cards:
+          - type: heading
+            heading: Weather sources
+            badges:
+              - type: entity
+                entity: sensor.pierpressure_backyard_open_meteo_health
+                name: Open-Meteo
+                show_name: true
+                show_state: true
+                show_icon: true
+              - type: entity
+                entity: sensor.pierpressure_backyard_7timer_health
+                name: 7Timer!
+                show_name: true
+                show_state: true
+                show_icon: true
 ```
