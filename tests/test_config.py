@@ -540,3 +540,8 @@ def test_a_provider_list_error_carries_no_other_configuration_value(tmp_path: Pa
     message = str(excinfo.value)
     for value in ("192.168.1.10", "pierpressure", "backyard", "900", "seven_timer"):
         assert value not in message
+
+
+def test_a_null_provider_list_gives_the_default_order(tmp_path: Path) -> None:
+    config = load_config(_with_conditions(tmp_path, "conditions:\n  providers:\n"))
+    assert config.conditions.providers == ["open_meteo", "seven_timer"]

@@ -89,6 +89,12 @@ class ConditionsConfig(BaseModel):
 
     providers: list[str] = Field(default_factory=lambda: ["open_meteo", "seven_timer"])
 
+    @field_validator("providers", mode="before")
+    @classmethod
+    def _null_is_absent(cls, providers: Any) -> Any:
+        # YAML reads an empty ``providers:`` line as null, which means "not given".
+        return ["open_meteo", "seven_timer"] if providers is None else providers
+
     @field_validator("providers")
     @classmethod
     def _check_providers(cls, providers: list[str]) -> list[str]:
