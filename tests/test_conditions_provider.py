@@ -262,6 +262,24 @@ def test_assemble_a_bundle_travels_together() -> None:
         assert series.values == {_hour(21): None}
 
 
+def test_assemble_a_later_bundle_never_takes_a_variable_an_earlier_provider_won() -> None:
+    total_only = ProviderSpec(
+        key="total", name="Total", needs_key=False, variables=("cloud_cover",)
+    )
+    four = {
+        "cloud_cover": {21: 70.0},
+        "cloud_low": {21: 1.0},
+        "cloud_mid": {21: 2.0},
+        "cloud_high": {21: 3.0},
+    }
+    conditions = assemble_snapshot(
+        [(total_only, _forecast(16, cloud_cover={21: 40.0})), (_SECOND, _forecast(17, **four))]
+    )
+    assert conditions.series["cloud_cover"].provider == "total"
+    assert conditions.value_at("cloud_cover", _hour(21)) == 40.0
+    assert conditions.issued_at("cloud_cover") == _hour(16)
+
+
 def test_assemble_a_series_is_whole_never_merged_per_hour() -> None:
     conditions = assemble_snapshot(
         [

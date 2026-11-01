@@ -133,7 +133,10 @@ def assemble_snapshot(fills: Sequence[tuple[ProviderSpec, SourceForecast]]) -> C
             bundle = [member for member in spec.variables if member in spec.bundle_of(variable)]
             if _returned(forecast, bundle):
                 for member in bundle:
-                    series[member] = _series(spec, forecast, member)
+                    # An earlier provider that won a member keeps it, even when its
+                    # bundles differ from this provider's.
+                    if member not in series:
+                        series[member] = _series(spec, forecast, member)
                 break
     return Conditions(series=series)
 
