@@ -3,7 +3,7 @@
 Assembles the one verdict document from three pure inputs: the pier, the injected
 clock, and an already-obtained :class:`Conditions` value. M2 made the astronomy
 real; M3 makes the decision fields real by folding the gates, banded score, and
-lead-time confidence (``core/scoring``) over the conditions groups. The signature
+lead-time confidence (``core/scoring``) over the conditions series. The signature
 and the document shape are the frozen contract; the document is *filled*, never
 reshaped.
 
@@ -15,10 +15,10 @@ document.
 
 from __future__ import annotations
 
-from datetime import datetime
+from typing import get_args
 
 from .clock import Clock
-from .conditions import Conditions
+from .conditions import Conditions, Variable
 from .config import PierConfig
 from .model import Confidence, DarkWindow, TimelineEntry, VerdictDocument
 from .ranking import equipment_reasons, rank_targets
@@ -30,7 +30,7 @@ def produce_verdict(pier: PierConfig, clock: Clock, conditions: Conditions) -> V
     """Produce the verdict document for ``pier`` at the injected clock instant.
 
     ``pier`` is an already-validated :class:`PierConfig`; ``conditions`` is the
-    immutable per-source value the provider layer obtained for this evaluation. The
+    immutable per-variable value the provider layer obtained for this evaluation. The
     single evaluation instant comes from the injected ``clock`` and drives
     ``generated_at``, the astronomy, and the lead-time confidence, so the whole
     document is a pure function of ``(pier, clock, conditions)``.
@@ -82,37 +82,14 @@ def produce_verdict(pier: PierConfig, clock: Clock, conditions: Conditions) -> V
 
 
 def _timeline(pier: PierConfig, conditions: Conditions) -> list[TimelineEntry]:
-    """One entry per hour either source returned, sorted, with that hour's readings."""
-    base, secondary = conditions.base, conditions.secondary
-    hours: set[datetime] = set()
-    if base is not None:
-        hours.update(hour.time for hour in base.hours)
-    if secondary is not None:
-        hours.update(hour.time for hour in secondary.hours)
-    times = sorted(hours)
-
-    entries: list[TimelineEntry] = []
-    for time, (sun, moon) in zip(times, altitudes_at(pier, times), strict=True):
-        b = base.at(time) if base is not None else None
-        s = secondary.at(time) if secondary is not None else None
-        entries.append(
-            TimelineEntry(
-                time=time,
-                sun_altitude=sun,
-                moon_altitude=moon,
-                cloud_cover=b.cloud_cover if b is not None else None,
-                cloud_low=b.cloud_low if b is not None else None,
-                cloud_mid=b.cloud_mid if b is not None else None,
-                cloud_high=b.cloud_high if b is not None else None,
-                wind_gust=b.wind_gust if b is not None else None,
-                seeing=s.seeing if s is not None else None,
-                transparency=s.transparency if s is not None else None,
-                temperature=b.temperature if b is not None else None,
-                dew_point=b.dew_point if b is not None else None,
-                humidity=b.humidity if b is not None else None,
-                wind_speed=b.wind_speed if b is not None else None,
-                wind_direction=b.wind_direction if b is not None else None,
-                precipitation_probability=b.precipitation_probability if b is not None else None,
-            )
+    """One entry per hour any series covers, sorted, with each series' reading."""
+    times = list(conditions.hours())
+    return [
+        TimelineEntry(
+            time=time,
+            sun_altitude=sun,
+            moon_altitude=moon,
+            **{variable: conditions.value_at(variable, time) for variable in get_args(Variable)},
         )
-    return entries
+        for time, (sun, moon) in zip(times, altitudes_at(pier, times), strict=True)
+    ]

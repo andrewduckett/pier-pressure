@@ -191,16 +191,19 @@ def test_assemble_builds_both_groups_with_their_own_issue_times() -> None:
         readings={_hour(21): SourceReading(seeing=0.8, transparency=0.7)},
     )
     conditions = assemble_snapshot(base, secondary)
-    assert conditions.base is not None and conditions.secondary is not None
-    base_hour = conditions.base.at(_hour(21))
-    assert base_hour is not None and (base_hour.cloud_cover, base_hour.wind_gust) == (20.0, 15.0)
-    secondary_hour = conditions.secondary.at(_hour(21))
-    assert secondary_hour is not None
-    assert (secondary_hour.seeing, secondary_hour.transparency) == (0.8, 0.7)
+    assert {"cloud_cover", "seeing"} <= conditions.series.keys()
+    assert (
+        conditions.value_at("cloud_cover", _hour(21)),
+        conditions.value_at("wind_gust", _hour(21)),
+    ) == (20.0, 15.0)
+    assert (
+        conditions.value_at("seeing", _hour(21)),
+        conditions.value_at("transparency", _hour(21)),
+    ) == (0.8, 0.7)
     # Each source's issue time now travels on its own group's meta, mirroring
     # today's base_issued_at / secondary_issued_at.
-    assert conditions.base.meta.issued_at == _hour(18)
-    assert conditions.secondary.meta.issued_at == _hour(17)
+    assert conditions.issued_at("cloud_cover") == _hour(18)
+    assert conditions.issued_at("seeing") == _hour(17)
 
 
 def test_assemble_absent_secondary_yields_a_none_group_but_keeps_base() -> None:
@@ -209,10 +212,8 @@ def test_assemble_absent_secondary_yields_a_none_group_but_keeps_base() -> None:
         readings={_hour(21): SourceReading(cloud_cover=20.0, wind_gust=15.0)},
     )
     conditions = assemble_snapshot(base, SourceForecast())  # secondary empty
-    assert conditions.secondary is None  # no rows -> no group, no issue time
-    assert conditions.base is not None
-    base_hour = conditions.base.at(_hour(21))
-    assert base_hour is not None and base_hour.cloud_cover == 20.0
+    assert "seeing" not in conditions.series  # no rows -> no group, no issue time
+    assert conditions.value_at("cloud_cover", _hour(21)) == 20.0
 
 
 def test_assemble_copies_the_cloud_component_split_onto_the_base_hour() -> None:
@@ -225,10 +226,11 @@ def test_assemble_copies_the_cloud_component_split_onto_the_base_hour() -> None:
         },
     )
     conditions = assemble_snapshot(base, SourceForecast())
-    assert conditions.base is not None
-    base_hour = conditions.base.at(_hour(21))
-    assert base_hour is not None
-    assert (base_hour.cloud_low, base_hour.cloud_mid, base_hour.cloud_high) == (10.0, 20.0, 30.0)
+    assert (
+        conditions.value_at("cloud_low", _hour(21)),
+        conditions.value_at("cloud_mid", _hour(21)),
+        conditions.value_at("cloud_high", _hour(21)),
+    ) == (10.0, 20.0, 30.0)
 
 
 def test_assemble_total_only_source_leaves_the_components_none() -> None:
@@ -239,13 +241,10 @@ def test_assemble_total_only_source_leaves_the_components_none() -> None:
         readings={_hour(21): SourceReading(cloud_cover=40.0)},
     )
     conditions = assemble_snapshot(base, SourceForecast())
-    assert conditions.base is not None
-    base_hour = conditions.base.at(_hour(21))
-    assert base_hour is not None
-    assert base_hour.cloud_cover == 40.0
-    assert base_hour.cloud_low is None
-    assert base_hour.cloud_mid is None
-    assert base_hour.cloud_high is None
+    assert conditions.value_at("cloud_cover", _hour(21)) == 40.0
+    assert conditions.value_at("cloud_low", _hour(21)) is None
+    assert conditions.value_at("cloud_mid", _hour(21)) is None
+    assert conditions.value_at("cloud_high", _hour(21)) is None
 
 
 def test_assemble_copies_the_weather_variables_onto_the_base_hour() -> None:
@@ -264,16 +263,13 @@ def test_assemble_copies_the_weather_variables_onto_the_base_hour() -> None:
         },
     )
     conditions = assemble_snapshot(base, SourceForecast())
-    assert conditions.base is not None
-    base_hour = conditions.base.at(_hour(21))
-    assert base_hour is not None
     assert (
-        base_hour.temperature,
-        base_hour.dew_point,
-        base_hour.humidity,
-        base_hour.wind_speed,
-        base_hour.wind_direction,
-        base_hour.precipitation_probability,
+        conditions.value_at("temperature", _hour(21)),
+        conditions.value_at("dew_point", _hour(21)),
+        conditions.value_at("humidity", _hour(21)),
+        conditions.value_at("wind_speed", _hour(21)),
+        conditions.value_at("wind_direction", _hour(21)),
+        conditions.value_at("precipitation_probability", _hour(21)),
     ) == (12.3, 9.8, 85.0, 14.2, 230.0, 35.0)
 
 
@@ -283,16 +279,16 @@ def test_assemble_source_without_weather_leaves_the_weather_fields_none() -> Non
         readings={_hour(21): SourceReading(cloud_cover=40.0, wind_gust=15.0)},
     )
     conditions = assemble_snapshot(base, SourceForecast())
-    assert conditions.base is not None
-    base_hour = conditions.base.at(_hour(21))
-    assert base_hour is not None
-    assert (base_hour.cloud_cover, base_hour.wind_gust) == (40.0, 15.0)
-    assert base_hour.temperature is None
-    assert base_hour.dew_point is None
-    assert base_hour.humidity is None
-    assert base_hour.wind_speed is None
-    assert base_hour.wind_direction is None
-    assert base_hour.precipitation_probability is None
+    assert (
+        conditions.value_at("cloud_cover", _hour(21)),
+        conditions.value_at("wind_gust", _hour(21)),
+    ) == (40.0, 15.0)
+    assert conditions.value_at("temperature", _hour(21)) is None
+    assert conditions.value_at("dew_point", _hour(21)) is None
+    assert conditions.value_at("humidity", _hour(21)) is None
+    assert conditions.value_at("wind_speed", _hour(21)) is None
+    assert conditions.value_at("wind_direction", _hour(21)) is None
+    assert conditions.value_at("precipitation_probability", _hour(21)) is None
 
 
 def test_assemble_base_wind_without_cloud_keeps_the_base_group_and_its_issue_time() -> None:
@@ -304,11 +300,11 @@ def test_assemble_base_wind_without_cloud_keeps_the_base_group_and_its_issue_tim
         readings={_hour(21): SourceReading(cloud_cover=None, wind_gust=15.0)},
     )
     conditions = assemble_snapshot(base, SourceForecast())
-    assert conditions.base is not None
-    assert conditions.base.meta.issued_at == _hour(18)
-    base_hour = conditions.base.at(_hour(21))
-    assert base_hour is not None
-    assert base_hour.cloud_cover is None and base_hour.wind_gust == 15.0
+    assert conditions.issued_at("cloud_cover") == _hour(18)
+    assert (
+        conditions.value_at("cloud_cover", _hour(21)) is None
+        and conditions.value_at("wind_gust", _hour(21)) == 15.0
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -345,10 +341,8 @@ def test_secondary_failure_leaves_base_data_intact() -> None:
     )
     composite = CompositeProvider(base=base, secondary=_StubProvider(fail=True))
     conditions = composite.get(make_pier()).conditions
-    assert conditions.secondary is None  # the failed source contributes no group
-    assert conditions.base is not None
-    base_hour = conditions.base.at(_hour(21))
-    assert base_hour is not None and base_hour.cloud_cover == 30.0
+    assert "seeing" not in conditions.series  # the failed source contributes no group
+    assert conditions.value_at("cloud_cover", _hour(21)) == 30.0
 
 
 def test_base_failure_still_yields_the_secondary_group() -> None:
@@ -360,10 +354,8 @@ def test_base_failure_still_yields_the_secondary_group() -> None:
     )
     composite = CompositeProvider(base=_StubProvider(fail=True), secondary=secondary)
     conditions = composite.get(make_pier()).conditions
-    assert conditions.base is None  # the failed base source contributes no group
-    assert conditions.secondary is not None
-    secondary_hour = conditions.secondary.at(_hour(21))
-    assert secondary_hour is not None and secondary_hour.seeing == 0.9
+    assert "cloud_cover" not in conditions.series  # the failed base source contributes no group
+    assert conditions.value_at("seeing", _hour(21)) == 0.9
 
 
 # --------------------------------------------------------------------------- #
@@ -410,10 +402,10 @@ def test_a_failed_fetch_is_not_filled_from_the_same_piers_earlier_fetch(
     stack = _good_then(failure)
     pier = make_pier()
     first = stack.get(pier).conditions
-    assert first.base is not None and first.secondary is not None
+    assert {"cloud_cover", "seeing"} <= first.series.keys()
 
     # No values or issue time carry over from the earlier fetch, for either source.
-    assert stack.get(pier).conditions == Conditions(base=None, secondary=None)
+    assert stack.get(pier).conditions == Conditions()
 
 
 @pytest.mark.parametrize("failure", [RuntimeError("source down"), SourceForecast()])
@@ -422,9 +414,9 @@ def test_a_failed_fetch_is_not_filled_from_another_piers_fetch(
 ) -> None:
     stack = _good_then(failure)
     first = stack.get(make_pier("pier-a")).conditions
-    assert first.base is not None and first.secondary is not None
+    assert {"cloud_cover", "seeing"} <= first.series.keys()
 
-    assert stack.get(make_pier("pier-b")).conditions == Conditions(base=None, secondary=None)
+    assert stack.get(make_pier("pier-b")).conditions == Conditions()
 
 
 # --------------------------------------------------------------------------- #
@@ -522,9 +514,8 @@ def test_forecast_horizon_beyond_the_data_is_unavailable() -> None:
         },
     )
     conditions = assemble_snapshot(base, SourceForecast())
-    assert conditions.base is not None
-    assert conditions.base.at(_hour(21)) is not None
-    assert conditions.base.at(_hour(23)) is None  # beyond the forecast horizon
+    assert _hour(21) in conditions.series["cloud_cover"].values
+    assert _hour(23) not in conditions.series["cloud_cover"].values  # beyond the forecast horizon
 
 
 def test_build_provider_passes_its_clock_to_open_meteo() -> None:

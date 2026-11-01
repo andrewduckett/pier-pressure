@@ -6,20 +6,14 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from pierpressure.core.clock import FixedClock
-from pierpressure.core.conditions import (
-    BaseGroup,
-    BaseHour,
-    Conditions,
-    GroupMeta,
-    SecondaryGroup,
-    SecondaryHour,
-)
+from pierpressure.core.conditions import Conditions, Series, Variable
 from pierpressure.core.config import PierConfig
 from pierpressure.core.model import TimelineEntry
 from pierpressure.core.producer import produce_verdict
+from pierpressure.core.providers import OPEN_METEO, SEVEN_TIMER
 from pierpressure.core.sky import dark_window
 
-from .conftest import make_pier
+from .conftest import make_pier, provider_series
 from .offline_guard import no_network
 
 _ISSUED = datetime(2026, 9, 7, 0, 0, tzinfo=UTC)
@@ -30,18 +24,18 @@ def _hours(start: datetime, count: int) -> list[datetime]:
     return [start + timedelta(hours=i) for i in range(count)]
 
 
-def _base(times: list[datetime], **fields: float | None) -> BaseGroup | None:
-    return BaseGroup.of(
-        GroupMeta(source="base", issued_at=_ISSUED),
-        tuple(BaseHour(time=t, **fields) for t in times),
-    )
+def _base(times: list[datetime], **fields: float | None) -> dict[Variable, Series]:
+    return provider_series(OPEN_METEO, times, issued_at=_ISSUED, **fields)
 
 
-def _secondary(times: list[datetime], **fields: float | None) -> SecondaryGroup | None:
-    return SecondaryGroup.of(
-        GroupMeta(source="secondary", issued_at=_ISSUED),
-        tuple(SecondaryHour(time=t, **fields) for t in times),
-    )
+def _secondary(times: list[datetime], **fields: float | None) -> dict[Variable, Series]:
+    return provider_series(SEVEN_TIMER, times, issued_at=_ISSUED, **fields)
+
+
+def _conditions(
+    *, base: dict[Variable, Series] | None = None, secondary: dict[Variable, Series] | None = None
+) -> Conditions:
+    return Conditions(series={**(base or {}), **(secondary or {})})
 
 
 def test_the_timeline_spans_the_sorted_union_of_both_sources() -> None:
@@ -49,7 +43,7 @@ def test_the_timeline_spans_the_sorted_union_of_both_sources() -> None:
     base_times = _hours(day, 24)
     secondary_times = _hours(day + timedelta(hours=12), 48)
     # Out of order on input: the timeline must sort, not trust the provider's order.
-    conditions = Conditions(
+    conditions = _conditions(
         base=_base(list(reversed(base_times)), cloud_cover=10.0),
         secondary=_secondary(secondary_times, seeing=0.5),
     )
@@ -63,7 +57,7 @@ def test_the_timeline_spans_the_sorted_union_of_both_sources() -> None:
 
 def test_an_hour_one_source_lacks_carries_null_for_that_source() -> None:
     day = datetime(2026, 9, 8, 18, tzinfo=UTC)
-    conditions = Conditions(
+    conditions = _conditions(
         base=_base(
             [day], cloud_cover=37.0, wind_gust=23.4, cloud_low=1.0, cloud_mid=2.0, cloud_high=3.0
         ),
@@ -87,7 +81,7 @@ def test_an_hour_one_source_lacks_carries_null_for_that_source() -> None:
 
 def test_a_missing_secondary_source_leaves_seeing_and_transparency_null() -> None:
     day = datetime(2026, 9, 8, 18, tzinfo=UTC)
-    conditions = Conditions(base=_base([day], cloud_cover=50.0), secondary=None)
+    conditions = Conditions(series=_base([day], cloud_cover=50.0))
     with no_network():
         doc = produce_verdict(
             make_pier(), FixedClock(datetime(2026, 9, 8, 14, tzinfo=UTC)), conditions
@@ -114,7 +108,7 @@ def _weather(entry: TimelineEntry) -> dict[str, float | None]:
 
 def test_weather_values_pass_through_unchanged() -> None:
     day = datetime(2026, 9, 8, 18, tzinfo=UTC)
-    conditions = Conditions(base=_base([day], cloud_cover=50.0, **_WEATHER), secondary=None)
+    conditions = Conditions(series=_base([day], cloud_cover=50.0, **_WEATHER))
     with no_network():
         doc = produce_verdict(
             make_pier(), FixedClock(datetime(2026, 9, 8, 14, tzinfo=UTC)), conditions
@@ -127,7 +121,7 @@ def test_weather_values_pass_through_unchanged() -> None:
 def test_a_weather_value_the_base_source_lacks_is_null_on_its_own() -> None:
     day = datetime(2026, 9, 8, 18, tzinfo=UTC)
     reported = {**_WEATHER, "dew_point": None}
-    conditions = Conditions(base=_base([day], **reported), secondary=None)
+    conditions = Conditions(series=_base([day], **reported))
     with no_network():
         doc = produce_verdict(
             make_pier(), FixedClock(datetime(2026, 9, 8, 14, tzinfo=UTC)), conditions
@@ -139,7 +133,7 @@ def test_a_weather_value_the_base_source_lacks_is_null_on_its_own() -> None:
 
 def test_an_hour_the_base_source_lacks_carries_null_weather_values() -> None:
     day = datetime(2026, 9, 8, 18, tzinfo=UTC)
-    conditions = Conditions(
+    conditions = _conditions(
         base=_base([day], **_WEATHER),
         secondary=_secondary([day, day + timedelta(hours=1)], seeing=0.8, transparency=0.7),
     )
@@ -159,7 +153,7 @@ def test_weather_variables_do_not_change_the_verdict() -> None:
     times = _hours(datetime(2026, 9, 8, 12, tzinfo=UTC), 36)
 
     def _doc(**weather: float | None) -> dict[str, Any]:
-        conditions = Conditions(
+        conditions = _conditions(
             base=_base(times, cloud_cover=10.0, wind_gust=5.0, **weather),
             secondary=_secondary(times, seeing=0.8, transparency=0.7),
         )
@@ -177,14 +171,14 @@ def test_weather_variables_do_not_change_the_verdict() -> None:
 def test_empty_conditions_yield_an_empty_timeline() -> None:
     with no_network():
         doc = produce_verdict(
-            make_pier(), FixedClock(datetime(2026, 9, 8, 14, tzinfo=UTC)), Conditions(None, None)
+            make_pier(), FixedClock(datetime(2026, 9, 8, 14, tzinfo=UTC)), Conditions()
         )
     assert doc.timeline == []
 
 
 def test_past_hours_stay_and_the_scored_window_starts_at_the_instant() -> None:
     times = _hours(datetime(2026, 9, 8, 18, tzinfo=UTC), 13)
-    conditions = Conditions(
+    conditions = _conditions(
         base=_base(times, cloud_cover=10.0), secondary=_secondary(times, seeing=0.8)
     )
     with no_network():
@@ -200,12 +194,12 @@ def test_the_timeline_fills_without_a_dark_window() -> None:
     pier = PierConfig(id="high-arctic", latitude=88.0, longitude=0.0, elevation_m=0.0)
     clock = FixedClock(datetime(2026, 6, 21, 12, tzinfo=UTC))
     times = _hours(datetime(2026, 6, 21, 0, tzinfo=UTC), 48)
-    conditions = Conditions(
+    conditions = _conditions(
         base=_base(times, cloud_cover=5.0), secondary=_secondary(times, seeing=0.6)
     )
     with no_network():
         doc = produce_verdict(pier, clock, conditions)
-        baseline = produce_verdict(pier, clock, Conditions(None, None))
+        baseline = produce_verdict(pier, clock, Conditions())
 
     assert doc.dark_window.start is None
     assert [entry.time for entry in doc.timeline] == times
@@ -224,7 +218,7 @@ def test_hours_outside_the_dark_window_change_no_other_field() -> None:
     wider = _hours(first - timedelta(hours=12), len(inside) + 24)
 
     def _doc(times: list[datetime]) -> str:
-        conditions = Conditions(
+        conditions = _conditions(
             base=_base(times, cloud_cover=10.0, wind_gust=5.0),
             secondary=_secondary(times, seeing=0.8, transparency=0.7),
         )

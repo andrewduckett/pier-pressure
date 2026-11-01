@@ -72,7 +72,7 @@ WorkItem = str | Reconnected
 
 def _no_conditions(_pier: PierConfig) -> FetchResult:
     """Fallback provider: the canonical empty value (astronomy-only verdicts)."""
-    return FetchResult(Conditions(None, None))
+    return FetchResult(Conditions())
 
 
 class Service:

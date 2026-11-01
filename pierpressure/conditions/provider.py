@@ -24,15 +24,9 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Protocol
 
-from pierpressure.core.conditions import (
-    BaseGroup,
-    BaseHour,
-    Conditions,
-    GroupMeta,
-    SecondaryGroup,
-    SecondaryHour,
-)
+from pierpressure.core.conditions import Conditions, Series, Variable
 from pierpressure.core.config import PierConfig
+from pierpressure.core.providers import OPEN_METEO, SEVEN_TIMER, ProviderSpec
 from pierpressure.health import NO_READINGS, FetchOutcome, ProviderInfo, Role, describe_error
 
 logger = logging.getLogger(__name__)
@@ -99,46 +93,26 @@ class Provider(Protocol):
     def fetch(self, pier: PierConfig) -> SourceForecast: ...
 
 
-def assemble_snapshot(base: SourceForecast, secondary: SourceForecast) -> Conditions:
-    """Promote the base and secondary forecasts into per-source :class:`Conditions`.
-
-    Each source becomes its own self-stamped group, present only when that source
-    returned rows (design D1): the base group carries the cloud/wind hours and the
-    base source's issue time, the secondary group the seeing/transparency hours and
-    the secondary source's issue time. A source that contributed nothing yields a
-    ``None`` group — the exact condition that made today's ``base_issued_at``
-    ``None`` — so per-source freshness travels with each source's own data.
-
-    Every field stays independently present-or-absent within its group's hours, so
-    a source that returned rows but left a field empty still yields a present group
-    whose hours carry ``None`` for that field.
-    """
-    base_hours = tuple(
-        BaseHour(
-            time=time,
-            cloud_cover=reading.cloud_cover,
-            wind_gust=reading.wind_gust,
-            cloud_low=reading.cloud_low,
-            cloud_mid=reading.cloud_mid,
-            cloud_high=reading.cloud_high,
-            temperature=reading.temperature,
-            dew_point=reading.dew_point,
-            humidity=reading.humidity,
-            wind_speed=reading.wind_speed,
-            wind_direction=reading.wind_direction,
-            precipitation_probability=reading.precipitation_probability,
+def _series_from(spec: ProviderSpec, forecast: SourceForecast) -> dict[Variable, Series]:
+    if forecast.is_empty:
+        return {}
+    return {
+        variable: Series(
+            provider=spec.key,
+            issued_at=forecast.issued_at,
+            values={
+                time: getattr(reading, variable)
+                for time, reading in sorted(forecast.readings.items())
+            },
         )
-        for time, reading in sorted(base.readings.items())
-    )
-    secondary_hours = tuple(
-        SecondaryHour(time=time, seeing=reading.seeing, transparency=reading.transparency)
-        for time, reading in sorted(secondary.readings.items())
-    )
+        for variable in spec.variables
+    }
+
+
+def assemble_snapshot(base: SourceForecast, secondary: SourceForecast) -> Conditions:
+    """Promote the base and secondary forecasts into per-variable :class:`Conditions`."""
     return Conditions(
-        base=BaseGroup.of(GroupMeta(source="base", issued_at=base.issued_at), base_hours),
-        secondary=SecondaryGroup.of(
-            GroupMeta(source="secondary", issued_at=secondary.issued_at), secondary_hours
-        ),
+        series={**_series_from(OPEN_METEO, base), **_series_from(SEVEN_TIMER, secondary)}
     )
 
 

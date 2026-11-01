@@ -4,14 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from pierpressure.core.conditions import (
-    BaseGroup,
-    BaseHour,
-    Conditions,
-    GroupMeta,
-    SecondaryGroup,
-    SecondaryHour,
-)
+from pierpressure.core.conditions import Conditions, Series
 from pierpressure.core.model import Moon, MoonPhase, Verdict
 from pierpressure.core.scoring import (
     OVERCAST_EPSILON,
@@ -103,14 +96,17 @@ def _window(hours: int, minute: int = 0) -> tuple[datetime, datetime]:
     return start, start + timedelta(hours=hours)
 
 
+def _series(window: tuple[datetime, datetime], values: list[float | None]) -> Series:
+    """A series with one value per window hour and no issue time."""
+    return Series(
+        provider="p", issued_at=None, values=dict(zip(hour_slots(*window), values, strict=True))
+    )
+
+
 def _conditions(window: tuple[datetime, datetime], **per_hour: float | None) -> Conditions:
     """Conditions with the given uniform cloud value across every window hour."""
-    start, end = window
-    base = BaseGroup.of(
-        GroupMeta(source="base"),
-        tuple(BaseHour(time=s, cloud_cover=per_hour.get("cloud")) for s in hour_slots(start, end)),
-    )
-    return Conditions(base=base)
+    hours = len(hour_slots(*window))
+    return Conditions(series={"cloud_cover": _series(window, [per_hour.get("cloud")] * hours)})
 
 
 def test_cloud_term_is_one_for_a_wholly_clear_window() -> None:
@@ -128,17 +124,8 @@ def test_cloud_term_stays_in_unit_range_for_a_non_whole_hour_window() -> None:
 
 def test_uncovered_cloud_hours_depress_the_score_but_do_not_inflate_it() -> None:
     window = _window(6)
-    start, end = window
-    slots = hour_slots(start, end)
     # Clear where known, but only the first three hours carry cloud data.
-    partial = Conditions(
-        base=BaseGroup.of(
-            GroupMeta(source="base"),
-            tuple(
-                BaseHour(time=s, cloud_cover=0.0 if i < 3 else None) for i, s in enumerate(slots)
-            ),
-        )
-    )
+    partial = Conditions(series={"cloud_cover": _series(window, [0.0] * 3 + [None] * 3)})
     full = _conditions(window, cloud=0.0)
     partial_term = cloud_score_term(window, partial)
     full_term = cloud_score_term(window, full)
@@ -161,23 +148,15 @@ def test_clear_hours_total_is_zero_for_an_overcast_window() -> None:
 
 def test_optional_term_mean_ignores_hours_where_the_term_is_absent() -> None:
     window = _window(6)
-    start, end = window
-    slots = hour_slots(start, end)
     # Clear all night; seeing = 0.8 for the first three hours, absent thereafter.
-    # Cloud is on the base group; seeing on the secondary group, correlated by hour.
+    # Cloud and seeing are separate series, correlated by hour.
     snap = Conditions(
-        base=BaseGroup.of(
-            GroupMeta(source="base"),
-            tuple(BaseHour(time=s, cloud_cover=0.0) for s in slots),
-        ),
-        secondary=SecondaryGroup.of(
-            GroupMeta(source="secondary"),
-            tuple(
-                SecondaryHour(time=s, seeing=0.8 if i < 3 else None) for i, s in enumerate(slots)
-            ),
-        ),
+        series={
+            "cloud_cover": _series(window, [0.0] * 6),
+            "seeing": _series(window, [0.8] * 3 + [None] * 3),
+        }
     )
-    mean = optional_term_mean(window, snap, lambda h: h.seeing)
+    mean = optional_term_mean(window, snap, "seeing")
     assert mean is not None
     # A partial-coverage gap must not depress the mean below the present values.
     assert abs(mean - 0.8) < 1e-9
@@ -186,7 +165,7 @@ def test_optional_term_mean_ignores_hours_where_the_term_is_absent() -> None:
 def test_optional_term_mean_is_none_when_the_term_is_entirely_absent() -> None:
     window = _window(6)
     snap = _conditions(window, cloud=0.0)  # no seeing anywhere
-    assert optional_term_mean(window, snap, lambda h: h.seeing) is None
+    assert optional_term_mean(window, snap, "seeing") is None
 
 
 def test_moon_up_at_reconstructs_up_interval_from_rise_then_set() -> None:
@@ -250,13 +229,10 @@ def _conditions_high(
     cloud: list[float | None],
     high: list[float | None],
 ) -> Conditions:
-    """Conditions whose base hours carry the given per-hour cloud and cloud_high."""
-    start, end = window
-    slots = hour_slots(start, end)
-    hours = tuple(
-        BaseHour(time=s, cloud_cover=cloud[i], cloud_high=high[i]) for i, s in enumerate(slots)
+    """Conditions with the given per-hour cloud and cloud_high series."""
+    return Conditions(
+        series={"cloud_cover": _series(window, cloud), "cloud_high": _series(window, high)}
     )
-    return Conditions(base=BaseGroup.of(GroupMeta(source="base"), hours))
 
 
 def test_high_cloud_penalty_is_the_clarity_weighted_mean_of_high_over_100() -> None:
@@ -414,20 +390,13 @@ def _conditions_atmosphere(
     seeing: list[float | None],
     transparency: list[float | None],
 ) -> Conditions:
-    """Conditions with per-hour cloud on the base group and seeing/transparency on the secondary."""
-    slots = hour_slots(*window)
+    """Conditions with per-hour cloud, seeing and transparency series."""
     return Conditions(
-        base=BaseGroup.of(
-            GroupMeta(source="base"),
-            tuple(BaseHour(time=s, cloud_cover=cloud[i]) for i, s in enumerate(slots)),
-        ),
-        secondary=SecondaryGroup.of(
-            GroupMeta(source="secondary"),
-            tuple(
-                SecondaryHour(time=s, seeing=seeing[i], transparency=transparency[i])
-                for i, s in enumerate(slots)
-            ),
-        ),
+        series={
+            "cloud_cover": _series(window, cloud),
+            "seeing": _series(window, seeing),
+            "transparency": _series(window, transparency),
+        }
     )
 
 
