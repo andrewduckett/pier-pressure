@@ -53,6 +53,12 @@ NEW_KEYS = (
     "transparency",
     "sun_altitude",
     "moon_altitude",
+    "temperature",
+    "dew_point",
+    "humidity",
+    "wind_speed",
+    "wind_direction",
+    "precipitation_probability",
 )
 
 # The keys a source can leave null; the core always computes the altitudes.
@@ -82,7 +88,7 @@ def _unwrap(hint: object) -> object:
 # --------------------------------------------------------------------------- #
 
 
-def test_the_table_lists_cloud_cover_then_the_eight_new_keys() -> None:
+def test_the_table_lists_cloud_cover_then_the_further_keys() -> None:
     assert tuple(s.key for s in TIMELINE_SENSORS) == ("cloud_cover", *NEW_KEYS)
 
 
@@ -109,6 +115,12 @@ def test_names_units_and_icons_follow_the_design() -> None:
         ("transparency", "Transparency", None, "mdi:telescope"),
         ("sun_altitude", "Sun altitude", "°", "mdi:weather-sunny"),
         ("moon_altitude", "Moon altitude", "°", "mdi:weather-night"),
+        ("temperature", "Temperature", "°C", "mdi:thermometer"),
+        ("dew_point", "Dew point", "°C", "mdi:thermometer-water"),
+        ("humidity", "Humidity", "%", "mdi:water-percent"),
+        ("wind_speed", "Wind speed", "km/h", "mdi:weather-windy"),
+        ("wind_direction", "Wind direction", "°", "mdi:compass"),
+        ("precipitation_probability", "Precipitation probability", "%", "mdi:weather-rainy"),
     ]
 
 
@@ -156,6 +168,12 @@ def test_a_timeline_discovery_carries_no_device_class(sensor: TimelineSensor) ->
         ("wind_gust", "km/h"),
         ("sun_altitude", "°"),
         ("moon_altitude", "°"),
+        ("temperature", "°C"),
+        ("dew_point", "°C"),
+        ("humidity", "%"),
+        ("wind_speed", "km/h"),
+        ("wind_direction", "°"),
+        ("precipitation_probability", "%"),
     ],
 )
 def test_a_timeline_discovery_carries_its_unit(key: str, unit: str) -> None:

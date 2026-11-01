@@ -9,7 +9,7 @@
 
 ## 2. The weather variables reach Home Assistant [depends-on: 1]
 
-- [ ] 2.1 [medium] `TIMELINE_SENSORS` gains six rows after Moon altitude, named Temperature, Dew point, Humidity, Wind speed, Wind direction and Precipitation probability, with units `°C`, `°C`, `%`, `km/h`, `°`, `%`, the design's icons and no `device_class`; each publishes discovery, current-hour state and the `forecast` array like the other sensors. Widen `NEW_KEYS`, `NULLABLE_KEYS`, the names-units-icons pin and the unit pin in `tests/test_timeline_sensors.py`, and fill the six fields in `make_timeline` (verify: `uv run pytest tests/test_timeline_sensors.py tests/test_cloud_cover.py tests/test_rank_targets.py tests/test_publish.py`)
+- [x] 2.1 [medium] `TIMELINE_SENSORS` gains six rows after Moon altitude, named Temperature, Dew point, Humidity, Wind speed, Wind direction and Precipitation probability, with units `°C`, `°C`, `%`, `km/h`, `°`, `%`, the design's icons and no `device_class`; each publishes discovery, current-hour state and the `forecast` array like the other sensors. Widen `NEW_KEYS`, `NULLABLE_KEYS`, the names-units-icons pin and the unit pin in `tests/test_timeline_sensors.py`, and fill the six fields in `make_timeline` (verify: `uv run pytest tests/test_timeline_sensors.py tests/test_cloud_cover.py tests/test_rank_targets.py tests/test_publish.py`) (✓ `uv run pytest tests/test_timeline_sensors.py tests/test_cloud_cover.py tests/test_rank_targets.py tests/test_publish.py` passed)
 
 ## 3. The docs name the six sensors [depends-on: 1]
 
