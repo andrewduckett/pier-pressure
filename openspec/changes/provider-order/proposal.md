@@ -11,9 +11,9 @@ provider. The verdict stays byte-identical for the same fetched data.
 ## What Changes
 
 - **Provider order in config.** A `conditions.providers` list, preferred first,
-  default `[open_meteo, seven_timer]`. An empty list, an unknown key, a
-  duplicate key, or a list with no keyless provider that supplies cloud cover
-  stops startup with a plain configuration error (D5, D9).
+  default `[open_meteo, seven_timer]`. Four mistakes stop startup with a plain
+  configuration error: an empty list, an unknown key, a duplicate key, and a
+  list with no keyless provider that supplies cloud cover (D5, D9).
 - **Providers declare their variables and bundles.** Each provider names the
   variables it supplies and which travel together. The only bundle today is
   cloud total with its low, mid and high layers (D7).

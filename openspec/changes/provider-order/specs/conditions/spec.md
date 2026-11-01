@@ -18,10 +18,10 @@ SHALL be `[open_meteo, seven_timer]`.
 
 ### Requirement: An invalid provider list stops startup
 
-The system SHALL reject the configuration at startup when the provider list is
-empty, when a key names no known provider, when a key appears more than once,
-or when no listed provider is both keyless and declares cloud cover. The error
-SHALL name the rule broken and SHALL carry no value from the configuration
+The system SHALL reject the configuration at startup in four cases: the
+provider list is empty, a key names no known provider, a key appears more than
+once, or no listed provider is both keyless and declares cloud cover. The error
+SHALL name the rule broken. It SHALL carry no value from the configuration
 other than the offending key.
 
 #### Scenario: An empty list is rejected
@@ -178,14 +178,12 @@ valid snapshot.
 - **WHEN** the only provider that declares the weather variables reports cloud cover and wind gust but none of the six
 - **THEN** the snapshot is returned with cloud cover and wind gust available and all six weather variables marked unavailable
 
-## MODIFIED Requirements
-
-### Requirement: Availability is stamped per field
+### Requirement: Availability is stamped per variable
 
 Every variable SHALL be marked as available or unavailable for every hour. A
-partial snapshot — some variables present, others absent — SHALL be a valid
-result rather than a failure, so the verdict can degrade by reading what is
-absent rather than by handling an error. Any hours of the selected dark window
+partial snapshot, with some variables present and others absent, SHALL be a
+valid result rather than a failure. The verdict then degrades by reading what
+is absent, not by handling an error. Any hours of the selected dark window
 that a series' provider did not reach SHALL be marked unavailable in that
 series rather than filled in, from any provider.
 
@@ -195,11 +193,13 @@ series rather than filled in, from any provider.
 - **THEN** the snapshot is returned with each variable marked available or unavailable
 - **AND** the absence of a variable is not reported as an error
 
-#### Scenario: Hours beyond a source's forecast horizon are unavailable
+#### Scenario: Hours beyond a provider's forecast horizon are unavailable
 
 - **WHEN** the provider that filled a series has a forecast that does not reach part of the dark window
 - **THEN** that series is marked unavailable for the hours its forecast does not reach
 - **AND** the hours its forecast does reach keep their values
+
+## MODIFIED Requirements
 
 ### Requirement: The snapshot records when its data was issued
 
@@ -369,3 +369,9 @@ variables". No configuration or entity changes.
 ordered list and each variable is filled by the first that returned it.
 **Migration**: The behaviour is restated under "No single provider is
 load-bearing". No configuration or entity changes.
+
+### Requirement: Availability is stamped per field
+
+**Reason**: The conditions spec now says "variable" for what it called a field.
+**Migration**: The behaviour is restated under "Availability is stamped per
+variable".

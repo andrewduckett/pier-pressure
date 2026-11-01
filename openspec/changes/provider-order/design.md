@@ -44,13 +44,15 @@ Constraints that shape the approach:
 ## Test Seams
 
 - **Primary test seam:** `assemble_snapshot` in the provider layer, now taking
-  the ordered declarations and their forecasts. The fill rules (first provider
-  wins, bundles, whole series, fall-through on empty columns, failed provider
-  passed over) are asserted on the `Conditions` value it returns, with stub
-  forecasts and no network.
+  the ordered declarations and their forecasts. The fill rules are asserted on
+  the `Conditions` value it returns, with stub forecasts and no network: first
+  provider wins, bundles travel together, a series is whole, an empty column
+  falls through, a failed provider is passed over.
 - **Existing seams reused:** the golden suite (`tests/test_golden_verdict.py`),
   which already routes recorded payloads through `assemble_snapshot` and pins
-  the document; the determinism test; `tests/test_conditions_provider.py` for
+  the document. Its `_verdict_json` helper changes to pass the two recorded
+  forecasts as `[(open_meteo_spec, base), (seven_timer_spec, secondary)]`; the
+  expected JSON files do not change. The determinism test; `tests/test_conditions_provider.py` for
   `CompositeProvider` and outcomes; `tests/test_health_delivery.py` for the
   attributes; `tests/test_config.py` for the list's validation;
   `tests/test_producer_timeline.py` and `tests/test_scoring.py` through the
@@ -75,14 +77,15 @@ Constraints that shape the approach:
 over every hour its provider returned, `None` where that hour's value was
 blank. `Conditions` offers `value_at(variable, time)`, `issued_at(variable)`
 and `hours()` (the sorted union of every series' hours). `Conditions()` with
-no series is the empty value. `Variable` is a `Literal` of the sixteen timeline
-keys minus `time` and the altitudes, defined once in the core.
+no series is the empty value. `Variable` is a `Literal` of the thirteen
+timeline variable keys, defined once in the core: the sixteen timeline entry
+keys without `time`, `sun_altitude` and `moon_altitude`.
 
-Alternatives: keep two groups and add a third for Astrospheric (rejected: the
-roles are the problem); a per-hour grid with a provider on every cell
-(rejected: it invites per-hour merging, which the epic forbids); series that
-hold only non-null values (rejected: per-hour nulls and the timeline's hour
-union must survive, so a series keeps every hour its provider covered).
+Alternatives considered. Keep two groups and add a third for Astrospheric:
+rejected, the roles are the problem. A per-hour grid with a provider on every
+cell: rejected, it invites per-hour merging, which the epic forbids. Series
+that hold only non-null values: rejected, per-hour nulls and the timeline's
+hour union must survive, so a series keeps every hour its provider covered.
 
 This is costly to reverse: it is the seam every later provider builds on. It
 gets a decision record, superseding the deprecated ADR 0006.
@@ -96,17 +99,18 @@ maps the known keys to their specs. `OpenMeteoProvider` and
 validates the list against the catalog, so ADR 0022 holds and the core imports
 nothing from the provider layer.
 
-Alternatives: declarations as class attributes on the fetchers (rejected: the
-core cannot import them without pulling in `httpx`); inject a registry into
-`build_config` (rejected: a second validation path, and the add-on's combined
-settings would need it too).
+Alternatives considered. Declarations as class attributes on the fetchers:
+rejected, the core cannot import them without pulling in `httpx`. A registry
+injected into `build_config`: rejected, it is a second validation path, and
+the add-on's combined settings would need it too.
 
 ### D3. The fill is a pure function in the provider layer
 
 `assemble_snapshot(fills)` takes the ordered `(spec, forecast)` pairs and
 returns `Conditions`. For each variable, in declared order, it takes the first
-spec that declares it and whose forecast has at least one non-null value for
-it or for a bundle mate (D2 in the brainstorm). A bundle is decided once, by
+spec that declares it and returned it. Returned means the forecast has at
+least one non-null value for the variable or for a bundle mate (brainstorm
+D2). A bundle is decided once, by
 that rule, and every member series gets the same provider, issue time and hour
 set. A failed or empty forecast is an empty `SourceForecast`, so it is passed
 over without a special case.
@@ -125,8 +129,12 @@ stubs keyed the same way.
 ### D5. Freshness reads the cloud-cover series
 
 `confidence` calls `conditions.issued_at("cloud_cover")`. The accessors in
-scoring become `conditions.value_at(variable, slot)`. Nothing else in scoring
-changes, which is what keeps the goldens byte-identical.
+scoring become `conditions.value_at(variable, slot)`. The atmosphere functions
+that take a `SecondaryHour` today (`_optional_term`, `optional_term_mean`,
+`_hour_atmosphere`, `atmosphere_mean` and the `_ATMOSPHERE_TERMS` selectors)
+read `value_at("seeing", slot)` and `value_at("transparency", slot)` instead,
+so `SecondaryHour` can go. No formula, weight or rounding changes, which is
+what keeps the goldens byte-identical.
 
 ### D6. Health carries the declared variables
 

@@ -19,7 +19,7 @@ fills cloud cover, freshness SHALL be at its floor.
 
 ### Requirement: Entry weather values carry the filling provider's reading for the hour
 
-`temperature` and `dew_point` SHALL be degrees Celsius, `humidity` and `precipitation_probability` percent, `wind_speed` km/h and `wind_direction` degrees, each carried exactly as its series holds it for that hour, with no rounding or conversion. Each SHALL be null when its series lacks the hour or the value, or no provider filled it.
+`temperature` and `dew_point` SHALL be degrees Celsius, `humidity` and `precipitation_probability` percent, `wind_speed` km/h and `wind_direction` degrees. Each SHALL be carried exactly as its series holds it for that hour, with no rounding or conversion. Each SHALL be null when its series lacks the hour or the value, or no provider filled it.
 
 #### Scenario: Weather values pass through unchanged
 
@@ -38,11 +38,32 @@ fills cloud cover, freshness SHALL be at its floor.
 - **THEN** that entry's `dew_point` is null
 - **AND** its other five weather keys carry the reported values
 
+### Requirement: Entry values carry each series' reading for the hour
+
+`cloud_cover`, `cloud_low`, `cloud_mid` and `cloud_high` SHALL be percent and `wind_gust` km/h, each carried exactly as its series holds it for that hour, with no rounding. `seeing` and `transparency` SHALL be quality in 0 to 1 where 1 is best, from their series for that hour, rounded to two decimal places. Each of these keys SHALL be null when its series lacks the hour or the value, or no provider filled it.
+
+#### Scenario: An hour one series lacks carries null for that variable
+
+- **WHEN** an hour is present in the `seeing` and `transparency` series but absent from the `cloud_cover`, cloud-layer and `wind_gust` series
+- **THEN** that entry's `cloud_cover`, `cloud_low`, `cloud_mid`, `cloud_high` and `wind_gust` are null
+- **AND** its `seeing` and `transparency` carry their series' values
+- **AND** its `sun_altitude` and `moon_altitude` are present
+
+#### Scenario: Cloud and wind values pass through unchanged
+
+- **WHEN** the `cloud_cover` series holds `37.0` and the `wind_gust` series `23.4` for an hour
+- **THEN** that entry's `cloud_cover` is `37.0` and its `wind_gust` is `23.4`
+
+#### Scenario: Seeing and transparency are emitted at two decimal places
+
+- **WHEN** the `seeing` series holds a quality of four sevenths for an hour
+- **THEN** that entry's `seeing` is `0.57`
+
 ## MODIFIED Requirements
 
 ### Requirement: The document carries an hourly timeline
 
-The verdict document SHALL carry a `timeline` list: the hourly series of sky and weather for the pier. The list SHALL hold one entry per clock hour across the union of the hours every series in the conditions covers, including hours already past, sorted by hour ascending, with no hour repeated. The list SHALL be empty, never absent, when no provider returned rows.
+The verdict document SHALL carry a `timeline` list: the hourly series of sky and weather for the pier. The list SHALL hold one entry per clock hour across the union of the hours every series in the conditions covers, including hours already past. It SHALL be sorted by hour ascending, with no hour repeated. The list SHALL be empty, never absent, when no provider returned rows.
 
 #### Scenario: The timeline spans the union of both providers' hours
 
@@ -61,27 +82,6 @@ The verdict document SHALL carry a `timeline` list: the hourly series of sky and
 - **THEN** the entries for those earlier hours are present and unchanged
 - **AND** the `scored_window` still starts at the evaluation instant
 
-### Requirement: Entry values carry each source's reading for the hour
-
-`cloud_cover`, `cloud_low`, `cloud_mid` and `cloud_high` SHALL be percent and `wind_gust` km/h, each carried exactly as its series holds it for that hour, with no rounding, and null when the series lacks the hour or the value, or no provider filled it. `seeing` and `transparency` SHALL be quality in 0 to 1 where 1 is best, from their series for that hour, rounded to two decimal places, each null when the series lacks the hour or the value, or no provider filled it.
-
-#### Scenario: An hour one source lacks carries null for that source's fields
-
-- **WHEN** an hour is present in the `seeing` and `transparency` series but absent from the `cloud_cover`, cloud-layer and `wind_gust` series
-- **THEN** that entry's `cloud_cover`, `cloud_low`, `cloud_mid`, `cloud_high` and `wind_gust` are null
-- **AND** its `seeing` and `transparency` carry their series' values
-- **AND** its `sun_altitude` and `moon_altitude` are present
-
-#### Scenario: Cloud and wind values pass through unchanged
-
-- **WHEN** the `cloud_cover` series holds `37.0` and the `wind_gust` series `23.4` for an hour
-- **THEN** that entry's `cloud_cover` is `37.0` and its `wind_gust` is `23.4`
-
-#### Scenario: Seeing and transparency are emitted at two decimal places
-
-- **WHEN** the `seeing` series holds a quality of four sevenths for an hour
-- **THEN** that entry's `seeing` is `0.57`
-
 ## REMOVED Requirements
 
 ### Requirement: Entry weather values carry the base source's reading for the hour
@@ -91,3 +91,10 @@ series, filled by the first provider in order that returned it.
 **Migration**: The behaviour is restated under "Entry weather values carry the
 filling provider's reading for the hour". The document's keys and values are
 unchanged.
+
+### Requirement: Entry values carry each source's reading for the hour
+
+**Reason**: The roles are gone and the spec now says "series" for one
+variable's values from one provider.
+**Migration**: The behaviour is restated under "Entry values carry each series'
+reading for the hour". The document's keys and values are unchanged.

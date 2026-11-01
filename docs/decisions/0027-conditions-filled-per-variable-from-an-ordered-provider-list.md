@@ -12,9 +12,9 @@ description: Architecture Decision Record for shaping the core's conditions snap
 
 The pure core receives observing conditions as an immutable snapshot built at a
 provider edge, so the verdict stays deterministic and offline. The first shape
-of that snapshot gave each of two providers a fixed role: a base source for
-cloud, wind and weather, and a secondary source for seeing and transparency
-(ADR-0006, since deprecated). The roles worked because the two providers
+of that snapshot gave each of two providers a fixed role (ADR-0006, since
+deprecated). The base source supplied cloud, wind and weather. The secondary
+source supplied seeing and transparency. The roles worked because the two providers
 supplied disjoint variables. A provider that supplies cloud, seeing and
 transparency at once fits neither role, and a user who prefers that provider
 for cloud still needs the others for wind and weather. The snapshot, the
