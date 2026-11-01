@@ -183,6 +183,7 @@ No data changes shape. On the first publish after upgrade, Home Assistant
 creates the six sensors from their retained discovery messages, and the
 verdict document carries six more keys per timeline entry that any reader of
 the old shape can ignore. To roll back, deploy the earlier image; the six
-retained discovery messages stay on the broker, so the entities stay too,
-shown as unavailable. Clear them with the README's "Removing the entities"
-loop.
+retained discovery messages stay on the broker, so the entities stay too.
+They share the process's availability topic, so they stay available and show
+their last retained state and forecast, which no longer update. Clear them
+with the README's "Removing the entities" loop.
