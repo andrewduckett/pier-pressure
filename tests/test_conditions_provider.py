@@ -9,7 +9,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from pierpressure.conditions.open_meteo import parse_open_meteo
+from pierpressure.conditions.open_meteo import OpenMeteoProvider, parse_open_meteo
 from pierpressure.conditions.provider import (
     CompositeProvider,
     SourceForecast,
@@ -73,6 +73,61 @@ def test_open_meteo_leaves_a_null_component_absent() -> None:
     assert reading.cloud_high is None
     assert reading.cloud_low == 5.0
     assert reading.cloud_mid == 8.0
+
+
+def test_open_meteo_parses_the_weather_variables_unrounded() -> None:
+    forecast = parse_open_meteo(_load("open_meteo.json"), issued_at=_ISSUED)
+    reading = forecast.readings[_hour(20)]
+    assert reading.temperature == 12.34
+    assert reading.dew_point == 9.8
+    assert reading.humidity == 85.0
+    assert reading.wind_speed == 14.25
+    assert reading.wind_direction == 230.0
+    assert reading.precipitation_probability == 35.0
+
+
+def test_open_meteo_leaves_a_null_weather_value_absent() -> None:
+    forecast = parse_open_meteo(_load("open_meteo.json"), issued_at=_ISSUED)
+    # dew_point_2m is null at 22:00; the other weather values are present there.
+    reading = forecast.readings[_hour(22)]
+    assert reading.dew_point is None
+    assert reading.temperature == 11.2
+    assert reading.humidity == 90.0
+    assert reading.wind_speed == 10.4
+    assert reading.wind_direction == 240.0
+    assert reading.precipitation_probability == 10.0
+
+
+def test_open_meteo_absent_weather_array_leaves_that_field_none_every_hour() -> None:
+    payload = _load("open_meteo.json")
+    del payload["hourly"]["precipitation_probability"]
+    forecast = parse_open_meteo(payload, issued_at=_ISSUED)
+    assert all(r.precipitation_probability is None for r in forecast.readings.values())
+    assert forecast.readings[_hour(20)].temperature == 12.34
+    assert forecast.readings[_hour(23)].wind_direction == 250.0
+
+
+def test_open_meteo_fetch_requests_the_weather_variables_in_kmh() -> None:
+    requests: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json=_load("open_meteo.json"))
+
+    client = httpx.Client(transport=httpx.MockTransport(handle))
+    OpenMeteoProvider(client=client, now=lambda: _ISSUED).fetch(make_pier())
+    (request,) = requests
+    hourly = request.url.params["hourly"].split(",")
+    for variable in (
+        "temperature_2m",
+        "dew_point_2m",
+        "relative_humidity_2m",
+        "wind_speed_10m",
+        "wind_direction_10m",
+        "precipitation_probability",
+    ):
+        assert variable in hourly
+    assert request.url.params["wind_speed_unit"] == "kmh"
 
 
 # --------------------------------------------------------------------------- #
@@ -191,6 +246,53 @@ def test_assemble_total_only_source_leaves_the_components_none() -> None:
     assert base_hour.cloud_low is None
     assert base_hour.cloud_mid is None
     assert base_hour.cloud_high is None
+
+
+def test_assemble_copies_the_weather_variables_onto_the_base_hour() -> None:
+    base = SourceForecast(
+        issued_at=_hour(18),
+        readings={
+            _hour(21): SourceReading(
+                cloud_cover=40.0,
+                temperature=12.3,
+                dew_point=9.8,
+                humidity=85.0,
+                wind_speed=14.2,
+                wind_direction=230.0,
+                precipitation_probability=35.0,
+            )
+        },
+    )
+    conditions = assemble_snapshot(base, SourceForecast())
+    assert conditions.base is not None
+    base_hour = conditions.base.at(_hour(21))
+    assert base_hour is not None
+    assert (
+        base_hour.temperature,
+        base_hour.dew_point,
+        base_hour.humidity,
+        base_hour.wind_speed,
+        base_hour.wind_direction,
+        base_hour.precipitation_probability,
+    ) == (12.3, 9.8, 85.0, 14.2, 230.0, 35.0)
+
+
+def test_assemble_source_without_weather_leaves_the_weather_fields_none() -> None:
+    base = SourceForecast(
+        issued_at=_hour(18),
+        readings={_hour(21): SourceReading(cloud_cover=40.0, wind_gust=15.0)},
+    )
+    conditions = assemble_snapshot(base, SourceForecast())
+    assert conditions.base is not None
+    base_hour = conditions.base.at(_hour(21))
+    assert base_hour is not None
+    assert (base_hour.cloud_cover, base_hour.wind_gust) == (40.0, 15.0)
+    assert base_hour.temperature is None
+    assert base_hour.dew_point is None
+    assert base_hour.humidity is None
+    assert base_hour.wind_speed is None
+    assert base_hour.wind_direction is None
+    assert base_hour.precipitation_probability is None
 
 
 def test_assemble_base_wind_without_cloud_keeps_the_base_group_and_its_issue_time() -> None:

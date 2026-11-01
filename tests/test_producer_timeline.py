@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from pierpressure.core.clock import FixedClock
 from pierpressure.core.conditions import (
@@ -14,6 +15,7 @@ from pierpressure.core.conditions import (
     SecondaryHour,
 )
 from pierpressure.core.config import PierConfig
+from pierpressure.core.model import TimelineEntry
 from pierpressure.core.producer import produce_verdict
 from pierpressure.core.sky import dark_window
 
@@ -94,6 +96,82 @@ def test_a_missing_secondary_source_leaves_seeing_and_transparency_null() -> Non
     [entry] = doc.timeline
     assert entry.cloud_cover == 50.0
     assert entry.seeing is None and entry.transparency is None
+
+
+_WEATHER = {
+    "temperature": 12.3,
+    "dew_point": 9.8,
+    "humidity": 85.0,
+    "wind_speed": 14.2,
+    "wind_direction": 230.0,
+    "precipitation_probability": 35.0,
+}
+
+
+def _weather(entry: TimelineEntry) -> dict[str, float | None]:
+    return {key: getattr(entry, key) for key in _WEATHER}
+
+
+def test_weather_values_pass_through_unchanged() -> None:
+    day = datetime(2026, 9, 8, 18, tzinfo=UTC)
+    conditions = Conditions(base=_base([day], cloud_cover=50.0, **_WEATHER), secondary=None)
+    with no_network():
+        doc = produce_verdict(
+            make_pier(), FixedClock(datetime(2026, 9, 8, 14, tzinfo=UTC)), conditions
+        )
+
+    [entry] = doc.timeline
+    assert _weather(entry) == _WEATHER
+
+
+def test_a_weather_value_the_base_source_lacks_is_null_on_its_own() -> None:
+    day = datetime(2026, 9, 8, 18, tzinfo=UTC)
+    reported = {**_WEATHER, "dew_point": None}
+    conditions = Conditions(base=_base([day], **reported), secondary=None)
+    with no_network():
+        doc = produce_verdict(
+            make_pier(), FixedClock(datetime(2026, 9, 8, 14, tzinfo=UTC)), conditions
+        )
+
+    [entry] = doc.timeline
+    assert _weather(entry) == reported
+
+
+def test_an_hour_the_base_source_lacks_carries_null_weather_values() -> None:
+    day = datetime(2026, 9, 8, 18, tzinfo=UTC)
+    conditions = Conditions(
+        base=_base([day], **_WEATHER),
+        secondary=_secondary([day, day + timedelta(hours=1)], seeing=0.8, transparency=0.7),
+    )
+    with no_network():
+        doc = produce_verdict(
+            make_pier(), FixedClock(datetime(2026, 9, 8, 14, tzinfo=UTC)), conditions
+        )
+
+    _, second = doc.timeline
+    assert all(value is None for value in _weather(second).values())
+    assert (second.seeing, second.transparency) == (0.8, 0.7)
+
+
+def test_weather_variables_do_not_change_the_verdict() -> None:
+    pier = make_pier()
+    clock = FixedClock(_MID_SESSION)
+    times = _hours(datetime(2026, 9, 8, 12, tzinfo=UTC), 36)
+
+    def _doc(**weather: float | None) -> dict[str, Any]:
+        conditions = Conditions(
+            base=_base(times, cloud_cover=10.0, wind_gust=5.0, **weather),
+            secondary=_secondary(times, seeing=0.8, transparency=0.7),
+        )
+        with no_network():
+            return produce_verdict(pier, clock, conditions).model_dump(mode="json")
+
+    plain, wet = _doc(), _doc(**{**_WEATHER, "precipitation_probability": 95.0})
+    for doc in (plain, wet):
+        for entry in doc["timeline"]:
+            for key in _WEATHER:
+                entry.pop(key)
+    assert plain == wet
 
 
 def test_empty_conditions_yield_an_empty_timeline() -> None:

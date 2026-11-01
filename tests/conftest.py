@@ -511,6 +511,12 @@ def make_timeline(
             wind_gust=23.4,
             seeing=0.57,
             transparency=0.33,
+            temperature=12.3,
+            dew_point=9.8,
+            humidity=85.0,
+            wind_speed=14.2,
+            wind_direction=230.0,
+            precipitation_probability=35.0,
         )
         for i in range(count)
     ]

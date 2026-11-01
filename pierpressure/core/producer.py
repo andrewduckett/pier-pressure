@@ -107,6 +107,12 @@ def _timeline(pier: PierConfig, conditions: Conditions) -> list[TimelineEntry]:
                 wind_gust=b.wind_gust if b is not None else None,
                 seeing=s.seeing if s is not None else None,
                 transparency=s.transparency if s is not None else None,
+                temperature=b.temperature if b is not None else None,
+                dew_point=b.dew_point if b is not None else None,
+                humidity=b.humidity if b is not None else None,
+                wind_speed=b.wind_speed if b is not None else None,
+                wind_direction=b.wind_direction if b is not None else None,
+                precipitation_probability=b.precipitation_probability if b is not None else None,
             )
         )
     return entries

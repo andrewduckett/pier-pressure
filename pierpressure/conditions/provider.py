@@ -45,6 +45,10 @@ class SourceReading:
     ``cloud_low``/``cloud_mid``/``cloud_high`` carry the low/mid/high split of the
     total cloud cover (percent), each independently present-or-absent: a source
     reporting only a total leaves all three ``None``.
+
+    The weather fields carry the source's values unrounded: temperature and dew
+    point in °C, humidity and precipitation probability in %, wind speed in km/h
+    and wind direction in degrees.
     """
 
     cloud_cover: float | None = None
@@ -54,6 +58,12 @@ class SourceReading:
     cloud_low: float | None = None
     cloud_mid: float | None = None
     cloud_high: float | None = None
+    temperature: float | None = None
+    dew_point: float | None = None
+    humidity: float | None = None
+    wind_speed: float | None = None
+    wind_direction: float | None = None
+    precipitation_probability: float | None = None
 
 
 @dataclass(frozen=True)
@@ -111,6 +121,12 @@ def assemble_snapshot(base: SourceForecast, secondary: SourceForecast) -> Condit
             cloud_low=reading.cloud_low,
             cloud_mid=reading.cloud_mid,
             cloud_high=reading.cloud_high,
+            temperature=reading.temperature,
+            dew_point=reading.dew_point,
+            humidity=reading.humidity,
+            wind_speed=reading.wind_speed,
+            wind_direction=reading.wind_direction,
+            precipitation_probability=reading.precipitation_probability,
         )
         for time, reading in sorted(base.readings.items())
     )

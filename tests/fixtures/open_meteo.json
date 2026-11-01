@@ -10,7 +10,13 @@
     "cloud_cover_low": "%",
     "cloud_cover_mid": "%",
     "cloud_cover_high": "%",
-    "wind_gusts_10m": "km/h"
+    "wind_gusts_10m": "km/h",
+    "temperature_2m": "°C",
+    "dew_point_2m": "°C",
+    "relative_humidity_2m": "%",
+    "wind_speed_10m": "km/h",
+    "wind_direction_10m": "°",
+    "precipitation_probability": "%"
   },
   "hourly": {
     "time": [
@@ -23,6 +29,12 @@
     "cloud_cover_low": [5, 10, 5, 20],
     "cloud_cover_mid": [3, 6, 8, 10],
     "cloud_cover_high": [2, 4, null, 15],
-    "wind_gusts_10m": [15.0, 18.5, 22.0, 12.0]
+    "wind_gusts_10m": [15.0, 18.5, 22.0, 12.0],
+    "temperature_2m": [12.34, 11.8, 11.2, 10.5],
+    "dew_point_2m": [9.8, 9.6, null, 9.1],
+    "relative_humidity_2m": [85, 87, 90, 92],
+    "wind_speed_10m": [14.25, 12.1, 10.4, 8.0],
+    "wind_direction_10m": [230, 235, 240, 250],
+    "precipitation_probability": [35, 20, 10, 5]
   }
 }

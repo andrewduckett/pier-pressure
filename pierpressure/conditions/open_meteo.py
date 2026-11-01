@@ -1,8 +1,9 @@
-"""The base conditions source: Open-Meteo hourly cloud cover and wind gust (task 3.2).
+"""The base conditions source: Open-Meteo hourly cloud, wind and weather (task 3.2).
 
 Open-Meteo returns an hourly forecast; this maps its ``cloud_cover`` (percent),
-its ``cloud_cover_low``/``cloud_cover_mid``/``cloud_cover_high`` layer split, and
-``wind_gusts_10m`` (km/h, requested explicitly) onto the per-hour readings the
+its ``cloud_cover_low``/``cloud_cover_mid``/``cloud_cover_high`` layer split,
+``wind_gusts_10m`` and ``wind_speed_10m`` (km/h, requested explicitly) and the
+weather variables in Open-Meteo's default units onto the per-hour readings the
 core consumes. Parsing is separated from fetching so it can be tested against a
 recorded fixture with no network.
 """
@@ -40,41 +41,56 @@ def _as_float(value: Any) -> float | None:
     return None if value is None else float(value)
 
 
+def _float_at(values: list[Any], index: int) -> float | None:
+    return _as_float(values[index]) if index < len(values) else None
+
+
 def parse_open_meteo(payload: dict[str, Any], issued_at: datetime) -> SourceForecast:
     """Map an Open-Meteo forecast payload to a :class:`SourceForecast`.
 
-    Missing or ``null`` cloud/gust values for an hour are left absent, so a gappy
-    forecast is a partial (valid) result rather than an error. The low/mid/high
-    cloud components are parsed the same index-guarded way, so an absent or ``null``
-    component stays ``None`` while the total cloud cover remains usable.
+    Missing or ``null`` values for an hour are left absent, so a gappy forecast is
+    a partial (valid) result rather than an error. Every array is read
+    index-guarded, so an absent, short or ``null`` array leaves only that field
+    ``None`` while the others remain usable.
     """
     hourly = payload.get("hourly") or {}
     times = hourly.get("time") or []
-    clouds = hourly.get("cloud_cover") or []
-    clouds_low = hourly.get("cloud_cover_low") or []
-    clouds_mid = hourly.get("cloud_cover_mid") or []
-    clouds_high = hourly.get("cloud_cover_high") or []
-    gusts = hourly.get("wind_gusts_10m") or []
+
+    def column(name: str) -> list[Any]:
+        return hourly.get(name) or []
+
+    clouds = column("cloud_cover")
+    clouds_low = column("cloud_cover_low")
+    clouds_mid = column("cloud_cover_mid")
+    clouds_high = column("cloud_cover_high")
+    gusts = column("wind_gusts_10m")
+    temperatures = column("temperature_2m")
+    dew_points = column("dew_point_2m")
+    humidities = column("relative_humidity_2m")
+    wind_speeds = column("wind_speed_10m")
+    wind_directions = column("wind_direction_10m")
+    precipitation = column("precipitation_probability")
     readings: dict[datetime, SourceReading] = {}
     for index, raw_time in enumerate(times):
-        cloud = _as_float(clouds[index]) if index < len(clouds) else None
-        cloud_low = _as_float(clouds_low[index]) if index < len(clouds_low) else None
-        cloud_mid = _as_float(clouds_mid[index]) if index < len(clouds_mid) else None
-        cloud_high = _as_float(clouds_high[index]) if index < len(clouds_high) else None
-        gust = _as_float(gusts[index]) if index < len(gusts) else None
         readings[_parse_hour(raw_time)] = SourceReading(
-            cloud_cover=cloud,
-            wind_gust=gust,
-            cloud_low=cloud_low,
-            cloud_mid=cloud_mid,
-            cloud_high=cloud_high,
+            cloud_cover=_float_at(clouds, index),
+            wind_gust=_float_at(gusts, index),
+            cloud_low=_float_at(clouds_low, index),
+            cloud_mid=_float_at(clouds_mid, index),
+            cloud_high=_float_at(clouds_high, index),
+            temperature=_float_at(temperatures, index),
+            dew_point=_float_at(dew_points, index),
+            humidity=_float_at(humidities, index),
+            wind_speed=_float_at(wind_speeds, index),
+            wind_direction=_float_at(wind_directions, index),
+            precipitation_probability=_float_at(precipitation, index),
         )
     return SourceForecast(issued_at=issued_at, readings=readings)
 
 
 @dataclass
 class OpenMeteoProvider:
-    """Fetches hourly cloud and wind gust from Open-Meteo."""
+    """Fetches hourly cloud, wind and weather from Open-Meteo."""
 
     key: ClassVar[str] = "open_meteo"
     name: ClassVar[str] = "Open-Meteo"
@@ -86,8 +102,20 @@ class OpenMeteoProvider:
         params: dict[str, str | float | int] = {
             "latitude": pier.latitude,
             "longitude": pier.longitude,
-            "hourly": (
-                "cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_gusts_10m"
+            "hourly": ",".join(
+                (
+                    "cloud_cover",
+                    "cloud_cover_low",
+                    "cloud_cover_mid",
+                    "cloud_cover_high",
+                    "wind_gusts_10m",
+                    "temperature_2m",
+                    "dew_point_2m",
+                    "relative_humidity_2m",
+                    "wind_speed_10m",
+                    "wind_direction_10m",
+                    "precipitation_probability",
+                )
             ),
             "wind_speed_unit": "kmh",
             "timezone": "UTC",

@@ -66,6 +66,9 @@ class BaseHour:
     yet degrades transparency. Each component is independently present-or-absent
     like every other field: a source that reports only a total leaves all three
     ``None`` and its ``cloud_cover`` still carries the same meaning as before.
+
+    The weather fields pass through to the timeline as the source reported them
+    (°C, %, km/h, degrees) and no gate, score or confidence term reads them.
     """
 
     time: datetime
@@ -74,6 +77,12 @@ class BaseHour:
     cloud_low: float | None = None
     cloud_mid: float | None = None
     cloud_high: float | None = None
+    temperature: float | None = None
+    dew_point: float | None = None
+    humidity: float | None = None
+    wind_speed: float | None = None
+    wind_direction: float | None = None
+    precipitation_probability: float | None = None
 
 
 @dataclass(frozen=True)

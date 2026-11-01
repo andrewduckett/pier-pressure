@@ -101,6 +101,14 @@ TIMELINE_SENSORS = (
     TimelineSensor("transparency", "Transparency", None, "mdi:telescope"),
     TimelineSensor("sun_altitude", "Sun altitude", "°", "mdi:weather-sunny"),
     TimelineSensor("moon_altitude", "Moon altitude", "°", "mdi:weather-night"),
+    TimelineSensor("temperature", "Temperature", "°C", "mdi:thermometer"),
+    TimelineSensor("dew_point", "Dew point", "°C", "mdi:thermometer-water"),
+    TimelineSensor("humidity", "Humidity", "%", "mdi:water-percent"),
+    TimelineSensor("wind_speed", "Wind speed", "km/h", "mdi:weather-windy"),
+    TimelineSensor("wind_direction", "Wind direction", "°", "mdi:compass"),
+    TimelineSensor(
+        "precipitation_probability", "Precipitation probability", "%", "mdi:weather-rainy"
+    ),
 )
 _CLOUD_COVER = TIMELINE_SENSORS[0]
 

@@ -44,6 +44,12 @@ TIMELINE_ENTRY_KEY_ORDER = [
     "wind_gust",
     "seeing",
     "transparency",
+    "temperature",
+    "dew_point",
+    "humidity",
+    "wind_speed",
+    "wind_direction",
+    "precipitation_probability",
 ]
 
 _STUB_MOON = Moon(illumination=0.0, phase=MoonPhase.NEW)
@@ -246,6 +252,12 @@ def _entry(**overrides: object) -> TimelineEntry:
         "wind_gust": 23.4,
         "seeing": 4 / 7,
         "transparency": 0.333333,
+        "temperature": 12.3,
+        "dew_point": 9.8,
+        "humidity": 85.0,
+        "wind_speed": 14.2,
+        "wind_direction": 230.0,
+        "precipitation_probability": 35.0,
     }
     fields.update(overrides)
     return TimelineEntry.model_validate(fields)
@@ -305,9 +317,20 @@ def test_timeline_entry_passes_cloud_and_gust_through_unchanged() -> None:
     assert payload["cloud_high"] == 30.0
 
 
+def test_timeline_entry_passes_weather_values_through_unrounded() -> None:
+    entry = _entry(temperature=12.345678, wind_speed=14.256789, wind_direction=230.123456)
+    payload = json.loads(entry.model_dump_json())
+    assert payload["temperature"] == 12.345678
+    assert payload["wind_speed"] == 14.256789
+    assert payload["wind_direction"] == 230.123456
+    assert payload["dew_point"] == 9.8
+    assert payload["humidity"] == 85.0
+    assert payload["precipitation_probability"] == 35.0
+
+
 def test_timeline_entry_rejects_unknown_keys() -> None:
     with pytest.raises(ValidationError):
-        _entry(dew_point=4.0)
+        _entry(pressure=1013.0)
 
 
 def test_timeline_round_trips_through_json() -> None:
