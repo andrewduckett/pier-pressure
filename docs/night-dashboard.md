@@ -55,6 +55,7 @@ views:
                     const v = values[i].get(h);
                     return v == null ? "no data" : `${v}${unit}`;
                   })),
+                  moon: hours.map((h) => [new Date(h), values[1].get(h)]),
                 };
               }
             pier_night: |
@@ -67,6 +68,44 @@ views:
                 vars.range = vars.dusk
                   ? [new Date(vars.dusk.getTime() - 4 * hour), new Date(vars.dawn.getTime() + 5 * hour)]
                   : [new Date(vars.now.getTime() - 6 * hour), new Date(vars.now.getTime() + 18 * hour)];
+              }
+            pier_targets: |
+              $ex {
+                const ids = [
+                  "sensor.pierpressure_backyard_target_1", "sensor.pierpressure_backyard_target_2",
+                  "sensor.pierpressure_backyard_target_3", "sensor.pierpressure_backyard_target_4",
+                  "sensor.pierpressure_backyard_target_5", "sensor.pierpressure_backyard_target_6",
+                  "sensor.pierpressure_backyard_target_7", "sensor.pierpressure_backyard_target_8",
+                  "sensor.pierpressure_backyard_target_9", "sensor.pierpressure_backyard_target_10",
+                ];
+                // An unavailable rank has no attributes, so it has no window and leaves no lane.
+                vars.targets = ids
+                  .map((id, i) => ({ lane: `Target ${i + 1}`, state: hass.states[id] }))
+                  .filter((t) => t.state?.attributes?.window?.start && t.state?.attributes?.window?.end)
+                  .map((t) => ({
+                    lane: t.lane,
+                    label: t.state.state,
+                    start: new Date(t.state.attributes.window.start),
+                    end: new Date(t.state.attributes.window.end),
+                  }));
+              }
+            pier_lanes: |
+              $ex {
+                const hour = 60 * 60 * 1000;
+                const runs = [];
+                vars.strip.moon.forEach(([start, v]) => {
+                  if (v == null || v <= 0) return;
+                  const last = runs.at(-1);
+                  if (last && last.end.getTime() === start.getTime()) last.end = new Date(start.getTime() + hour);
+                  else runs.push({ lane: "Moon up", label: "Moon up", start, end: new Date(start.getTime() + hour) });
+                });
+                vars.bars = [...runs, ...vars.targets];
+                vars.lanes = ["Moon up", ...vars.targets.map((t) => t.lane)];
+                // Every lane keeps the same height, whatever the number of lanes.
+                const rowsPx = 9 * 22, lanePx = 20, marginPx = 30 + 50;
+                vars.height = rowsPx + lanePx * vars.lanes.length + marginPx + 10;
+                const plot = vars.height - marginPx;
+                vars.split = (lanePx * vars.lanes.length) / plot;
               }
             entities:
               - entity: ""
@@ -99,18 +138,49 @@ views:
                   - [0.8571, "#184f95"]
                   - [0.8571, "#0d366b"]
                   - [1, "#0d366b"]
+              - entity: ""
+                name: Lanes
+                type: bar
+                orientation: h
+                yaxis: y2
+                y: $ex vars.bars.map((b) => b.lane)
+                base: $ex vars.bars.map((b) => b.start)
+                x: $ex vars.bars.map((b) => b.end.getTime() - b.start.getTime())
+                text: $ex vars.bars.map((b) => b.label)
+                textposition: inside
+                insidetextanchor: start
+                marker:
+                  color: >-
+                    $ex vars.bars.map((b) => (b.lane === "Moon up" ? "#898781" : "#6250d6"))
+                hovertemplate: "%{text}<extra></extra>"
             layout:
-              height: 300
+              height: $ex vars.height
               margin: { t: 30, b: 50, l: 100, r: 10 }
               showlegend: false
+              bargap: 0.25
               xaxis:
                 type: date
+                # Ticks along the bottom, under the lanes.
+                anchor: y2
                 range: $ex vars.range
               yaxis:
+                domain: $ex [vars.split + 0.02, 1]
                 type: category
                 categoryorder: array
                 categoryarray: [Sun altitude, Moon altitude, Cloud cover, Cloud low, Cloud mid, Cloud high, Wind gust, Seeing, Transparency]
                 autorange: reversed
+                fixedrange: true
+                showgrid: false
+              yaxis2:
+                # The card overlays extra y-axes on the first by default; the lanes need their own band.
+                overlaying: free
+                side: left
+                anchor: x
+                domain: $ex [0, vars.split]
+                type: category
+                categoryorder: array
+                categoryarray: $ex vars.lanes
+                range: $ex [vars.lanes.length - 0.5, -0.5]
                 fixedrange: true
                 showgrid: false
               shapes: |

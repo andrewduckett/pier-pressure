@@ -96,8 +96,35 @@ def _ranked_target(rank: int) -> Target:
     )
 
 
+# Keys Home Assistant's MQTT integration drops from a JSON attributes payload
+# (MQTT_ATTRIBUTES_BLOCKED in homeassistant/components/mqtt/entity.py, 2026.10).
+# The Target sensors publish ``available``, but a dashboard never sees it.
+_HA_BLOCKED_ATTRIBUTES = frozenset(
+    {
+        "available",
+        "device_info",
+        "entity_category",
+        "entity_id",
+        "entity_registry_enabled_default",
+        "extra_state_attributes",
+        "force_update",
+        "should_poll",
+        "state",
+        "unique_id",
+        "group_entities",
+        "assumed_state",
+        "device_class",
+        "entity_picture",
+        "friendly_name",
+        "icon",
+        "supported_features",
+        "unit_of_measurement",
+    }
+)
+
+
 def published_entities(pier: str = "backyard") -> dict[str, frozenset[str]]:
-    """Each entity id the adapter announces for ``pier``, with its attribute keys.
+    """Each entity id the adapter announces for ``pier``, with the attribute keys HA keeps.
 
     Every rank holds a target, so the rank payloads carry ``window``. The Verdict
     has no attributes builder: the adapter publishes the document without
@@ -148,7 +175,9 @@ def published_entities(pier: str = "backyard") -> dict[str, frozenset[str]]:
         for provider in (OpenMeteoProvider, SevenTimerProvider)
     ]
     return {
-        f"{domain}.{_slug(config['device']['name'] + ' ' + config['name'])}": frozenset(attrs)
+        f"{domain}.{_slug(config['device']['name'] + ' ' + config['name'])}": (
+            frozenset(attrs) - _HA_BLOCKED_ATTRIBUTES
+        )
         for domain, config, attrs in entries
     }
 
@@ -435,3 +464,48 @@ def test_strip_lines_mark_dusk_dawn_and_now(dashboard: dict[str, Any]) -> None:
     annotations = card["layout"]["annotations"]
     for label in ('"dusk"', '"dawn"', '"now"'):
         assert label in annotations
+
+
+def test_strip_lanes_read_every_rank_in_order(dashboard: dict[str, Any]) -> None:
+    targets = strip_card(dashboard)["pier_targets"]
+    assert re.findall(r'"(sensor\.pierpressure_backyard_target_\d+)"', targets) == [
+        f"sensor.pierpressure_backyard_target_{rank}" for rank in RANKS
+    ]
+    # An unavailable rank has no attributes in Home Assistant, so no window and no lane.
+    assert "t.state?.attributes?.window?.start && t.state?.attributes?.window?.end" in targets
+    assert "label: t.state.state" in targets
+
+
+def test_strip_lanes_put_moon_up_over_hours_above_the_horizon(dashboard: dict[str, Any]) -> None:
+    card = strip_card(dashboard)
+    assert "moon: hours.map((h) => [new Date(h), values[1].get(h)])" in card["pier_timeline"]
+    lanes = card["pier_lanes"]
+    assert "if (v == null || v <= 0) return;" in lanes
+    assert 'vars.lanes = ["Moon up", ...vars.targets.map((t) => t.lane)];' in lanes
+
+
+def test_strip_lanes_are_bars_on_their_own_axis(dashboard: dict[str, Any]) -> None:
+    card = strip_card(dashboard)
+    [bars] = _traces(card, "bar")
+    assert (bars["orientation"], bars["yaxis"]) == ("h", "y2")
+    assert bars["base"] == "$ex vars.bars.map((b) => b.start)"
+    yaxis2 = card["layout"]["yaxis2"]
+    assert yaxis2["categoryarray"] == "$ex vars.lanes"
+    assert yaxis2["overlaying"] == "free"
+
+
+def test_strip_lanes_keep_one_height_whatever_their_number(dashboard: dict[str, Any]) -> None:
+    card = strip_card(dashboard)
+    assert "rowsPx + lanePx * vars.lanes.length" in card["pier_lanes"]
+    assert card["layout"]["height"] == "$ex vars.height"
+    assert card["layout"]["yaxis2"]["domain"] == "$ex [0, vars.split]"
+
+
+def test_attribute_home_assistant_blocks_fails_even_when_published() -> None:
+    sample = (
+        "x: $ex ['sensor.pierpressure_backyard_target_1']"
+        ".filter(id => hass.states[id]?.attributes?.available)"
+    )
+    assert _problems_in(sample) == [
+        "sensor.pierpressure_backyard_target_1 does not publish attribute 'available'"
+    ]
