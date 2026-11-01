@@ -8,7 +8,7 @@ condition, with dusk, dawn, the moon and your targets on the same time line.
 The dashboard reads only the entities PierPressure already publishes. You paste
 it in once, and it updates itself.
 
-![The night dashboard: the Tonight and Moon cards, then the night strip with nine condition rows, a Moon up lane and ten target lanes, crossed by dusk, now and dawn lines](images/night-dashboard.png)
+![The night dashboard: the Tonight and Moon cards, then the night strip with nine rows of rounded hour cells, a Moon up lane and ten target lanes, crossed by dusk and dawn lines](images/night-dashboard.png)
 
 ## What the dashboard shows
 
@@ -26,7 +26,8 @@ The strip runs from 4 hours before dusk to 5 hours after dawn. Times are in
 your Home Assistant time zone. On a night with no astronomical darkness, it runs
 from 6 hours before now to 18 hours after.
 
-Each cell is one hour. Darker means more of what the row names:
+Each cell is one hour, drawn as a rounded block with a small gap to the next.
+Darker means more of what the row names:
 
 | Row | Lightest | Darkest |
 |---|---|---|
@@ -36,8 +37,8 @@ Each cell is one hour. Darker means more of what the row names:
 | Wind gust | Calm | Gusts of 42 km/h or more |
 | Seeing, Transparency | Excellent | Poor. For these two rows, darker means worse. |
 
-An empty cell means the weather source has no value for that hour. Hover over a
-cell to see its value.
+A blank space in a row means the weather source has no value for that hour.
+Hover over a cell to see its value.
 
 Under the rows, the **Moon up** lane has a bar for each stretch of hours when the
 moon is above the horizon. Each target lane has a bar from the start to the end
@@ -170,6 +171,8 @@ views:
             time_zone: server
             pier_timeline: |
               $ex {
+                // The seven blues, lightest to darkest, that bands 0 to 6 are drawn in.
+                const blues = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"];
                 const ramp = (v, step) => Math.min(6, Math.floor(v / step));
                 const quality = (q) => Math.min(6, Math.round((1 - q) * 7));
                 // Top to bottom: row label, timeline sensor, unit, and the band 0 (lightest) to 6 (darkest).
@@ -192,18 +195,22 @@ views:
                 const clock = new Intl.DateTimeFormat(undefined, {
                   hour: "2-digit", minute: "2-digit", timeZone: hass.config.time_zone,
                 });
+                const hour = 60 * 60 * 1000, trim = 2 * 60 * 1000;
                 vars.strip = {
-                  // A value covers the hour that starts at its datetime, so its cell is centred on the half hour.
-                  x: hours.map((h) => new Date(Date.parse(h) + 30 * 60 * 1000)),
-                  y: rows.map(([label]) => label),
-                  z: rows.map(([, , , band], i) => hours.map((h) => {
-                    const v = values[i].get(h);
-                    return v == null ? null : band(v);
-                  })),
-                  text: rows.map(([, , unit], i) => hours.map((h) => {
-                    const v = values[i].get(h);
-                    return `${clock.format(new Date(h))}: ${v == null ? "no data" : `${v}${unit}`}`;
-                  })),
+                  // A value covers the hour that starts at its datetime. Each cell is a bar over that hour,
+                  // trimmed at both ends so neighbouring cells keep a gap. A null hour has no bar at all.
+                  cells: rows.flatMap(([label, , unit, band], i) => hours
+                    .filter((h) => values[i].get(h) != null)
+                    .map((h) => {
+                      const v = values[i].get(h);
+                      return {
+                        y: label,
+                        base: new Date(Date.parse(h) + trim),
+                        x: hour - 2 * trim,
+                        color: blues[band(v)],
+                        text: `${clock.format(new Date(h))}: ${v}${unit}`,
+                      };
+                    })),
                   moon: hours.map((h) => [new Date(h), values[1].get(h)]),
                 };
               }
@@ -259,34 +266,19 @@ views:
             entities:
               - entity: ""
                 name: Night strip
-                type: heatmap
+                type: bar
+                orientation: h
                 yaxis: y
-                x: $ex vars.strip.x
-                y: $ex vars.strip.y
-                z: $ex vars.strip.z
-                text: $ex vars.strip.text
-                zmin: -0.5
-                zmax: 6.5
-                showscale: false
-                xgap: 1
-                ygap: 2
-                hoverongaps: false
+                y: $ex vars.strip.cells.map((c) => c.y)
+                base: $ex vars.strip.cells.map((c) => c.base)
+                x: $ex vars.strip.cells.map((c) => c.x)
+                width: 0.85
+                text: $ex vars.strip.cells.map((c) => c.text)
+                textposition: none
+                marker:
+                  color: $ex vars.strip.cells.map((c) => c.color)
+                  cornerradius: 2
                 hovertemplate: "%{y}, the hour from %{text}<extra></extra>"
-                colorscale:
-                  - [0, "#cde2fb"]
-                  - [0.1428, "#cde2fb"]
-                  - [0.1428, "#9ec5f4"]
-                  - [0.2857, "#9ec5f4"]
-                  - [0.2857, "#6da7ec"]
-                  - [0.4285, "#6da7ec"]
-                  - [0.4285, "#3987e5"]
-                  - [0.5714, "#3987e5"]
-                  - [0.5714, "#256abf"]
-                  - [0.7142, "#256abf"]
-                  - [0.7142, "#184f95"]
-                  - [0.8571, "#184f95"]
-                  - [0.8571, "#0d366b"]
-                  - [1, "#0d366b"]
               - entity: ""
                 name: Lanes
                 type: bar
@@ -301,11 +293,13 @@ views:
                 marker:
                   color: >-
                     $ex vars.bars.map((b) => (b.lane === "Moon up" ? "#898781" : "#6250d6"))
+                  cornerradius: 4
                 hovertemplate: "%{text}<extra></extra>"
             layout:
               height: $ex vars.height
               margin: { t: 30, b: 50, l: 100, r: 10 }
               showlegend: false
+              barmode: overlay
               bargap: 0.25
               xaxis:
                 type: date
@@ -317,14 +311,15 @@ views:
                 type: category
                 categoryorder: array
                 categoryarray: [Sun altitude, Moon altitude, Cloud cover, Cloud low, Cloud mid, Cloud high, Wind gust, Seeing, Transparency]
-                autorange: reversed
+                # Top to bottom, fixed, so a row with no data keeps its label.
+                range: [8.5, -0.5]
                 fixedrange: true
                 showgrid: false
               yaxis2:
                 # The card overlays extra y-axes on the first by default; the lanes need their own band.
                 overlaying: free
                 # Offline there is no timeline, so no Moon up lane to label.
-                visible: $ex vars.strip.x.length > 0
+                visible: $ex vars.strip.moon.length > 0
                 side: left
                 anchor: x
                 domain: $ex [0, vars.split]

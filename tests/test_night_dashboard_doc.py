@@ -391,6 +391,11 @@ def _traces(card: dict[str, Any], kind: str) -> list[dict[str, Any]]:
     return [e for e in card["entities"] if e.get("type") == kind]
 
 
+def _trace_on(card: dict[str, Any], axis: str) -> dict[str, Any]:
+    [trace] = [e for e in card["entities"] if e.get("yaxis") == axis]
+    return trace
+
+
 def test_strip_rows_are_the_nine_timeline_sensors_in_order(dashboard: dict[str, Any]) -> None:
     rows = _ROW.findall(strip_card(dashboard)["pier_timeline"])
     assert [label for label, _ in rows] == _ROW_LABELS
@@ -399,32 +404,49 @@ def test_strip_rows_are_the_nine_timeline_sensors_in_order(dashboard: dict[str, 
     ]
 
 
-def test_strip_rows_read_forecast_into_one_heatmap(dashboard: dict[str, Any]) -> None:
+def test_strip_rows_read_forecast_into_one_bar_trace(dashboard: dict[str, Any]) -> None:
     card = strip_card(dashboard)
     assert ".attributes?.forecast" in card["pier_timeline"]
-    [heatmap] = _traces(card, "heatmap")
-    assert heatmap["entity"] == ""
-    assert (heatmap["x"], heatmap["y"], heatmap["z"]) == (
-        "$ex vars.strip.x",
-        "$ex vars.strip.y",
-        "$ex vars.strip.z",
+    assert _traces(card, "heatmap") == []
+    rows = _trace_on(card, "y")
+    assert (rows["entity"], rows["type"], rows["orientation"]) == ("", "bar", "h")
+    assert (rows["y"], rows["base"], rows["x"]) == (
+        "$ex vars.strip.cells.map((c) => c.y)",
+        "$ex vars.strip.cells.map((c) => c.base)",
+        "$ex vars.strip.cells.map((c) => c.x)",
     )
+    timeline = card["pier_timeline"]
+    assert "y: label" in timeline
+    assert "base: new Date(Date.parse(h) + trim)" in timeline
+    assert "x: hour - 2 * trim" in timeline
     assert card["layout"]["yaxis"]["categoryarray"] == _ROW_LABELS
 
 
-def test_strip_rows_centre_each_cell_and_leave_a_null_as_a_gap(dashboard: dict[str, Any]) -> None:
+def test_strip_rows_keep_all_nine_labels_when_a_row_has_no_data(dashboard: dict[str, Any]) -> None:
+    # A row with every hour null has no bar, so autorange would fit the axis to the other rows.
+    yaxis = strip_card(dashboard)["layout"]["yaxis"]
+    assert yaxis["range"] == [len(_ROW_LABELS) - 0.5, -0.5]
+    assert "autorange" not in yaxis
+
+
+def test_strip_rows_trim_each_cell_and_leave_a_null_as_a_gap(dashboard: dict[str, Any]) -> None:
     card = strip_card(dashboard)
-    assert "Date.parse(h) + 30 * 60 * 1000" in card["pier_timeline"]
-    assert "v == null ? null : band(v)" in card["pier_timeline"]
-    [heatmap] = _traces(card, "heatmap")
-    assert heatmap["hoverongaps"] is False
+    timeline = card["pier_timeline"]
+    assert "trim = 2 * 60 * 1000" in timeline
+    # A null hour is dropped before the trace sees it, so it draws no bar and hover finds nothing.
+    assert ".filter((h) => values[i].get(h) != null)" in timeline
+    assert "no data" not in timeline
+    assert "hoverongaps" not in _trace_on(card, "y")
 
 
 def test_strip_rows_shade_on_the_seven_step_ramp(dashboard: dict[str, Any]) -> None:
-    [heatmap] = _traces(strip_card(dashboard), "heatmap")
-    colours = list(dict.fromkeys(colour for _, colour in heatmap["colorscale"]))
-    assert colours == _RAMP
-    assert (heatmap["zmin"], heatmap["zmax"]) == (-0.5, 6.5)
+    card = strip_card(dashboard)
+    timeline = card["pier_timeline"]
+    blues = re.search(r"const blues = \[([^\]]+)\]", timeline)
+    assert blues is not None
+    assert re.findall(r'"(#[0-9a-f]{6})"', blues.group(1)) == _RAMP
+    assert "color: blues[band(v)]" in timeline
+    assert _trace_on(card, "y")["marker"]["color"] == "$ex vars.strip.cells.map((c) => c.color)"
 
 
 def test_strip_axis_spans_tonight_in_home_assistant_time(dashboard: dict[str, Any]) -> None:
@@ -479,12 +501,21 @@ def test_strip_lanes_put_moon_up_over_hours_above_the_horizon(dashboard: dict[st
 
 def test_strip_lanes_are_bars_on_their_own_axis(dashboard: dict[str, Any]) -> None:
     card = strip_card(dashboard)
-    [bars] = _traces(card, "bar")
-    assert (bars["orientation"], bars["yaxis"]) == ("h", "y2")
+    bars = _trace_on(card, "y2")
+    assert (bars["type"], bars["orientation"]) == ("bar", "h")
     assert bars["base"] == "$ex vars.bars.map((b) => b.start)"
     yaxis2 = card["layout"]["yaxis2"]
     assert yaxis2["categoryarray"] == "$ex vars.lanes"
     assert yaxis2["overlaying"] == "free"
+
+
+def test_strip_cells_and_lane_bars_have_rounded_corners(dashboard: dict[str, Any]) -> None:
+    card = strip_card(dashboard)
+    rows, lanes = _trace_on(card, "y"), _trace_on(card, "y2")
+    assert (rows["marker"]["cornerradius"], rows["width"]) == (2, 0.85)
+    assert lanes["marker"]["cornerradius"] == 4
+    # Overlay keeps cells on the same row at their own base, not grouped side by side.
+    assert card["layout"]["barmode"] == "overlay"
 
 
 def test_strip_lanes_keep_one_height_whatever_their_number(dashboard: dict[str, Any]) -> None:
@@ -609,9 +640,10 @@ def test_install_steps_say_how_home_assistant_writes_the_pier_id(page_before_yam
 
 def test_strip_rows_hover_with_the_start_of_the_hour(dashboard: dict[str, Any]) -> None:
     card = strip_card(dashboard)
-    [heatmap] = _traces(card, "heatmap")
-    # x is the cell's centre, half an hour after the hour the value is for.
-    assert "%{x" not in heatmap["hovertemplate"]
+    rows = _trace_on(card, "y")
+    # x is the cell's length, not the hour the value is for.
+    assert "%{x" not in rows["hovertemplate"]
+    assert rows["text"] == "$ex vars.strip.cells.map((c) => c.text)"
     assert "timeZone: hass.config.time_zone" in card["pier_timeline"]
     assert "clock.format(new Date(h))" in card["pier_timeline"]
 
@@ -619,4 +651,4 @@ def test_strip_rows_hover_with_the_start_of_the_hour(dashboard: dict[str, Any]) 
 def test_strip_lanes_are_hidden_without_a_timeline(dashboard: dict[str, Any]) -> None:
     # Offline, Home Assistant drops the forecast, and the strip shows no lane at all.
     yaxis2 = strip_card(dashboard)["layout"]["yaxis2"]
-    assert yaxis2["visible"] == "$ex vars.strip.x.length > 0"
+    assert yaxis2["visible"] == "$ex vars.strip.moon.length > 0"
