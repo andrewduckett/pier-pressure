@@ -26,7 +26,7 @@ services:
 
   # Optional: run PierPressure against the local broker. Enable with `mise run up`.
   # Needs a ./config.yaml pointing mqtt.host at "mosquitto"; the dashboard check
-  # names its own through PIERPRESSURE_CONFIG.
+  # names its own through PIERPRESSURE_HOST_CONFIG.
   pierpressure:
     profiles: ["full", "dashboard"]
     build:
@@ -37,7 +37,7 @@ services:
       mosquitto:
         condition: service_healthy
     volumes:
-      - ${PIERPRESSURE_CONFIG:-./config.yaml}:/app/config.yaml:ro
+      - ${PIERPRESSURE_HOST_CONFIG:-./config.yaml}:/app/config.yaml:ro
     environment:
       PIERPRESSURE_MQTT_PASSWORD: "${PIERPRESSURE_MQTT_PASSWORD:-}"
 

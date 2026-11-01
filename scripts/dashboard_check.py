@@ -261,7 +261,7 @@ def add_mqtt_integration(token: str) -> None:
 
 def _compose(*args: str) -> None:
     command = ["docker", "compose", "--profile", "dashboard", *args]
-    env_config = {"PIERPRESSURE_CONFIG": str(WORKDIR / "pierpressure.yaml")}
+    env_config = {"PIERPRESSURE_HOST_CONFIG": str(WORKDIR / "pierpressure.yaml")}
     subprocess.run(command, cwd=ROOT, check=True, env={**os.environ, **env_config})
 
 
