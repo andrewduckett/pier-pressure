@@ -189,6 +189,9 @@ views:
                 const forecasts = rows.map(([, id]) => hass.states[id]?.attributes?.forecast ?? []);
                 const hours = [...new Set(forecasts.flat().map((p) => p.datetime))].sort();
                 const values = forecasts.map((f) => new Map(f.map((p) => [p.datetime, p.value])));
+                const clock = new Intl.DateTimeFormat(undefined, {
+                  hour: "2-digit", minute: "2-digit", timeZone: hass.config.time_zone,
+                });
                 vars.strip = {
                   // A value covers the hour that starts at its datetime, so its cell is centred on the half hour.
                   x: hours.map((h) => new Date(Date.parse(h) + 30 * 60 * 1000)),
@@ -199,7 +202,7 @@ views:
                   })),
                   text: rows.map(([, , unit], i) => hours.map((h) => {
                     const v = values[i].get(h);
-                    return v == null ? "no data" : `${v}${unit}`;
+                    return `${clock.format(new Date(h))}: ${v == null ? "no data" : `${v}${unit}`}`;
                   })),
                   moon: hours.map((h) => [new Date(h), values[1].get(h)]),
                 };
@@ -268,7 +271,7 @@ views:
                 xgap: 1
                 ygap: 2
                 hoverongaps: false
-                hovertemplate: "%{y} %{x|%H:%M}: %{text}<extra></extra>"
+                hovertemplate: "%{y}, the hour from %{text}<extra></extra>"
                 colorscale:
                   - [0, "#cde2fb"]
                   - [0.1428, "#cde2fb"]

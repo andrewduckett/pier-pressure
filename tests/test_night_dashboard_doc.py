@@ -614,3 +614,12 @@ def test_page_names_the_versions_it_was_checked_against() -> None:
 def test_install_steps_say_how_home_assistant_writes_the_pier_id(page_before_yaml: str) -> None:
     text = " ".join(page_before_yaml.split())
     assert "sensor.pierpressure_back_yard_verdict" in text
+
+
+def test_strip_rows_hover_with_the_start_of_the_hour(dashboard: dict[str, Any]) -> None:
+    card = strip_card(dashboard)
+    [heatmap] = _traces(card, "heatmap")
+    # x is the cell's centre, half an hour after the hour the value is for.
+    assert "%{x" not in heatmap["hovertemplate"]
+    assert "timeZone: hass.config.time_zone" in card["pier_timeline"]
+    assert "clock.format(new Date(h))" in card["pier_timeline"]
