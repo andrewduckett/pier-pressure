@@ -12,7 +12,7 @@
 
 ## 2. Health carries variables [depends-on: 1]
 
-- [ ] 2.1 [medium] `Role` is removed; `ProviderInfo`, `FetchOutcome` and `ProviderHealth` carry `variables`; `health_attributes` emits `variables` as a list of timeline keys where `role` was, with every other key and its order unchanged, and the startup reset publishes it; `Service` seeds health from `ProviderInfo` without a role (verify: uv run pytest tests/test_health.py tests/test_health_delivery.py tests/test_service.py tests/test_service_reconnect.py tests/test_reconnect.py tests/test_replay.py tests/test_night_dashboard_doc.py)
+- [x] 2.1 [medium] `Role` is removed; `ProviderInfo`, `FetchOutcome` and `ProviderHealth` carry `variables`; `health_attributes` emits `variables` as a list of timeline keys where `role` was, with every other key and its order unchanged, and the startup reset publishes it; `Service` seeds health from `ProviderInfo` without a role (verify: uv run pytest tests/test_health.py tests/test_health_delivery.py tests/test_service.py tests/test_service_reconnect.py tests/test_reconnect.py tests/test_replay.py tests/test_night_dashboard_doc.py) (✓ the verify command passed, 166 passed with test_conditions_provider.py)
 
 ## 3. The provider layer fills per variable [depends-on: 2]
 

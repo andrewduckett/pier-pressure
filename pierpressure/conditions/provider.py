@@ -27,7 +27,7 @@ from typing import Protocol
 from pierpressure.core.conditions import Conditions, Series, Variable
 from pierpressure.core.config import PierConfig
 from pierpressure.core.providers import OPEN_METEO, SEVEN_TIMER, ProviderSpec
-from pierpressure.health import NO_READINGS, FetchOutcome, ProviderInfo, Role, describe_error
+from pierpressure.health import NO_READINGS, FetchOutcome, ProviderInfo, describe_error
 
 logger = logging.getLogger(__name__)
 
@@ -146,22 +146,24 @@ class CompositeProvider:
 
     @property
     def providers(self) -> tuple[ProviderInfo, ...]:
-        """Each source's key, display name, and role, in fetch order."""
+        """Each source's key, display name, and declared variables, in fetch order."""
         return (
-            ProviderInfo(key=self.base.key, name=self.base.name, role="base"),
-            ProviderInfo(key=self.secondary.key, name=self.secondary.name, role="secondary"),
+            ProviderInfo(key=self.base.key, name=self.base.name, variables=OPEN_METEO.variables),
+            ProviderInfo(
+                key=self.secondary.key, name=self.secondary.name, variables=SEVEN_TIMER.variables
+            ),
         )
 
     def get(self, pier: PierConfig) -> FetchResult:
-        base, base_outcome = self._safe_fetch(self.base, pier, "base")
-        secondary, secondary_outcome = self._safe_fetch(self.secondary, pier, "secondary")
+        base, base_outcome = self._safe_fetch(self.base, pier, OPEN_METEO.variables)
+        secondary, secondary_outcome = self._safe_fetch(self.secondary, pier, SEVEN_TIMER.variables)
         return FetchResult(
             conditions=assemble_snapshot(base, secondary),
             outcomes=(base_outcome, secondary_outcome),
         )
 
     def _safe_fetch(
-        self, provider: Provider, pier: PierConfig, role: Role
+        self, provider: Provider, pier: PierConfig, variables: tuple[str, ...]
     ) -> tuple[SourceForecast, FetchOutcome]:
         """Fetch one source; a failure or an empty forecast is a failed outcome.
 
@@ -173,7 +175,7 @@ class CompositeProvider:
         try:
             forecast = provider.fetch(pier)
         except Exception as exc:  # noqa: BLE001 - a failed source degrades, never fails
-            logger.warning("conditions %s source failed: %s", role, exc)
+            logger.warning("conditions provider %s failed: %s", provider.key, exc)
             forecast, error = SourceForecast(), describe_error(exc)
         else:
             if forecast.is_empty:
@@ -181,7 +183,7 @@ class CompositeProvider:
         return forecast, FetchOutcome(
             key=provider.key,
             name=provider.name,
-            role=role,
+            variables=variables,
             fetched_at=fetched_at,
             ok=error is None,
             error=error,

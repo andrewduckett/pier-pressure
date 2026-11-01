@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from pierpressure.core.model import Verdict
+from pierpressure.core.providers import OPEN_METEO
 from pierpressure.delivery.mqtt import MqttDelivery, availability_topic, verdict_state_topic
 from pierpressure.health import ProviderHealth
 
@@ -22,7 +23,7 @@ def _health() -> ProviderHealth:
     return ProviderHealth.empty(
         key="open_meteo",
         name="Open-Meteo",
-        role="base",
+        variables=OPEN_METEO.variables,
         tracking_since=datetime(2026, 10, 5, 9, 0, tzinfo=UTC),
     )
 

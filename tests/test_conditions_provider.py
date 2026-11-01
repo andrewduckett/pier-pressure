@@ -19,6 +19,7 @@ from pierpressure.conditions.provider import (
 )
 from pierpressure.conditions.seven_timer import SevenTimerProvider, parse_seven_timer
 from pierpressure.core.conditions import Conditions
+from pierpressure.core.providers import OPEN_METEO, SEVEN_TIMER
 from pierpressure.health import FetchOutcome, ProviderInfo, describe_error
 
 from .conftest import make_pier
@@ -436,10 +437,10 @@ def _composite(base: _StubProvider, secondary: _StubProvider) -> CompositeProvid
     return CompositeProvider(base=base, secondary=secondary, now=lambda: _FETCHED)
 
 
-def test_build_provider_exposes_each_providers_key_name_and_role() -> None:
+def test_build_provider_exposes_each_providers_key_name_and_variables() -> None:
     assert build_provider().providers == (
-        ProviderInfo(key="open_meteo", name="Open-Meteo", role="base"),
-        ProviderInfo(key="seven_timer", name="7Timer!", role="secondary"),
+        ProviderInfo(key="open_meteo", name="Open-Meteo", variables=OPEN_METEO.variables),
+        ProviderInfo(key="seven_timer", name="7Timer!", variables=SEVEN_TIMER.variables),
     )
 
 
@@ -452,10 +453,20 @@ def test_get_returns_the_same_conditions_and_one_outcome_per_provider() -> None:
     assert result.conditions == assemble_snapshot(_BASE_FORECAST, _SECONDARY_FORECAST)
     assert result.outcomes == (
         FetchOutcome(
-            key="b", name="B", role="base", fetched_at=_FETCHED, ok=True, issued_at=_hour(18)
+            key="b",
+            name="B",
+            variables=OPEN_METEO.variables,
+            fetched_at=_FETCHED,
+            ok=True,
+            issued_at=_hour(18),
         ),
         FetchOutcome(
-            key="s", name="S", role="secondary", fetched_at=_FETCHED, ok=True, issued_at=_hour(17)
+            key="s",
+            name="S",
+            variables=SEVEN_TIMER.variables,
+            fetched_at=_FETCHED,
+            ok=True,
+            issued_at=_hour(17),
         ),
     )
 

@@ -14,6 +14,7 @@ from datetime import UTC, datetime, timedelta, timezone
 import jsonschema
 import pytest
 
+from pierpressure.core.providers import OPEN_METEO, SEVEN_TIMER
 from pierpressure.delivery.ha_schema import SENSOR_SCHEMA
 from pierpressure.delivery.mqtt import (
     PAYLOAD_OFFLINE,
@@ -41,14 +42,16 @@ _ISSUED = datetime(2026, 10, 5, 11, 0, tzinfo=UTC)
 
 
 def _empty(key: str = "open_meteo", name: str = "Open-Meteo") -> ProviderHealth:
-    return ProviderHealth.empty(key=key, name=name, role="base", tracking_since=_START)
+    return ProviderHealth.empty(
+        key=key, name=name, variables=OPEN_METEO.variables, tracking_since=_START
+    )
 
 
 def _failing_after_success() -> ProviderHealth:
     return ProviderHealth(
         key="open_meteo",
         name="Open-Meteo",
-        role="base",
+        variables=OPEN_METEO.variables,
         tracking_since=_START,
         status="failed",
         last_fetch=_FAILED,
@@ -108,7 +111,7 @@ def test_state_with_no_success_is_the_literal_none() -> None:
 def test_attributes_with_no_history_are_null() -> None:
     assert health_attributes(_empty()) == {
         "provider": "Open-Meteo",
-        "role": "base",
+        "variables": list(OPEN_METEO.variables),
         "tracking_since": "2026-10-05T09:00:00+00:00",
         "status": None,
         "last_fetch": None,
@@ -117,10 +120,31 @@ def test_attributes_with_no_history_are_null() -> None:
     }
 
 
+def test_the_attributes_list_the_providers_variables_and_no_role() -> None:
+    health = ProviderHealth.empty(
+        key="seven_timer",
+        name="7Timer!",
+        variables=SEVEN_TIMER.variables,
+        tracking_since=_START,
+    )
+    attributes = health_attributes(health)
+    assert attributes["variables"] == ["seeing", "transparency"]
+    assert "role" not in attributes
+    assert list(attributes) == [
+        "provider",
+        "variables",
+        "tracking_since",
+        "status",
+        "last_fetch",
+        "last_error",
+        "issued_at",
+    ]
+
+
 def test_attributes_after_a_failure_keep_the_earlier_issue_time() -> None:
     assert health_attributes(_failing_after_success()) == {
         "provider": "Open-Meteo",
-        "role": "base",
+        "variables": list(OPEN_METEO.variables),
         "tracking_since": "2026-10-05T09:00:00+00:00",
         "status": "failed",
         "last_fetch": "2026-10-05T18:00:00+00:00",
@@ -183,7 +207,7 @@ def test_times_are_rendered_in_utc_whatever_their_offset() -> None:
     health = ProviderHealth.empty(
         key="open_meteo",
         name="Open-Meteo",
-        role="base",
+        variables=OPEN_METEO.variables,
         tracking_since=datetime(2026, 10, 5, 11, 0, tzinfo=plus_two),
     )
     assert health_attributes(health)["tracking_since"] == "2026-10-05T09:00:00+00:00"
@@ -191,7 +215,10 @@ def test_times_are_rendered_in_utc_whatever_their_offset() -> None:
 
 def test_a_time_with_no_time_zone_is_rejected() -> None:
     health = ProviderHealth.empty(
-        key="open_meteo", name="Open-Meteo", role="base", tracking_since=datetime(2026, 10, 5)
+        key="open_meteo",
+        name="Open-Meteo",
+        variables=OPEN_METEO.variables,
+        tracking_since=datetime(2026, 10, 5),
     )
     with pytest.raises(ValueError, match="time zone"):
         health_attributes(health)

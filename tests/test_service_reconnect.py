@@ -13,6 +13,7 @@ from typing import Any
 
 from pierpressure.conditions import FetchResult
 from pierpressure.core.config import AppConfig, PierConfig, RecomputeConfig
+from pierpressure.core.providers import OPEN_METEO
 from pierpressure.delivery.mqtt import (
     PAYLOAD_ONLINE,
     MqttDelivery,
@@ -37,7 +38,7 @@ from .conftest import (
 )
 
 PIERS = ("a", "b")
-PROVIDERS = (ProviderInfo(key="open_meteo", name="Open-Meteo", role="base"),)
+PROVIDERS = (ProviderInfo(key="open_meteo", name="Open-Meteo", variables=OPEN_METEO.variables),)
 
 
 def _app_config(interval: int = 10) -> AppConfig:

@@ -168,7 +168,10 @@ class Service:
         for pier in self._config.piers:
             self._health[pier.id] = {
                 info.key: ProviderHealth.empty(
-                    key=info.key, name=info.name, role=info.role, tracking_since=tracking_since
+                    key=info.key,
+                    name=info.name,
+                    variables=info.variables,
+                    tracking_since=tracking_since,
                 )
                 for info in self._providers
             }

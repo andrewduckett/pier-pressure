@@ -616,10 +616,10 @@ def health_state(health: ProviderHealth) -> str:
 
 
 def health_attributes(health: ProviderHealth) -> dict[str, Any]:
-    """The JSON attributes: the provider, its role, and the latest fetch."""
+    """The JSON attributes: the provider, its declared variables, and the latest fetch."""
     return {
         "provider": health.name,
-        "role": health.role,
+        "variables": list(health.variables),
         "tracking_since": _iso(health.tracking_since),
         "status": health.status,
         "last_fetch": _iso(health.last_fetch),
