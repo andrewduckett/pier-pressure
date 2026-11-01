@@ -391,6 +391,11 @@ def _traces(card: dict[str, Any], kind: str) -> list[dict[str, Any]]:
     return [e for e in card["entities"] if e.get("type") == kind]
 
 
+def _trace_on(card: dict[str, Any], axis: str) -> dict[str, Any]:
+    [trace] = [e for e in card["entities"] if e.get("yaxis") == axis]
+    return trace
+
+
 def test_strip_rows_are_the_nine_timeline_sensors_in_order(dashboard: dict[str, Any]) -> None:
     rows = _ROW.findall(strip_card(dashboard)["pier_timeline"])
     assert [label for label, _ in rows] == _ROW_LABELS
@@ -399,16 +404,21 @@ def test_strip_rows_are_the_nine_timeline_sensors_in_order(dashboard: dict[str, 
     ]
 
 
-def test_strip_rows_read_forecast_into_one_heatmap(dashboard: dict[str, Any]) -> None:
+def test_strip_rows_read_forecast_into_one_bar_trace(dashboard: dict[str, Any]) -> None:
     card = strip_card(dashboard)
     assert ".attributes?.forecast" in card["pier_timeline"]
-    [heatmap] = _traces(card, "heatmap")
-    assert heatmap["entity"] == ""
-    assert (heatmap["x"], heatmap["y"], heatmap["z"]) == (
-        "$ex vars.strip.x",
-        "$ex vars.strip.y",
-        "$ex vars.strip.z",
+    assert _traces(card, "heatmap") == []
+    rows = _trace_on(card, "y")
+    assert (rows["entity"], rows["type"], rows["orientation"]) == ("", "bar", "h")
+    assert (rows["y"], rows["base"], rows["x"]) == (
+        "$ex vars.strip.cells.map((c) => c.y)",
+        "$ex vars.strip.cells.map((c) => c.base)",
+        "$ex vars.strip.cells.map((c) => c.x)",
     )
+    timeline = card["pier_timeline"]
+    assert "y: label" in timeline
+    assert "base: new Date(Date.parse(h) + trim)" in timeline
+    assert "x: hour - 2 * trim" in timeline
     assert card["layout"]["yaxis"]["categoryarray"] == _ROW_LABELS
 
 
@@ -479,8 +489,8 @@ def test_strip_lanes_put_moon_up_over_hours_above_the_horizon(dashboard: dict[st
 
 def test_strip_lanes_are_bars_on_their_own_axis(dashboard: dict[str, Any]) -> None:
     card = strip_card(dashboard)
-    [bars] = _traces(card, "bar")
-    assert (bars["orientation"], bars["yaxis"]) == ("h", "y2")
+    bars = _trace_on(card, "y2")
+    assert (bars["type"], bars["orientation"]) == ("bar", "h")
     assert bars["base"] == "$ex vars.bars.map((b) => b.start)"
     yaxis2 = card["layout"]["yaxis2"]
     assert yaxis2["categoryarray"] == "$ex vars.lanes"
@@ -619,4 +629,4 @@ def test_strip_rows_hover_with_the_start_of_the_hour(dashboard: dict[str, Any]) 
 def test_strip_lanes_are_hidden_without_a_timeline(dashboard: dict[str, Any]) -> None:
     # Offline, Home Assistant drops the forecast, and the strip shows no lane at all.
     yaxis2 = strip_card(dashboard)["layout"]["yaxis2"]
-    assert yaxis2["visible"] == "$ex vars.strip.x.length > 0"
+    assert yaxis2["visible"] == "$ex vars.strip.moon.length > 0"

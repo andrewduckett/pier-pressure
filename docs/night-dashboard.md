@@ -192,17 +192,19 @@ views:
                 const clock = new Intl.DateTimeFormat(undefined, {
                   hour: "2-digit", minute: "2-digit", timeZone: hass.config.time_zone,
                 });
+                const hour = 60 * 60 * 1000, trim = 2 * 60 * 1000;
                 vars.strip = {
-                  // A value covers the hour that starts at its datetime, so its cell is centred on the half hour.
-                  x: hours.map((h) => new Date(Date.parse(h) + 30 * 60 * 1000)),
-                  y: rows.map(([label]) => label),
-                  z: rows.map(([, , , band], i) => hours.map((h) => {
+                  // A value covers the hour that starts at its datetime. Each cell is a bar over that hour,
+                  // trimmed at both ends so neighbouring cells keep a gap.
+                  cells: rows.flatMap(([label, , unit, band], i) => hours.map((h) => {
                     const v = values[i].get(h);
-                    return v == null ? null : band(v);
-                  })),
-                  text: rows.map(([, , unit], i) => hours.map((h) => {
-                    const v = values[i].get(h);
-                    return `${clock.format(new Date(h))}: ${v == null ? "no data" : `${v}${unit}`}`;
+                    return {
+                      y: label,
+                      base: new Date(Date.parse(h) + trim),
+                      x: hour - 2 * trim,
+                      band: v == null ? null : band(v),
+                      text: `${clock.format(new Date(h))}: ${v == null ? "no data" : `${v}${unit}`}`,
+                    };
                   })),
                   moon: hours.map((h) => [new Date(h), values[1].get(h)]),
                 };
@@ -259,34 +261,16 @@ views:
             entities:
               - entity: ""
                 name: Night strip
-                type: heatmap
+                type: bar
+                orientation: h
                 yaxis: y
-                x: $ex vars.strip.x
-                y: $ex vars.strip.y
-                z: $ex vars.strip.z
-                text: $ex vars.strip.text
-                zmin: -0.5
-                zmax: 6.5
-                showscale: false
-                xgap: 1
-                ygap: 2
+                y: $ex vars.strip.cells.map((c) => c.y)
+                base: $ex vars.strip.cells.map((c) => c.base)
+                x: $ex vars.strip.cells.map((c) => c.x)
+                text: $ex vars.strip.cells.map((c) => c.text)
+                textposition: none
                 hoverongaps: false
                 hovertemplate: "%{y}, the hour from %{text}<extra></extra>"
-                colorscale:
-                  - [0, "#cde2fb"]
-                  - [0.1428, "#cde2fb"]
-                  - [0.1428, "#9ec5f4"]
-                  - [0.2857, "#9ec5f4"]
-                  - [0.2857, "#6da7ec"]
-                  - [0.4285, "#6da7ec"]
-                  - [0.4285, "#3987e5"]
-                  - [0.5714, "#3987e5"]
-                  - [0.5714, "#256abf"]
-                  - [0.7142, "#256abf"]
-                  - [0.7142, "#184f95"]
-                  - [0.8571, "#184f95"]
-                  - [0.8571, "#0d366b"]
-                  - [1, "#0d366b"]
               - entity: ""
                 name: Lanes
                 type: bar
@@ -324,7 +308,7 @@ views:
                 # The card overlays extra y-axes on the first by default; the lanes need their own band.
                 overlaying: free
                 # Offline there is no timeline, so no Moon up lane to label.
-                visible: $ex vars.strip.x.length > 0
+                visible: $ex vars.strip.moon.length > 0
                 side: left
                 anchor: x
                 domain: $ex [0, vars.split]
