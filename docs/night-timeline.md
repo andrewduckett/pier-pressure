@@ -22,7 +22,7 @@ Each entry has the same keys, always present:
 | `temperature`, `dew_point` | Air temperature and dew point 2 m above the ground, in °C, from Open-Meteo. |
 | `humidity` | Relative humidity 2 m above the ground, in percent, from Open-Meteo. |
 | `wind_speed`, `wind_direction` | The forecast wind 10 m above the ground: speed in km/h, and the direction it blows from in degrees, from Open-Meteo. |
-| `precipitation_probability` | The chance of rain or snow in that hour, in percent, from Open-Meteo. |
+| `precipitation_probability` | The chance of more than 0.1 mm of rain or snow in the hour that ends at `time`, in percent, from Open-Meteo. Unlike the other values, it is for the hour before `time`, not the hour that starts at it. |
 
 A weather value is `null` when its source has no data for that hour. The sun and
 moon altitudes are always present.
@@ -53,7 +53,7 @@ value's key. For a pier called `backyard`, the Cloud cover sensor is
 | `sensor.pierpressure_<pier>_humidity` | % | The forecast relative humidity |
 | `sensor.pierpressure_<pier>_wind_speed` | km/h | The forecast wind speed |
 | `sensor.pierpressure_<pier>_wind_direction` | ° | The direction the wind blows from |
-| `sensor.pierpressure_<pier>_precipitation_probability` | % | The chance of rain or snow |
+| `sensor.pierpressure_<pier>_precipitation_probability` | % | The chance of rain or snow in the hour that ends at the start of the current hour |
 
 Every timeline sensor works the same way:
 
