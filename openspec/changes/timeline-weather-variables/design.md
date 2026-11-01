@@ -13,10 +13,13 @@ so new keys go at the end of the class. `Degrees` and `Quality` are rounding
 validators; `cloud_cover` and `wind_gust` are plain `float | None` and pass
 through unrounded.
 
-The pins that will move: `tests/test_timeline_sensors.py` lists the eight
-further keys and their names, units and icons; `tests/test_timeline_docs.py`
-lists the keys and names the docs must mention; the golden documents under
-`tests/fixtures/golden/expected/` hold the serialized timeline. The message
+The pins that will move: `tests/test_model.py` holds the entry key order in
+`TIMELINE_ENTRY_KEY_ORDER` and probes the extra-key guard with `dew_point`;
+`tests/test_timeline_sensors.py` lists the eight further keys and their names,
+units and icons, and a literal list of the keys that carry a unit;
+`tests/test_timeline_docs.py` lists the keys, names and units the docs must
+mention; the golden documents under `tests/fixtures/golden/expected/` hold the
+serialized timeline. The message
 pin in `tests/test_rank_targets.py` filters by `TIMELINE_SENSORS`, so it
 follows the table without an edit. `make_timeline` in `tests/conftest.py`
 builds entries with every field filled.
@@ -45,8 +48,9 @@ builds entries with every field filled.
   with the six keys added to its parametrized key lists.
 - **Existing seams reused:** `parse_open_meteo` against
   `tests/fixtures/open_meteo.json` and `assemble_snapshot` in
-  `tests/test_conditions_provider.py`; `produce_verdict` in
-  `tests/test_producer_timeline.py` for the entry keys, order and passthrough;
+  `tests/test_conditions_provider.py`; `TimelineEntry` in `tests/test_model.py`
+  for the entry keys and their order; `produce_verdict` in
+  `tests/test_producer_timeline.py` for the passthrough from a `BaseHour`;
   `tests/test_golden_verdict.py` for the regenerated goldens;
   `tests/test_timeline_docs.py` for the docs guards.
 
@@ -58,7 +62,8 @@ builds entries with every field filled.
 - **Blast radius:** `pierpressure/conditions/open_meteo.py`,
   `pierpressure/conditions/provider.py`, `pierpressure/core/conditions.py`,
   `pierpressure/core/model.py`, `pierpressure/core/producer.py`,
-  `pierpressure/delivery/mqtt.py`; the golden fixtures; `README.md` and
+  `pierpressure/delivery/mqtt.py`; `tests/test_model.py` and the other test
+  pins named in Context; the golden fixtures; `README.md` and
   `docs/night-timeline.md`. The scoring, ranking and astronomy modules are
   untouched.
 
@@ -114,8 +119,10 @@ never sets one. Appending keeps the first nine sensors' publish positions
 ### DD4: The recorded parser fixture gains the six arrays; the golden input does not
 
 `tests/fixtures/open_meteo.json` gains the six hourly arrays and their
-`hourly_units`, including a null value, so the parser tests prove the index
-guard and the null path. `tests/fixtures/golden/open_meteo_full.json` stays as
+`hourly_units`, including a null value, so the parser tests prove the null
+path. A further parser test feeds a payload with one weather array absent from
+`hourly`, and asserts that field is `None` for every hour while the others keep
+their values, so the index guard is proven for the absent-array case too. `tests/fixtures/golden/open_meteo_full.json` stays as
 recorded, so the regenerated goldens carry the six keys as null in every entry.
 The passthrough of real values is proven in `tests/test_producer_timeline.py`,
 with a `BaseHour` built in the test.
@@ -132,10 +139,17 @@ six null keys per timeline entry.
 
 ### DD6: Test pins widen to the fourteen keys
 
+- `tests/test_model.py`: `TIMELINE_ENTRY_KEY_ORDER` gains the six keys in
+  order, which pins the modified fixed-shape scenario. The extra-key probe in
+  `test_timeline_entry_rejects_unknown_keys` moves from `dew_point` to a key
+  outside the schema, such as `pressure`.
 - `tests/test_timeline_sensors.py`: `NEW_KEYS` gains the six keys and
   `NULLABLE_KEYS` includes them, so every parametrized scenario, including the
-  null-value ones, runs over them. The names-units-icons pin gains six rows.
-- `tests/test_timeline_docs.py`: its key and name lists gain the six.
+  null-value ones, runs over them. The names-units-icons pin gains six rows,
+  and the unit pin `test_a_timeline_discovery_carries_its_unit` gains the six
+  key-unit pairs.
+- `tests/test_timeline_docs.py`: its key and name lists gain the six, and the
+  unit check gains `°C`.
 - `tests/conftest.py`: `make_timeline` fills the six fields, so size and
   forecast-length scenarios run with every value present.
 
@@ -151,8 +165,8 @@ six null keys per timeline entry.
 ## Risks / Trade-offs
 
 - [Adding a key to `TimelineEntry` in the wrong place reorders the frozen
-  entry] → The modified fixed-shape scenario pins the first ten keys and the
-  six after them, in `tests/test_producer_timeline.py`.
+  entry] → `TIMELINE_ENTRY_KEY_ORDER` in `tests/test_model.py` pins the first
+  ten keys and the six after them.
 - [Open-Meteo omits an array for a location or model, such as
   `precipitation_probability` outside its coverage] → The index guard leaves
   that field `None`; the sensor shows unknown and its forecast is all null.
