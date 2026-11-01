@@ -17,7 +17,7 @@
 
 ## 4. Everything together [depends-on: 2, 3]
 
-- [ ] 4.1 [easy] The whole gate is green: lint, types and the full suite, including the dashboard doc check and the core boundary test (verify: `mise run check`)
+- [x] 4.1 [easy] The whole gate is green: lint, types and the full suite, including the dashboard doc check and the core boundary test (verify: `mise run check`) (✓ `mise run check` passed: 1588 passed)
 
 ## Deviations Ledger
 
