@@ -403,3 +403,35 @@ def test_strip_rows_shade_on_the_seven_step_ramp(dashboard: dict[str, Any]) -> N
     colours = list(dict.fromkeys(colour for _, colour in heatmap["colorscale"]))
     assert colours == _RAMP
     assert (heatmap["zmin"], heatmap["zmax"]) == (-0.5, 6.5)
+
+
+def test_strip_axis_spans_tonight_in_home_assistant_time(dashboard: dict[str, Any]) -> None:
+    card = strip_card(dashboard)
+    night = card["pier_night"]
+    assert 'hass.states["sensor.pierpressure_backyard_verdict"]?.attributes?.dark_window' in night
+    assert "vars.dusk.getTime() - 4 * hour" in night
+    assert "vars.dawn.getTime() + 5 * hour" in night
+    assert "vars.now.getTime() - 6 * hour" in night
+    assert "vars.now.getTime() + 18 * hour" in night
+    assert card["layout"]["xaxis"]["range"] == "$ex vars.range"
+    assert card["time_zone"] == "server"
+    assert card["refresh_interval"] == 300
+
+
+def test_strip_axis_falls_back_when_either_end_of_the_dark_window_is_null(
+    dashboard: dict[str, Any],
+) -> None:
+    night = strip_card(dashboard)["pier_night"]
+    assert "vars.dusk = night.start && night.end ? new Date(night.start) : null" in night
+    assert "vars.dawn = night.start && night.end ? new Date(night.end) : null" in night
+
+
+def test_strip_lines_mark_dusk_dawn_and_now(dashboard: dict[str, Any]) -> None:
+    card = strip_card(dashboard)
+    assert "vars.now = new Date()" in card["pier_night"]
+    shapes = card["layout"]["shapes"]
+    assert "(vars.dusk ? [vars.dusk, vars.dawn] : [])" in shapes
+    assert "x0: vars.now, x1: vars.now" in shapes
+    annotations = card["layout"]["annotations"]
+    for label in ('"dusk"', '"dawn"', '"now"'):
+        assert label in annotations

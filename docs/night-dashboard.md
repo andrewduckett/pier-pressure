@@ -20,6 +20,8 @@ views:
           - type: custom:plotly-graph
             grid_options:
               columns: full
+            refresh_interval: 300
+            time_zone: server
             pier_timeline: |
               $ex {
                 const ramp = (v, step) => Math.min(6, Math.floor(v / step));
@@ -54,6 +56,17 @@ views:
                     return v == null ? "no data" : `${v}${unit}`;
                   })),
                 };
+              }
+            pier_night: |
+              $ex {
+                const night = hass.states["sensor.pierpressure_backyard_verdict"]?.attributes?.dark_window ?? {};
+                const hour = 60 * 60 * 1000;
+                vars.now = new Date();
+                vars.dusk = night.start && night.end ? new Date(night.start) : null;
+                vars.dawn = night.start && night.end ? new Date(night.end) : null;
+                vars.range = vars.dusk
+                  ? [new Date(vars.dusk.getTime() - 4 * hour), new Date(vars.dawn.getTime() + 5 * hour)]
+                  : [new Date(vars.now.getTime() - 6 * hour), new Date(vars.now.getTime() + 18 * hour)];
               }
             entities:
               - entity: ""
@@ -92,6 +105,7 @@ views:
               showlegend: false
               xaxis:
                 type: date
+                range: $ex vars.range
               yaxis:
                 type: category
                 categoryorder: array
@@ -99,4 +113,22 @@ views:
                 autorange: reversed
                 fixedrange: true
                 showgrid: false
+              shapes: |
+                $ex [
+                  ...(vars.dusk ? [vars.dusk, vars.dawn] : []).map((x) => ({
+                    type: "line", xref: "x", yref: "paper", x0: x, x1: x, y0: 0, y1: 1,
+                    line: { color: "#898781", width: 2, dash: "dash" },
+                  })),
+                  { type: "line", xref: "x", yref: "paper", x0: vars.now, x1: vars.now, y0: 0, y1: 1,
+                    line: { color: "#e66767", width: 2 } },
+                ]
+              annotations: |
+                $ex [
+                  ...(vars.dusk ? [[vars.dusk, "dusk"], [vars.dawn, "dawn"]] : []).map(([x, text]) => ({
+                    x, text, xref: "x", yref: "paper", y: 1, yanchor: "bottom", showarrow: false,
+                    font: { color: "#898781", size: 11 },
+                  })),
+                  { x: vars.now, text: "now", xref: "x", yref: "paper", y: 1, yanchor: "bottom",
+                    showarrow: false, font: { color: "#e66767", size: 11 } },
+                ]
 ```
