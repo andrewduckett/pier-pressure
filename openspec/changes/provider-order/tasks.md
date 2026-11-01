@@ -40,3 +40,8 @@
   `test_producer_targets` to ordered `(spec, forecast)` pairs, and gave
   `CompositeProvider.get` a transitional two-pair call until 3.2. Task 4.2 then
   confirms the goldens and the whole gate.
+- 2026-11-01, code review fix 92e1664: when two providers declare different bundles,
+  a member an earlier provider already won stays with that provider, and the later
+  provider's bundle fills only the members still empty. Design D3's "every member
+  gets the same provider" holds whenever bundles agree, which is every case today's
+  catalog can produce. The spec's first-provider-wins rule decides the edge case.
