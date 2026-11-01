@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 import httpx
 import pytest
 
+from pierpressure.core.providers import OPEN_METEO
 from pierpressure.health import FetchOutcome, ProviderHealth, describe_error, fold
 
 _START = datetime(2026, 10, 5, 9, 0, tzinfo=UTC)
@@ -19,7 +20,7 @@ _LATITUDE = "51.5"
 
 def _empty() -> ProviderHealth:
     return ProviderHealth.empty(
-        key="open_meteo", name="Open-Meteo", role="base", tracking_since=_START
+        key="open_meteo", name="Open-Meteo", variables=OPEN_METEO.variables, tracking_since=_START
     )
 
 
@@ -33,7 +34,7 @@ def _outcome(
     return FetchOutcome(
         key="open_meteo",
         name="Open-Meteo",
-        role="base",
+        variables=OPEN_METEO.variables,
         fetched_at=fetched_at,
         ok=ok,
         error=error,
@@ -48,7 +49,11 @@ def _outcome(
 
 def test_an_empty_record_has_no_history() -> None:
     health = _empty()
-    assert (health.key, health.name, health.role) == ("open_meteo", "Open-Meteo", "base")
+    assert (health.key, health.name, health.variables) == (
+        "open_meteo",
+        "Open-Meteo",
+        OPEN_METEO.variables,
+    )
     assert health.tracking_since == _START
     assert health.status is None
     assert health.last_fetch is None

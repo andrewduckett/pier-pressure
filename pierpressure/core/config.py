@@ -35,6 +35,7 @@ from pydantic import (
 )
 
 from .horizon import Horizon, flat, from_points, open_sky, parse_horizon_text
+from .providers import CATALOG
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +75,48 @@ class RecomputeConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     interval_seconds: int = Field(gt=0)
+
+
+class ConditionsConfig(BaseModel):
+    """The conditions providers, preferred first (provider-order D7, ADR-0027).
+
+    Each variable is filled from the first provider in this order that returned
+    it. The checks run in the order below, and each names only the rule it broke
+    and the offending key, never another configuration value.
+    """
+
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+
+    providers: list[str] = Field(default_factory=lambda: ["open_meteo", "seven_timer"])
+
+    @field_validator("providers", mode="before")
+    @classmethod
+    def _null_is_absent(cls, providers: Any) -> Any:
+        # YAML reads an empty ``providers:`` line as null, which means "not given".
+        return ["open_meteo", "seven_timer"] if providers is None else providers
+
+    @field_validator("providers")
+    @classmethod
+    def _check_providers(cls, providers: list[str]) -> list[str]:
+        if not providers:
+            raise ValueError("the provider list must name at least one provider")
+        for key in providers:
+            if key not in CATALOG:
+                raise ValueError(f"{key} is not a known provider")
+        seen: set[str] = set()
+        for key in providers:
+            if key in seen:
+                raise ValueError(f"{key} is listed more than once")
+            seen.add(key)
+        if not any(
+            not CATALOG[key].needs_key and "cloud_cover" in CATALOG[key].variables
+            for key in providers
+        ):
+            raise ValueError(
+                "the provider list must include a provider that needs no key"
+                " and supplies cloud cover"
+            )
+        return providers
 
 
 class HorizonConfig(BaseModel):
@@ -280,6 +323,8 @@ class AppConfig(BaseModel):
     mqtt: MqttConfig
     recompute: RecomputeConfig
     piers: list[PierConfig]
+    # Absent -> the default provider order (provider-order D7).
+    conditions: ConditionsConfig = Field(default_factory=ConditionsConfig)
     # The optional explainer edge (design D7). Absent -> disabled: no provider is
     # constructed and no narrative entity is published.
     explainer: ExplainerConfig | None = None
@@ -459,6 +504,8 @@ def build_config(read: ConfigFile, broker: BrokerSettings | None = None) -> AppC
     except ValidationError as exc:
         raise ConfigError(f"Invalid mqtt/recompute configuration: {exc}") from exc
 
+    conditions = _conditions_config(raw.get("conditions"))
+
     raw_piers = raw.get("piers")
     if not isinstance(raw_piers, list):
         raise ConfigError("Configuration must contain a 'piers' list")
@@ -477,7 +524,12 @@ def build_config(read: ConfigFile, broker: BrokerSettings | None = None) -> AppC
     # ``explainer`` is optional (absent or empty -> disabled). It is validated here,
     # on its own, so its error shows none of its text; ``AppConfig`` does not
     # validate the built model again (config-secrets-hidden-in-errors D2).
-    assembled: dict[str, Any] = {"mqtt": mqtt, "recompute": recompute, "piers": piers}
+    assembled: dict[str, Any] = {
+        "mqtt": mqtt,
+        "recompute": recompute,
+        "piers": piers,
+        "conditions": conditions,
+    }
     raw_explainer = raw.get("explainer")
     if raw_explainer is not None:
         try:
@@ -490,6 +542,26 @@ def build_config(read: ConfigFile, broker: BrokerSettings | None = None) -> AppC
         return AppConfig.model_validate(assembled, context={"base_dir": base_dir})
     except ValidationError as exc:
         raise ConfigError(f"Invalid configuration: {exc}") from exc
+
+
+def _conditions_config(raw: Any) -> ConditionsConfig:
+    """Validate the optional ``conditions`` block (provider-order D7).
+
+    The error is built from each check's own message, so it carries no value from
+    the configuration other than the offending key a check names.
+    """
+    try:
+        return ConditionsConfig.model_validate({} if raw is None else raw)
+    except ValidationError as exc:
+        problems = []
+        for error in exc.errors(include_url=False, include_input=False):
+            context = error.get("ctx", {})
+            if error["type"] == "value_error" and "error" in context:
+                problems.append(str(context["error"]))
+            else:
+                place = "".join(f".{part}" for part in error["loc"])
+                problems.append(f"conditions{place}: {error['msg']}")
+        raise ConfigError("Invalid conditions configuration: " + "; ".join(problems)) from None
 
 
 def _block_error(

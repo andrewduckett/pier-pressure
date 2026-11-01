@@ -184,6 +184,13 @@ piers:
       reducer: 1.0            # optional; below 1 is a reducer, above 1 a barlow
 ```
 
+To choose where the weather comes from, list the providers, preferred first:
+
+```yaml
+conditions:
+  providers: [open_meteo, seven_timer]   # optional (default shown)
+```
+
 | Setting | What it does |
 |---|---|
 | `piers` | A list. Each pier is checked on its own: an invalid pier is logged and skipped, and the others keep running. If no pier is valid, PierPressure exits with an error. |
@@ -192,6 +199,7 @@ piers:
 | `horizon` | Exactly one of: `points` (a list of `[azimuth, altitude]` pairs), `min_altitude` (a flat floor in degrees), or `file` + `format`. Without it the horizon is flat at 0°. The only file format supported today is `nina` (a NINA `.hrz` export). `stellarium` and `telescopius` are recognised but rejected as not yet supported. |
 | `equipment` | Your telescope and camera. With equipment, targets are also ranked on how well they fit the field of view. |
 | `explainer` | The optional LLM summary. See [docs/llm-explainer.md](docs/llm-explainer.md). |
+| `conditions` | Optional. `providers` lists the weather providers, preferred first. The default is `[open_meteo, seven_timer]`. Each forecast variable, such as cloud cover or seeing, comes from the first provider in the list that returned it. PierPressure will not start if the list is empty, names an unknown provider, names a provider more than once, or has no provider that needs no key and supplies cloud cover. |
 
 **Secrets.** Any `${VAR}` in a value is replaced with that environment variable
 when the file loads, so passwords and API keys need not sit in the file. If the
@@ -336,33 +344,33 @@ automation:
 
 ### Watching provider health
 
-PierPressure gets its weather from two sources. Open-Meteo gives cloud and wind
-and is the base source. 7Timer! gives seeing and transparency and is the
-secondary source. If a source fails, the verdict still arrives, with that data
-missing. A broken 7Timer! only lowers confidence, so it is easy to miss. The
-health sensors show each failure as it happens.
+PierPressure gets its weather from the providers in the `conditions` list. By
+default, Open-Meteo gives cloud, wind and the weather values, and 7Timer! gives
+seeing and transparency. If a provider fails, the verdict still arrives, with
+that provider's data missing. A broken 7Timer! only lowers confidence, so it is
+easy to miss. The health sensors show each failure as it happens.
 
-Each pier has one diagnostic sensor per source: **Open-Meteo health** and
-**7Timer! health**. You find them under the pier's device, in the diagnostic
-section.
+Each pier has one diagnostic sensor per configured provider: **Open-Meteo
+health** and **7Timer! health**. You find them under the pier's device, in the
+diagnostic section.
 
-**State.** The time of that source's last successful fetch for this pier. It is
-**unknown** until the source succeeds after PierPressure starts, because health is
-kept in memory only. A failing source keeps showing its last success time, and
-the sensor stays available. The age of that time is the signal: the older it is,
-the longer the source has been failing.
+**State.** The time of that provider's last successful fetch for this pier. It is
+**unknown** until the provider succeeds after PierPressure starts, because health
+is kept in memory only. A failing provider keeps showing its last success time,
+and the sensor stays available. The age of that time is the signal: the older it
+is, the longer the provider has been failing.
 
 **Attributes.**
 
 | Attribute | Meaning |
 |---|---|
-| `provider` | The source's name. |
-| `role` | `base` (Open-Meteo) or `secondary` (7Timer!). |
+| `provider` | The provider's name. |
+| `variables` | The variables the provider supplies, as timeline keys. For 7Timer! this is `["seeing", "transparency"]`. It is the same on every publish, whether or not this provider filled them. |
 | `tracking_since` | When PierPressure started tracking health. It stays the same until PierPressure restarts. |
 | `status` | `ok` or `failed` for the latest fetch, or `null` before the first fetch. |
 | `last_fetch` | When the latest fetch ran, or `null` before the first fetch. |
 | `last_error` | Why the latest fetch failed, such as `ConnectError` or `HTTPStatusError: 503 Service Unavailable`. `null` when it succeeded. A fetch that returns no data fails with `no readings returned`. |
-| `issued_at` | When the source issued the data from the last successful fetch, or `null`. |
+| `issued_at` | When the provider issued the data from the last successful fetch, or `null`. |
 
 The error never contains the request URL or your pier's coordinates. The full
 error goes to the PierPressure log.
@@ -372,16 +380,16 @@ fetch time. Its `issued_at` and its last success therefore come from the same
 fetch and match closely. 7Timer! reports its own model run time, so its
 `issued_at` can be hours older than its last success.
 
-**Getting told when a source fails.** This automation notifies you when
+**Getting told when a provider fails.** This automation notifies you when
 Open-Meteo has not succeeded for 6 hours. It also counts the time a sensor has
 been unknown, measured from `tracking_since`. It does not fire when the sensor is
 unavailable, because that means PierPressure itself is down.
 
 It has two triggers that share one condition:
 
-- The template trigger fires when the source crosses the limit while Home
+- The template trigger fires when the provider crosses the limit while Home
   Assistant runs.
-- The start trigger covers a source that was already past the limit when Home
+- The start trigger covers a provider that was already past the limit when Home
   Assistant started. A template trigger only fires on a change, so it would miss
   that case.
 
@@ -462,8 +470,9 @@ done
   byte-identical document.
 - **Frozen contract.** Topics, entities, and the meaning of existing fields never
   change. The document only gains new fields.
-- **No single weather source is required.** Providers (Open-Meteo, 7Timer!) sit
-  behind one interface, with fallback.
+- **No single weather provider is required.** Providers (Open-Meteo, 7Timer!) sit
+  in one ordered list. Each variable comes from the first provider that returned
+  it, so a failed provider is passed over.
 - **The LLM never touches the numbers.** It only explains a finished verdict.
 
 The reasons behind each choice are in the decision records under

@@ -393,7 +393,10 @@ availability.
 
 The sensor's JSON attributes SHALL carry:
 
-- the provider's role (`base` or `secondary`)
+- the provider's name
+- `variables`: the variables the provider declares, as a list of timeline keys in
+  the provider's declared order. It is the same on every publish. There is no
+  `role` attribute.
 - the time health tracking started: the moment the service loop starts, just before
   the startup reset. It stays the same until the process restarts.
 - the status of the latest fetch (`ok` or `failed`), or null before the first fetch
@@ -421,6 +424,12 @@ every existing entity, topic, and mapping is unchanged.
 - **AND** each discovery payload marks the sensor as diagnostic and as a timestamp
 - **AND** each discovery payload validates against the repository's discovery schema for a sensor
 
+#### Scenario: The attributes list the provider's variables
+
+- **WHEN** the system publishes 7Timer!'s health for a pier
+- **THEN** the attributes carry `variables` equal to `["seeing", "transparency"]`
+- **AND** the attributes carry no `role` key
+
 #### Scenario: A successful fetch sets the last-success time
 
 - **WHEN** a provider's fetch for a pier succeeds and the system publishes
@@ -438,7 +447,7 @@ every existing entity, topic, and mapping is unchanged.
 - **WHEN** the process starts, and the broker holds a retained health state from before the restart
 - **THEN** the system publishes each configured provider's health with no history before it publishes its online availability
 - **AND** it does so before it fetches any conditions
-- **AND** each health sensor's state is published as unknown, with the tracking start time, and null status, fetch time, error, and issue time
+- **AND** each health sensor's state is published as unknown, with the tracking start time and the provider's variables, and null status, fetch time, error, and issue time
 
 #### Scenario: A failed startup reset does not go online
 

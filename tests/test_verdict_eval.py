@@ -2,21 +2,18 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
-from pierpressure.core.conditions import (
-    BaseGroup,
-    BaseHour,
-    Conditions,
-    GroupMeta,
-    SecondaryGroup,
-    SecondaryHour,
-)
+from pierpressure.core.clock import FixedClock
+from pierpressure.core.conditions import Conditions, Series, Variable
 from pierpressure.core.config import PierConfig
-from pierpressure.core.model import Band, Moon, MoonPhase, Verdict
+from pierpressure.core.model import Band, Moon, MoonPhase, Verdict, VerdictDocument
+from pierpressure.core.producer import produce_verdict
 from pierpressure.core.scoring import Decision, evaluate, hour_slots
 from pierpressure.core.sky import _local_solar_day, _night_transitions, dark_window
 
+from .conftest import make_conditions, make_pier
 from .offline_guard import no_network
 
 _START = datetime(2026, 9, 8, 21, 0, tzinfo=UTC)
@@ -48,15 +45,27 @@ def _snapshot(
     window: tuple[datetime, datetime] = _WINDOW,
 ) -> Conditions:
     slots = hour_slots(*window)
-    base = BaseGroup.of(
-        GroupMeta(source="base", issued_at=issued_at),
-        tuple(BaseHour(time=s, cloud_cover=cloud, wind_gust=wind) for s in slots),
+
+    def series(provider: str, value: float | None) -> Series:
+        return Series(provider=provider, issued_at=issued_at, values=dict.fromkeys(slots, value))
+
+    return Conditions(
+        series={
+            "cloud_cover": series("open_meteo", cloud),
+            "wind_gust": series("open_meteo", wind),
+            "seeing": series("seven_timer", seeing),
+            "transparency": series("seven_timer", transparency),
+        }
     )
-    secondary = SecondaryGroup.of(
-        GroupMeta(source="secondary", issued_at=issued_at),
-        tuple(SecondaryHour(time=s, seeing=seeing, transparency=transparency) for s in slots),
+
+
+def _hourly(values: list[float | None]) -> Series:
+    """An Open-Meteo series over ``_WINDOW``'s hours, one value per hour, issued at ``_INSTANT``."""
+    return Series(
+        provider="open_meteo",
+        issued_at=_INSTANT,
+        values=dict(zip(hour_slots(*_WINDOW), values, strict=True)),
     )
-    return Conditions(base=base, secondary=secondary)
 
 
 # --------------------------------------------------------------------------- #
@@ -175,6 +184,34 @@ def test_confidence_rises_as_dusk_nears_with_freshness_held_equal() -> None:
     assert conf_near >= conf_far
 
 
+# An hour before the London night's dusk, so lead time is full and freshness shows.
+_BEFORE_DUSK = datetime(2026, 9, 8, 20, 0, tzinfo=UTC)
+
+
+def _issued(conditions: Conditions, variable: Variable, issued_at: datetime) -> Conditions:
+    """``conditions`` with one series' issue time changed."""
+    series = dict(conditions.series)
+    series[variable] = replace(series[variable], issued_at=issued_at)
+    return Conditions(series=series)
+
+
+def _document(conditions: Conditions) -> VerdictDocument:
+    with no_network():
+        return produce_verdict(make_pier(), FixedClock(_BEFORE_DUSK), conditions)
+
+
+def test_a_stale_seeing_series_does_not_change_the_document() -> None:
+    fresh = _issued(make_conditions(), "seeing", _BEFORE_DUSK - timedelta(hours=1))
+    stale = _issued(make_conditions(), "seeing", _BEFORE_DUSK - timedelta(hours=11))
+    assert _document(fresh).to_json() == _document(stale).to_json()
+
+
+def test_a_stale_cloud_series_lowers_confidence() -> None:
+    fresh = _issued(make_conditions(), "cloud_cover", _BEFORE_DUSK - timedelta(hours=1))
+    stale = _issued(make_conditions(), "cloud_cover", _BEFORE_DUSK - timedelta(hours=11))
+    assert _document(stale).confidence.value < _document(fresh).confidence.value
+
+
 def test_missing_optional_data_lowers_confidence_without_gating() -> None:
     with_optional = evaluate(
         _pier(), _INSTANT, _WINDOW, _snapshot(cloud=0.0, seeing=0.8, transparency=0.8), _new_moon()
@@ -218,19 +255,13 @@ def test_missing_wind_caps_at_maybe_when_a_limit_is_configured() -> None:
 def test_partial_wind_coverage_caps_at_maybe_when_a_limit_is_configured() -> None:
     # Clear night; wind present and safe for most hours, but one hour has no wind
     # data. The limit cannot be confirmed for that hour, so never GO.
-    slots = hour_slots(*_WINDOW)
-    base = BaseGroup.of(
-        GroupMeta(source="base", issued_at=_INSTANT),
-        tuple(
-            BaseHour(
-                time=s,
-                cloud_cover=0.0,
-                wind_gust=None if i == len(slots) - 1 else 10.0,  # last hour missing
-            )
-            for i, s in enumerate(slots)
-        ),
+    hours = len(hour_slots(*_WINDOW))
+    snap = Conditions(
+        series={
+            "cloud_cover": _hourly([0.0] * hours),
+            "wind_gust": _hourly([10.0] * (hours - 1) + [None]),  # last hour missing
+        }
     )
-    snap = Conditions(base=base)
     decision = evaluate(_pier(max_gust=40.0, go_threshold=50), _INSTANT, _WINDOW, snap, _new_moon())
     assert decision.verdict is Verdict.MAYBE
     assert decision.verdict is not Verdict.GO
@@ -261,18 +292,9 @@ _MID = datetime(2026, 9, 8, 23, 30, 0, 400_000, tzinfo=UTC)
 def _hourly_snapshot(
     *, cloud: list[float | None], wind: list[float | None] | None = None
 ) -> Conditions:
-    """A base group with per-hour cloud (and wind) across the six-hour ``_WINDOW``."""
-    slots = hour_slots(*_WINDOW)
-    gusts = wind if wind is not None else [None] * len(slots)
-    return Conditions(
-        base=BaseGroup.of(
-            GroupMeta(source="base", issued_at=_INSTANT),
-            tuple(
-                BaseHour(time=s, cloud_cover=cloud[i], wind_gust=gusts[i])
-                for i, s in enumerate(slots)
-            ),
-        )
-    )
+    """Per-hour cloud (and wind) series across the six-hour ``_WINDOW``."""
+    gusts = wind if wind is not None else [None] * len(cloud)
+    return Conditions(series={"cloud_cover": _hourly(cloud), "wind_gust": _hourly(gusts)})
 
 
 def test_before_dusk_the_scored_window_is_the_dark_window() -> None:

@@ -158,14 +158,14 @@ def published_entities(pier: str = "backyard") -> dict[str, frozenset[str]]:
     entries += [
         (
             "sensor",
-            build_health_discovery(pier, base, provider.key, provider.name),
+            build_health_discovery(pier, base, spec.key, spec.name),
             health_attributes(
                 ProviderHealth.empty(
-                    key=provider.key, name=provider.name, role="base", tracking_since=tracking
+                    key=spec.key, name=spec.name, variables=spec.variables, tracking_since=tracking
                 )
             ),
         )
-        for provider in (OpenMeteoProvider, SevenTimerProvider)
+        for spec in (OpenMeteoProvider.spec, SevenTimerProvider.spec)
     ]
     return {
         f"{domain}.{_slug(config['device']['name'] + ' ' + config['name'])}": (

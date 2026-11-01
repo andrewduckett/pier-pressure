@@ -644,11 +644,11 @@ total-cloud term, the gates, the bands, or the confidence.
 
 ### Requirement: The document carries an hourly timeline
 
-The verdict document SHALL carry a `timeline` list: the hourly series of sky and weather for the pier. The list SHALL hold one entry per clock hour across the union of the hours the conditions providers returned, including hours already past, sorted by hour ascending, with no hour repeated. The list SHALL be empty, never absent, when no provider returned rows.
+The verdict document SHALL carry a `timeline` list: the hourly series of sky and weather for the pier. The list SHALL hold one entry per clock hour across the union of the hours every series in the conditions covers, including hours already past. It SHALL be sorted by hour ascending, with no hour repeated. The list SHALL be empty, never absent, when no provider returned rows.
 
 #### Scenario: The timeline spans the union of both providers' hours
 
-- **WHEN** a verdict is produced with a base source covering 00:00 to 23:00 on one day and a secondary source covering 12:00 on that day to 11:00 two days later
+- **WHEN** a verdict is produced with a cloud-cover series covering 00:00 to 23:00 on one day and a seeing series covering 12:00 on that day to 11:00 two days later
 - **THEN** the `timeline` holds one entry for every hour from the first day's 00:00 to the third day's 11:00, in ascending order, with no hour repeated
 
 #### Scenario: No provider rows yield an empty timeline
@@ -677,27 +677,6 @@ Each timeline entry SHALL carry exactly these keys, always present and in this o
 - **WHEN** a document with a timeline is serialized to JSON
 - **THEN** each entry's first ten keys are `time`, `sun_altitude`, `moon_altitude`, `cloud_cover`, `cloud_low`, `cloud_mid`, `cloud_high`, `wind_gust`, `seeing`, `transparency`, in that order
 - **AND** the six weather keys follow them in the order `temperature`, `dew_point`, `humidity`, `wind_speed`, `wind_direction`, `precipitation_probability`
-
-### Requirement: Entry values carry each source's reading for the hour
-
-`cloud_cover`, `cloud_low`, `cloud_mid` and `cloud_high` SHALL be percent and `wind_gust` km/h, carried exactly as the base source's reading for that hour, with no rounding, each null when the base source lacks the hour or the value. `seeing` and `transparency` SHALL be quality in 0 to 1 where 1 is best, from the secondary source's reading for that hour, rounded to two decimal places, each null when the secondary source lacks the hour or the value.
-
-#### Scenario: An hour one source lacks carries null for that source's fields
-
-- **WHEN** an hour is present in the secondary source but absent from the base source
-- **THEN** that entry's `cloud_cover`, `cloud_low`, `cloud_mid`, `cloud_high` and `wind_gust` are null
-- **AND** its `seeing` and `transparency` carry the secondary source's values
-- **AND** its `sun_altitude` and `moon_altitude` are present
-
-#### Scenario: Cloud and wind values pass through unchanged
-
-- **WHEN** the base source reports cloud cover `37.0` and a gust of `23.4` for an hour
-- **THEN** that entry's `cloud_cover` is `37.0` and its `wind_gust` is `23.4`
-
-#### Scenario: Seeing and transparency are emitted at two decimal places
-
-- **WHEN** the secondary source reports a seeing quality of four sevenths for an hour
-- **THEN** that entry's `seeing` is `0.57`
 
 ### Requirement: Timeline altitudes are computed offline at fixed precision
 
@@ -734,23 +713,61 @@ The timeline SHALL be filled whenever a provider returned rows, whether or not t
 - **WHEN** a verdict is produced twice for the same pier and instant, once with the providers' hours limited to the dark window and once with extra hours before and after it
 - **THEN** the two documents differ only in `timeline`
 
-### Requirement: Entry weather values carry the base source's reading for the hour
+### Requirement: Freshness follows the cloud-cover series
 
-`temperature` and `dew_point` SHALL be degrees Celsius, `humidity` and `precipitation_probability` percent, `wind_speed` km/h and `wind_direction` degrees, each carried exactly as the base source's reading for that hour, with no rounding or conversion. Each SHALL be null when the base source lacks the hour or the value.
+The freshness that confidence reads SHALL be the issue time of the `cloud_cover`
+series: the time the provider that filled cloud cover gave for its data. The
+issue time of any other series SHALL NOT change the confidence. When no series
+fills cloud cover, freshness SHALL be at its floor.
+
+#### Scenario: A stale seeing series does not lower confidence
+
+- **WHEN** two verdicts are produced for the same pier and instant from snapshots that differ only in the issue time of the `seeing` series
+- **THEN** the two documents are byte-identical
+
+#### Scenario: A stale cloud series lowers confidence
+
+- **WHEN** two verdicts are produced for the same pier and instant from snapshots that differ only in the issue time of the `cloud_cover` series, one issued an hour before the instant and one eleven hours before
+- **THEN** the confidence value of the second is lower than the first
+
+### Requirement: Entry weather values carry the filling provider's reading for the hour
+
+`temperature` and `dew_point` SHALL be degrees Celsius, `humidity` and `precipitation_probability` percent, `wind_speed` km/h and `wind_direction` degrees. Each SHALL be carried exactly as its series holds it for that hour, with no rounding or conversion. Each SHALL be null when its series lacks the hour or the value, or no provider filled it.
 
 #### Scenario: Weather values pass through unchanged
 
-- **WHEN** the base source reports, for an hour, a temperature of `12.3`, a dew point of `9.8`, a humidity of `85.0`, a wind speed of `14.2`, a wind direction of `230.0` and a precipitation probability of `35.0`
+- **WHEN** the weather series hold, for an hour, a temperature of `12.3`, a dew point of `9.8`, a humidity of `85.0`, a wind speed of `14.2`, a wind direction of `230.0` and a precipitation probability of `35.0`
 - **THEN** that entry's `temperature` is `12.3`, `dew_point` `9.8`, `humidity` `85.0`, `wind_speed` `14.2`, `wind_direction` `230.0` and `precipitation_probability` `35.0`
 
-#### Scenario: An hour the base source lacks carries null weather values
+#### Scenario: An hour the weather series lack carries null weather values
 
-- **WHEN** an hour is present in the secondary source but absent from the base source
+- **WHEN** an hour is present in the `seeing` and `transparency` series but absent from every weather series
 - **THEN** that entry's six weather keys are all null
-- **AND** its `seeing` and `transparency` carry the secondary source's values
+- **AND** its `seeing` and `transparency` carry their series' values
 
-#### Scenario: A weather value the base source lacks is null on its own
+#### Scenario: A weather value the provider lacks is null on its own
 
-- **WHEN** the base source reports every weather variable but the dew point for an hour
+- **WHEN** the provider that filled the weather series reports every weather variable but the dew point for an hour
 - **THEN** that entry's `dew_point` is null
 - **AND** its other five weather keys carry the reported values
+
+### Requirement: Entry values carry each series' reading for the hour
+
+`cloud_cover`, `cloud_low`, `cloud_mid` and `cloud_high` SHALL be percent and `wind_gust` km/h, each carried exactly as its series holds it for that hour, with no rounding. `seeing` and `transparency` SHALL be quality in 0 to 1 where 1 is best, from their series for that hour, rounded to two decimal places. Each of these keys SHALL be null when its series lacks the hour or the value, or no provider filled it.
+
+#### Scenario: An hour one series lacks carries null for that variable
+
+- **WHEN** an hour is present in the `seeing` and `transparency` series but absent from the `cloud_cover`, cloud-layer and `wind_gust` series
+- **THEN** that entry's `cloud_cover`, `cloud_low`, `cloud_mid`, `cloud_high` and `wind_gust` are null
+- **AND** its `seeing` and `transparency` carry their series' values
+- **AND** its `sun_altitude` and `moon_altitude` are present
+
+#### Scenario: Cloud and wind values pass through unchanged
+
+- **WHEN** the `cloud_cover` series holds `37.0` and the `wind_gust` series `23.4` for an hour
+- **THEN** that entry's `cloud_cover` is `37.0` and its `wind_gust` is `23.4`
+
+#### Scenario: Seeing and transparency are emitted at two decimal places
+
+- **WHEN** the `seeing` series holds a quality of four sevenths for an hour
+- **THEN** that entry's `seeing` is `0.57`

@@ -1,4 +1,4 @@
-"""The base conditions source: Open-Meteo hourly cloud, wind and weather (task 3.2).
+"""The Open-Meteo provider: hourly cloud, wind and weather (task 3.2).
 
 Open-Meteo returns an hourly forecast; this maps its ``cloud_cover`` (percent),
 its ``cloud_cover_low``/``cloud_cover_mid``/``cloud_cover_high`` layer split,
@@ -18,6 +18,7 @@ from typing import Any, ClassVar
 import httpx
 
 from pierpressure.core.config import PierConfig
+from pierpressure.core.providers import OPEN_METEO, ProviderSpec
 
 from .provider import SourceForecast, SourceReading
 
@@ -92,8 +93,7 @@ def parse_open_meteo(payload: dict[str, Any], issued_at: datetime) -> SourceFore
 class OpenMeteoProvider:
     """Fetches hourly cloud, wind and weather from Open-Meteo."""
 
-    key: ClassVar[str] = "open_meteo"
-    name: ClassVar[str] = "Open-Meteo"
+    spec: ClassVar[ProviderSpec] = OPEN_METEO
 
     client: httpx.Client | None = None
     now: Callable[[], datetime] = _utcnow

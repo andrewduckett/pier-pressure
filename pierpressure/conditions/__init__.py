@@ -1,12 +1,11 @@
-"""The observing-conditions provider layer (design D1, D6; ADR-0005).
+"""The observing-conditions provider layer (ADR-0005, ADR-0027).
 
 All network access and graceful fallback live here, outside the pure core. The
-layer fetches cloud and wind (base source) and seeing and transparency (secondary
-source) from independent external forecasts and promotes them into an immutable
-per-source :class:`~pierpressure.core.conditions.Conditions` value. No single
-source is load-bearing: one source failing degrades the result to a present group
-beside an absent one rather than failing it. A failed source shows as missing data
-until its next good fetch.
+layer fetches every configured provider, in order, and fills the core's immutable
+:class:`~pierpressure.core.conditions.Conditions` one series per variable: each
+variable comes from the first provider in order that returned it. No single
+provider is load-bearing: a provider that fails is passed over, and the variables
+only it returned show as missing data until its next good fetch.
 
 The core imports nothing from this package — the dependency runs one way, so the
 core stays offline and deterministic while conditions are fetched live.

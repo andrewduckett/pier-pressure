@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -19,6 +20,7 @@ from pierpressure.conditions.provider import (
 )
 from pierpressure.conditions.seven_timer import SevenTimerProvider, parse_seven_timer
 from pierpressure.core.conditions import Conditions
+from pierpressure.core.providers import CATALOG, OPEN_METEO, SEVEN_TIMER, ProviderSpec
 from pierpressure.health import FetchOutcome, ProviderInfo, describe_error
 
 from .conftest import make_pier
@@ -177,142 +179,177 @@ def test_seven_timer_follows_the_redirect_to_its_astro_endpoint() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# 3.1 assembly builds one self-stamped group per source (design D1, D2)
+# The fill: each variable from the first provider in order that returned it
+# (provider-order D3)
 # --------------------------------------------------------------------------- #
 
-
-def test_assemble_builds_both_groups_with_their_own_issue_times() -> None:
-    base = SourceForecast(
-        issued_at=_hour(18),
-        readings={_hour(21): SourceReading(cloud_cover=20.0, wind_gust=15.0)},
-    )
-    secondary = SourceForecast(
-        issued_at=_hour(17),
-        readings={_hour(21): SourceReading(seeing=0.8, transparency=0.7)},
-    )
-    conditions = assemble_snapshot(base, secondary)
-    assert conditions.base is not None and conditions.secondary is not None
-    base_hour = conditions.base.at(_hour(21))
-    assert base_hour is not None and (base_hour.cloud_cover, base_hour.wind_gust) == (20.0, 15.0)
-    secondary_hour = conditions.secondary.at(_hour(21))
-    assert secondary_hour is not None
-    assert (secondary_hour.seeing, secondary_hour.transparency) == (0.8, 0.7)
-    # Each source's issue time now travels on its own group's meta, mirroring
-    # today's base_issued_at / secondary_issued_at.
-    assert conditions.base.meta.issued_at == _hour(18)
-    assert conditions.secondary.meta.issued_at == _hour(17)
+_FIRST = ProviderSpec(
+    key="first",
+    name="First",
+    needs_key=False,
+    variables=("cloud_cover", "cloud_low", "cloud_mid", "cloud_high", "wind_gust"),
+    bundles=(frozenset({"cloud_cover", "cloud_low", "cloud_mid", "cloud_high"}),),
+)
+_SECOND = replace(_FIRST, key="second", name="Second")
 
 
-def test_assemble_absent_secondary_yields_a_none_group_but_keeps_base() -> None:
-    base = SourceForecast(
-        issued_at=_hour(18),
-        readings={_hour(21): SourceReading(cloud_cover=20.0, wind_gust=15.0)},
-    )
-    conditions = assemble_snapshot(base, SourceForecast())  # secondary empty
-    assert conditions.secondary is None  # no rows -> no group, no issue time
-    assert conditions.base is not None
-    base_hour = conditions.base.at(_hour(21))
-    assert base_hour is not None and base_hour.cloud_cover == 20.0
-
-
-def test_assemble_copies_the_cloud_component_split_onto_the_base_hour() -> None:
-    base = SourceForecast(
-        issued_at=_hour(18),
+def _forecast(issued: int, **columns: dict[int, float | None]) -> SourceForecast:
+    """A forecast whose readings hold each named variable at the given hours."""
+    hours = sorted({h for column in columns.values() for h in column})
+    return SourceForecast(
+        issued_at=_hour(issued),
         readings={
-            _hour(21): SourceReading(
-                cloud_cover=40.0, cloud_low=10.0, cloud_mid=20.0, cloud_high=30.0
-            )
+            _hour(h): SourceReading(**{name: column.get(h) for name, column in columns.items()})
+            for h in hours
         },
     )
-    conditions = assemble_snapshot(base, SourceForecast())
-    assert conditions.base is not None
-    base_hour = conditions.base.at(_hour(21))
-    assert base_hour is not None
-    assert (base_hour.cloud_low, base_hour.cloud_mid, base_hour.cloud_high) == (10.0, 20.0, 30.0)
 
 
-def test_assemble_total_only_source_leaves_the_components_none() -> None:
-    # A source that reports a total but no split yields a present group whose
-    # component fields are all None (design D1).
-    base = SourceForecast(
-        issued_at=_hour(18),
-        readings={_hour(21): SourceReading(cloud_cover=40.0)},
+def test_assemble_the_default_order_gives_cloud_to_open_meteo_and_seeing_to_seven_timer() -> None:
+    base = _forecast(18, cloud_cover={21: 20.0}, wind_gust={21: 15.0})
+    secondary = _forecast(17, seeing={21: 0.8}, transparency={21: 0.7})
+    conditions = assemble_snapshot([(OPEN_METEO, base), (SEVEN_TIMER, secondary)])
+    for variable in ("cloud_cover", "wind_gust"):
+        assert conditions.series[variable].provider == "open_meteo"
+        assert conditions.issued_at(variable) == _hour(18)
+    for variable in ("seeing", "transparency"):
+        assert conditions.series[variable].provider == "seven_timer"
+        assert conditions.issued_at(variable) == _hour(17)
+    assert conditions.value_at("cloud_cover", _hour(21)) == 20.0
+    assert conditions.value_at("wind_gust", _hour(21)) == 15.0
+    assert conditions.value_at("seeing", _hour(21)) == 0.8
+    assert conditions.value_at("transparency", _hour(21)) == 0.7
+
+
+def test_assemble_an_earlier_provider_wins_a_variable_both_returned() -> None:
+    conditions = assemble_snapshot(
+        [
+            (_FIRST, _forecast(18, cloud_cover={21: 40.0})),
+            (_SECOND, _forecast(17, cloud_cover={21: 70.0})),
+        ]
     )
-    conditions = assemble_snapshot(base, SourceForecast())
-    assert conditions.base is not None
-    base_hour = conditions.base.at(_hour(21))
-    assert base_hour is not None
-    assert base_hour.cloud_cover == 40.0
-    assert base_hour.cloud_low is None
-    assert base_hour.cloud_mid is None
-    assert base_hour.cloud_high is None
+    assert conditions.series["cloud_cover"].provider == "first"
+    assert conditions.value_at("cloud_cover", _hour(21)) == 40.0
 
 
-def test_assemble_copies_the_weather_variables_onto_the_base_hour() -> None:
-    base = SourceForecast(
-        issued_at=_hour(18),
-        readings={
-            _hour(21): SourceReading(
-                cloud_cover=40.0,
-                temperature=12.3,
-                dew_point=9.8,
-                humidity=85.0,
-                wind_speed=14.2,
-                wind_direction=230.0,
-                precipitation_probability=35.0,
-            )
-        },
+def test_assemble_an_empty_column_falls_through_to_the_next_provider() -> None:
+    conditions = assemble_snapshot(
+        [
+            (_FIRST, _forecast(18, cloud_cover={21: None, 22: None}, wind_gust={21: 9.0})),
+            (_SECOND, _forecast(17, cloud_cover={21: 70.0, 22: 60.0})),
+        ]
     )
-    conditions = assemble_snapshot(base, SourceForecast())
-    assert conditions.base is not None
-    base_hour = conditions.base.at(_hour(21))
-    assert base_hour is not None
-    assert (
-        base_hour.temperature,
-        base_hour.dew_point,
-        base_hour.humidity,
-        base_hour.wind_speed,
-        base_hour.wind_direction,
-        base_hour.precipitation_probability,
-    ) == (12.3, 9.8, 85.0, 14.2, 230.0, 35.0)
+    assert conditions.series["cloud_cover"].provider == "second"
+    assert conditions.series["cloud_cover"].values == {_hour(21): 70.0, _hour(22): 60.0}
+    assert conditions.series["wind_gust"].provider == "first"
 
 
-def test_assemble_source_without_weather_leaves_the_weather_fields_none() -> None:
-    base = SourceForecast(
-        issued_at=_hour(18),
-        readings={_hour(21): SourceReading(cloud_cover=40.0, wind_gust=15.0)},
+def test_assemble_a_bundle_travels_together() -> None:
+    four = {
+        "cloud_cover": {21: 70.0},
+        "cloud_low": {21: 1.0},
+        "cloud_mid": {21: 2.0},
+        "cloud_high": {21: 3.0},
+    }
+    conditions = assemble_snapshot(
+        [(_FIRST, _forecast(18, cloud_cover={21: 40.0})), (_SECOND, _forecast(17, **four))]
     )
-    conditions = assemble_snapshot(base, SourceForecast())
-    assert conditions.base is not None
-    base_hour = conditions.base.at(_hour(21))
-    assert base_hour is not None
-    assert (base_hour.cloud_cover, base_hour.wind_gust) == (40.0, 15.0)
-    assert base_hour.temperature is None
-    assert base_hour.dew_point is None
-    assert base_hour.humidity is None
-    assert base_hour.wind_speed is None
-    assert base_hour.wind_direction is None
-    assert base_hour.precipitation_probability is None
+    assert conditions.series["cloud_cover"].provider == "first"
+    for layer in ("cloud_low", "cloud_mid", "cloud_high"):
+        series = conditions.series[layer]
+        assert series.provider == "first"
+        assert series.issued_at == _hour(18)
+        assert series.values == {_hour(21): None}
 
 
-def test_assemble_base_wind_without_cloud_keeps_the_base_group_and_its_issue_time() -> None:
-    # The round-2 Critical case: base returns wind rows but no cloud. The base
-    # group is still present (rows exist), so its issue time survives — exactly as
-    # today's base_issued_at was retained on any base reading (design D1, D2).
-    base = SourceForecast(
-        issued_at=_hour(18),
-        readings={_hour(21): SourceReading(cloud_cover=None, wind_gust=15.0)},
+def test_assemble_a_later_bundle_never_takes_a_variable_an_earlier_provider_won() -> None:
+    total_only = ProviderSpec(
+        key="total", name="Total", needs_key=False, variables=("cloud_cover",)
     )
-    conditions = assemble_snapshot(base, SourceForecast())
-    assert conditions.base is not None
-    assert conditions.base.meta.issued_at == _hour(18)
-    base_hour = conditions.base.at(_hour(21))
-    assert base_hour is not None
-    assert base_hour.cloud_cover is None and base_hour.wind_gust == 15.0
+    four = {
+        "cloud_cover": {21: 70.0},
+        "cloud_low": {21: 1.0},
+        "cloud_mid": {21: 2.0},
+        "cloud_high": {21: 3.0},
+    }
+    conditions = assemble_snapshot(
+        [(total_only, _forecast(16, cloud_cover={21: 40.0})), (_SECOND, _forecast(17, **four))]
+    )
+    assert conditions.series["cloud_cover"].provider == "total"
+    assert conditions.value_at("cloud_cover", _hour(21)) == 40.0
+    assert conditions.issued_at("cloud_cover") == _hour(16)
+
+
+def test_assemble_a_series_is_whole_never_merged_per_hour() -> None:
+    conditions = assemble_snapshot(
+        [
+            (_FIRST, _forecast(18, cloud_cover={h: 10.0 for h in range(20, 24)})),
+            (_SECOND, _forecast(17, cloud_cover={h: 90.0 for h in range(18, 24)})),
+        ]
+    )
+    series = conditions.series["cloud_cover"]
+    assert series.provider == "first"
+    assert series.values == {_hour(h): 10.0 for h in range(20, 24)}
+    assert conditions.value_at("cloud_cover", _hour(19)) is None
+
+
+def test_assemble_a_failed_or_empty_forecast_is_passed_over() -> None:
+    conditions = assemble_snapshot(
+        [(_FIRST, SourceForecast()), (_SECOND, _forecast(17, cloud_cover={21: 70.0}))]
+    )
+    assert conditions.series["cloud_cover"].provider == "second"
+    assert "wind_gust" not in conditions.series
+
+
+def test_assemble_a_variable_no_provider_returned_has_no_series() -> None:
+    conditions = assemble_snapshot([(OPEN_METEO, _forecast(18, cloud_cover={21: 20.0}))])
+    assert "seeing" not in conditions.series
+    assert "wind_gust" not in conditions.series
+    assert assemble_snapshot([]) == Conditions()
+
+
+def test_assemble_a_series_keeps_every_hour_its_provider_returned() -> None:
+    base = _forecast(18, cloud_cover={21: 20.0, 22: None}, wind_gust={21: None, 22: 15.0})
+    conditions = assemble_snapshot([(OPEN_METEO, base)])
+    assert conditions.series["cloud_cover"].values == {_hour(21): 20.0, _hour(22): None}
+    assert conditions.series["wind_gust"].values == {_hour(21): None, _hour(22): 15.0}
+
+
+def test_assemble_a_total_only_provider_leaves_the_components_without_values() -> None:
+    conditions = assemble_snapshot([(OPEN_METEO, _forecast(18, cloud_cover={21: 40.0}))])
+    assert conditions.value_at("cloud_cover", _hour(21)) == 40.0
+    for layer in ("cloud_low", "cloud_mid", "cloud_high"):
+        assert conditions.value_at(layer, _hour(21)) is None
+
+
+def test_assemble_carries_the_weather_variables_and_a_missing_one_alone_is_null() -> None:
+    weather = {
+        "temperature": {21: 12.34, 22: 11.0},
+        "dew_point": {21: 9.8, 22: None},
+        "humidity": {21: 85.0, 22: 86.0},
+        "wind_speed": {21: 14.25, 22: 13.0},
+        "wind_direction": {21: 230.0, 22: 231.0},
+        "precipitation_probability": {21: 35.0, 22: 30.0},
+    }
+    conditions = assemble_snapshot([(OPEN_METEO, _forecast(18, **weather))])
+    for variable, column in weather.items():
+        for h, value in column.items():
+            assert conditions.value_at(variable, _hour(h)) == value  # type: ignore[arg-type]
+
+
+def test_assemble_a_provider_without_weather_leaves_the_weather_variables_unfilled() -> None:
+    conditions = assemble_snapshot(
+        [(OPEN_METEO, _forecast(18, cloud_cover={21: 40.0}, wind_gust={21: 15.0}))]
+    )
+    assert conditions.value_at("cloud_cover", _hour(21)) == 40.0
+    for variable in ("temperature", "dew_point", "humidity", "wind_speed", "wind_direction"):
+        assert variable not in conditions.series
+    assert "precipitation_probability" not in conditions.series
 
 
 # --------------------------------------------------------------------------- #
-# 3.5 independent fetch + graceful fallback
+# Every listed provider is fetched, in order; none is load-bearing
+# (provider-order D4)
 # --------------------------------------------------------------------------- #
 
 
@@ -322,114 +359,20 @@ class _StubProvider:
         forecast: SourceForecast | None = None,
         *,
         fail: bool = False,
-        key: str = "stub",
-        name: str = "Stub",
+        spec: ProviderSpec = OPEN_METEO,
+        calls: list[str] | None = None,
     ) -> None:
         self._forecast = forecast or SourceForecast()
         self._fail = fail
-        self.key = key
-        self.name = name
+        self.spec = spec
+        self._calls = calls if calls is not None else []
 
     def fetch(self, pier: object) -> SourceForecast:
+        self._calls.append(self.spec.key)
         if self._fail:
             raise RuntimeError("source down")
         return self._forecast
 
-
-def test_secondary_failure_leaves_base_data_intact() -> None:
-    base = _StubProvider(
-        SourceForecast(
-            issued_at=_hour(18),
-            readings={_hour(21): SourceReading(cloud_cover=30.0, wind_gust=10.0)},
-        )
-    )
-    composite = CompositeProvider(base=base, secondary=_StubProvider(fail=True))
-    conditions = composite.get(make_pier()).conditions
-    assert conditions.secondary is None  # the failed source contributes no group
-    assert conditions.base is not None
-    base_hour = conditions.base.at(_hour(21))
-    assert base_hour is not None and base_hour.cloud_cover == 30.0
-
-
-def test_base_failure_still_yields_the_secondary_group() -> None:
-    secondary = _StubProvider(
-        SourceForecast(
-            issued_at=_hour(18),
-            readings={_hour(21): SourceReading(seeing=0.9, transparency=0.8)},
-        )
-    )
-    composite = CompositeProvider(base=_StubProvider(fail=True), secondary=secondary)
-    conditions = composite.get(make_pier()).conditions
-    assert conditions.base is None  # the failed base source contributes no group
-    assert conditions.secondary is not None
-    secondary_hour = conditions.secondary.at(_hour(21))
-    assert secondary_hour is not None and secondary_hour.seeing == 0.9
-
-
-# --------------------------------------------------------------------------- #
-# A failed fetch is never filled from an earlier fetch (issue #37, design D1)
-# --------------------------------------------------------------------------- #
-
-
-class _ScriptedProvider:
-    """Answer each fetch with the next scripted outcome: a forecast or a failure."""
-
-    def __init__(self, *outcomes: SourceForecast | Exception, key: str = "scripted") -> None:
-        self._outcomes = list(outcomes)
-        self.key = key
-        self.name = key.title()
-
-    def fetch(self, pier: object) -> SourceForecast:
-        outcome = self._outcomes.pop(0)
-        if isinstance(outcome, Exception):
-            raise outcome
-        return outcome
-
-
-def _good_then(failure: SourceForecast | Exception) -> CompositeProvider:
-    """A production stack whose two sources each succeed once, then fail.
-
-    The data is issued at the real current time, not a pinned one, so it is fresh
-    by any measure: reuse bounded by a staleness limit would still be caught.
-    """
-    now = datetime.now(UTC)
-    base = SourceForecast(issued_at=now, readings={_hour(21): SourceReading(cloud_cover=25.0)})
-    secondary = SourceForecast(
-        issued_at=now, readings={_hour(21): SourceReading(seeing=0.8, transparency=0.7)}
-    )
-    return build_provider(
-        base=_ScriptedProvider(base, failure, key="base"),
-        secondary=_ScriptedProvider(secondary, failure, key="secondary"),
-    )
-
-
-@pytest.mark.parametrize("failure", [RuntimeError("source down"), SourceForecast()])
-def test_a_failed_fetch_is_not_filled_from_the_same_piers_earlier_fetch(
-    failure: SourceForecast | Exception,
-) -> None:
-    stack = _good_then(failure)
-    pier = make_pier()
-    first = stack.get(pier).conditions
-    assert first.base is not None and first.secondary is not None
-
-    # No values or issue time carry over from the earlier fetch, for either source.
-    assert stack.get(pier).conditions == Conditions(base=None, secondary=None)
-
-
-@pytest.mark.parametrize("failure", [RuntimeError("source down"), SourceForecast()])
-def test_a_failed_fetch_is_not_filled_from_another_piers_fetch(
-    failure: SourceForecast | Exception,
-) -> None:
-    stack = _good_then(failure)
-    first = stack.get(make_pier("pier-a")).conditions
-    assert first.base is not None and first.secondary is not None
-
-    assert stack.get(make_pier("pier-b")).conditions == Conditions(base=None, secondary=None)
-
-
-# --------------------------------------------------------------------------- #
-# Provider identity and per-fetch outcomes (provider-health-entities D1, D3)
-# --------------------------------------------------------------------------- #
 
 _FETCHED = datetime(2026, 10, 5, 18, 0, tzinfo=UTC)
 _BASE_FORECAST = SourceForecast(
@@ -440,37 +383,180 @@ _SECONDARY_FORECAST = SourceForecast(
 )
 
 
-def _composite(base: _StubProvider, secondary: _StubProvider) -> CompositeProvider:
-    return CompositeProvider(base=base, secondary=secondary, now=lambda: _FETCHED)
+def _composite(*fetchers: _StubProvider) -> CompositeProvider:
+    return CompositeProvider(fetchers=fetchers, now=lambda: _FETCHED)
 
 
-def test_build_provider_exposes_each_providers_key_name_and_role() -> None:
-    assert build_provider().providers == (
-        ProviderInfo(key="open_meteo", name="Open-Meteo", role="base"),
-        ProviderInfo(key="seven_timer", name="7Timer!", role="secondary"),
-    )
-
-
-def test_get_returns_the_same_conditions_and_one_outcome_per_provider() -> None:
+def test_a_failed_later_provider_leaves_the_earlier_providers_data_intact() -> None:
     composite = _composite(
-        _StubProvider(_BASE_FORECAST, key="b", name="B"),
-        _StubProvider(_SECONDARY_FORECAST, key="s", name="S"),
+        _StubProvider(_BASE_FORECAST), _StubProvider(fail=True, spec=SEVEN_TIMER)
+    )
+    conditions = composite.get(make_pier()).conditions
+    assert conditions.value_at("cloud_cover", _hour(21)) == 30.0
+    assert conditions.value_at("wind_gust", _hour(21)) == 10.0
+    assert "seeing" not in conditions.series
+    assert "transparency" not in conditions.series
+
+
+def test_a_failed_earlier_provider_does_not_fail_the_whole_snapshot() -> None:
+    composite = _composite(
+        _StubProvider(fail=True), _StubProvider(_SECONDARY_FORECAST, spec=SEVEN_TIMER)
+    )
+    conditions = composite.get(make_pier()).conditions
+    assert "cloud_cover" not in conditions.series
+    assert "wind_gust" not in conditions.series
+    assert conditions.value_at("seeing", _hour(21)) == 0.9
+
+
+def test_a_failed_provider_is_passed_over_for_a_variable_the_next_returned() -> None:
+    second = replace(OPEN_METEO, key="second", name="Second")
+    composite = _composite(_StubProvider(fail=True), _StubProvider(_BASE_FORECAST, spec=second))
+    conditions = composite.get(make_pier()).conditions
+    assert conditions.series["cloud_cover"].provider == "second"
+    assert conditions.value_at("cloud_cover", _hour(21)) == 30.0
+
+
+def test_every_listed_provider_is_fetched_in_order_with_one_outcome_each() -> None:
+    calls: list[str] = []
+    later = (replace(SEVEN_TIMER, key="later"), replace(SEVEN_TIMER, key="last"))
+    full = SourceForecast(
+        issued_at=_hour(18),
+        readings={_hour(21): SourceReading(cloud_cover=30.0, seeing=0.9, transparency=0.8)},
+    )
+    first = replace(OPEN_METEO, variables=(*OPEN_METEO.variables, "seeing", "transparency"))
+    composite = _composite(
+        _StubProvider(full, spec=first, calls=calls),
+        *(_StubProvider(_SECONDARY_FORECAST, spec=spec, calls=calls) for spec in later),
     )
     result = composite.get(make_pier())
-    assert result.conditions == assemble_snapshot(_BASE_FORECAST, _SECONDARY_FORECAST)
+    assert calls == ["open_meteo", "later", "last"]
+    assert [outcome.key for outcome in result.outcomes] == ["open_meteo", "later", "last"]
+
+
+# --------------------------------------------------------------------------- #
+# A failed fetch is never filled from an earlier fetch (issue #37, design D1)
+# --------------------------------------------------------------------------- #
+
+
+class _ScriptedProvider:
+    """Answer each fetch with the next scripted outcome: a forecast or a failure."""
+
+    def __init__(self, *outcomes: SourceForecast | Exception, spec: ProviderSpec) -> None:
+        self._outcomes = list(outcomes)
+        self.spec = spec
+
+    def fetch(self, pier: object) -> SourceForecast:
+        outcome = self._outcomes.pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+
+def _good_then(failure: SourceForecast | Exception) -> CompositeProvider:
+    """A production stack whose two providers each succeed once, then fail.
+
+    The data is issued at the real current time, not a pinned one, so it is fresh
+    by any measure: reuse bounded by a staleness limit would still be caught.
+    """
+    now = datetime.now(UTC)
+    base = SourceForecast(issued_at=now, readings={_hour(21): SourceReading(cloud_cover=25.0)})
+    secondary = SourceForecast(
+        issued_at=now, readings={_hour(21): SourceReading(seeing=0.8, transparency=0.7)}
+    )
+    return build_provider(
+        ["open_meteo", "seven_timer"],
+        fetchers={
+            "open_meteo": _ScriptedProvider(base, failure, spec=OPEN_METEO),
+            "seven_timer": _ScriptedProvider(secondary, failure, spec=SEVEN_TIMER),
+        },
+    )
+
+
+@pytest.mark.parametrize("failure", [RuntimeError("source down"), SourceForecast()])
+def test_a_failed_fetch_is_not_filled_from_the_same_piers_earlier_fetch(
+    failure: SourceForecast | Exception,
+) -> None:
+    stack = _good_then(failure)
+    pier = make_pier()
+    first = stack.get(pier).conditions
+    assert {"cloud_cover", "seeing"} <= first.series.keys()
+
+    # No values or issue time carry over from the earlier fetch, for either provider.
+    assert stack.get(pier).conditions == Conditions()
+
+
+@pytest.mark.parametrize("failure", [RuntimeError("source down"), SourceForecast()])
+def test_a_failed_fetch_is_not_filled_from_another_piers_fetch(
+    failure: SourceForecast | Exception,
+) -> None:
+    stack = _good_then(failure)
+    first = stack.get(make_pier("pier-a")).conditions
+    assert {"cloud_cover", "seeing"} <= first.series.keys()
+
+    assert stack.get(make_pier("pier-b")).conditions == Conditions()
+
+
+# --------------------------------------------------------------------------- #
+# Provider identity and per-fetch outcomes (provider-health-entities D1, D3)
+# --------------------------------------------------------------------------- #
+
+
+def test_build_provider_exposes_each_providers_key_name_and_variables_in_order() -> None:
+    assert build_provider(["seven_timer", "open_meteo"]).providers == (
+        ProviderInfo(key="seven_timer", name="7Timer!", variables=("seeing", "transparency")),
+        ProviderInfo(key="open_meteo", name="Open-Meteo", variables=OPEN_METEO.variables),
+    )
+
+
+def test_each_fetcher_points_at_its_catalog_spec() -> None:
+    assert OpenMeteoProvider.spec is CATALOG["open_meteo"]
+    assert SevenTimerProvider.spec is CATALOG["seven_timer"]
+    for key in CATALOG:
+        [fetcher] = build_provider([key]).fetchers
+        assert fetcher.spec is CATALOG[key]
+
+
+def test_get_returns_the_fill_and_one_outcome_per_provider() -> None:
+    composite = _composite(
+        _StubProvider(_BASE_FORECAST), _StubProvider(_SECONDARY_FORECAST, spec=SEVEN_TIMER)
+    )
+    result = composite.get(make_pier())
+    assert result.conditions == assemble_snapshot(
+        [(OPEN_METEO, _BASE_FORECAST), (SEVEN_TIMER, _SECONDARY_FORECAST)]
+    )
     assert result.outcomes == (
         FetchOutcome(
-            key="b", name="B", role="base", fetched_at=_FETCHED, ok=True, issued_at=_hour(18)
+            key="open_meteo",
+            name="Open-Meteo",
+            variables=OPEN_METEO.variables,
+            fetched_at=_FETCHED,
+            ok=True,
+            issued_at=_hour(18),
         ),
         FetchOutcome(
-            key="s", name="S", role="secondary", fetched_at=_FETCHED, ok=True, issued_at=_hour(17)
+            key="seven_timer",
+            name="7Timer!",
+            variables=("seeing", "transparency"),
+            fetched_at=_FETCHED,
+            ok=True,
+            issued_at=_hour(17),
         ),
     )
+
+
+def test_a_provider_the_fill_passed_over_still_reports_success() -> None:
+    second = replace(OPEN_METEO, key="second", name="Second")
+    composite = _composite(
+        _StubProvider(_BASE_FORECAST), _StubProvider(_BASE_FORECAST, spec=second)
+    )
+    result = composite.get(make_pier())
+    assert {series.provider for series in result.conditions.series.values()} == {"open_meteo"}
+    assert result.outcomes[1].ok is True
 
 
 def test_a_raising_source_gives_a_failed_outcome_with_safe_error_text() -> None:
     composite = _composite(
-        _StubProvider(fail=True, key="b"), _StubProvider(_SECONDARY_FORECAST, key="s")
+        _StubProvider(fail=True), _StubProvider(_SECONDARY_FORECAST, spec=SEVEN_TIMER)
     )
     base_outcome = composite.get(make_pier()).outcomes[0]
     assert base_outcome.ok is False
@@ -481,7 +567,7 @@ def test_a_raising_source_gives_a_failed_outcome_with_safe_error_text() -> None:
 
 def test_an_empty_forecast_gives_a_failed_outcome() -> None:
     composite = _composite(
-        _StubProvider(_BASE_FORECAST, key="b"), _StubProvider(SourceForecast(), key="s")
+        _StubProvider(_BASE_FORECAST), _StubProvider(SourceForecast(), spec=SEVEN_TIMER)
     )
     secondary_outcome = composite.get(make_pier()).outcomes[1]
     assert secondary_outcome.ok is False
@@ -491,7 +577,7 @@ def test_an_empty_forecast_gives_a_failed_outcome() -> None:
 
 def test_readings_with_blank_fields_give_a_successful_outcome() -> None:
     blank = SourceForecast(issued_at=_hour(18), readings={_hour(21): SourceReading()})
-    composite = _composite(_StubProvider(blank, key="b"), _StubProvider(fail=True, key="s"))
+    composite = _composite(_StubProvider(blank), _StubProvider(fail=True, spec=SEVEN_TIMER))
     base_outcome = composite.get(make_pier()).outcomes[0]
     assert base_outcome.ok is True
     assert base_outcome.error is None
@@ -500,7 +586,7 @@ def test_readings_with_blank_fields_give_a_successful_outcome() -> None:
 
 def test_a_failed_fetch_logs_the_full_error_text(caplog: pytest.LogCaptureFixture) -> None:
     composite = _composite(
-        _StubProvider(fail=True, key="b"), _StubProvider(_SECONDARY_FORECAST, key="s")
+        _StubProvider(fail=True), _StubProvider(_SECONDARY_FORECAST, spec=SEVEN_TIMER)
     )
     composite.get(make_pier())
     assert "source down" in caplog.text
@@ -521,10 +607,9 @@ def test_forecast_horizon_beyond_the_data_is_unavailable() -> None:
             _hour(22): SourceReading(cloud_cover=25.0),
         },
     )
-    conditions = assemble_snapshot(base, SourceForecast())
-    assert conditions.base is not None
-    assert conditions.base.at(_hour(21)) is not None
-    assert conditions.base.at(_hour(23)) is None  # beyond the forecast horizon
+    conditions = assemble_snapshot([(OPEN_METEO, base)])
+    assert _hour(21) in conditions.series["cloud_cover"].values
+    assert _hour(23) not in conditions.series["cloud_cover"].values  # beyond the forecast horizon
 
 
 def test_build_provider_passes_its_clock_to_open_meteo() -> None:
@@ -533,6 +618,8 @@ def test_build_provider_passes_its_clock_to_open_meteo() -> None:
     def clock() -> datetime:
         return _FETCHED
 
-    stack = build_provider(now=clock)
+    stack = build_provider(["open_meteo"], now=clock)
     assert stack.now is clock
-    assert stack.base.now is clock
+    [open_meteo] = stack.fetchers
+    assert isinstance(open_meteo, OpenMeteoProvider)
+    assert open_meteo.now is clock

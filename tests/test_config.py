@@ -484,3 +484,64 @@ def test_valid_secrets_are_masked_when_printed(tmp_path: Path) -> None:
 
     for shown in (read, config, config.model_dump(), broker, explainer.provider):
         assert MARKER not in repr(shown)
+
+
+# --------------------------------------------------------------------------- #
+# provider-order 1.5: the ordered provider list
+# --------------------------------------------------------------------------- #
+
+
+def _with_conditions(tmp_path: Path, block: str) -> Path:
+    return _write(tmp_path, VALID_CONFIG + block)
+
+
+def test_an_absent_conditions_block_gives_the_default_order(tmp_path: Path) -> None:
+    config = load_config(_write(tmp_path, VALID_CONFIG))
+    assert config.conditions.providers == ["open_meteo", "seven_timer"]
+
+
+def test_a_conditions_block_without_a_list_gives_the_default_order(tmp_path: Path) -> None:
+    config = load_config(_with_conditions(tmp_path, "conditions: {}\n"))
+    assert config.conditions.providers == ["open_meteo", "seven_timer"]
+
+
+def test_a_configured_order_is_kept_as_written(tmp_path: Path) -> None:
+    config = load_config(
+        _with_conditions(tmp_path, "conditions:\n  providers: [seven_timer, open_meteo]\n")
+    )
+    assert config.conditions.providers == ["seven_timer", "open_meteo"]
+
+
+@pytest.mark.parametrize(
+    ("providers", "rule"),
+    [
+        ("[]", "the provider list must name at least one provider"),
+        ("[open_meteo, weather_wizard]", "weather_wizard is not a known provider"),
+        ("[open_meteo, seven_timer, open_meteo]", "open_meteo is listed more than once"),
+        (
+            "[seven_timer]",
+            "the provider list must include a provider that needs no key and supplies cloud cover",
+        ),
+    ],
+)
+def test_an_invalid_provider_list_stops_startup_naming_the_rule(
+    tmp_path: Path, providers: str, rule: str
+) -> None:
+    path = _with_conditions(tmp_path, f"conditions:\n  providers: {providers}\n")
+    with pytest.raises(ConfigError) as excinfo:
+        load_config(path)
+    assert str(excinfo.value) == f"Invalid conditions configuration: {rule}"
+
+
+def test_a_provider_list_error_carries_no_other_configuration_value(tmp_path: Path) -> None:
+    path = _with_conditions(tmp_path, "conditions:\n  providers: [seven_timer]\n")
+    with pytest.raises(ConfigError) as excinfo:
+        load_config(path)
+    message = str(excinfo.value)
+    for value in ("192.168.1.10", "pierpressure", "backyard", "900", "seven_timer"):
+        assert value not in message
+
+
+def test_a_null_provider_list_gives_the_default_order(tmp_path: Path) -> None:
+    config = load_config(_with_conditions(tmp_path, "conditions:\n  providers:\n"))
+    assert config.conditions.providers == ["open_meteo", "seven_timer"]

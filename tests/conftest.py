@@ -18,14 +18,7 @@ from paho.mqtt.packettypes import PacketTypes
 from paho.mqtt.reasoncodes import ReasonCode
 
 from pierpressure.conditions import FetchResult
-from pierpressure.core.conditions import (
-    BaseGroup,
-    BaseHour,
-    Conditions,
-    GroupMeta,
-    SecondaryGroup,
-    SecondaryHour,
-)
+from pierpressure.core.conditions import Conditions, Series, Variable
 from pierpressure.core.config import MqttConfig, PierConfig
 from pierpressure.core.model import (
     Band,
@@ -37,6 +30,7 @@ from pierpressure.core.model import (
     Verdict,
     VerdictDocument,
 )
+from pierpressure.core.providers import ProviderSpec
 from pierpressure.health import ProviderHealth
 
 _CONNECT_FLAGS = mqtt.ConnectFlags(session_present=False)
@@ -436,25 +430,50 @@ def make_conditions(
     transparency: float | None = 0.7,
     issued_at: datetime | None = None,
 ) -> Conditions:
-    """Fixed per-source conditions spanning an evening-to-morning horizon.
+    """Fixed conditions spanning an evening-to-morning horizon.
 
     The horizon (18:00 -> next 06:00 UTC) comfortably brackets a London night, so
-    the core finds real overlap with the dark window. Both the base (cloud/wind)
-    and secondary (seeing/transparency) groups share the same issue time. Being
-    fixed, it pins the conditions input for byte-identity determinism tests.
+    the core finds real overlap with the dark window. Every series shares the same
+    issue time. Being fixed, it pins the conditions input for byte-identity
+    determinism tests.
     """
     issued = issued_at or datetime(2026, 9, 8, 12, 0, tzinfo=UTC)
     start = datetime(2026, 9, 8, 18, 0, tzinfo=UTC)
     slots = [start + timedelta(hours=h) for h in range(13)]
-    base = BaseGroup.of(
-        GroupMeta(source="base", issued_at=issued),
-        tuple(BaseHour(time=t, cloud_cover=cloud, wind_gust=wind) for t in slots),
+
+    def series(provider: str, value: float | None) -> Series:
+        return Series(provider=provider, issued_at=issued, values=dict.fromkeys(slots, value))
+
+    return Conditions(
+        series={
+            "cloud_cover": series("open_meteo", cloud),
+            "wind_gust": series("open_meteo", wind),
+            "seeing": series("seven_timer", seeing),
+            "transparency": series("seven_timer", transparency),
+        }
     )
-    secondary = SecondaryGroup.of(
-        GroupMeta(source="secondary", issued_at=issued),
-        tuple(SecondaryHour(time=t, seeing=seeing, transparency=transparency) for t in slots),
-    )
-    return Conditions(base=base, secondary=secondary)
+
+
+def provider_series(
+    spec: ProviderSpec,
+    times: Iterable[datetime],
+    *,
+    issued_at: datetime | None = None,
+    **values: float | None,
+) -> dict[Variable, Series]:
+    """A series for every variable ``spec`` declares, over ``times``, as one fetch fills them.
+
+    Each named variable holds its value in every hour; the rest hold ``None``.
+    """
+    hours = list(times)
+    return {
+        variable: Series(
+            provider=spec.key,
+            issued_at=issued_at,
+            values=dict.fromkeys(hours, values.get(variable)),
+        )
+        for variable in spec.variables
+    }
 
 
 def make_mqtt_config(**overrides: Any) -> MqttConfig:

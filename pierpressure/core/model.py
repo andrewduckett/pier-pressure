@@ -263,11 +263,11 @@ class TimelineEntry(BaseModel):
     """One clock hour of the ``timeline``: the sky and weather at ``time`` (ADR-0025).
 
     ``time`` is the aware-UTC top of the hour. The altitudes are the sun's and the
-    moon's geometric centre, computed by the core and always present. The cloud and
-    gust fields carry the base source's reading exactly as reported; ``seeing`` and
-    ``transparency`` carry the secondary source's. The weather fields carry the
-    base source's reading unrounded, in °C, %, km/h and degrees. Each is null when
-    its source lacks the hour or the value. The entry is flat so that later
+    moon's geometric centre, computed by the core and always present. Every other
+    field carries its variable's series for the hour: cloud, gust and the weather
+    fields exactly as reported (°C, %, km/h and degrees), ``seeing`` and
+    ``transparency`` as quality. Each is null when its series lacks the hour or
+    the value, or no provider filled it. The entry is flat so that later
     variables append as new keys without reshaping it.
     """
 

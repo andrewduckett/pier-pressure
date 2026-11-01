@@ -18,6 +18,7 @@ import paho.mqtt.client as mqtt
 import pytest
 
 from pierpressure.core.model import Verdict
+from pierpressure.core.providers import OPEN_METEO
 from pierpressure.delivery import mqtt as delivery_mqtt
 from pierpressure.delivery.mqtt import (
     MqttDelivery,
@@ -366,7 +367,7 @@ def _health() -> ProviderHealth:
     return ProviderHealth.empty(
         key="open_meteo",
         name="Open-Meteo",
-        role="base",
+        variables=OPEN_METEO.variables,
         tracking_since=datetime(2026, 10, 9, 9, 0, tzinfo=UTC),
     )
 

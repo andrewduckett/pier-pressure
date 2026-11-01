@@ -18,7 +18,6 @@ from typing import Literal
 
 import httpx
 
-Role = Literal["base", "secondary"]
 Status = Literal["ok", "failed"]
 
 # The error for a fetch that completed but returned nothing usable.
@@ -27,11 +26,11 @@ NO_READINGS = "no readings returned"
 
 @dataclass(frozen=True)
 class ProviderInfo:
-    """Who a provider is: its stable key, its display name, and its role."""
+    """Who a provider is: its stable key, its display name, and the variables it declares."""
 
     key: str
     name: str
-    role: Role
+    variables: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -44,7 +43,7 @@ class FetchOutcome:
 
     key: str
     name: str
-    role: Role
+    variables: tuple[str, ...]
     fetched_at: datetime
     ok: bool
     error: str | None = None
@@ -62,7 +61,7 @@ class ProviderHealth:
 
     key: str
     name: str
-    role: Role
+    variables: tuple[str, ...]
     tracking_since: datetime
     status: Status | None = None
     last_fetch: datetime | None = None
@@ -71,9 +70,11 @@ class ProviderHealth:
     issued_at: datetime | None = None
 
     @classmethod
-    def empty(cls, *, key: str, name: str, role: Role, tracking_since: datetime) -> ProviderHealth:
+    def empty(
+        cls, *, key: str, name: str, variables: tuple[str, ...], tracking_since: datetime
+    ) -> ProviderHealth:
         """A provider with no fetch yet."""
-        return cls(key=key, name=name, role=role, tracking_since=tracking_since)
+        return cls(key=key, name=name, variables=variables, tracking_since=tracking_since)
 
 
 def fold(previous: ProviderHealth, outcome: FetchOutcome) -> ProviderHealth:

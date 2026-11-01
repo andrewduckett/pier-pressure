@@ -34,6 +34,7 @@ from pierpressure.conditions.seven_timer import parse_seven_timer
 from pierpressure.core.clock import FixedClock
 from pierpressure.core.config import PierConfig
 from pierpressure.core.producer import produce_verdict
+from pierpressure.core.providers import OPEN_METEO, SEVEN_TIMER
 
 from .conftest import make_pier
 from .offline_guard import no_network
@@ -124,7 +125,7 @@ def _verdict_json(
     secondary: SourceForecast,
     instant: datetime = _INSTANT,
 ) -> str:
-    conditions = assemble_snapshot(base, secondary)
+    conditions = assemble_snapshot([(OPEN_METEO, base), (SEVEN_TIMER, secondary)])
     with no_network():
         return produce_verdict(pier, FixedClock(instant), conditions).to_json()
 

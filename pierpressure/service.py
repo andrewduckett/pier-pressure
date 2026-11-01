@@ -72,7 +72,7 @@ WorkItem = str | Reconnected
 
 def _no_conditions(_pier: PierConfig) -> FetchResult:
     """Fallback provider: the canonical empty value (astronomy-only verdicts)."""
-    return FetchResult(Conditions(None, None))
+    return FetchResult(Conditions())
 
 
 class Service:
@@ -168,7 +168,10 @@ class Service:
         for pier in self._config.piers:
             self._health[pier.id] = {
                 info.key: ProviderHealth.empty(
-                    key=info.key, name=info.name, role=info.role, tracking_since=tracking_since
+                    key=info.key,
+                    name=info.name,
+                    variables=info.variables,
+                    tracking_since=tracking_since,
                 )
                 for info in self._providers
             }

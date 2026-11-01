@@ -1,7 +1,7 @@
 ---
 id: adrs-adr0006
 date: 2026-09-10
-status: deprecated
+status: superseded by ADR-0027
 title: 'ADR0006: The conditions snapshot is modelled as per-source groups'
 description: Architecture Decision Record for shaping the core's conditions input as one self-stamped group per source (cloud, wind, seeing) rather than a flat hourly grid with side-channel issue-times, refining the provider-edge seam of ADR-0005.
 ---
@@ -12,7 +12,8 @@ description: Architecture Decision Record for shaping the core's conditions inpu
 > internal core input type, not an architectural fork, so it no longer meets the
 > ADR bar. The seam it refines is ADR-0005; the shape now lives in the conditions
 > provider implementation. The file stays for history; do not treat it as an
-> in-force decision.
+> in-force decision. Superseded on 2026-11-01 by ADR-0027, which replaces the
+> per-source groups with per-variable series filled from an ordered provider list.
 
 ## Context
 

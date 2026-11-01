@@ -214,7 +214,7 @@ def main(argv: list[str] | None = None) -> int:
         config, broker_from_supervisor=loaded.broker_from_supervisor
     )
     clock = SystemClock()
-    conditions = build_provider(now=clock.now)
+    conditions = build_provider(config.conditions.providers, now=clock.now)
     service = Service(
         config,
         delivery,

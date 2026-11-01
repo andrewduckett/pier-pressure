@@ -10,6 +10,7 @@ import pytest
 from pierpressure.conditions import FetchResult
 from pierpressure.core.clock import FixedClock
 from pierpressure.core.config import AppConfig, PierConfig, RecomputeConfig
+from pierpressure.core.providers import OPEN_METEO, SEVEN_TIMER
 from pierpressure.delivery.mqtt import MqttDelivery, refresh_command_topic
 from pierpressure.health import FetchOutcome, ProviderHealth, ProviderInfo
 from pierpressure.service import Service
@@ -150,8 +151,8 @@ def test_command_on_refresh_topic_republishes_with_current_timestamp() -> None:
 # --------------------------------------------------------------------------- #
 
 _PROVIDERS = (
-    ProviderInfo(key="open_meteo", name="Open-Meteo", role="base"),
-    ProviderInfo(key="seven_timer", name="7Timer!", role="secondary"),
+    ProviderInfo(key="open_meteo", name="Open-Meteo", variables=OPEN_METEO.variables),
+    ProviderInfo(key="seven_timer", name="7Timer!", variables=SEVEN_TIMER.variables),
 )
 _START = datetime(2026, 9, 8, 14, 0, tzinfo=UTC)
 
@@ -177,7 +178,7 @@ class _ScriptedFetch:
             FetchOutcome(
                 key=info.key,
                 name=info.name,
-                role=info.role,
+                variables=info.variables,
                 fetched_at=fetched_at,
                 ok=ok,
                 error=None if ok else "ConnectError",
@@ -212,7 +213,7 @@ def test_startup_resets_health_before_going_online_and_before_fetching() -> None
     for pier_id, healths in delivery.healths[:2]:
         assert healths == tuple(
             ProviderHealth.empty(
-                key=info.key, name=info.name, role=info.role, tracking_since=_START
+                key=info.key, name=info.name, variables=info.variables, tracking_since=_START
             )
             for info in _PROVIDERS
         ), pier_id
