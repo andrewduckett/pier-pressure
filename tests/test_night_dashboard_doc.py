@@ -422,12 +422,14 @@ def test_strip_rows_read_forecast_into_one_bar_trace(dashboard: dict[str, Any]) 
     assert card["layout"]["yaxis"]["categoryarray"] == _ROW_LABELS
 
 
-def test_strip_rows_centre_each_cell_and_leave_a_null_as_a_gap(dashboard: dict[str, Any]) -> None:
+def test_strip_rows_trim_each_cell_and_leave_a_null_as_a_gap(dashboard: dict[str, Any]) -> None:
     card = strip_card(dashboard)
-    assert "Date.parse(h) + 30 * 60 * 1000" in card["pier_timeline"]
-    assert "v == null ? null : band(v)" in card["pier_timeline"]
-    [heatmap] = _traces(card, "heatmap")
-    assert heatmap["hoverongaps"] is False
+    timeline = card["pier_timeline"]
+    assert "trim = 2 * 60 * 1000" in timeline
+    # A null hour is dropped before the trace sees it, so it draws no bar and hover finds nothing.
+    assert ".filter((h) => values[i].get(h) != null)" in timeline
+    assert "no data" not in timeline
+    assert "hoverongaps" not in _trace_on(card, "y")
 
 
 def test_strip_rows_shade_on_the_seven_step_ramp(dashboard: dict[str, Any]) -> None:

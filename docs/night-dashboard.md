@@ -195,17 +195,19 @@ views:
                 const hour = 60 * 60 * 1000, trim = 2 * 60 * 1000;
                 vars.strip = {
                   // A value covers the hour that starts at its datetime. Each cell is a bar over that hour,
-                  // trimmed at both ends so neighbouring cells keep a gap.
-                  cells: rows.flatMap(([label, , unit, band], i) => hours.map((h) => {
-                    const v = values[i].get(h);
-                    return {
-                      y: label,
-                      base: new Date(Date.parse(h) + trim),
-                      x: hour - 2 * trim,
-                      band: v == null ? null : band(v),
-                      text: `${clock.format(new Date(h))}: ${v == null ? "no data" : `${v}${unit}`}`,
-                    };
-                  })),
+                  // trimmed at both ends so neighbouring cells keep a gap. A null hour has no bar at all.
+                  cells: rows.flatMap(([label, , unit, band], i) => hours
+                    .filter((h) => values[i].get(h) != null)
+                    .map((h) => {
+                      const v = values[i].get(h);
+                      return {
+                        y: label,
+                        base: new Date(Date.parse(h) + trim),
+                        x: hour - 2 * trim,
+                        band: band(v),
+                        text: `${clock.format(new Date(h))}: ${v}${unit}`,
+                      };
+                    })),
                   moon: hours.map((h) => [new Date(h), values[1].get(h)]),
                 };
               }
@@ -269,7 +271,6 @@ views:
                 x: $ex vars.strip.cells.map((c) => c.x)
                 text: $ex vars.strip.cells.map((c) => c.text)
                 textposition: none
-                hoverongaps: false
                 hovertemplate: "%{y}, the hour from %{text}<extra></extra>"
               - entity: ""
                 name: Lanes
