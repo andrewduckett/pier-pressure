@@ -170,6 +170,8 @@ views:
             time_zone: server
             pier_timeline: |
               $ex {
+                // The seven blues, lightest to darkest, that bands 0 to 6 are drawn in.
+                const blues = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"];
                 const ramp = (v, step) => Math.min(6, Math.floor(v / step));
                 const quality = (q) => Math.min(6, Math.round((1 - q) * 7));
                 // Top to bottom: row label, timeline sensor, unit, and the band 0 (lightest) to 6 (darkest).
@@ -204,7 +206,7 @@ views:
                         y: label,
                         base: new Date(Date.parse(h) + trim),
                         x: hour - 2 * trim,
-                        band: band(v),
+                        color: blues[band(v)],
                         text: `${clock.format(new Date(h))}: ${v}${unit}`,
                       };
                     })),
@@ -271,6 +273,8 @@ views:
                 x: $ex vars.strip.cells.map((c) => c.x)
                 text: $ex vars.strip.cells.map((c) => c.text)
                 textposition: none
+                marker:
+                  color: $ex vars.strip.cells.map((c) => c.color)
                 hovertemplate: "%{y}, the hour from %{text}<extra></extra>"
               - entity: ""
                 name: Lanes

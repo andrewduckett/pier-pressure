@@ -433,10 +433,13 @@ def test_strip_rows_trim_each_cell_and_leave_a_null_as_a_gap(dashboard: dict[str
 
 
 def test_strip_rows_shade_on_the_seven_step_ramp(dashboard: dict[str, Any]) -> None:
-    [heatmap] = _traces(strip_card(dashboard), "heatmap")
-    colours = list(dict.fromkeys(colour for _, colour in heatmap["colorscale"]))
-    assert colours == _RAMP
-    assert (heatmap["zmin"], heatmap["zmax"]) == (-0.5, 6.5)
+    card = strip_card(dashboard)
+    timeline = card["pier_timeline"]
+    blues = re.search(r"const blues = \[([^\]]+)\]", timeline)
+    assert blues is not None
+    assert re.findall(r'"(#[0-9a-f]{6})"', blues.group(1)) == _RAMP
+    assert "color: blues[band(v)]" in timeline
+    assert _trace_on(card, "y")["marker"]["color"] == "$ex vars.strip.cells.map((c) => c.color)"
 
 
 def test_strip_axis_spans_tonight_in_home_assistant_time(dashboard: dict[str, Any]) -> None:
