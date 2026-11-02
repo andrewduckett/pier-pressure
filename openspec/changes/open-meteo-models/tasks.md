@@ -5,7 +5,7 @@
 
 ## 2. One fetcher for every Open-Meteo provider [depends-on: 1]
 
-- [ ] 2.1 [easy] A test pins the `open_meteo` request exactly: the same eleven `hourly` columns in today's order, 2 forecast days, km/h, UTC, and no `models` parameter. It passes before any fetcher change (verify: uv run pytest tests/test_conditions_provider.py -k open_meteo)
+- [x] 2.1 [easy] A test pins the `open_meteo` request exactly: the same eleven `hourly` columns in today's order, 2 forecast days, km/h, UTC, and no `models` parameter. It passes before any fetcher change (verify: uv run pytest tests/test_conditions_provider.py -k open_meteo) (✓ uv run pytest tests/test_conditions_provider.py -k open_meteo passed)
 - [ ] 2.2 [medium] The fetcher builds its `hourly` list from its spec's variables through one variable-to-column map, and `parse_open_meteo` reads its columns through the same map. The pinned `open_meteo` request and every existing parser test still pass (design D3) (verify: uv run pytest tests/test_conditions_provider.py)
 - [ ] 2.3 [easy] A catalog test checks that every variable each Open-Meteo spec declares has a column in the map, so a missing entry fails a test rather than a fetch (verify: uv run pytest tests/test_conditions_provider.py)
 - [ ] 2.4 [medium] `OpenMeteoProvider` takes its spec and an optional model as fields (design D2). Built for HRDPS, its request names `models=gem_hrdps_continental` only, asks for 2 days in km/h, and leaves `precipitation_probability` out of `hourly` (verify: uv run pytest tests/test_conditions_provider.py)

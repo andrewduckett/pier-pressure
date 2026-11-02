@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -130,6 +131,38 @@ def test_open_meteo_fetch_requests_the_weather_variables_in_kmh() -> None:
     ):
         assert variable in hourly
     assert request.url.params["wind_speed_unit"] == "kmh"
+
+
+def _requests_of(
+    provider_for: Callable[[httpx.Client], OpenMeteoProvider], payload: dict
+) -> list[httpx.Request]:
+    """Fetch once through a mock transport and return the requests it sent."""
+    requests: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json=payload)
+
+    client = httpx.Client(transport=httpx.MockTransport(handle))
+    provider_for(client).fetch(make_pier())
+    return requests
+
+
+def test_open_meteo_request_is_pinned_and_names_no_model() -> None:
+    (request,) = _requests_of(
+        lambda client: OpenMeteoProvider(client=client, now=lambda: _ISSUED),
+        _load("open_meteo.json"),
+    )
+    params = request.url.params
+    assert params["hourly"] == (
+        "cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_gusts_10m,"
+        "temperature_2m,dew_point_2m,relative_humidity_2m,wind_speed_10m,"
+        "wind_direction_10m,precipitation_probability"
+    )
+    assert params["forecast_days"] == "2"
+    assert params["wind_speed_unit"] == "kmh"
+    assert params["timezone"] == "UTC"
+    assert "models" not in params
 
 
 # --------------------------------------------------------------------------- #
