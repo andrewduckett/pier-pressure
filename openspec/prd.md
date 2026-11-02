@@ -76,8 +76,9 @@ presses the "show me now" refresh button.
   low, mid, and high layers; thin high cloud is scored on its own term because it
   ruins transparency.
 - `reasons[]` lists every gate and score term, so the verdict explains itself.
-- `confidence {band: LOW|MEDIUM|HIGH, value: 0–100}` reflects forecast lead time
-  and freshness.
+- `confidence {band: LOW|MEDIUM|HIGH, value: 0–100}` reflects forecast lead time,
+  freshness, and how well the forecasts agree with one another when more than
+  one gives cloud.
 
 ### 6.2 Sky and light
 

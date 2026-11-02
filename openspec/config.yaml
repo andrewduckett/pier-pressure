@@ -31,7 +31,8 @@ context: |
   - Target observability windows are hard-clamped to astronomical night (sun
     below -18 degrees), regardless of any user-requested view window.
   - confidence {band: LOW|MEDIUM|HIGH, value: 0-100} reflects forecast
-    lead-time/freshness and rises as dusk nears.
+    lead-time/freshness and rises as dusk nears; when more than one provider
+    gives cloud, disagreement between them lowers it.
   - No single external data source is load-bearing: providers sit behind an
     interface with graceful fallback.
   - The LLM layer is optional and never feeds the astronomy/ephemeris math; it
