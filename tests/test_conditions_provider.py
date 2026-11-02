@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -10,7 +11,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from pierpressure.conditions.open_meteo import OpenMeteoProvider, parse_open_meteo
+from pierpressure.conditions.open_meteo import COLUMNS, OpenMeteoProvider, parse_open_meteo
 from pierpressure.conditions.provider import (
     CompositeProvider,
     SourceForecast,
@@ -20,7 +21,13 @@ from pierpressure.conditions.provider import (
 )
 from pierpressure.conditions.seven_timer import SevenTimerProvider, parse_seven_timer
 from pierpressure.core.conditions import Conditions
-from pierpressure.core.providers import CATALOG, OPEN_METEO, SEVEN_TIMER, ProviderSpec
+from pierpressure.core.providers import (
+    CATALOG,
+    OPEN_METEO,
+    OPEN_METEO_HRDPS,
+    SEVEN_TIMER,
+    ProviderSpec,
+)
 from pierpressure.health import FetchOutcome, ProviderInfo, describe_error
 
 from .conftest import make_pier
@@ -130,6 +137,70 @@ def test_open_meteo_fetch_requests_the_weather_variables_in_kmh() -> None:
     ):
         assert variable in hourly
     assert request.url.params["wind_speed_unit"] == "kmh"
+
+
+def _requests_of(
+    provider_for: Callable[[httpx.Client], OpenMeteoProvider], payload: dict
+) -> list[httpx.Request]:
+    """Fetch once through a mock transport and return the requests it sent."""
+    requests: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json=payload)
+
+    client = httpx.Client(transport=httpx.MockTransport(handle))
+    provider_for(client).fetch(make_pier())
+    return requests
+
+
+def test_open_meteo_request_is_pinned_and_names_no_model() -> None:
+    (request,) = _requests_of(
+        lambda client: OpenMeteoProvider(client=client, now=lambda: _ISSUED),
+        _load("open_meteo.json"),
+    )
+    params = request.url.params
+    assert params["hourly"] == (
+        "cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_gusts_10m,"
+        "temperature_2m,dew_point_2m,relative_humidity_2m,wind_speed_10m,"
+        "wind_direction_10m,precipitation_probability"
+    )
+    assert params["forecast_days"] == "2"
+    assert params["wind_speed_unit"] == "kmh"
+    assert params["timezone"] == "UTC"
+    assert "models" not in params
+
+
+def test_every_variable_an_open_meteo_spec_declares_has_a_column() -> None:
+    open_meteo_specs = [spec for key, spec in CATALOG.items() if key.startswith("open_meteo")]
+    assert len(open_meteo_specs) == 6
+    for spec in open_meteo_specs:
+        assert set(spec.variables) <= COLUMNS.keys(), spec.key
+
+
+def test_a_model_provider_asks_for_its_model_and_its_declared_variables_only() -> None:
+    (request,) = _requests_of(
+        lambda client: OpenMeteoProvider(
+            spec=OPEN_METEO_HRDPS,
+            model="gem_hrdps_continental",
+            client=client,
+            now=lambda: _ISSUED,
+        ),
+        _load("open_meteo.json"),
+    )
+    params = request.url.params
+    assert params.get_list("models") == ["gem_hrdps_continental"]
+    assert params["forecast_days"] == "2"
+    assert params["wind_speed_unit"] == "kmh"
+    hourly = params["hourly"].split(",")
+    assert "precipitation_probability" not in hourly
+    assert hourly == [COLUMNS[variable] for variable in OPEN_METEO_HRDPS.variables]
+
+
+def test_the_open_meteo_class_still_points_at_the_best_match_spec() -> None:
+    assert OpenMeteoProvider.spec is OPEN_METEO
+    assert OpenMeteoProvider().spec is OPEN_METEO
+    assert OpenMeteoProvider().model is None
 
 
 # --------------------------------------------------------------------------- #
@@ -623,3 +694,138 @@ def test_build_provider_passes_its_clock_to_open_meteo() -> None:
     [open_meteo] = stack.fetchers
     assert isinstance(open_meteo, OpenMeteoProvider)
     assert open_meteo.now is clock
+
+
+# --------------------------------------------------------------------------- #
+# open-meteo-models 2.5: build_provider builds each model provider
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    ("key", "model"),
+    [
+        ("open_meteo_hrrr", "ncep_hrrr_conus"),
+        ("open_meteo_hrdps", "gem_hrdps_continental"),
+        ("open_meteo_rdps", "gem_regional"),
+        ("open_meteo_icon", "icon_seamless"),
+        ("open_meteo_gfs", "gfs_global"),
+    ],
+)
+def test_each_model_provider_names_exactly_its_own_model(key: str, model: str) -> None:
+    [fetcher] = build_provider([key]).fetchers
+    assert isinstance(fetcher, OpenMeteoProvider)
+    (request,) = _requests_of(
+        lambda client: replace(fetcher, client=client), _load("open_meteo.json")
+    )
+    params = request.url.params
+    assert params.get_list("models") == [model]
+    assert params["forecast_days"] == "2"
+    assert params["wind_speed_unit"] == "kmh"
+    assert params["hourly"].split(",") == [COLUMNS[v] for v in CATALOG[key].variables]
+
+
+def test_a_model_provider_stamps_its_fetch_time_as_the_issue_time() -> None:
+    fetched_at = datetime(2026, 9, 8, 21, 5, tzinfo=UTC)
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=_load("open_meteo.json"))
+
+    stack = build_provider(["open_meteo_rdps"], now=lambda: fetched_at)
+    [fetcher] = stack.fetchers
+    assert isinstance(fetcher, OpenMeteoProvider)
+    fetcher.client = httpx.Client(transport=httpx.MockTransport(handle))
+    conditions = stack.get(make_pier()).conditions
+    assert conditions.series
+    for series in conditions.series.values():
+        assert series.provider == "open_meteo_rdps"
+        assert series.issued_at == fetched_at
+
+
+# --------------------------------------------------------------------------- #
+# open-meteo-models 3.1: each model's real response parses (design D6)
+# Trimmed live recordings at Toronto (43.65, -79.38), fetched 2026-11-02 UTC.
+# --------------------------------------------------------------------------- #
+
+
+def _recording(model: str) -> SourceForecast:
+    return parse_open_meteo(_load(f"open_meteo_{model}.json"), issued_at=_ISSUED)
+
+
+@pytest.mark.parametrize("model", ["hrrr", "hrdps", "rdps", "icon", "gfs"])
+def test_each_models_recording_parses_into_four_hours_of_readings(model: str) -> None:
+    forecast = _recording(model)
+    assert len(forecast.readings) == 4
+    first = forecast.readings[min(forecast.readings)]
+    for variable in ("cloud_cover", "cloud_low", "wind_gust", "temperature", "wind_direction"):
+        assert getattr(first, variable) is not None, variable
+
+
+@pytest.mark.parametrize("model", ["hrdps", "rdps"])
+def test_hrdps_and_rdps_recordings_carry_no_precipitation_probability(model: str) -> None:
+    readings = _recording(model).readings.values()
+    assert all(reading.precipitation_probability is None for reading in readings)
+
+
+def test_the_hrrr_recording_carries_precipitation_probability() -> None:
+    readings = _recording("hrrr").readings
+    assert readings[datetime(2026, 11, 2, 0, tzinfo=UTC)].precipitation_probability == 1.0
+
+
+def test_hours_past_hrdps_reach_stay_absent() -> None:
+    readings = _recording("hrdps").readings
+    assert readings[datetime(2026, 11, 3, 18, tzinfo=UTC)].cloud_cover == 80.0
+    past_reach = readings[datetime(2026, 11, 3, 19, tzinfo=UTC)]
+    assert past_reach.cloud_cover is None
+    assert past_reach.temperature is None
+
+
+# --------------------------------------------------------------------------- #
+# open-meteo-models 3.2: a model provider fills and fails like any provider
+# --------------------------------------------------------------------------- #
+
+
+def _open_meteo_stack(
+    keys: list[str], answers: dict[str | None, httpx.Response]
+) -> CompositeProvider:
+    """The production stack, with Open-Meteo answering by the request's model."""
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        return answers[request.url.params.get("models")]
+
+    client = httpx.Client(transport=httpx.MockTransport(handle))
+    stack = build_provider(keys, now=lambda: _FETCHED)
+    for fetcher in stack.fetchers:
+        assert isinstance(fetcher, OpenMeteoProvider)
+        fetcher.client = client
+    return stack
+
+
+def test_the_model_listed_first_fills_cloud_and_the_next_fills_precipitation() -> None:
+    stack = _open_meteo_stack(
+        ["open_meteo_hrdps", "open_meteo"],
+        {
+            "gem_hrdps_continental": httpx.Response(200, json=_load("open_meteo_hrdps.json")),
+            None: httpx.Response(200, json=_load("open_meteo.json")),
+        },
+    )
+    series = stack.get(make_pier()).conditions.series
+    for variable in ("cloud_cover", "cloud_low", "cloud_mid", "cloud_high"):
+        assert series[variable].provider == "open_meteo_hrdps"
+    assert series["precipitation_probability"].provider == "open_meteo"
+
+
+def test_hrrr_outside_its_area_fails_and_is_passed_over() -> None:
+    stack = _open_meteo_stack(
+        ["open_meteo_hrrr", "open_meteo"],
+        {
+            "ncep_hrrr_conus": httpx.Response(400, json={"error": True, "reason": "No data"}),
+            None: httpx.Response(200, json=_load("open_meteo.json")),
+        },
+    )
+    result = stack.get(make_pier())
+    hrrr, best_match = result.outcomes
+    assert hrrr.key == "open_meteo_hrrr"
+    assert not hrrr.ok
+    assert hrrr.error == "HTTPStatusError: 400 Bad Request"
+    assert best_match.ok
+    assert result.conditions.series["cloud_cover"].provider == "open_meteo"

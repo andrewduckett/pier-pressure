@@ -11,7 +11,7 @@ at their spec here.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from .conditions import Variable
 
@@ -54,6 +54,27 @@ OPEN_METEO = ProviderSpec(
     bundles=(frozenset({"cloud_cover", "cloud_low", "cloud_mid", "cloud_high"}),),
 )
 
+# Each named Open-Meteo model is its own provider (ADR-0028). HRDPS and RDPS
+# never send a precipitation probability, so they don't declare one.
+_OPEN_METEO_NO_PRECIPITATION = tuple(
+    variable for variable in OPEN_METEO.variables if variable != "precipitation_probability"
+)
+OPEN_METEO_HRRR = replace(OPEN_METEO, key="open_meteo_hrrr", name="Open-Meteo HRRR")
+OPEN_METEO_HRDPS = replace(
+    OPEN_METEO,
+    key="open_meteo_hrdps",
+    name="Open-Meteo HRDPS",
+    variables=_OPEN_METEO_NO_PRECIPITATION,
+)
+OPEN_METEO_RDPS = replace(
+    OPEN_METEO,
+    key="open_meteo_rdps",
+    name="Open-Meteo RDPS",
+    variables=_OPEN_METEO_NO_PRECIPITATION,
+)
+OPEN_METEO_ICON = replace(OPEN_METEO, key="open_meteo_icon", name="Open-Meteo ICON")
+OPEN_METEO_GFS = replace(OPEN_METEO, key="open_meteo_gfs", name="Open-Meteo GFS")
+
 SEVEN_TIMER = ProviderSpec(
     key="seven_timer",
     name="7Timer!",
@@ -61,4 +82,15 @@ SEVEN_TIMER = ProviderSpec(
     variables=("seeing", "transparency"),
 )
 
-CATALOG: Mapping[str, ProviderSpec] = {spec.key: spec for spec in (OPEN_METEO, SEVEN_TIMER)}
+CATALOG: Mapping[str, ProviderSpec] = {
+    spec.key: spec
+    for spec in (
+        OPEN_METEO,
+        OPEN_METEO_HRRR,
+        OPEN_METEO_HRDPS,
+        OPEN_METEO_RDPS,
+        OPEN_METEO_ICON,
+        OPEN_METEO_GFS,
+        SEVEN_TIMER,
+    )
+}
