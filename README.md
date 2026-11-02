@@ -199,7 +199,52 @@ conditions:
 | `horizon` | Exactly one of: `points` (a list of `[azimuth, altitude]` pairs), `min_altitude` (a flat floor in degrees), or `file` + `format`. Without it the horizon is flat at 0°. The only file format supported today is `nina` (a NINA `.hrz` export). `stellarium` and `telescopius` are recognised but rejected as not yet supported. |
 | `equipment` | Your telescope and camera. With equipment, targets are also ranked on how well they fit the field of view. |
 | `explainer` | The optional LLM summary. See [docs/llm-explainer.md](docs/llm-explainer.md). |
-| `conditions` | Optional. `providers` lists the weather providers, preferred first. The default is `[open_meteo, seven_timer]`. Each forecast variable, such as cloud cover or seeing, comes from the first provider in the list that returned it. PierPressure will not start if the list is empty, names an unknown provider, names a provider more than once, or has no provider that needs no key and supplies cloud cover. |
+| `conditions` | Optional. `providers` lists the weather providers, preferred first. The default is `[open_meteo, seven_timer]`. Each forecast variable, such as cloud cover or seeing, comes from the first provider in the list that returned it. PierPressure will not start if the list is empty, names an unknown provider, names a provider more than once, or has no provider that needs no key and supplies cloud cover. The providers are `open_meteo`, the five Open-Meteo models below, and `seven_timer`. |
+
+### Choosing Open-Meteo models
+
+`open_meteo` asks Open-Meteo for its "best match", a blend it picks for your
+location. To use one weather model instead, list that model's key. Each model is
+its own provider, so you can list several and the first one that returns a
+variable fills it. None needs an API key.
+
+| Key | Open-Meteo model | Covers | Reaches about |
+|---|---|---|---|
+| `open_meteo_hrrr` | `ncep_hrrr_conus` | The continental United States | 48 hours |
+| `open_meteo_hrdps` | `gem_hrdps_continental` | Canada and the northern United States | 42 to 48 hours |
+| `open_meteo_rdps` | `gem_regional` | North America | 84 hours |
+| `open_meteo_icon` | `icon_seamless` | The whole world, finest in Europe | More than 2 days |
+| `open_meteo_gfs` | `gfs_global` | The whole world | More than 2 days |
+
+For a pier near the Great Lakes, list the finest models first, then 7Timer! for
+seeing and transparency:
+
+```yaml
+conditions:
+  providers: [open_meteo_hrrr, open_meteo_hrdps, open_meteo_rdps, seven_timer]
+```
+
+Before you choose, know these limits:
+
+- **The list applies to every pier.** A model with no data for a pier's location
+  fails for that pier on every fetch, and its health sensor shows the failure.
+  PierPressure does not check a pier against a model's area. If any pier is
+  outside a regional model's area, end the list with a global provider, such as
+  `open_meteo`, so that pier still gets cloud cover.
+- **Hours past a model's reach stay empty.** PierPressure asks every model for 2
+  days. Hours the model does not reach are left empty, not filled from the next
+  provider, because the first provider that returns a variable fills all of it.
+  Tonight's dark hours are always within reach.
+- **The issue time is the fetch time.** Open-Meteo does not report when a model
+  ran, so PierPressure records the time of the fetch. A model that runs every 6
+  hours, such as RDPS, ICON or GFS, can be 6 to 12 hours old and still count as
+  fresh.
+- **Every model calls the same service.** Each provider fetches on its own, one
+  after another. If Open-Meteo is slow, each one waits up to 10 seconds, so a
+  short list recomputes faster.
+- **HRDPS and RDPS give no precipitation probability.** The next provider in the
+  list that has one fills it. HRRR's precipitation probability is the same value
+  as best match's, not HRRR's own. The verdict does not use it.
 
 **Secrets.** Any `${VAR}` in a value is replaced with that environment variable
 when the file loads, so passwords and API keys need not sit in the file. If the
@@ -220,7 +265,7 @@ Each pier becomes one device, `PierPressure <pier>`, with these entities:
 | **Cloud low**, **Cloud mid**, **Cloud high** (%), **Wind gust** (km/h), **Seeing**, **Transparency** (0 to 1), **Sun altitude**, **Moon altitude** (°), **Temperature**, **Dew point** (°C), **Humidity** (%), **Wind speed** (km/h), **Wind direction** (°), **Precipitation probability** (%) (sensors) | The current hour's value | Like Cloud cover: one sensor per timeline variable, each with its own `forecast` attribute. Unknown when the current hour has no value. An altitude is for the start of the hour, not the live sky. See [docs/night-timeline.md](docs/night-timeline.md). |
 | **Refresh** (button) | — | "Show me now": recomputes and republishes straight away. |
 | **Narrative** (sensor) | `ready` or unavailable | Only when the explainer is on. The text is in its attributes. |
-| **Open-Meteo health**, **7Timer! health** (diagnostic sensors) | When that weather source last succeeded, or unknown | One per weather source. See [Watching provider health](#watching-provider-health). |
+| **Open-Meteo health**, **7Timer! health**, and **Open-Meteo HRRR health** and so on for each listed model (diagnostic sensors) | When that weather source last succeeded, or unknown | One per provider in the `conditions` list. See [Watching provider health](#watching-provider-health). |
 
 For a ready-made dashboard that shows all of these together, with an hour-by-hour
 night strip, see [docs/night-dashboard.md](docs/night-dashboard.md).
@@ -235,7 +280,7 @@ connection, the broker sends PierPressure's last-will message instead.
 | Purpose | Topic | Retained |
 |---|---|---|
 | Discovery configs | `homeassistant/<sensor\|button>/pierpressure_<pier>/<verdict\|score\|top_target\|target_<n>\|cloud_cover\|cloud_low\|cloud_mid\|cloud_high\|wind_gust\|seeing\|transparency\|sun_altitude\|moon_altitude\|temperature\|dew_point\|humidity\|wind_speed\|wind_direction\|precipitation_probability\|narrative\|refresh>/config` | yes |
-| Health discovery configs | `homeassistant/sensor/pierpressure_<pier>/<open_meteo\|seven_timer>_health/config` | yes |
+| Health discovery configs | `homeassistant/sensor/pierpressure_<pier>/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|seven_timer>_health/config` | yes |
 | Verdict state | `pierpressure/<pier>/verdict/state` | yes |
 | Verdict attributes (the document without `timeline`) | `pierpressure/<pier>/verdict/attributes` | yes |
 | Top target state and list | `pierpressure/<pier>/top_target/state`, `.../top_target/attributes` | yes |
@@ -243,7 +288,7 @@ connection, the broker sends PierPressure's last-will message instead.
 | Cloud cover state and forecast | `pierpressure/<pier>/cloud_cover/state`, `.../cloud_cover/attributes` | yes |
 | Timeline sensor state and forecast, where `<var>` is `cloud_low`, `cloud_mid`, `cloud_high`, `wind_gust`, `seeing`, `transparency`, `sun_altitude`, `moon_altitude`, `temperature`, `dew_point`, `humidity`, `wind_speed`, `wind_direction` or `precipitation_probability` | `pierpressure/<pier>/<var>/state`, `.../<var>/attributes` | yes |
 | Narrative state and text | `pierpressure/<pier>/narrative/state`, `.../narrative/attributes` | yes |
-| Provider health state and details | `pierpressure/<pier>/health/<open_meteo\|seven_timer>/state`, `.../attributes` | yes |
+| Provider health state and details | `pierpressure/<pier>/health/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|seven_timer>/state`, `.../attributes` | yes |
 | Refresh command | `pierpressure/<pier>/refresh/command` | no |
 | Availability | `pierpressure/status` | yes |
 
@@ -351,8 +396,9 @@ that provider's data missing. A broken 7Timer! only lowers confidence, so it is
 easy to miss. The health sensors show each failure as it happens.
 
 Each pier has one diagnostic sensor per configured provider: **Open-Meteo
-health** and **7Timer! health**. You find them under the pier's device, in the
-diagnostic section.
+health** and **7Timer! health** by default. Each Open-Meteo model you list adds
+its own, such as **Open-Meteo HRRR health**. You find them under the pier's
+device, in the diagnostic section.
 
 **State.** The time of that provider's last successful fetch for this pier. It is
 **unknown** until the provider succeeds after PierPressure starts, because health
@@ -376,7 +422,7 @@ The error never contains the request URL or your pier's coordinates. The full
 error goes to the PierPressure log.
 
 Open-Meteo does not report when it issued its data, so PierPressure stamps it at
-fetch time. Its `issued_at` and its last success therefore come from the same
+fetch time. This is true for each Open-Meteo model too. Its `issued_at` and its last success therefore come from the same
 fetch and match closely. 7Timer! reports its own model run time, so its
 `issued_at` can be hours older than its last success.
 
@@ -439,7 +485,8 @@ memory only.
 ### Removing the entities
 
 Home Assistant removes an entity when its discovery topic is cleared. Publish an
-empty retained message to each discovery topic. For a pier called `backyard`:
+empty retained message to each discovery topic. For a pier called `backyard`
+with the default providers:
 
 ```bash
 for e in sensor/pierpressure_backyard/verdict sensor/pierpressure_backyard/score \
@@ -459,6 +506,19 @@ for e in sensor/pierpressure_backyard/verdict sensor/pierpressure_backyard/score
          sensor/pierpressure_backyard/target_{1..10}; do
   mosquitto_pub -r -n -t "homeassistant/$e/config"
 done
+```
+
+If you listed Open-Meteo models, add each one's health sensor to the list, such as
+`sensor/pierpressure_backyard/open_meteo_hrrr_health`. The keys are
+`open_meteo_hrrr`, `open_meteo_hrdps`, `open_meteo_rdps`, `open_meteo_icon` and
+`open_meteo_gfs`.
+
+**Removing one provider.** When you take a provider out of the `conditions` list,
+its health sensor stays in Home Assistant, showing its last success. Clear its
+discovery topic to remove it. For HRRR on the `backyard` pier:
+
+```bash
+mosquitto_pub -r -n -t "homeassistant/sensor/pierpressure_backyard/open_meteo_hrrr_health/config"
 ```
 
 ## 🏗️ How it is built

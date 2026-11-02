@@ -545,3 +545,38 @@ def test_a_provider_list_error_carries_no_other_configuration_value(tmp_path: Pa
 def test_a_null_provider_list_gives_the_default_order(tmp_path: Path) -> None:
     config = load_config(_with_conditions(tmp_path, "conditions:\n  providers:\n"))
     assert config.conditions.providers == ["open_meteo", "seven_timer"]
+
+
+# --------------------------------------------------------------------------- #
+# open-meteo-models 1.2: each Open-Meteo model is a provider in the list
+# --------------------------------------------------------------------------- #
+
+
+def test_the_model_keys_are_kept_in_their_configured_order(tmp_path: Path) -> None:
+    block = (
+        "conditions:\n"
+        "  providers: [open_meteo_hrrr, open_meteo_hrdps, open_meteo_rdps, seven_timer]\n"
+    )
+    config = load_config(_with_conditions(tmp_path, block))
+    assert config.conditions.providers == [
+        "open_meteo_hrrr",
+        "open_meteo_hrdps",
+        "open_meteo_rdps",
+        "seven_timer",
+    ]
+
+
+def test_a_model_provider_alone_satisfies_the_cloud_rule(tmp_path: Path) -> None:
+    config = load_config(
+        _with_conditions(tmp_path, "conditions:\n  providers: [open_meteo_hrdps]\n")
+    )
+    assert config.conditions.providers == ["open_meteo_hrdps"]
+
+
+def test_a_model_outside_its_area_does_not_stop_startup(tmp_path: Path) -> None:
+    # The base pier sits at 51.5, -0.12 (London), outside HRRR's area.
+    config = load_config(
+        _with_conditions(tmp_path, "conditions:\n  providers: [open_meteo_hrrr, open_meteo]\n")
+    )
+    assert (config.piers[0].latitude, config.piers[0].longitude) == (51.5, -0.12)
+    assert config.conditions.providers == ["open_meteo_hrrr", "open_meteo"]
