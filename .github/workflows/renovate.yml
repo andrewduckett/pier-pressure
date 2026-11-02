@@ -26,7 +26,7 @@ env:
   # renovate: datasource=npm depName=renovate
   RENOVATE_VERSION: "44.181.9"
   # renovate: datasource=node-version depName=node
-  RENOVATE_NODE_VERSION: "24"
+  RENOVATE_NODE_VERSION: "26"
 
 jobs:
   validate:
