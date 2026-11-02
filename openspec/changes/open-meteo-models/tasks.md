@@ -14,7 +14,7 @@
 ## 3. Real responses, fill and failure [depends-on: 2]
 
 - [x] 3.1 [parallel] [medium] One trimmed live recording per model, at the Toronto point (43.65, -79.38), four hours each, kept with its real `null`s and `hourly_units` (design D6). Each parses into readings. HRDPS's and RDPS's precipitation probability is absent, and HRRR's is present (verify: uv run pytest tests/test_conditions_provider.py) (✓ uv run pytest tests/test_conditions_provider.py passed, 60 tests)
-- [ ] 3.2 [parallel] [easy] With `open_meteo_hrdps` then `open_meteo`, cloud and its layers carry `open_meteo_hrdps` and precipitation probability carries `open_meteo`. With `open_meteo_hrrr` answering 400, its outcome fails with `HTTPStatusError: 400 Bad Request`, and cloud carries `open_meteo` (design D7) (verify: uv run pytest tests/test_conditions_provider.py)
+- [x] 3.2 [parallel] [easy] With `open_meteo_hrdps` then `open_meteo`, cloud and its layers carry `open_meteo_hrdps` and precipitation probability carries `open_meteo`. With `open_meteo_hrrr` answering 400, its outcome fails with `HTTPStatusError: 400 Bad Request`, and cloud carries `open_meteo` (design D7) (verify: uv run pytest tests/test_conditions_provider.py) (✓ uv run pytest tests/test_conditions_provider.py passed, 62 tests)
 
 ## 4. Documentation and the gate [depends-on: 3]
 

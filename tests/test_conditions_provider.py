@@ -777,3 +777,55 @@ def test_hours_past_hrdps_reach_stay_absent() -> None:
     past_reach = readings[datetime(2026, 11, 3, 19, tzinfo=UTC)]
     assert past_reach.cloud_cover is None
     assert past_reach.temperature is None
+
+
+# --------------------------------------------------------------------------- #
+# open-meteo-models 3.2: a model provider fills and fails like any provider
+# --------------------------------------------------------------------------- #
+
+
+def _open_meteo_stack(
+    keys: list[str], answers: dict[str | None, httpx.Response]
+) -> CompositeProvider:
+    """The production stack, with Open-Meteo answering by the request's model."""
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        return answers[request.url.params.get("models")]
+
+    client = httpx.Client(transport=httpx.MockTransport(handle))
+    stack = build_provider(keys, now=lambda: _FETCHED)
+    for fetcher in stack.fetchers:
+        assert isinstance(fetcher, OpenMeteoProvider)
+        fetcher.client = client
+    return stack
+
+
+def test_the_model_listed_first_fills_cloud_and_the_next_fills_precipitation() -> None:
+    stack = _open_meteo_stack(
+        ["open_meteo_hrdps", "open_meteo"],
+        {
+            "gem_hrdps_continental": httpx.Response(200, json=_load("open_meteo_hrdps.json")),
+            None: httpx.Response(200, json=_load("open_meteo.json")),
+        },
+    )
+    series = stack.get(make_pier()).conditions.series
+    for variable in ("cloud_cover", "cloud_low", "cloud_mid", "cloud_high"):
+        assert series[variable].provider == "open_meteo_hrdps"
+    assert series["precipitation_probability"].provider == "open_meteo"
+
+
+def test_hrrr_outside_its_area_fails_and_is_passed_over() -> None:
+    stack = _open_meteo_stack(
+        ["open_meteo_hrrr", "open_meteo"],
+        {
+            "ncep_hrrr_conus": httpx.Response(400, json={"error": True, "reason": "No data"}),
+            None: httpx.Response(200, json=_load("open_meteo.json")),
+        },
+    )
+    result = stack.get(make_pier())
+    hrrr, best_match = result.outcomes
+    assert hrrr.key == "open_meteo_hrrr"
+    assert not hrrr.ok
+    assert hrrr.error == "HTTPStatusError: 400 Bad Request"
+    assert best_match.ok
+    assert result.conditions.series["cloud_cover"].provider == "open_meteo"
