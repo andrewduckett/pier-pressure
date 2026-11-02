@@ -96,5 +96,14 @@
       matchDepNames: ["python"],
       enabled: false,
     },
+    // 6. Renovate's own Node stays inside the `engines` range in Renovate's
+    // package.json: ^24.11.0 as of 44.201.1. Renovate can't read that range for
+    // itself, so raise the cap by hand when a Renovate release widens it. The
+    // Node pin in mise.toml is for lets, and stays uncapped.
+    {
+      matchFileNames: [".github/workflows/renovate.yml"],
+      matchDepNames: ["node"],
+      allowedVersions: "<25",
+    },
   ],
 }
