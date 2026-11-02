@@ -9,7 +9,17 @@ import pytest
 
 from pierpressure.core.conditions import Variable
 from pierpressure.core.model import TimelineEntry
-from pierpressure.core.providers import CATALOG, OPEN_METEO, SEVEN_TIMER, ProviderSpec
+from pierpressure.core.providers import (
+    CATALOG,
+    OPEN_METEO,
+    OPEN_METEO_GFS,
+    OPEN_METEO_HRDPS,
+    OPEN_METEO_HRRR,
+    OPEN_METEO_ICON,
+    OPEN_METEO_RDPS,
+    SEVEN_TIMER,
+    ProviderSpec,
+)
 
 _CLOUD_BUNDLE = frozenset({"cloud_cover", "cloud_low", "cloud_mid", "cloud_high"})
 
@@ -48,8 +58,44 @@ def test_seven_timer_declares_seeing_and_transparency_and_no_bundle() -> None:
     assert not SEVEN_TIMER.needs_key
 
 
-def test_catalog_maps_each_key_to_its_spec() -> None:
-    assert CATALOG == {"open_meteo": OPEN_METEO, "seven_timer": SEVEN_TIMER}
+_NO_PRECIPITATION = tuple(v for v in OPEN_METEO.variables if v != "precipitation_probability")
+
+
+@pytest.mark.parametrize(
+    ("spec", "key", "name", "variables"),
+    [
+        (OPEN_METEO_HRRR, "open_meteo_hrrr", "Open-Meteo HRRR", OPEN_METEO.variables),
+        (OPEN_METEO_HRDPS, "open_meteo_hrdps", "Open-Meteo HRDPS", _NO_PRECIPITATION),
+        (OPEN_METEO_RDPS, "open_meteo_rdps", "Open-Meteo RDPS", _NO_PRECIPITATION),
+        (OPEN_METEO_ICON, "open_meteo_icon", "Open-Meteo ICON", OPEN_METEO.variables),
+        (OPEN_METEO_GFS, "open_meteo_gfs", "Open-Meteo GFS", OPEN_METEO.variables),
+    ],
+)
+def test_each_open_meteo_model_declares_what_its_model_returns(
+    spec: ProviderSpec, key: str, name: str, variables: tuple[Variable, ...]
+) -> None:
+    assert spec.key == key
+    assert spec.name == name
+    assert spec.variables == variables
+    assert spec.bundles == (_CLOUD_BUNDLE,)
+    assert not spec.needs_key
+
+
+def test_hrdps_declares_no_precipitation_probability() -> None:
+    assert "precipitation_probability" not in OPEN_METEO_HRDPS.variables
+    assert "precipitation_probability" in OPEN_METEO_HRRR.variables
+
+
+def test_catalog_maps_each_key_to_its_spec_in_order() -> None:
+    assert list(CATALOG.items()) == [
+        ("open_meteo", OPEN_METEO),
+        ("open_meteo_hrrr", OPEN_METEO_HRRR),
+        ("open_meteo_hrdps", OPEN_METEO_HRDPS),
+        ("open_meteo_rdps", OPEN_METEO_RDPS),
+        ("open_meteo_icon", OPEN_METEO_ICON),
+        ("open_meteo_gfs", OPEN_METEO_GFS),
+        ("seven_timer", SEVEN_TIMER),
+    ]
 
 
 def test_bundle_of_gives_a_variables_bundle_or_the_variable_alone() -> None:
