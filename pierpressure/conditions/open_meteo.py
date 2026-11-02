@@ -44,6 +44,17 @@ COLUMNS: Mapping[Variable, str] = {
 both read it, so there is one list of column names (design D3)."""
 
 
+MODELS: Mapping[str, str] = {
+    "open_meteo_hrrr": "ncep_hrrr_conus",
+    "open_meteo_hrdps": "gem_hrdps_continental",
+    "open_meteo_rdps": "gem_regional",
+    "open_meteo_icon": "icon_seamless",
+    "open_meteo_gfs": "gfs_global",
+}
+"""The Open-Meteo ``models=`` value behind each model provider's key. It is a
+request detail, so it lives here rather than in the core spec (design D1)."""
+
+
 def _utcnow() -> datetime:
     return datetime.now(UTC)
 

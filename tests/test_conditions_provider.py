@@ -694,3 +694,48 @@ def test_build_provider_passes_its_clock_to_open_meteo() -> None:
     [open_meteo] = stack.fetchers
     assert isinstance(open_meteo, OpenMeteoProvider)
     assert open_meteo.now is clock
+
+
+# --------------------------------------------------------------------------- #
+# open-meteo-models 2.5: build_provider builds each model provider
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    ("key", "model"),
+    [
+        ("open_meteo_hrrr", "ncep_hrrr_conus"),
+        ("open_meteo_hrdps", "gem_hrdps_continental"),
+        ("open_meteo_rdps", "gem_regional"),
+        ("open_meteo_icon", "icon_seamless"),
+        ("open_meteo_gfs", "gfs_global"),
+    ],
+)
+def test_each_model_provider_names_exactly_its_own_model(key: str, model: str) -> None:
+    [fetcher] = build_provider([key]).fetchers
+    assert isinstance(fetcher, OpenMeteoProvider)
+    (request,) = _requests_of(
+        lambda client: replace(fetcher, client=client), _load("open_meteo.json")
+    )
+    params = request.url.params
+    assert params.get_list("models") == [model]
+    assert params["forecast_days"] == "2"
+    assert params["wind_speed_unit"] == "kmh"
+    assert params["hourly"].split(",") == [COLUMNS[v] for v in CATALOG[key].variables]
+
+
+def test_a_model_provider_stamps_its_fetch_time_as_the_issue_time() -> None:
+    fetched_at = datetime(2026, 9, 8, 21, 5, tzinfo=UTC)
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=_load("open_meteo.json"))
+
+    stack = build_provider(["open_meteo_rdps"], now=lambda: fetched_at)
+    [fetcher] = stack.fetchers
+    assert isinstance(fetcher, OpenMeteoProvider)
+    fetcher.client = httpx.Client(transport=httpx.MockTransport(handle))
+    conditions = stack.get(make_pier()).conditions
+    assert conditions.series
+    for series in conditions.series.values():
+        assert series.provider == "open_meteo_rdps"
+        assert series.issued_at == fetched_at
