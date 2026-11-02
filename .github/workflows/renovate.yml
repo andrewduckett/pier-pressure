@@ -21,7 +21,7 @@ permissions: {}
 
 # One version for the scheduled run and the config check. Renovate updates both
 # through these comments, in the weekly Actions pull request. Node stays inside
-# the range Renovate's package.json `engines` allows: rule 6 in
+# the range Renovate's package.json `engines` allows: the Node cap rule in
 # .github/renovate.json5 caps it.
 env:
   # renovate: datasource=npm depName=renovate
