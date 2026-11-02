@@ -1,7 +1,7 @@
 ## 1. Catalog and configuration
 
 - [x] 1.1 [easy] The catalog holds `open_meteo_hrrr`, `open_meteo_hrdps`, `open_meteo_rdps`, `open_meteo_icon` and `open_meteo_gfs`, named "Open-Meteo HRRR" and so on, none needing a key. HRRR, ICON and GFS declare `OPEN_METEO`'s variables; HRDPS and RDPS declare the same without `precipitation_probability`. All share the cloud bundle (design D4) (verify: uv run pytest tests/test_provider_catalog.py) (✓ uv run pytest tests/test_provider_catalog.py passed)
-- [ ] 1.2 [easy] Configuration accepts the model keys in order. `providers: [open_meteo_hrdps]` alone passes the cloud rule, and `[open_meteo_hrrr, open_meteo]` starts for a pier at 51.5, -0.12 (verify: uv run pytest tests/test_config.py)
+- [x] 1.2 [easy] Configuration accepts the model keys in order. `providers: [open_meteo_hrdps]` alone passes the cloud rule, and `[open_meteo_hrrr, open_meteo]` starts for a pier at 51.5, -0.12 (verify: uv run pytest tests/test_config.py) (✓ uv run pytest tests/test_config.py passed)
 
 ## 2. One fetcher for every Open-Meteo provider [depends-on: 1]
 
