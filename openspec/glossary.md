@@ -65,3 +65,30 @@ hour carries a value for it, or for a variable in its bundle. Every listed
 provider is fetched on every recompute, in order.
 
 Scope: configuration and conditions.
+
+## Alternate
+
+A provider's series for a variable that did not win the fill, kept beside the
+filled series for comparison instead of being discarded. An alternate never
+fills an hour the filled series lacks. The core reads alternates only to
+measure agreement.
+
+Scope: the conditions snapshot and the core's agreement measure.
+
+## Agreement
+
+How closely the filled series and its alternates agree on one variable over
+the night window, measured by the core and expressed as a band. Low agreement
+lowers confidence; it never changes a gate or the score. Agreement is a
+property of the forecasts, not of any one provider.
+
+Scope: the core's scoring and the verdict document.
+
+## Computed
+
+The source in the provider order whose variables the core derives from other
+series rather than fetches, such as seeing from layer temperature gradients.
+It has a stable key, declares its variables and has a health record like a
+provider, but it fetches nothing and runs after every provider has returned.
+
+Scope: configuration, conditions and provider health.
