@@ -1,6 +1,6 @@
 ## 1. Catalog and configuration
 
-- [ ] 1.1 [easy] The catalog holds `open_meteo_hrrr`, `open_meteo_hrdps`, `open_meteo_rdps`, `open_meteo_icon` and `open_meteo_gfs`, named "Open-Meteo HRRR" and so on, none needing a key. HRRR, ICON and GFS declare `OPEN_METEO`'s variables; HRDPS and RDPS declare the same without `precipitation_probability`. All share the cloud bundle (design D4) (verify: uv run pytest tests/test_provider_catalog.py)
+- [x] 1.1 [easy] The catalog holds `open_meteo_hrrr`, `open_meteo_hrdps`, `open_meteo_rdps`, `open_meteo_icon` and `open_meteo_gfs`, named "Open-Meteo HRRR" and so on, none needing a key. HRRR, ICON and GFS declare `OPEN_METEO`'s variables; HRDPS and RDPS declare the same without `precipitation_probability`. All share the cloud bundle (design D4) (verify: uv run pytest tests/test_provider_catalog.py) (✓ uv run pytest tests/test_provider_catalog.py passed)
 - [ ] 1.2 [easy] Configuration accepts the model keys in order. `providers: [open_meteo_hrdps]` alone passes the cloud rule, and `[open_meteo_hrrr, open_meteo]` starts for a pier at 51.5, -0.12 (verify: uv run pytest tests/test_config.py)
 
 ## 2. One fetcher for every Open-Meteo provider [depends-on: 1]
@@ -24,3 +24,5 @@
 ## Deviations Ledger
 
 <!-- Dated notes on small departures from the plan, written during apply. Stop and ask the user about a large one. -->
+
+- 2026-11-01, task 1.1: adding the five keys to `CATALOG` makes `test_each_fetcher_points_at_its_catalog_spec` fail until task 2.5 gives `build_provider` a fetcher for each key. That test walks every catalog key, so the commits for tasks 1.1 to 2.4 carry one known failure in `tests/test_conditions_provider.py`.
