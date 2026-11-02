@@ -11,7 +11,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from pierpressure.conditions.open_meteo import OpenMeteoProvider, parse_open_meteo
+from pierpressure.conditions.open_meteo import COLUMNS, OpenMeteoProvider, parse_open_meteo
 from pierpressure.conditions.provider import (
     CompositeProvider,
     SourceForecast,
@@ -163,6 +163,13 @@ def test_open_meteo_request_is_pinned_and_names_no_model() -> None:
     assert params["wind_speed_unit"] == "kmh"
     assert params["timezone"] == "UTC"
     assert "models" not in params
+
+
+def test_every_variable_an_open_meteo_spec_declares_has_a_column() -> None:
+    open_meteo_specs = [spec for key, spec in CATALOG.items() if key.startswith("open_meteo")]
+    assert len(open_meteo_specs) == 6
+    for spec in open_meteo_specs:
+        assert set(spec.variables) <= COLUMNS.keys(), spec.key
 
 
 # --------------------------------------------------------------------------- #
