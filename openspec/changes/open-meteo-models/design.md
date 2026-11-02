@@ -13,9 +13,14 @@
   it covers new keys without being edited.
 - Health entities, topics and the verdict document are keyed by the provider
   key and named after its display name. They need nothing new for more keys.
-- Live API check (brainstorm D1): HRDPS and RDPS return no
-  `precipitation_probability`. HRRR and HRDPS answer HTTP 400 outside their
-  areas.
+- Live API checks: HRDPS and RDPS return no `precipitation_probability`
+  (brainstorm D1, D4). HRRR answers HTTP 400 at London; HRDPS answers 400 at
+  London and Arizona; RDPS answers 200 at both (D12).
+- The provider list is one setting for the whole install
+  (`AppConfig.conditions`), and `__main__` builds one provider stack for every
+  pier. A model provider therefore runs for every pier, in its area or not.
+- Fetches run one after another on the single work thread (ADR-0012), each
+  with a 10-second timeout.
 
 ## Goals / Non-Goals
 
@@ -38,7 +43,11 @@
 - **Primary test seam:** `tests/test_conditions_provider.py`. It drives
   `OpenMeteoProvider.fetch` through an `httpx.MockTransport` and observes the
   request's query and the parsed `SourceForecast`. It drives `build_provider`
-  and `CompositeProvider.get` for the fill and the outcomes.
+  and `CompositeProvider.get` for the fill and the outcomes. Two tests here
+  guard the request: one parametrised over the five model keys, which fetches
+  each provider `build_provider` builds and asserts its exact `models` value
+  and `hourly` list; and one that pins the `open_meteo` request's exact
+  `hourly` value and the absence of a `models` parameter.
 - **Existing seams reused:** `tests/test_provider_catalog.py` for the
   declarations, and `tests/test_config.py` for the provider-list validation.
 
@@ -46,10 +55,13 @@
 
 - **Tier:** medium
 - **Blast radius:** the conditions package and the catalog in the core. The
-  five new keys become user-facing configuration values and health-sensor IDs,
+  five new keys become user-facing configuration values and health-sensor
+  topics and unique IDs,
   so their names are a contract from the first release. The default list and
   the `open_meteo` request don't change, so existing installs see no
-  difference.
+  difference. The display names fix the health sensors' entity IDs on a new
+  install, because Home Assistant builds the entity ID from the name, so they
+  are part of the contract too.
 
 ## Decisions
 
@@ -79,9 +91,12 @@ still work.
 
 The fetcher builds its `hourly` parameter from `spec.variables`, through a fixed
 map from each variable to its Open-Meteo column (`wind_gust` →
-`wind_gusts_10m`, and so on). For `OPEN_METEO` this gives the same eleven
-columns in the same order as today, so its request does not change. HRDPS and
-RDPS don't ask for `precipitation_probability`.
+`wind_gusts_10m`, and so on). `parse_open_meteo` reads its columns through the
+same map, so there is one list of column names. For `OPEN_METEO` this gives the
+same eleven columns in the same order as today, so its request does not change.
+HRDPS and RDPS don't ask for `precipitation_probability`. A catalog test checks
+that every variable an Open-Meteo spec declares has a column in the map, so a
+missing entry fails a test rather than a fetch.
 
 - *Alternative:* request all eleven columns and let the blank column fall
   through. Rejected: it asks Open-Meteo for something the declaration says the
@@ -117,6 +132,25 @@ model provider, so a later change cannot quietly hide the error.
 
 ## Risks / Trade-offs
 
+- [The issue time is the fetch time, so confidence treats a model's latest
+  run as fresh whatever its age. RDPS, ICON and GFS run every 6 hours, so a
+  model that fills cloud can be 6–12 hours old with a freshness factor of 1.0]
+  → Accepted for this story (brainstorm D13). The README says so, as it already
+  does for `open_meteo`. Reading each model's run time from Open-Meteo's
+  metadata endpoint is a follow-up.
+- [Every model provider calls the same service, one after another. If
+  Open-Meteo hangs, each provider waits out its 10-second timeout, so six
+  Open-Meteo providers hold one pier's recompute for a minute or more, and a
+  refresh waits behind it] → The user chooses how many models to list. The
+  README says that every model shares one service, and that a short list
+  recomputes faster. Sharing one request across models is the later fix.
+- [The provider list applies to every pier. With piers in Ontario and Arizona,
+  HRDPS fails on every fetch for the Arizona pier, and its health sensor shows
+  that failure for good. A list of regional models alone passes the startup
+  cloud rule, yet leaves an out-of-area pier with no cloud] → ADR-0028 records
+  this. The README states each model's coverage. When any pier sits outside a
+  regional model's area, it advises ending the list with a global provider such
+  as `open_meteo`.
 - [Open-Meteo renames a model identifier, as it has before] → The identifiers
   sit in one table. A rename then fails every fetch with an HTTP error that the
   provider's health sensor shows. The README names the identifier behind each
@@ -127,9 +161,6 @@ model provider, so a later change cannot quietly hide the error.
 - [HRDPS reaches about 42–48 h, depending on the run] → Under the existing
   forecast-reach rule, hours past its reach stay empty. Tonight's dark window is
   always inside that reach. The README states each model's reach.
-- [A user lists a model whose area doesn't cover their pier] → The provider's
-  health sensor shows a 400 on every fetch, and the README lists each model's
-  coverage.
 
 ## Migration & Rollback
 

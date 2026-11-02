@@ -15,12 +15,12 @@ names the models it wants with a `models=` parameter, and with no parameter it
 returns a "best match" blend. Some models are finer than the blend for a given
 region: HRDPS covers Canada and the northern US at 2.5 km, and HRRR covers the
 contiguous US at 3 km. A user may want one of these to fill cloud first. The
-forecasts that lose the fill are useful too: to say how far the models agree
-on tonight's cloud, the core needs each model's forecast as a separate series
-with its own provenance. Conditions are already filled variable by variable
+alternates, the forecasts that lose the fill, are useful too. To say how far
+the models agree on tonight's cloud, the core needs each model's forecast as a
+separate series with its own provenance. Conditions are already filled variable by variable
 from an ordered list of providers, and each provider has a stable key, a fixed
 declaration of its variables and a health record (ADR-0027). The key appears
-in the configuration and in each health sensor's topics and entity ID.
+in the configuration and in each health sensor's topics and unique ID.
 
 ## Decision
 
@@ -45,9 +45,17 @@ detail, never something the configuration expresses.
   the other models.
 - **Harder:** each model is one request per recompute until requests are
   shared, so listing five models makes five calls to the same service.
-- **Harder:** each key becomes a configuration value and a health-sensor ID.
-  Renaming one breaks users' configurations and automations, so the keys must
-  stay stable even if Open-Meteo renames the model behind them.
+- **Harder:** each key becomes a configuration value and the base of a health
+  sensor's topics and unique ID, and each display name fixes that sensor's
+  entity ID on a new install. Renaming either breaks users' configurations and
+  automations, so both must stay stable even if Open-Meteo renames the model
+  behind them.
+- **Harder:** the startup rule that a list must hold a keyless provider of
+  cloud cover no longer guarantees cloud for every pier. A regional model
+  declares cloud cover everywhere but returns it only inside its area. The
+  provider list applies to every pier, so a regional model fails on every
+  fetch for a pier outside its area, and its health sensor shows that failure
+  for good. A list of regional models alone leaves such a pier with no cloud.
 - **Harder:** a model's declaration must match what that model actually
   returns, so the catalog has to be checked against the live service when a
   model is added.

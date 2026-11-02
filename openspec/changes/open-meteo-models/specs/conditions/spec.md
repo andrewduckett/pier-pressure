@@ -9,15 +9,15 @@ and SHALL be listed, filled, fetched and reported like any other provider.
 #### Scenario: The catalog offers the five model providers
 
 - **WHEN** the catalog is read
-- **THEN** it holds these providers, each with this display name and Open-Meteo model, and none needs a key:
+- **THEN** it holds these providers, each with this display name, and none needs a key:
 
-  | Key | Display name | Open-Meteo model |
-  |---|---|---|
-  | `open_meteo_hrrr` | Open-Meteo HRRR | `ncep_hrrr_conus` |
-  | `open_meteo_hrdps` | Open-Meteo HRDPS | `gem_hrdps_continental` |
-  | `open_meteo_rdps` | Open-Meteo RDPS | `gem_regional` |
-  | `open_meteo_icon` | Open-Meteo ICON | `icon_seamless` |
-  | `open_meteo_gfs` | Open-Meteo GFS | `gfs_global` |
+  | Key | Display name |
+  |---|---|
+  | `open_meteo_hrrr` | Open-Meteo HRRR |
+  | `open_meteo_hrdps` | Open-Meteo HRDPS |
+  | `open_meteo_rdps` | Open-Meteo RDPS |
+  | `open_meteo_icon` | Open-Meteo ICON |
+  | `open_meteo_gfs` | Open-Meteo GFS |
 
 #### Scenario: A model key is accepted in the provider list
 
@@ -36,21 +36,46 @@ and SHALL be listed, filled, fetched and reported like any other provider.
 
 ### Requirement: A model provider asks Open-Meteo for its model only
 
-Each model provider SHALL ask Open-Meteo for its one model and no other, with
-the same forecast length and units as `open_meteo`. The `open_meteo` provider
-SHALL keep fetching Open-Meteo's best match, and SHALL name no model in its
-request.
+Each model provider SHALL ask Open-Meteo for its one model and no other. It
+SHALL ask for the same forecast length and units as `open_meteo`, and only for
+the variables it declares. The `open_meteo` provider SHALL keep fetching
+Open-Meteo's best match, and SHALL name no model in its request.
 
-#### Scenario: A model provider asks for its model only
+#### Scenario: Each model provider names its own model
+
+- **WHEN** each model provider is fetched for a pier
+- **THEN** its request to Open-Meteo names exactly this model and no other:
+
+  | Key | Open-Meteo model |
+  |---|---|
+  | `open_meteo_hrrr` | `ncep_hrrr_conus` |
+  | `open_meteo_hrdps` | `gem_hrdps_continental` |
+  | `open_meteo_rdps` | `gem_regional` |
+  | `open_meteo_icon` | `icon_seamless` |
+  | `open_meteo_gfs` | `gfs_global` |
+
+- **AND** each request asks for 2 forecast days, with wind speed in km/h
+
+#### Scenario: HRDPS does not ask for precipitation probability
 
 - **WHEN** `open_meteo_hrdps` is fetched for a pier
-- **THEN** its request to Open-Meteo names the model `gem_hrdps_continental` and no other model
-- **AND** it asks for 2 forecast days, with wind speed in km/h
+- **THEN** the hourly variables in its request do not include precipitation probability
 
 #### Scenario: Plain Open-Meteo still asks for best match
 
 - **WHEN** `open_meteo` is fetched for a pier
 - **THEN** its request to Open-Meteo names no model
+- **AND** it asks for the same eleven hourly variables, forecast length and units as before this change
+
+### Requirement: A model provider's issue time is its fetch time
+
+Each model provider SHALL record the time of its fetch as the issue time of its
+data, as `open_meteo` does, because the forecast response gives none.
+
+#### Scenario: A model provider stamps the fetch time
+
+- **WHEN** `open_meteo_rdps` is fetched at 21:05 and returns readings
+- **THEN** each series it fills carries an issue time of 21:05
 
 ### Requirement: Each Open-Meteo model declares the variables its model returns
 
@@ -77,13 +102,11 @@ do not supply.
 - **WHEN** the order is `open_meteo_hrdps` then `open_meteo`, and both return readings for the dark window
 - **THEN** the `precipitation_probability` series carries the key `open_meteo`
 
-### Requirement: A model that does not cover the pier fails its fetch
+### Requirement: A model outside its area is not rejected at startup
 
-When Open-Meteo answers a model provider's request with an HTTP error because
-the model has no data for the pier's location, the system SHALL report that
-fetch as failed, with the kind of error, the status code and that code's
-standard phrase. The provider SHALL be passed over for every variable, as any
-failed provider is. The system SHALL NOT reject such a provider at startup.
+The system SHALL NOT check a pier's location against a model's area at startup.
+A model provider that fails for a pier SHALL be reported and passed over like
+any failed provider.
 
 #### Scenario: HRRR for a pier outside its area fails and is passed over
 

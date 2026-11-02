@@ -13,9 +13,9 @@ coming cloud-agreement story (#153) separate forecasts to compare.
   (D1). ICON uses `icon_seamless` and GFS uses `gfs_global` (D3).
 - Each model provider declares the variables its model returns. HRDPS and RDPS
   leave out precipitation probability (D4). Each has its own health record.
-- A model provider works like `open_meteo` in every other way: 2 days of
-  hourly data, issue time taken from the fetch time, and the existing fill and
-  forecast-reach rules (D6, D8).
+- A model provider works like `open_meteo` in every other way. It asks for
+  2 days of hourly data, takes its issue time from the fetch time, and follows
+  the existing fill and forecast-reach rules (D6, D8, D13).
 - A pier outside HRRR's or HRDPS's area gets a failed fetch every time, and the
   provider is passed over (D5).
 - Plain `open_meteo` still fetches best match. The default list stays
@@ -23,6 +23,8 @@ coming cloud-agreement story (#153) separate forecasts to compare.
 - The README lists the new keys and gives each model's coverage and forecast
   reach. It explains that hours past the cloud model's reach stay empty, and
   suggests an order for a Great Lakes pier: HRRR, HRDPS, RDPS, then 7Timer!.
+  It also says that every model shares one service, that a model's issue time
+  is the fetch time, and that the provider list applies to every pier.
 
 ## Capabilities
 
@@ -32,9 +34,9 @@ None.
 
 ### Modified Capabilities
 
-- `conditions`: the catalog gains the five Open-Meteo model providers, each with
-  its declared variables and the model it fetches. A model provider fails for a
-  location its model does not cover.
+- `conditions`: the catalog gains the five Open-Meteo model providers. Each
+  declares its variables, asks for its own model only, and takes its issue time
+  from the fetch time. None is rejected at startup for a pier outside its area.
 
 ## Impact
 
@@ -48,5 +50,8 @@ None.
 - Delivery: a listed model provider gets a health sensor, for example
   `sensor.pierpressure_<pier>_open_meteo_hrrr_health`. The topics, entities and
   verdict document do not change shape.
-- Docs: `README.md` configuration and provider-health sections.
+- Docs: every `README.md` section that names provider keys: configuration,
+  the entities table, the two topic tables, provider health, and the
+  entity-removal steps. The removal steps also cover a model provider taken off
+  the list.
 - Dependencies and network: none new. Open-Meteo stays keyless.
