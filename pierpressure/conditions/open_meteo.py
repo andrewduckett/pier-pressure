@@ -10,13 +10,14 @@ recorded fixture with no network.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, ClassVar
 
 import httpx
 
+from pierpressure.core.conditions import Variable
 from pierpressure.core.config import PierConfig
 from pierpressure.core.providers import OPEN_METEO, ProviderSpec
 
@@ -24,6 +25,23 @@ from .provider import SourceForecast, SourceReading
 
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 _TIMEOUT_SECONDS = 10.0
+
+
+COLUMNS: Mapping[Variable, str] = {
+    "cloud_cover": "cloud_cover",
+    "cloud_low": "cloud_cover_low",
+    "cloud_mid": "cloud_cover_mid",
+    "cloud_high": "cloud_cover_high",
+    "wind_gust": "wind_gusts_10m",
+    "temperature": "temperature_2m",
+    "dew_point": "dew_point_2m",
+    "humidity": "relative_humidity_2m",
+    "wind_speed": "wind_speed_10m",
+    "wind_direction": "wind_direction_10m",
+    "precipitation_probability": "precipitation_probability",
+}
+"""The Open-Meteo hourly column behind each variable. The request and the parser
+both read it, so there is one list of column names (design D3)."""
 
 
 def _utcnow() -> datetime:
@@ -56,35 +74,11 @@ def parse_open_meteo(payload: dict[str, Any], issued_at: datetime) -> SourceFore
     """
     hourly = payload.get("hourly") or {}
     times = hourly.get("time") or []
-
-    def column(name: str) -> list[Any]:
-        return hourly.get(name) or []
-
-    clouds = column("cloud_cover")
-    clouds_low = column("cloud_cover_low")
-    clouds_mid = column("cloud_cover_mid")
-    clouds_high = column("cloud_cover_high")
-    gusts = column("wind_gusts_10m")
-    temperatures = column("temperature_2m")
-    dew_points = column("dew_point_2m")
-    humidities = column("relative_humidity_2m")
-    wind_speeds = column("wind_speed_10m")
-    wind_directions = column("wind_direction_10m")
-    precipitation = column("precipitation_probability")
+    columns = {variable: hourly.get(name) or [] for variable, name in COLUMNS.items()}
     readings: dict[datetime, SourceReading] = {}
     for index, raw_time in enumerate(times):
         readings[_parse_hour(raw_time)] = SourceReading(
-            cloud_cover=_float_at(clouds, index),
-            wind_gust=_float_at(gusts, index),
-            cloud_low=_float_at(clouds_low, index),
-            cloud_mid=_float_at(clouds_mid, index),
-            cloud_high=_float_at(clouds_high, index),
-            temperature=_float_at(temperatures, index),
-            dew_point=_float_at(dew_points, index),
-            humidity=_float_at(humidities, index),
-            wind_speed=_float_at(wind_speeds, index),
-            wind_direction=_float_at(wind_directions, index),
-            precipitation_probability=_float_at(precipitation, index),
+            **{variable: _float_at(values, index) for variable, values in columns.items()}
         )
     return SourceForecast(issued_at=issued_at, readings=readings)
 
@@ -102,21 +96,7 @@ class OpenMeteoProvider:
         params: dict[str, str | float | int] = {
             "latitude": pier.latitude,
             "longitude": pier.longitude,
-            "hourly": ",".join(
-                (
-                    "cloud_cover",
-                    "cloud_cover_low",
-                    "cloud_cover_mid",
-                    "cloud_cover_high",
-                    "wind_gusts_10m",
-                    "temperature_2m",
-                    "dew_point_2m",
-                    "relative_humidity_2m",
-                    "wind_speed_10m",
-                    "wind_direction_10m",
-                    "precipitation_probability",
-                )
-            ),
+            "hourly": ",".join(COLUMNS[variable] for variable in self.spec.variables),
             "wind_speed_unit": "kmh",
             "timezone": "UTC",
             "forecast_days": 2,
