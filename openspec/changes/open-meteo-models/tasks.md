@@ -19,7 +19,7 @@
 ## 4. Documentation and the gate [depends-on: 3]
 
 - [x] 4.1 [easy] The README lists the five keys with each model's identifier, coverage and reach, and keeps the story's Great Lakes order (HRRR, HRDPS, RDPS, then 7Timer!). It explains that hours past the cloud model's reach stay empty, and that a model's issue time is the fetch time. It says every model shares one service, the provider list applies to every pier, and HRRR's precipitation probability is best match's. The entities table, topic tables, health section and removal steps name the new keys, and the removal steps cover a dropped provider's health entity (verify: grep -q open_meteo_hrdps README.md) (✓ grep -q open_meteo_hrdps README.md passed)
-- [ ] 4.2 [easy] The full gate passes: lint, types and the whole test suite (verify: mise run check)
+- [x] 4.2 [easy] The full gate passes: lint, types and the whole test suite (verify: mise run check) (✓ mise run check passed: ruff, mypy, 1647 tests)
 
 ## Deviations Ledger
 
