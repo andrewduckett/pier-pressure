@@ -34,9 +34,11 @@ Scope: conditions, configuration and provider health.
 
 ## Variable
 
-One per-hour quantity the conditions carry, named by its timeline key, such as
-`cloud_cover`, `wind_gust` or `seeing`. The conditions spec says "variable"
-where it once said "field".
+One per-hour quantity the conditions carry, named by its key, such as
+`cloud_cover`, `wind_gust` or `seeing`. The timeline publishes a documented
+subset of the variables; a raw input such as aerosol optical depth is a
+variable the timeline does not show. The conditions spec says "variable" where
+it once said "field".
 
 Scope: conditions and the verdict document's timeline.
 
