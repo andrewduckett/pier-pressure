@@ -90,11 +90,11 @@ Stage status checked against the code on 2026-11-01.
    [#150](https://github.com/andrewduckett/pier-pressure/issues/150))
 5. **See tonight's verdict** — verdict, score, confidence, and reasons; a refresh
    button; an optional plain-language narrative; an hourly timeline on one sensor
-   per variable, with a documented night strip. Seeing and transparency come only
-   from 7Timer!, which is coarse over North America, and a better source cannot be
-   chosen because the providers are fixed in code — partial
-   ([#146](https://github.com/andrewduckett/pier-pressure/issues/146),
-   [#147](https://github.com/andrewduckett/pier-pressure/issues/147))
+   per variable, with a documented night strip. Providers sit in an ordered list a
+   pier can change. Seeing and transparency come only from 7Timer!, which is coarse
+   over North America, and the verdict cannot say whether the forecasts agree with
+   one another — partial
+   ([#154](https://github.com/andrewduckett/pier-pressure/issues/154), [#158](https://github.com/andrewduckett/pier-pressure/issues/158), [#155](https://github.com/andrewduckett/pier-pressure/issues/155), [#156](https://github.com/andrewduckett/pier-pressure/issues/156), [#159](https://github.com/andrewduckett/pier-pressure/issues/159), [#160](https://github.com/andrewduckett/pier-pressure/issues/160), [#157](https://github.com/andrewduckett/pier-pressure/issues/157))
 6. **Get told in time** — the README gives a Home Assistant automation that
    notifies at a chosen time — supported
 7. **Choose a target** — the Top target sensor and one sensor per rank, Target 1
