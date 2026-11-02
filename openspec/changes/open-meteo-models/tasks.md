@@ -13,7 +13,7 @@
 
 ## 3. Real responses, fill and failure [depends-on: 2]
 
-- [ ] 3.1 [parallel] [medium] One trimmed live recording per model, at the Toronto point (43.65, -79.38), four hours each, kept with its real `null`s and `hourly_units` (design D6). Each parses into readings. HRDPS's and RDPS's precipitation probability is absent, and HRRR's is present (verify: uv run pytest tests/test_conditions_provider.py)
+- [x] 3.1 [parallel] [medium] One trimmed live recording per model, at the Toronto point (43.65, -79.38), four hours each, kept with its real `null`s and `hourly_units` (design D6). Each parses into readings. HRDPS's and RDPS's precipitation probability is absent, and HRRR's is present (verify: uv run pytest tests/test_conditions_provider.py) (✓ uv run pytest tests/test_conditions_provider.py passed, 60 tests)
 - [ ] 3.2 [parallel] [easy] With `open_meteo_hrdps` then `open_meteo`, cloud and its layers carry `open_meteo_hrdps` and precipitation probability carries `open_meteo`. With `open_meteo_hrrr` answering 400, its outcome fails with `HTTPStatusError: 400 Bad Request`, and cloud carries `open_meteo` (design D7) (verify: uv run pytest tests/test_conditions_provider.py)
 
 ## 4. Documentation and the gate [depends-on: 3]
@@ -26,3 +26,4 @@
 <!-- Dated notes on small departures from the plan, written during apply. Stop and ask the user about a large one. -->
 
 - 2026-11-01, task 1.1: adding the five keys to `CATALOG` makes `test_each_fetcher_points_at_its_catalog_spec` fail until task 2.5 gives `build_provider` a fetcher for each key. That test walks every catalog key, so the commits for tasks 1.1 to 2.4 carry one known failure in `tests/test_conditions_provider.py`.
+- 2026-11-01, task 3.1: the recordings were fetched with each provider's own request, so HRDPS and RDPS never asked for `precipitation_probability`. The HRDPS fixture takes hours 41 to 44 rather than the first four, so it keeps the real `null`s past that model's reach.

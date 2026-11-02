@@ -739,3 +739,41 @@ def test_a_model_provider_stamps_its_fetch_time_as_the_issue_time() -> None:
     for series in conditions.series.values():
         assert series.provider == "open_meteo_rdps"
         assert series.issued_at == fetched_at
+
+
+# --------------------------------------------------------------------------- #
+# open-meteo-models 3.1: each model's real response parses (design D6)
+# Trimmed live recordings at Toronto (43.65, -79.38), fetched 2026-11-02 UTC.
+# --------------------------------------------------------------------------- #
+
+
+def _recording(model: str) -> SourceForecast:
+    return parse_open_meteo(_load(f"open_meteo_{model}.json"), issued_at=_ISSUED)
+
+
+@pytest.mark.parametrize("model", ["hrrr", "hrdps", "rdps", "icon", "gfs"])
+def test_each_models_recording_parses_into_four_hours_of_readings(model: str) -> None:
+    forecast = _recording(model)
+    assert len(forecast.readings) == 4
+    first = forecast.readings[min(forecast.readings)]
+    for variable in ("cloud_cover", "cloud_low", "wind_gust", "temperature", "wind_direction"):
+        assert getattr(first, variable) is not None, variable
+
+
+@pytest.mark.parametrize("model", ["hrdps", "rdps"])
+def test_hrdps_and_rdps_recordings_carry_no_precipitation_probability(model: str) -> None:
+    readings = _recording(model).readings.values()
+    assert all(reading.precipitation_probability is None for reading in readings)
+
+
+def test_the_hrrr_recording_carries_precipitation_probability() -> None:
+    readings = _recording("hrrr").readings
+    assert readings[datetime(2026, 11, 2, 0, tzinfo=UTC)].precipitation_probability == 1.0
+
+
+def test_hours_past_hrdps_reach_stay_absent() -> None:
+    readings = _recording("hrdps").readings
+    assert readings[datetime(2026, 11, 3, 18, tzinfo=UTC)].cloud_cover == 80.0
+    past_reach = readings[datetime(2026, 11, 3, 19, tzinfo=UTC)]
+    assert past_reach.cloud_cover is None
+    assert past_reach.temperature is None
