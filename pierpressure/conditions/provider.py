@@ -21,11 +21,12 @@ import logging
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from functools import partial
 from typing import Protocol, get_args
 
 from pierpressure.core.conditions import Conditions, Series, Variable
 from pierpressure.core.config import PierConfig
-from pierpressure.core.providers import ProviderSpec
+from pierpressure.core.providers import CATALOG, ProviderSpec
 from pierpressure.health import NO_READINGS, FetchOutcome, ProviderInfo, describe_error
 
 logger = logging.getLogger(__name__)
@@ -229,13 +230,15 @@ def build_provider(
     stack without the network. ``now`` stamps each fetch outcome, and
     Open-Meteo's issue time, so the two always come from the same clock.
     """
-    from .open_meteo import OpenMeteoProvider
+    from .open_meteo import MODELS, OpenMeteoProvider
     from .seven_timer import SevenTimerProvider
 
     real: dict[str, Callable[[], Provider]] = {
         OpenMeteoProvider.spec.key: lambda: OpenMeteoProvider(now=now),
         SevenTimerProvider.spec.key: SevenTimerProvider,
     }
+    for key, model in MODELS.items():
+        real[key] = partial(OpenMeteoProvider, spec=CATALOG[key], model=model, now=now)
     overrides = fetchers or {}
     return CompositeProvider(
         fetchers=tuple(overrides[key] if key in overrides else real[key]() for key in keys),
