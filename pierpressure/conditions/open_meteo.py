@@ -13,7 +13,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, ClassVar
+from typing import Any
 
 import httpx
 
@@ -85,10 +85,14 @@ def parse_open_meteo(payload: dict[str, Any], issued_at: datetime) -> SourceFore
 
 @dataclass
 class OpenMeteoProvider:
-    """Fetches hourly cloud, wind and weather from Open-Meteo."""
+    """Fetches hourly cloud, wind and weather from Open-Meteo.
 
-    spec: ClassVar[ProviderSpec] = OPEN_METEO
+    With no ``model`` it asks for Open-Meteo's best match. With a model it asks
+    for that model alone, so each model is its own provider (design D2).
+    """
 
+    spec: ProviderSpec = OPEN_METEO
+    model: str | None = None
     client: httpx.Client | None = None
     now: Callable[[], datetime] = _utcnow
 
@@ -101,6 +105,8 @@ class OpenMeteoProvider:
             "timezone": "UTC",
             "forecast_days": 2,
         }
+        if self.model is not None:
+            params["models"] = self.model
         client = self.client or httpx.Client(timeout=_TIMEOUT_SECONDS)
         try:
             response = client.get(OPEN_METEO_URL, params=params)

@@ -21,7 +21,13 @@ from pierpressure.conditions.provider import (
 )
 from pierpressure.conditions.seven_timer import SevenTimerProvider, parse_seven_timer
 from pierpressure.core.conditions import Conditions
-from pierpressure.core.providers import CATALOG, OPEN_METEO, SEVEN_TIMER, ProviderSpec
+from pierpressure.core.providers import (
+    CATALOG,
+    OPEN_METEO,
+    OPEN_METEO_HRDPS,
+    SEVEN_TIMER,
+    ProviderSpec,
+)
 from pierpressure.health import FetchOutcome, ProviderInfo, describe_error
 
 from .conftest import make_pier
@@ -170,6 +176,31 @@ def test_every_variable_an_open_meteo_spec_declares_has_a_column() -> None:
     assert len(open_meteo_specs) == 6
     for spec in open_meteo_specs:
         assert set(spec.variables) <= COLUMNS.keys(), spec.key
+
+
+def test_a_model_provider_asks_for_its_model_and_its_declared_variables_only() -> None:
+    (request,) = _requests_of(
+        lambda client: OpenMeteoProvider(
+            spec=OPEN_METEO_HRDPS,
+            model="gem_hrdps_continental",
+            client=client,
+            now=lambda: _ISSUED,
+        ),
+        _load("open_meteo.json"),
+    )
+    params = request.url.params
+    assert params.get_list("models") == ["gem_hrdps_continental"]
+    assert params["forecast_days"] == "2"
+    assert params["wind_speed_unit"] == "kmh"
+    hourly = params["hourly"].split(",")
+    assert "precipitation_probability" not in hourly
+    assert hourly == [COLUMNS[variable] for variable in OPEN_METEO_HRDPS.variables]
+
+
+def test_the_open_meteo_class_still_points_at_the_best_match_spec() -> None:
+    assert OpenMeteoProvider.spec is OPEN_METEO
+    assert OpenMeteoProvider().spec is OPEN_METEO
+    assert OpenMeteoProvider().model is None
 
 
 # --------------------------------------------------------------------------- #
