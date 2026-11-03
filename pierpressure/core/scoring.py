@@ -434,6 +434,55 @@ def assemble_score(window: tuple[datetime, datetime], conditions: Conditions, mo
     return score_terms(window, conditions, moon).score
 
 
+# --- Cloud agreement (cloud-agreement DD3) ---------------------------------- #
+
+
+@dataclass(frozen=True)
+class AgreementTerm:
+    """How closely the cloud forecasts agree over the scored window.
+
+    ``mean_gap`` is the clarity-weighted mean, in cloud-cover points, of each
+    counted hour's highest minus lowest reading. ``providers`` are the keys that
+    gave a value in a counted hour, the filled series' provider first.
+    """
+
+    mean_gap: float
+    providers: tuple[str, ...]
+
+
+def cloud_agreement(
+    window: tuple[datetime, datetime], conditions: Conditions
+) -> AgreementTerm | None:
+    """The cloud agreement over ``window``, or ``None`` when no hour has two readings.
+
+    Each hour two or more providers cover is weighted by ``w·q(lowest reading)``:
+    the most optimistic forecast decides how much the hour matters, because the
+    hours any forecast calls usable are the ones the night turns on (brainstorm
+    D2). When every weight is zero, every provider calls the night overcast, so
+    the mean gap is 0.
+    """
+    start, end = window
+    numerator = 0.0
+    denominator = 0.0
+    counted: set[str] = set()
+    for slot in hour_slots(start, end):
+        readings = conditions.readings_at("cloud_cover", slot)
+        if len(readings) < 2:
+            continue
+        values = [value for _, value in readings]
+        weight = coverage_weight(slot, start, end) * clarity_weight(min(values))
+        numerator += weight * (max(values) - min(values))
+        denominator += weight
+        counted.update(provider for provider, _ in readings)
+    if not counted:
+        return None
+    filled = conditions.series.get("cloud_cover")
+    every = ((filled,) if filled is not None else ()) + conditions.alternates.get("cloud_cover", ())
+    providers = tuple(series.provider for series in every if series.provider in counted)
+    mean_gap = 0.0 if denominator <= 0.0 else numerator / denominator
+    return AgreementTerm(mean_gap, providers)
+
+
 # --- Confidence (design D5; task 5.1) -------------------------------------- #
 # Lead time L: 1 within L_FULL hours of dusk (or once mid-session), decaying to
 # L_MIN by L_FAR hours out. Freshness F: 1 within F_FRESH hours of the base

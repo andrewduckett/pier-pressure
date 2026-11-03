@@ -12,6 +12,7 @@ from pierpressure.core.scoring import (
     atmosphere_mean,
     clarity_weight,
     clear_hours_total,
+    cloud_agreement,
     cloud_score_term,
     coverage_weight,
     evaluate,
@@ -506,3 +507,103 @@ def test_partial_atmosphere_lines_state_the_share_of_usable_sky_they_cover() -> 
     assert "Atmosphere factor 97%." in decision.reasons
     assert "Seeing quality 0% (covers 10% of the usable sky)." in decision.reasons
     assert "Transparency quality 0% (covers 10% of the usable sky)." in decision.reasons
+
+
+# --------------------------------------------------------------------------- #
+# Cloud agreement: the clarity-weighted mean gap (cloud-agreement DD3)
+# --------------------------------------------------------------------------- #
+
+
+def _keyed(provider: str, window: tuple[datetime, datetime], values: list[float | None]) -> Series:
+    return Series(
+        provider=provider,
+        issued_at=None,
+        values=dict(zip(hour_slots(*window), values, strict=True)),
+    )
+
+
+def _agreeing(
+    window: tuple[datetime, datetime],
+    filled: list[float | None],
+    *alternates: list[float | None],
+) -> Conditions:
+    """Cloud cover from provider ``a``, with one alternate per list from ``b``, ``c``, ..."""
+    return Conditions(
+        series={"cloud_cover": _keyed("a", window, filled)},
+        alternates={
+            "cloud_cover": tuple(
+                _keyed(chr(ord("b") + i), window, values) for i, values in enumerate(alternates)
+            )
+        },
+    )
+
+
+def test_agreement_is_the_gap_when_every_hour_differs_by_the_same_amount() -> None:
+    window = _window(6)
+    term = cloud_agreement(window, _agreeing(window, [20.0] * 6, [28.0] * 6))
+    assert term is not None
+    assert term.mean_gap == 8.0
+    assert term.providers == ("a", "b")
+
+
+def test_agreement_leaves_out_an_hour_only_one_provider_covers() -> None:
+    window = _window(6)
+    term = cloud_agreement(window, _agreeing(window, [20.0] * 6, [60.0] * 3 + [None] * 3))
+    assert term is not None
+    assert term.mean_gap == 40.0
+
+
+def test_agreement_weighs_clear_hours_more_than_cloudy_ones() -> None:
+    window = _window(4)
+    conditions = _agreeing(window, [5.0, 5.0, 85.0, 85.0], [55.0, 55.0, 90.0, 90.0])
+    term = cloud_agreement(window, conditions)
+    assert term is not None
+    assert abs(term.mean_gap - 50.0) < abs(term.mean_gap - 5.0)
+
+
+def test_agreement_counts_disagreement_in_an_hour_the_filled_series_calls_overcast() -> None:
+    window = _window(6)
+    term = cloud_agreement(window, _agreeing(window, [95.0] * 6, [20.0] * 6))
+    assert term is not None
+    assert term.mean_gap == 75.0
+
+
+def test_agreement_is_zero_when_every_weight_is_zero() -> None:
+    window = _window(6)
+    term = cloud_agreement(window, _agreeing(window, [95.0] * 6, [100.0] * 6))
+    assert term is not None
+    assert term.mean_gap == 0.0
+
+
+def test_agreement_is_none_without_an_alternate() -> None:
+    window = _window(6)
+    assert cloud_agreement(window, _conditions(window, cloud=20.0)) is None
+
+
+def test_agreement_is_none_when_providers_never_share_an_hour() -> None:
+    window = _window(4)
+    conditions = _agreeing(window, [20.0, 20.0, None, None], [None, None, 60.0, 60.0])
+    assert cloud_agreement(window, conditions) is None
+
+
+def test_agreement_is_none_when_the_alternate_covers_only_passed_hours() -> None:
+    window = _window(6)
+    conditions = _agreeing(window, [20.0] * 6, [60.0] * 2 + [None] * 4)
+    remaining = (window[0] + timedelta(hours=2), window[1])
+    assert cloud_agreement(remaining, conditions) is None
+
+
+def test_agreement_lists_only_providers_with_a_value_in_a_counted_hour() -> None:
+    window = _window(4)
+    conditions = _agreeing(window, [20.0] * 4, [30.0] * 4, [None] * 4)
+    term = cloud_agreement(window, conditions)
+    assert term is not None
+    assert term.providers == ("a", "b")
+
+
+def test_agreement_lists_the_filled_provider_first_then_alternates_in_order() -> None:
+    window = _window(2)
+    conditions = _agreeing(window, [None, 20.0], [30.0, None], [40.0, 50.0])
+    term = cloud_agreement(window, conditions)
+    assert term is not None
+    assert term.providers == ("a", "b", "c")
