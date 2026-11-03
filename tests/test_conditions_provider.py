@@ -946,3 +946,15 @@ def test_hrrr_outside_its_area_fails_and_is_passed_over() -> None:
     assert hrrr.error == "HTTPStatusError: 400 Bad Request"
     assert best_match.ok
     assert result.conditions.series["cloud_cover"].provider == "open_meteo"
+
+
+# --------------------------------------------------------------------------- #
+# nws-provider: the National Weather Service raw gridpoint forecast
+# --------------------------------------------------------------------------- #
+
+
+def test_the_nws_fixture_pair_names_a_grid_cell_and_an_update_time() -> None:
+    point = _load("nws_points.json")["properties"]
+    grid = _load("nws_gridpoints.json")["properties"]
+    assert (point["gridId"], point["gridX"], point["gridY"]) == ("MKX", 88, 65)
+    assert grid["updateTime"] == "2026-11-03T14:31:48+00:00"
