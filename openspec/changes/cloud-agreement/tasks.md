@@ -3,7 +3,7 @@
 ## 1. Alternates through the seam
 
 - [x] 1.1 [easy] `Conditions` carries `alternates` per variable, default empty, and `readings_at(variable, time)` returns the values present for an hour, filled first then alternates in order; `hours()` still spans the filled series only (verify: `uv run pytest tests/test_conditions_model.py`) (✓ `uv run pytest tests/test_conditions_model.py` passed, 12 tests)
-- [ ] 1.2 [medium] `assemble_snapshot` keeps, for each variable, the series of every provider after the filling one that declares it and returned its bundle, in order; a blank column, a failed fetch and a losing bundle behave as the conditions delta's scenarios say, and the filled series is unchanged (verify: `uv run pytest tests/test_conditions_provider.py`)
+- [x] 1.2 [medium] `assemble_snapshot` keeps, for each variable, the series of every provider after the filling one that declares it and returned its bundle, in order; a blank column, a failed fetch and a losing bundle behave as the conditions delta's scenarios say, and the filled series is unchanged (verify: `uv run pytest tests/test_conditions_provider.py`) (✓ `uv run pytest tests/test_conditions_provider.py` passed, 69 tests)
 
 ## 2. The measure, the factor and the line [depends-on: 1]
 
