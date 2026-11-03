@@ -199,7 +199,7 @@ conditions:
 | `horizon` | Exactly one of: `points` (a list of `[azimuth, altitude]` pairs), `min_altitude` (a flat floor in degrees), or `file` + `format`. Without it the horizon is flat at 0°. The only file format supported today is `nina` (a NINA `.hrz` export). `stellarium` and `telescopius` are recognised but rejected as not yet supported. |
 | `equipment` | Your telescope and camera. With equipment, targets are also ranked on how well they fit the field of view. |
 | `explainer` | The optional LLM summary. See [docs/llm-explainer.md](docs/llm-explainer.md). |
-| `conditions` | Optional. `providers` lists the weather providers, preferred first. The default is `[open_meteo, seven_timer]`. Each forecast variable, such as cloud cover or seeing, comes from the first provider in the list that returned it. PierPressure will not start if the list is empty, names an unknown provider, names a provider more than once, or has no provider that needs no key and supplies cloud cover. The providers are `open_meteo`, the five Open-Meteo models below, and `seven_timer`. |
+| `conditions` | Optional. `providers` lists the weather providers, preferred first. The default is `[open_meteo, seven_timer]`. Each forecast variable, such as cloud cover or seeing, comes from the first provider in the list that returned it. PierPressure will not start if the list is empty, names an unknown provider, names a provider more than once, or has no provider that needs no key and supplies cloud cover. The providers are `open_meteo`, the five Open-Meteo models below, `nws` for the National Weather Service, and `seven_timer`. |
 
 ### Choosing Open-Meteo models
 
@@ -246,6 +246,52 @@ Before you choose, know these limits:
   list that has one fills it. HRRR's precipitation probability is the same value
   as best match's, not HRRR's own. The verdict does not use it.
 
+### Adding the National Weather Service
+
+`nws` reads the National Weather Service (NWS) gridpoint forecast. It blends
+the National Blend of Models with the local forecast office's own edits, so it
+is a well-informed second opinion on lake-effect cloud. It needs no API key. It
+gives total cloud cover, wind speed, gust and direction, temperature, dew point,
+humidity and precipitation probability.
+
+To compare NWS with Open-Meteo, list it after an Open-Meteo provider:
+
+```yaml
+conditions:
+  providers: [open_meteo_hrrr, nws, seven_timer]
+```
+
+Open-Meteo then fills cloud cover, and NWS's cloud cover is kept beside it to
+measure how well the forecasts agree.
+
+Before you choose, know these limits:
+
+- **It covers the United States only.** For a pier outside it, NWS answers
+  "not found". The fetch fails on every recompute with
+  `HTTPStatusError: 404 Not Found`, its health sensor shows the failure, and the
+  next provider in the list fills cloud. PierPressure does not check a pier
+  against NWS coverage when it starts.
+- **It gives total cloud, with no low, mid or high split.** If you list `nws`
+  before an Open-Meteo provider, NWS fills cloud cover, and the
+  layers stay unavailable. A provider fills the cloud total and its layers
+  together or not at all. With no high-cloud layer, the score applies no
+  high-cloud penalty.
+- **It finds each pier's grid cell first.** NWS forecasts on a grid. The first
+  fetch for a pier asks NWS which forecast office and grid cell cover the pier,
+  then fetches that cell's forecast. PierPressure remembers the cell until it
+  restarts, so later fetches make one request. If NWS stops recognising the
+  cell, PierPressure asks again on the next fetch.
+- **Every request names PierPressure.** NWS asks callers to identify
+  themselves, so each request carries a fixed `User-Agent` header with the
+  project name, its version and the repository address. There is nothing to
+  set.
+- **A missing variable shows on the timeline, not in health.** If NWS renames a
+  value or reports it in a different unit, PierPressure leaves that value empty
+  rather than convert it. The fetch still succeeds, so the health sensor stays
+  `ok`. Look for the empty value on the timeline.
+- **It reaches 72 hours.** NWS forecasts about 7 days ahead. PierPressure keeps
+  the first 72 hours, so listing NWS never lengthens the timeline.
+
 **Secrets.** Any `${VAR}` in a value is replaced with that environment variable
 when the file loads, so passwords and API keys need not sit in the file. If the
 variable is not set, the literal `${VAR}` stays in place, so a missing secret is
@@ -280,7 +326,7 @@ connection, the broker sends PierPressure's last-will message instead.
 | Purpose | Topic | Retained |
 |---|---|---|
 | Discovery configs | `homeassistant/<sensor\|button>/pierpressure_<pier>/<verdict\|score\|top_target\|target_<n>\|cloud_cover\|cloud_low\|cloud_mid\|cloud_high\|wind_gust\|seeing\|transparency\|sun_altitude\|moon_altitude\|temperature\|dew_point\|humidity\|wind_speed\|wind_direction\|precipitation_probability\|narrative\|refresh>/config` | yes |
-| Health discovery configs | `homeassistant/sensor/pierpressure_<pier>/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|seven_timer>_health/config` | yes |
+| Health discovery configs | `homeassistant/sensor/pierpressure_<pier>/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|nws\|seven_timer>_health/config` | yes |
 | Verdict state | `pierpressure/<pier>/verdict/state` | yes |
 | Verdict attributes (the document without `timeline`) | `pierpressure/<pier>/verdict/attributes` | yes |
 | Top target state and list | `pierpressure/<pier>/top_target/state`, `.../top_target/attributes` | yes |
@@ -288,7 +334,7 @@ connection, the broker sends PierPressure's last-will message instead.
 | Cloud cover state and forecast | `pierpressure/<pier>/cloud_cover/state`, `.../cloud_cover/attributes` | yes |
 | Timeline sensor state and forecast, where `<var>` is `cloud_low`, `cloud_mid`, `cloud_high`, `wind_gust`, `seeing`, `transparency`, `sun_altitude`, `moon_altitude`, `temperature`, `dew_point`, `humidity`, `wind_speed`, `wind_direction` or `precipitation_probability` | `pierpressure/<pier>/<var>/state`, `.../<var>/attributes` | yes |
 | Narrative state and text | `pierpressure/<pier>/narrative/state`, `.../narrative/attributes` | yes |
-| Provider health state and details | `pierpressure/<pier>/health/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|seven_timer>/state`, `.../attributes` | yes |
+| Provider health state and details | `pierpressure/<pier>/health/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|nws\|seven_timer>/state`, `.../attributes` | yes |
 | Refresh command | `pierpressure/<pier>/refresh/command` | no |
 | Availability | `pierpressure/status` | yes |
 
@@ -397,8 +443,8 @@ easy to miss. The health sensors show each failure as it happens.
 
 Each pier has one diagnostic sensor per configured provider: **Open-Meteo
 health** and **7Timer! health** by default. Each Open-Meteo model you list adds
-its own, such as **Open-Meteo HRRR health**. You find them under the pier's
-device, in the diagnostic section.
+its own, such as **Open-Meteo HRRR health**, and `nws` adds **NWS health**. You
+find them under the pier's device, in the diagnostic section.
 
 **State.** The time of that provider's last successful fetch for this pier. It is
 **unknown** until the provider succeeds after PierPressure starts, because health
@@ -508,10 +554,10 @@ for e in sensor/pierpressure_backyard/verdict sensor/pierpressure_backyard/score
 done
 ```
 
-If you listed Open-Meteo models, add each one's health sensor to the list, such as
-`sensor/pierpressure_backyard/open_meteo_hrrr_health`. The keys are
-`open_meteo_hrrr`, `open_meteo_hrdps`, `open_meteo_rdps`, `open_meteo_icon` and
-`open_meteo_gfs`.
+If you listed Open-Meteo models or NWS, add each one's health sensor to the list,
+such as `sensor/pierpressure_backyard/open_meteo_hrrr_health`. The keys are
+`open_meteo_hrrr`, `open_meteo_hrdps`, `open_meteo_rdps`, `open_meteo_icon`,
+`open_meteo_gfs` and `nws`.
 
 **Removing one provider.** When you take a provider out of the `conditions` list,
 its health sensor stays in Home Assistant, showing its last success. Clear its

@@ -5,12 +5,14 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import httpx
 import pytest
 
+from pierpressure import __version__
+from pierpressure.conditions.nws import NwsProvider, parse_nws
 from pierpressure.conditions.open_meteo import COLUMNS, OpenMeteoProvider, parse_open_meteo
 from pierpressure.conditions.provider import (
     CompositeProvider,
@@ -21,8 +23,10 @@ from pierpressure.conditions.provider import (
 )
 from pierpressure.conditions.seven_timer import SevenTimerProvider, parse_seven_timer
 from pierpressure.core.conditions import Conditions
+from pierpressure.core.config import PierConfig
 from pierpressure.core.providers import (
     CATALOG,
+    NWS,
     OPEN_METEO,
     OPEN_METEO_HRDPS,
     SEVEN_TIMER,
@@ -418,6 +422,23 @@ def test_assemble_a_provider_without_weather_leaves_the_weather_variables_unfill
     assert "precipitation_probability" not in conditions.series
 
 
+def test_assemble_a_later_bundle_is_not_split_around_an_earlier_winner() -> None:
+    four = {
+        "cloud_cover": {21: 70.0},
+        "cloud_low": {21: 1.0},
+        "cloud_mid": {21: 2.0},
+        "cloud_high": {21: 3.0},
+    }
+    conditions = assemble_snapshot(
+        [(NWS, _forecast(16, cloud_cover={21: 40.0})), (OPEN_METEO, _forecast(17, **four))]
+    )
+    assert conditions.series["cloud_cover"].provider == "nws"
+    assert [s.provider for s in conditions.alternates["cloud_cover"]] == ["open_meteo"]
+    for layer in ("cloud_low", "cloud_mid", "cloud_high"):
+        assert layer not in conditions.series
+        assert layer not in conditions.alternates
+
+
 # --------------------------------------------------------------------------- #
 # Alternates: the series that lost the fill (cloud-agreement DD2)
 # --------------------------------------------------------------------------- #
@@ -679,6 +700,7 @@ def test_build_provider_exposes_each_providers_key_name_and_variables_in_order()
 def test_each_fetcher_points_at_its_catalog_spec() -> None:
     assert OpenMeteoProvider.spec is CATALOG["open_meteo"]
     assert SevenTimerProvider.spec is CATALOG["seven_timer"]
+    assert NwsProvider.spec is CATALOG["nws"]
     for key in CATALOG:
         [fetcher] = build_provider([key]).fetchers
         assert fetcher.spec is CATALOG[key]
@@ -926,3 +948,291 @@ def test_hrrr_outside_its_area_fails_and_is_passed_over() -> None:
     assert hrrr.error == "HTTPStatusError: 400 Bad Request"
     assert best_match.ok
     assert result.conditions.series["cloud_cover"].provider == "open_meteo"
+
+
+# --------------------------------------------------------------------------- #
+# nws-provider: the National Weather Service raw gridpoint forecast
+# --------------------------------------------------------------------------- #
+
+
+def test_the_nws_fixture_pair_names_a_grid_cell_and_an_update_time() -> None:
+    point = _load("nws_points.json")["properties"]
+    grid = _load("nws_gridpoints.json")["properties"]
+    assert (point["gridId"], point["gridX"], point["gridY"]) == ("MKX", 88, 65)
+    assert grid["updateTime"] == "2026-11-03T14:31:48+00:00"
+
+
+_NWS_UNITS = {
+    "skyCover": "wmoUnit:percent",
+    "windSpeed": "wmoUnit:km_h-1",
+    "windGust": "wmoUnit:km_h-1",
+    "windDirection": "wmoUnit:degree_(angle)",
+    "temperature": "wmoUnit:degC",
+    "dewpoint": "wmoUnit:degC",
+    "relativeHumidity": "wmoUnit:percent",
+    "probabilityOfPrecipitation": "wmoUnit:percent",
+}
+
+
+def _nws(**periods: list[tuple[str, float | None]]) -> dict:
+    """A gridpoint payload holding each named NWS property's ``(validTime, value)`` periods."""
+    properties: dict = {"updateTime": "2026-09-08T20:35:00+00:00"}
+    for name, values in periods.items():
+        properties[name] = {
+            "uom": _NWS_UNITS[name],
+            "values": [{"validTime": when, "value": value} for when, value in values],
+        }
+    return {"properties": properties}
+
+
+def _at(day: int, h: int) -> datetime:
+    return datetime(2026, 9, day, h, 0, tzinfo=UTC)
+
+
+def test_nws_period_holds_a_three_hour_sky_cover_across_its_hours() -> None:
+    forecast = parse_nws(_nws(skyCover=[("2026-09-08T21:00:00+00:00/PT3H", 45)]))
+    assert {time: r.cloud_cover for time, r in forecast.readings.items()} == {
+        _hour(21): 45.0,
+        _hour(22): 45.0,
+        _hour(23): 45.0,
+    }
+
+
+def test_nws_period_spanning_days_holds_across_thirty_hours() -> None:
+    forecast = parse_nws(_nws(windSpeed=[("2026-09-08T06:00:00+00:00/P1DT6H", 14.8)]))
+    expected = {_at(8, 6) + timedelta(hours=n): 14.8 for n in range(30)}
+    assert {time: r.wind_speed for time, r in forecast.readings.items()} == expected
+
+
+def test_nws_periods_for_different_variables_stay_independent() -> None:
+    forecast = parse_nws(
+        _nws(
+            skyCover=[("2026-09-08T21:00:00+00:00/PT3H", 45)],
+            temperature=[("2026-09-08T21:00:00+00:00/PT1H", 12.5)],
+        )
+    )
+    assert forecast.readings[_hour(21)].temperature == 12.5
+    for h in (22, 23):
+        assert forecast.readings[_hour(h)].cloud_cover == 45.0
+        assert forecast.readings[_hour(h)].temperature is None
+
+
+def test_nws_horizon_cuts_a_period_that_straddles_it() -> None:
+    forecast = parse_nws(
+        _nws(
+            temperature=[("2026-09-08T18:00:00+00:00/PT1H", 12.0)],
+            skyCover=[("2026-09-11T16:00:00+00:00/PT3H", 60)],
+        )
+    )
+    assert forecast.readings[_at(11, 16)].cloud_cover == 60.0
+    assert forecast.readings[_at(11, 17)].cloud_cover == 60.0
+    assert _at(11, 18) not in forecast.readings
+
+
+def test_nws_horizon_drops_a_period_that_starts_past_it() -> None:
+    forecast = parse_nws(
+        _nws(
+            temperature=[("2026-09-08T18:00:00+00:00/PT1H", 12.0)],
+            skyCover=[("2026-09-11T19:00:00+00:00/PT1H", 60)],
+        )
+    )
+    assert _at(11, 19) not in forecast.readings
+
+
+def test_nws_horizon_is_measured_from_the_earliest_start_across_variables() -> None:
+    forecast = parse_nws(
+        _nws(
+            skyCover=[("2026-09-08T20:00:00+00:00/PT1H", 30)],
+            temperature=[("2026-09-08T18:00:00+00:00/P4D", 12.0)],
+        )
+    )
+    assert max(forecast.readings) == _at(11, 17)
+
+
+def test_nws_unit_expected_codes_are_carried_unrounded() -> None:
+    forecast = parse_nws(
+        _nws(
+            temperature=[("2026-09-08T21:00:00+00:00/PT1H", 12.34)],
+            windSpeed=[("2026-09-08T21:00:00+00:00/PT1H", 14.25)],
+        )
+    )
+    assert forecast.readings[_hour(21)].temperature == 12.34
+    assert forecast.readings[_hour(21)].wind_speed == 14.25
+
+
+def test_nws_unit_unexpected_code_leaves_the_variable_absent() -> None:
+    payload = _nws(
+        windSpeed=[("2026-09-08T21:00:00+00:00/PT2H", 8.0)],
+        temperature=[("2026-09-08T21:00:00+00:00/PT2H", 12.0)],
+    )
+    payload["properties"]["windSpeed"]["uom"] = "wmoUnit:kn"
+    forecast = parse_nws(payload)
+    assert all(r.wind_speed is None for r in forecast.readings.values())
+    assert forecast.readings[_hour(22)].temperature == 12.0
+
+
+def test_nws_unit_null_value_is_absent_for_its_hours() -> None:
+    forecast = parse_nws(
+        _nws(
+            dewpoint=[("2026-09-08T21:00:00+00:00/PT2H", None)],
+            temperature=[("2026-09-08T21:00:00+00:00/PT2H", 12.0)],
+        )
+    )
+    assert forecast.readings[_hour(21)].dew_point is None
+    assert forecast.readings[_hour(22)].dew_point is None
+
+
+def test_nws_issue_time_is_the_update_time() -> None:
+    forecast = parse_nws(_nws(skyCover=[("2026-09-08T21:00:00+00:00/PT1H", 45)]))
+    assert forecast.issued_at == datetime(2026, 9, 8, 20, 35, tzinfo=UTC)
+
+
+def test_nws_issue_time_is_none_without_an_update_time() -> None:
+    payload = _nws(skyCover=[("2026-09-08T21:00:00+00:00/PT1H", 45)])
+    del payload["properties"]["updateTime"]
+    assert parse_nws(payload).issued_at is None
+
+
+_MILWAUKEE = PierConfig(id="milwaukee", latitude=43.0389, longitude=-87.9065, elevation_m=180.0)
+_LUDINGTON = PierConfig(id="ludington", latitude=43.9553, longitude=-86.4526, elevation_m=180.0)
+
+
+class _FakeNws:
+    """Serves the recorded NWS pair by URL path and records every request.
+
+    ``cells`` maps a point path to the office and cell it names; any other point
+    is outside coverage and answers 404. ``redirects`` maps a point path to the
+    one NWS redirects it to. ``failures`` answers a path once with a status.
+    """
+
+    def __init__(
+        self,
+        cells: dict[str, tuple[str, int, int]] | None = None,
+        redirects: dict[str, str] | None = None,
+        failures: dict[str, int] | None = None,
+    ) -> None:
+        self.cells = cells or {"/points/43.0389,-87.9065": ("MKX", 88, 65)}
+        self.redirects = redirects or {}
+        self.failures = failures or {}
+        self.requests: list[httpx.Request] = []
+
+    @property
+    def paths(self) -> list[str]:
+        return [request.url.path for request in self.requests]
+
+    def client(self) -> httpx.Client:
+        return httpx.Client(transport=httpx.MockTransport(self._handle))
+
+    def _handle(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        path = request.url.path
+        if path in self.failures:
+            return httpx.Response(self.failures.pop(path))
+        if path in self.redirects:
+            return httpx.Response(
+                301, headers={"Location": f"https://api.weather.gov{self.redirects[path]}"}
+            )
+        if path.startswith("/gridpoints/"):
+            return httpx.Response(200, json=_load("nws_gridpoints.json"))
+        if path not in self.cells:
+            return httpx.Response(404)
+        point = _load("nws_points.json")
+        office, x, y = self.cells[path]
+        point["properties"].update(gridId=office, gridX=x, gridY=y)
+        return httpx.Response(200, json=point)
+
+
+def test_nws_fetch_resolves_the_point_then_requests_its_gridpoint() -> None:
+    server = _FakeNws()
+    forecast = NwsProvider(client=server.client()).fetch(_MILWAUKEE)
+    assert server.paths == ["/points/43.0389,-87.9065", "/gridpoints/MKX/88,65"]
+    assert forecast.issued_at == datetime(2026, 11, 3, 14, 31, 48, tzinfo=UTC)
+    assert forecast.readings
+
+
+def test_nws_fetch_remembers_the_grid_cell_for_the_same_pier() -> None:
+    server = _FakeNws()
+    provider = NwsProvider(client=server.client())
+    provider.fetch(_MILWAUKEE)
+    server.requests.clear()
+    provider.fetch(_MILWAUKEE)
+    assert server.paths == ["/gridpoints/MKX/88,65"]
+
+
+def test_nws_fetch_resolves_two_piers_separately() -> None:
+    server = _FakeNws(
+        cells={
+            "/points/43.0389,-87.9065": ("MKX", 88, 65),
+            "/points/43.9553,-86.4526": ("GRR", 21, 97),
+        }
+    )
+    provider = NwsProvider(client=server.client())
+    for pier in (_MILWAUKEE, _LUDINGTON, _MILWAUKEE, _LUDINGTON):
+        provider.fetch(pier)
+    assert server.paths == [
+        "/points/43.0389,-87.9065",
+        "/gridpoints/MKX/88,65",
+        "/points/43.9553,-86.4526",
+        "/gridpoints/GRR/21,97",
+        "/gridpoints/MKX/88,65",
+        "/gridpoints/GRR/21,97",
+    ]
+
+
+def test_nws_fetch_follows_a_redirect_from_the_point_request() -> None:
+    pier = PierConfig(id="five", latitude=42.12345, longitude=-87.65432, elevation_m=180.0)
+    server = _FakeNws(
+        cells={"/points/42.1235,-87.6543": ("LOT", 75, 72)},
+        redirects={"/points/42.12345,-87.65432": "/points/42.1235,-87.6543"},
+    )
+    forecast = NwsProvider(client=server.client()).fetch(pier)
+    assert server.paths[-1] == "/gridpoints/LOT/75,72"
+    assert forecast.readings
+
+
+def test_nws_fail_point_503_is_not_remembered() -> None:
+    server = _FakeNws(failures={"/points/43.0389,-87.9065": 503})
+    provider = NwsProvider(client=server.client())
+    with pytest.raises(httpx.HTTPStatusError):
+        provider.fetch(_MILWAUKEE)
+    server.requests.clear()
+    provider.fetch(_MILWAUKEE)
+    assert server.paths == ["/points/43.0389,-87.9065", "/gridpoints/MKX/88,65"]
+
+
+def test_nws_fail_outside_coverage_is_passed_over_for_the_next_provider() -> None:
+    # make_pier() sits in London, which the fake NWS answers with 404.
+    nws = NwsProvider(client=_FakeNws().client())
+    composite = CompositeProvider(
+        fetchers=(nws, _StubProvider(_BASE_FORECAST)), now=lambda: _FETCHED
+    )
+    result = composite.get(make_pier())
+    outcome, _ = result.outcomes
+    assert outcome.key == "nws"
+    assert not outcome.ok
+    assert outcome.error == "HTTPStatusError: 404 Not Found"
+    assert result.conditions.series["cloud_cover"].provider == "open_meteo"
+
+
+def test_nws_fail_gridpoint_404_forgets_the_cell() -> None:
+    server = _FakeNws()
+    provider = NwsProvider(client=server.client())
+    provider.fetch(_MILWAUKEE)
+    server.failures["/gridpoints/MKX/88,65"] = 404
+    with pytest.raises(httpx.HTTPStatusError):
+        provider.fetch(_MILWAUKEE)
+    server.requests.clear()
+    provider.fetch(_MILWAUKEE)
+    assert server.paths == ["/points/43.0389,-87.9065", "/gridpoints/MKX/88,65"]
+
+
+def test_nws_user_agent_names_the_project_version_and_repository() -> None:
+    server = _FakeNws()
+    provider = NwsProvider(client=server.client())
+    provider.fetch(_MILWAUKEE)
+    provider.fetch(_MILWAUKEE)
+    expected = f"PierPressure/{__version__} (https://github.com/andrewduckett/pier-pressure)"
+    assert len(server.requests) == 3
+    for request in server.requests:
+        assert request.headers["User-Agent"] == expected
+        assert "@" not in request.headers["User-Agent"]

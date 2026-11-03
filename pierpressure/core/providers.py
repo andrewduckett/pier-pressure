@@ -75,6 +75,23 @@ OPEN_METEO_RDPS = replace(
 OPEN_METEO_ICON = replace(OPEN_METEO, key="open_meteo_icon", name="Open-Meteo ICON")
 OPEN_METEO_GFS = replace(OPEN_METEO, key="open_meteo_gfs", name="Open-Meteo GFS")
 
+# NWS gives total cloud only, so it declares no bundle and fills no layer.
+NWS = ProviderSpec(
+    key="nws",
+    name="NWS",
+    needs_key=False,
+    variables=(
+        "cloud_cover",
+        "wind_gust",
+        "wind_speed",
+        "wind_direction",
+        "temperature",
+        "dew_point",
+        "humidity",
+        "precipitation_probability",
+    ),
+)
+
 SEVEN_TIMER = ProviderSpec(
     key="seven_timer",
     name="7Timer!",
@@ -91,6 +108,7 @@ CATALOG: Mapping[str, ProviderSpec] = {
         OPEN_METEO_RDPS,
         OPEN_METEO_ICON,
         OPEN_METEO_GFS,
+        NWS,
         SEVEN_TIMER,
     )
 }

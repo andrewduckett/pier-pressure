@@ -118,8 +118,10 @@ def assemble_snapshot(fills: Sequence[tuple[ProviderSpec, SourceForecast]]) -> C
     configured order. A provider returned a variable when at least one hour
     carries a value for it or for another member of its bundle. A bundle is
     decided once, so every member comes from the same provider, a member with no
-    values included. A series is whole: hours its provider did not cover stay
-    absent and are never taken from another provider. A failed fetch is an empty
+    values included. A provider fills its bundle whole or not at all: when an
+    earlier provider holds any member, it fills none of them. A series is whole:
+    hours its provider did not cover stay absent and are never taken from
+    another provider. A failed fetch is an empty
     forecast, so it is passed over like any provider that returned nothing.
 
     Every later provider that declares a variable and returned its bundle
@@ -141,12 +143,13 @@ def assemble_snapshot(fills: Sequence[tuple[ProviderSpec, SourceForecast]]) -> C
             if not _returned(forecast, bundle):
                 continue
             if variable not in series:
+                # An earlier provider that won any member keeps it, and this
+                # provider fills none of the rest, so a bundle is never split.
+                if any(member in series for member in bundle):
+                    continue
                 for member in bundle:
-                    # An earlier provider that won a member keeps it, even when its
-                    # bundles differ from this provider's.
-                    if member not in series:
-                        series[member] = _series(spec, forecast, member)
-                        filled_by[member] = index
+                    series[member] = _series(spec, forecast, member)
+                    filled_by[member] = index
             elif index > filled_by[variable]:
                 alternates.setdefault(variable, []).append(_series(spec, forecast, variable))
     return Conditions(
@@ -243,12 +246,14 @@ def build_provider(
     stack without the network. ``now`` stamps each fetch outcome, and
     Open-Meteo's issue time, so the two always come from the same clock.
     """
+    from .nws import NwsProvider
     from .open_meteo import MODELS, OpenMeteoProvider
     from .seven_timer import SevenTimerProvider
 
     real: dict[str, Callable[[], Provider]] = {
         OpenMeteoProvider.spec.key: lambda: OpenMeteoProvider(now=now),
         SevenTimerProvider.spec.key: SevenTimerProvider,
+        NwsProvider.spec.key: NwsProvider,
     }
     for key, model in MODELS.items():
         real[key] = partial(OpenMeteoProvider, spec=CATALOG[key], model=model, now=now)

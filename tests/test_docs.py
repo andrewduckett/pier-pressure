@@ -100,3 +100,39 @@ def test_the_conditions_docstrings_describe_the_series_model(module: str) -> Non
     assert "series" in text
     for stale in ("base source", "secondary source", "group"):
         assert stale not in text
+
+
+# --------------------------------------------------------------------------- #
+# nws-provider 4.1: the README documents the NWS provider
+# --------------------------------------------------------------------------- #
+
+
+def test_the_configuration_table_names_nws() -> None:
+    table = _section(_README.read_text(encoding="utf-8"), "## ⚙️ Configuration")
+    [row] = [line for line in table.splitlines() if line.startswith("| `conditions`")]
+    assert "`nws`" in row
+
+
+def test_the_health_topic_list_names_nws() -> None:
+    entities = _section(_README.read_text(encoding="utf-8"), "## 🏠 Home Assistant entities")
+    health_rows = [line for line in entities.splitlines() if "_health" in line]
+    assert health_rows
+    assert all("nws" in row for row in health_rows)
+
+
+@pytest.mark.parametrize(
+    "fact",
+    [
+        "United States only",
+        "no low, mid or high split",
+        "layers stay unavailable",
+        "grid cell",
+        "User-Agent",
+        "timeline",
+    ],
+)
+def test_the_nws_section_explains_its_limits(fact: str) -> None:
+    section = _section(
+        _README.read_text(encoding="utf-8"), "### Adding the National Weather Service"
+    )
+    assert fact in section

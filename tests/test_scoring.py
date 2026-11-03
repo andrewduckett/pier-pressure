@@ -27,6 +27,7 @@ from pierpressure.core.scoring import (
     moon_penalty,
     moon_up_at,
     optional_term_mean,
+    score_terms,
 )
 
 from .conftest import make_pier
@@ -359,6 +360,15 @@ def test_missing_high_cloud_component_applies_no_penalty_and_no_reason() -> None
     # An unavailable component is not penalised any more than a clear one.
     assert missing.score == clear.score
     assert not any("High cloud" in reason for reason in missing.reasons)
+
+
+def test_an_nws_total_with_no_high_cloud_series_leaves_the_high_cloud_penalty_none() -> None:
+    # Listing nws before Open-Meteo leaves the layers unfilled (nws-provider D1).
+    window = _window(6)
+    total = Series(provider="nws", issued_at=None, values=dict.fromkeys(hour_slots(*window), 10.0))
+    snap = Conditions(series={"cloud_cover": total})
+    terms = score_terms(window, snap, _moon(0.0, up_during_dark=False))
+    assert terms.high_cloud is None
 
 
 # --------------------------------------------------------------------------- #
