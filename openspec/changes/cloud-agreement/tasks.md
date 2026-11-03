@@ -14,7 +14,7 @@
 
 ## 3. The document [depends-on: 1]
 
-- [ ] 3.1 [parallel] [easy] `VerdictDocument.agreement: dict[str, Agreement]` is declared after `timeline` with `AgreementBand`, `spread` and `providers`, and `TimelineEntry` gains `cloud_cover_min` and `cloud_cover_max` as its last two keys, both round-tripping through JSON (verify: `uv run pytest tests/test_model.py -k "agreement or cloud_cover_min"`)
+- [x] 3.1 [parallel] [easy] `VerdictDocument.agreement: dict[str, Agreement]` is declared after `timeline` with `AgreementBand`, `spread` and `providers`, and `TimelineEntry` gains `cloud_cover_min` and `cloud_cover_max` as its last two keys, both round-tripping through JSON (verify: `uv run pytest tests/test_model.py -k "agreement or cloud_cover_min"`) (✓ `uv run pytest tests/test_model.py -k "agreement or cloud_cover_min"` passed, 6 tests)
 
 ## 4. Producer and goldens [depends-on: 2, 3]
 
@@ -28,3 +28,4 @@
 - 1.1: `readings_at` returns `(provider, value)` pairs, not bare values, so the agreement measure (2.1) can list the providers that gave a value in a counted hour without walking the series a second time.
 - 2.2: `AgreementBand` lands in `pierpressure/core/model.py` with this task, not with 3.1, because the band needs it first. 3.1 still adds the `Agreement` document model.
 - 2.4: the agreement line is the decision's last line, after the wind-unavailable and short-window lines too, so every earlier line keeps its position. The cloud-missing path also carries it when two alternates share a scored hour, so the line appears whenever `agreement` is non-empty, as the spec requires.
+- 3.1: five tests outside `test_model.py` pinned `timeline` as the document's last key, or every timeline key as a provider variable. They now expect `agreement` last and treat the cloud band keys as computed. The golden documents stay red until 4.2 regenerates them, as the plan orders.

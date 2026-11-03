@@ -206,4 +206,5 @@ def test_document_targets_preserve_key_order() -> None:
         "scored_window",
         "moon",
         "timeline",
+        "agreement",
     ]

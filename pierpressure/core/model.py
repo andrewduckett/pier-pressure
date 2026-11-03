@@ -297,6 +297,10 @@ class TimelineEntry(BaseModel):
     wind_speed: float | None = None
     wind_direction: float | None = None
     precipitation_probability: float | None = None
+    # The lowest and highest cloud any provider gave for the hour, null unless two
+    # or more did (cloud-agreement DD6). Last, so every earlier key keeps its place.
+    cloud_cover_min: float | None = None
+    cloud_cover_max: float | None = None
 
     @field_validator("time")
     @classmethod
@@ -306,6 +310,21 @@ class TimelineEntry(BaseModel):
     @field_serializer("time")
     def _serialize_time(self, value: datetime) -> str:
         return iso_z(value)
+
+
+class Agreement(BaseModel):
+    """How closely the providers' forecasts agree on one variable (cloud-agreement DD6).
+
+    ``spread`` is the night's clarity-weighted mean gap in whole points, and
+    ``band`` is decided on it. ``providers`` are the keys that gave a value in a
+    counted hour, the filled series' provider first.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    band: AgreementBand
+    spread: int
+    providers: list[str]
 
 
 class VerdictDocument(BaseModel):
@@ -330,6 +349,9 @@ class VerdictDocument(BaseModel):
     moon: Moon
     # Last, so every earlier key keeps its position (additive growth, ADR-0025).
     timeline: list[TimelineEntry] = Field(default_factory=list)
+    # Keyed by variable, empty when fewer than two providers shared a scored hour.
+    # After ``timeline``, so every earlier key keeps its position.
+    agreement: dict[str, Agreement] = Field(default_factory=dict)
 
     @field_validator("generated_at")
     @classmethod

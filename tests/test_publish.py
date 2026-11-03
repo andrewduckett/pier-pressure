@@ -72,11 +72,11 @@ def test_an_empty_timeline_leaves_the_attributes_payload_as_it_was() -> None:
     delivery.publish_verdict(doc)
 
     [attrs] = client.publishes_to(attributes_topic("pierpressure", "backyard"))
-    # The payload before the timeline existed: the whole document, which then ended
-    # at the moon.
+    # The payload before the timeline existed: the whole document, the timeline
+    # left out and every other key in place.
     full = doc.to_json()
-    assert full.endswith(',"timeline":[]}')
-    assert attrs.payload == full.removesuffix(',"timeline":[]}') + "}"
+    assert full.endswith(',"timeline":[],"agreement":{}}')
+    assert attrs.payload == full.replace(',"timeline":[]', "", 1)
 
 
 def test_discovery_state_and_availability_are_all_retained() -> None:
