@@ -37,7 +37,7 @@ from datetime import datetime, timedelta
 
 from .conditions import Conditions, Variable
 from .config import PierConfig
-from .model import Band, Moon, Verdict, iso_z
+from .model import AgreementBand, Band, Moon, Verdict, iso_z
 
 _HOUR = timedelta(hours=1)
 
@@ -435,6 +435,12 @@ def assemble_score(window: tuple[datetime, datetime], conditions: Conditions, mo
 
 
 # --- Cloud agreement (cloud-agreement DD3) ---------------------------------- #
+# Band edges on the rounded mean gap, in cloud-cover points. A gap under 15 is
+# within one model's own hour-to-hour noise, so the forecasts agree. A gap over
+# 35 spans almost half of the 10-90 clarity ramp, enough to move an hour from
+# usable to not, so they disagree. Between the two they are mixed.
+AGREE_MAX_GAP = 15
+MIXED_MAX_GAP = 35
 
 
 @dataclass(frozen=True)
@@ -448,6 +454,20 @@ class AgreementTerm:
 
     mean_gap: float
     providers: tuple[str, ...]
+
+    @property
+    def spread(self) -> int:
+        """The mean gap in whole points. ``round`` takes a ``.5`` to the even integer."""
+        return round(self.mean_gap)
+
+    @property
+    def band(self) -> AgreementBand:
+        """The band, decided on :attr:`spread` so the band and the spread never disagree."""
+        if self.spread < AGREE_MAX_GAP:
+            return AgreementBand.AGREE
+        if self.spread <= MIXED_MAX_GAP:
+            return AgreementBand.MIXED
+        return AgreementBand.DISAGREE
 
 
 def cloud_agreement(

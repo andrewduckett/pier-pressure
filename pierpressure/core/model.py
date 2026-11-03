@@ -44,6 +44,14 @@ class Band(StrEnum):
     HIGH = "HIGH"
 
 
+class AgreementBand(StrEnum):
+    """How closely the providers' forecasts agree on one variable (cloud-agreement D4)."""
+
+    AGREE = "AGREE"
+    MIXED = "MIXED"
+    DISAGREE = "DISAGREE"
+
+
 class MoonPhase(StrEnum):
     """The eight standard moon phases, derived from the sun-moon elongation.
 

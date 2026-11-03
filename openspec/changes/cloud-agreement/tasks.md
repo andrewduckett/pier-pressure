@@ -8,7 +8,7 @@
 ## 2. The measure, the factor and the line [depends-on: 1]
 
 - [x] 2.1 [medium] `cloud_agreement(window, conditions)` returns the clarity-weighted mean gap over the scored window, weighting each counted hour by coverage times the clarity of its lowest reading, 0 when every weight is zero, `None` when no hour has two readings; `providers` lists only providers with a value in a counted hour (verify: `uv run pytest tests/test_scoring.py -k agreement`) (✓ `uv run pytest tests/test_scoring.py -k agreement` passed, 10 tests)
-- [ ] 2.2 [easy] The band is decided on the rounded spread with `AGREE_MAX_GAP = 15` and `MIXED_MAX_GAP = 35`, justified beside the other tuning constants (verify: `uv run pytest tests/test_scoring.py -k band`)
+- [x] 2.2 [easy] The band is decided on the rounded spread with `AGREE_MAX_GAP = 15` and `MIXED_MAX_GAP = 35`, justified beside the other tuning constants (verify: `uv run pytest tests/test_scoring.py -k band`) (✓ `uv run pytest tests/test_scoring.py -k band` passed, 8 tests)
 - [ ] 2.3 [medium] `confidence` multiplies by `_A_MIXED = 0.90` or `_A_DISAGREE = 0.67`, clamped so a value at or above `_BAND_MEDIUM` before the factor stays at or above it; an alternate's issue time changes nothing (verify: `uv run pytest tests/test_scoring.py -k confidence`)
 - [ ] 2.4 [medium] `evaluate` computes agreement once after the no-dark-window and no-dark-time returns, carries it on `Decision`, and appends the `Cloud agreement ...` line after the gate or score lines on the wind gate, overcast gate and scored paths, with ` Confidence lowered.` for mixed and disagree (verify: `uv run pytest tests/test_scoring.py -k reason`)
 
@@ -26,3 +26,4 @@
 ## Deviations Ledger
 
 - 1.1: `readings_at` returns `(provider, value)` pairs, not bare values, so the agreement measure (2.1) can list the providers that gave a value in a counted hour without walking the series a second time.
+- 2.2: `AgreementBand` lands in `pierpressure/core/model.py` with this task, not with 3.1, because the band needs it first. 3.1 still adds the `Agreement` document model.

@@ -4,10 +4,15 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from pierpressure.core.conditions import Conditions, Series
-from pierpressure.core.model import Moon, MoonPhase, Verdict
+from pierpressure.core.model import AgreementBand, Moon, MoonPhase, Verdict
 from pierpressure.core.scoring import (
+    AGREE_MAX_GAP,
+    MIXED_MAX_GAP,
     OVERCAST_EPSILON,
+    AgreementTerm,
     assemble_score,
     atmosphere_mean,
     clarity_weight,
@@ -607,3 +612,28 @@ def test_agreement_lists_the_filled_provider_first_then_alternates_in_order() ->
     term = cloud_agreement(window, conditions)
     assert term is not None
     assert term.providers == ("a", "b", "c")
+
+
+@pytest.mark.parametrize(
+    ("gap", "band"),
+    [
+        (0.0, AgreementBand.AGREE),
+        (14.4, AgreementBand.AGREE),
+        (15.0, AgreementBand.MIXED),
+        (35.0, AgreementBand.MIXED),
+        (35.4, AgreementBand.MIXED),
+        (36.0, AgreementBand.DISAGREE),
+    ],
+)
+def test_agreement_band_follows_the_rounded_spread(gap: float, band: AgreementBand) -> None:
+    assert AgreementTerm(gap, ("a", "b")).band is band
+
+
+def test_agreement_band_is_mixed_when_a_14_6_point_gap_rounds_to_15() -> None:
+    term = AgreementTerm(14.6, ("a", "b"))
+    assert term.spread == 15
+    assert term.band is AgreementBand.MIXED
+
+
+def test_agreement_band_thresholds_are_15_and_35() -> None:
+    assert (AGREE_MAX_GAP, MIXED_MAX_GAP) == (15, 35)
