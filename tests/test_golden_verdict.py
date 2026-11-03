@@ -34,7 +34,7 @@ from pierpressure.conditions.seven_timer import parse_seven_timer
 from pierpressure.core.clock import FixedClock
 from pierpressure.core.config import PierConfig
 from pierpressure.core.producer import produce_verdict
-from pierpressure.core.providers import OPEN_METEO, SEVEN_TIMER
+from pierpressure.core.providers import OPEN_METEO, OPEN_METEO_HRRR, SEVEN_TIMER
 
 from .conftest import make_pier
 from .offline_guard import no_network
@@ -152,3 +152,29 @@ def _assert_matches_golden(case: str, actual: str) -> None:
 
     expected = golden_path.read_text(encoding="utf-8").rstrip("\n")
     assert actual == expected
+
+
+# The HRRR copy reads 20 points cloudier every hour: a MIXED night, so the one
+# document pins the alternate, the agreement, its reason line, the lowered
+# confidence and the timeline's cloud band together (cloud-agreement DD7).
+_HRRR_CLOUD_SHIFT = 20
+
+
+def _shifted_copy() -> SourceForecast:
+    payload = _load_raw("open_meteo_full.json")
+    hourly = payload["hourly"]
+    hourly["cloud_cover"] = [min(100, value + _HRRR_CLOUD_SHIFT) for value in hourly["cloud_cover"]]
+    return parse_open_meteo(payload, issued_at=_FRESH_ISSUED)
+
+
+def test_two_cloud_providers_verdict_matches_committed_golden() -> None:
+    conditions = assemble_snapshot(
+        [
+            (OPEN_METEO, _base_full()),
+            (OPEN_METEO_HRRR, _shifted_copy()),
+            (SEVEN_TIMER, _secondary_full()),
+        ]
+    )
+    with no_network():
+        document = produce_verdict(make_pier(), FixedClock(_INSTANT), conditions)
+    _assert_matches_golden("two_cloud_providers", document.to_json())

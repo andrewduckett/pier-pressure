@@ -20,7 +20,7 @@
 
 - [x] 4.1 [medium] `produce_verdict` fills `agreement` from the decision, empty when none, and each timeline entry's `cloud_cover_min` and `cloud_cover_max` from `readings_at`, null for an hour fewer than two providers cover; hours only an alternate covers add no entry (verify: `uv run pytest tests/test_producer.py tests/test_producer_timeline.py`) (✓ `uv run pytest tests/test_producer.py tests/test_producer_timeline.py` passed, 32 tests)
 - [x] 4.2 [easy] Regenerate the existing golden documents once and confirm the diff touches only the new keys (verify: `uv run pytest tests/test_golden_verdict.py`) (✓ `uv run pytest tests/test_golden_verdict.py` passed; a structural diff of all eight goldens showed only `agreement: {}` and null `cloud_cover_min`/`cloud_cover_max` added)
-- [ ] 4.3 [medium] Add the `two_cloud_providers` golden case, feeding the recorded Open-Meteo payload as `open_meteo` and a shifted copy as `open_meteo_hrrr`, pinning the alternate, the agreement object, the reason line, the confidence factor and the timeline band in one document (verify: `uv run pytest tests/test_golden_verdict.py -k two_cloud_providers`)
+- [x] 4.3 [medium] Add the `two_cloud_providers` golden case, feeding the recorded Open-Meteo payload as `open_meteo` and a shifted copy as `open_meteo_hrrr`, pinning the alternate, the agreement object, the reason line, the confidence factor and the timeline band in one document (verify: `uv run pytest tests/test_golden_verdict.py -k two_cloud_providers`) (✓ `uv run pytest tests/test_golden_verdict.py -k two_cloud_providers` passed; the golden is GO 81 as in `both_present`, MIXED spread 20, confidence 100 → 90)
 - [ ] 4.4 [easy] The whole suite, lint and types pass, and the core boundary test still holds (verify: `mise run check`)
 
 ## Deviations Ledger
@@ -29,3 +29,4 @@
 - 2.2: `AgreementBand` lands in `pierpressure/core/model.py` with this task, not with 3.1, because the band needs it first. 3.1 still adds the `Agreement` document model.
 - 2.4: the agreement line is the decision's last line, after the wind-unavailable and short-window lines too, so every earlier line keeps its position. The cloud-missing path also carries it when two alternates share a scored hour, so the line appears whenever `agreement` is non-empty, as the spec requires.
 - 3.1: five tests outside `test_model.py` pinned `timeline` as the document's last key, or every timeline key as a provider variable. They now expect `agreement` last and treat the cloud band keys as computed. The golden documents stay red until 4.2 regenerates them, as the plan orders.
+- 4.3: the shifted copy moves only `cloud_cover`, 20 points cloudier every hour, so the case lands on MIXED and pins a lowered confidence. The layers stay as recorded.
