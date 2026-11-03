@@ -742,3 +742,72 @@ def test_confidence_ignores_an_alternates_issue_time() -> None:
 
     fresh, stale = with_alternate(instant), with_alternate(instant - timedelta(days=2))
     assert _value(instant, window, fresh, _AGREE) == _value(instant, window, stale, _AGREE)
+
+
+# --------------------------------------------------------------------------- #
+# Reasons name the agreement (cloud-agreement DD5)
+# --------------------------------------------------------------------------- #
+
+
+def test_a_scored_verdict_ends_its_reasons_with_the_agreement() -> None:
+    window = _window(6)
+    conditions = _agreeing(window, [10.0] * 6, [18.0] * 6)
+    decision = evaluate(make_pier(), _EVAL_INSTANT, window, conditions, _DARK)
+    assert decision.verdict is Verdict.GO
+    assert decision.reasons[-2:] == [
+        f"Score {decision.score}/100.",
+        "Cloud agreement agree: 2 providers, spread 8 points.",
+    ]
+
+
+def test_a_gated_verdict_names_the_gate_reason_then_the_agreement() -> None:
+    window = _window(6)
+    conditions = _agreeing(window, [95.0] * 6, [35.0] * 6)
+    decision = evaluate(make_pier(), _EVAL_INSTANT, window, conditions, _DARK)
+    assert decision.verdict is Verdict.NO_GO
+    assert decision.reasons == [
+        "Overcast for the whole dark window: no usably clear sky.",
+        "Cloud agreement disagree: 2 providers, spread 60 points. Confidence lowered.",
+    ]
+
+
+def test_a_wind_gated_verdict_names_the_agreement_after_the_gate_reason() -> None:
+    window = _window(6)
+    slots = hour_slots(*window)
+    agreeing = _agreeing(window, [10.0] * 6, [35.0] * 6)
+    wind = Series(provider="a", issued_at=None, values=dict.fromkeys(slots, 80.0))
+    conditions = Conditions(
+        series={**agreeing.series, "wind_gust": wind}, alternates=agreeing.alternates
+    )
+    pier = make_pier().model_copy(update={"max_gust": 40.0})
+    decision = evaluate(pier, _EVAL_INSTANT, window, conditions, _DARK)
+    assert decision.verdict is Verdict.NO_GO
+    assert decision.reasons == [
+        "Wind gust over the 40 km/h limit during the dark window.",
+        "Cloud agreement mixed: 2 providers, spread 25 points. Confidence lowered.",
+    ]
+
+
+def test_a_verdict_from_one_provider_adds_no_agreement_reason() -> None:
+    window = _window(6)
+    decision = evaluate(make_pier(), _EVAL_INSTANT, window, _conditions(window, cloud=10.0), _DARK)
+    assert decision.agreement is None
+    assert not any(line.startswith("Cloud agreement") for line in decision.reasons)
+
+
+def test_a_verdict_without_a_dark_window_adds_no_agreement_reason() -> None:
+    window = _window(6)
+    conditions = _agreeing(window, [10.0] * 6, [60.0] * 6)
+    decision = evaluate(make_pier(), _EVAL_INSTANT, (None, None), conditions, _DARK)
+    assert decision.agreement is None
+    assert decision.reasons == ["No astronomical night tonight: the sun never drops below -18°."]
+
+
+def test_a_verdict_carries_the_agreement_its_confidence_used() -> None:
+    window = _window(6)
+    conditions = _agreeing(window, [10.0] * 6, [35.0] * 6)
+    decision = evaluate(make_pier(), _EVAL_INSTANT, window, conditions, _DARK)
+    assert decision.agreement == AgreementTerm(25.0, ("a", "b"))
+    assert (decision.band, decision.confidence) == confidence(
+        make_pier(), _EVAL_INSTANT, window, conditions, decision.agreement
+    )

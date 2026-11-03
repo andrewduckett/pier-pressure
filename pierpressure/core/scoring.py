@@ -671,6 +671,8 @@ class Decision:
     invariant NO-GO ⟺ null score holds for the delivery layer. ``scored_window`` is
     the span the gates and score judged: the dark window from the scoring instant on
     (score-remaining-night design D1), or ``(None, None)`` without a dark window.
+    ``agreement`` is the cloud agreement confidence used, or ``None`` when fewer
+    than two providers shared a scored hour.
     """
 
     verdict: Verdict
@@ -679,6 +681,7 @@ class Decision:
     confidence: int
     reasons: list[str]
     scored_window: tuple[datetime, datetime] | tuple[None, None]
+    agreement: AgreementTerm | None = None
 
 
 # The shortest span of dark time worth setting up for. A scored window under it
@@ -709,6 +712,15 @@ def _wind_reason(max_gust: float, narrowed: bool) -> str:
 def _span_reason(scored: tuple[datetime, datetime]) -> str:
     """The span line: the scored window in the document's own timestamp strings."""
     return f"Scored from {iso_z(scored[0])} to {iso_z(scored[1])} (the rest of tonight)."
+
+
+def _agreement_reason(agreement: AgreementTerm) -> str:
+    band = agreement.band
+    lowered = "" if band is AgreementBand.AGREE else " Confidence lowered."
+    return (
+        f"Cloud agreement {band.value.lower()}: {len(agreement.providers)} providers,"
+        f" spread {agreement.spread} points.{lowered}"
+    )
 
 
 def _wind_unavailable_reason() -> str:
@@ -800,7 +812,11 @@ def evaluate(
     if scored[0] == scored[1]:
         return Decision(Verdict.MAYBE, 0, Band.LOW, 0, [*span, _REASON_NO_DARK_TIME], scored)
 
-    band, conf_value = confidence(pier, instant, scored, conditions)
+    # Measured once, so confidence and the reason line read the same agreement.
+    # It always comes last, so every gate and score line keeps its position.
+    agreement = cloud_agreement(scored, conditions)
+    band, conf_value = confidence(pier, instant, scored, conditions, agreement)
+    agreed = [_agreement_reason(agreement)] if agreement is not None else []
 
     # 2. Wind gate (opt-in). A forecast gust over the limit is a safety NO-GO,
     #    evaluated before any cloud logic so a missing cloud observation cannot
@@ -809,8 +825,8 @@ def evaluate(
     wind_capped = False
     if pier.max_gust is not None:
         if wind_exceeds_limit(scored, conditions, pier.max_gust):
-            reasons = [*span, _wind_reason(pier.max_gust, narrowed)]
-            return Decision(Verdict.NO_GO, None, band, conf_value, reasons, scored)
+            reasons = [*span, _wind_reason(pier.max_gust, narrowed), *agreed]
+            return Decision(Verdict.NO_GO, None, band, conf_value, reasons, scored, agreement)
         if not wind_fully_covered(scored, conditions):
             wind_capped = True
 
@@ -823,12 +839,14 @@ def evaluate(
         reasons = [*span, unavailable]
         if wind_capped:
             reasons.append(_wind_unavailable_reason())
-        return Decision(Verdict.MAYBE, 0, Band.LOW, 0, reasons, scored)
+        reasons.extend(agreed)
+        return Decision(Verdict.MAYBE, 0, Band.LOW, 0, reasons, scored, agreement)
 
     # 4. Cloud present: the overcast gate can fire; otherwise score the night.
     if is_overcast(scored, conditions):
         overcast = _REASON_OVERCAST_REST if narrowed else _REASON_OVERCAST
-        return Decision(Verdict.NO_GO, None, band, conf_value, [*span, overcast], scored)
+        reasons = [*span, overcast, *agreed]
+        return Decision(Verdict.NO_GO, None, band, conf_value, reasons, scored, agreement)
 
     terms = score_terms(scored, conditions, moon)
     score = terms.score
@@ -839,6 +857,7 @@ def evaluate(
     short = scored[1] - scored[0] < MIN_USABLE_WINDOW
     if short:
         reasons.append(_REASON_SHORT_WINDOW)
+    reasons.extend(agreed)
     is_go = score >= pier.go_threshold and not wind_capped and not short
     verdict = Verdict.GO if is_go else Verdict.MAYBE
-    return Decision(verdict, score, band, conf_value, reasons, scored)
+    return Decision(verdict, score, band, conf_value, reasons, scored, agreement)
