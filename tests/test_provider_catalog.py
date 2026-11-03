@@ -11,6 +11,7 @@ from pierpressure.core.conditions import Variable
 from pierpressure.core.model import TimelineEntry
 from pierpressure.core.providers import (
     CATALOG,
+    NWS,
     OPEN_METEO,
     OPEN_METEO_GFS,
     OPEN_METEO_HRDPS,
@@ -49,6 +50,23 @@ def test_open_meteo_declares_the_cloud_bundle_and_the_weather_variables() -> Non
     )
     assert OPEN_METEO.bundles == (_CLOUD_BUNDLE,)
     assert not OPEN_METEO.needs_key
+
+
+def test_nws_declares_total_cloud_and_the_weather_variables_with_no_bundle() -> None:
+    assert NWS.key == "nws"
+    assert NWS.name == "NWS"
+    assert NWS.variables == (
+        "cloud_cover",
+        "wind_gust",
+        "wind_speed",
+        "wind_direction",
+        "temperature",
+        "dew_point",
+        "humidity",
+        "precipitation_probability",
+    )
+    assert NWS.bundles == ()
+    assert not NWS.needs_key
 
 
 def test_seven_timer_declares_seeing_and_transparency_and_no_bundle() -> None:
@@ -95,6 +113,7 @@ def test_catalog_maps_each_key_to_its_spec_in_order() -> None:
         ("open_meteo_rdps", OPEN_METEO_RDPS),
         ("open_meteo_icon", OPEN_METEO_ICON),
         ("open_meteo_gfs", OPEN_METEO_GFS),
+        ("nws", NWS),
         ("seven_timer", SEVEN_TIMER),
     ]
 

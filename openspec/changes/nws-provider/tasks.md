@@ -2,7 +2,7 @@
 
 ## 1. Contract: the declaration and the bundle rule
 
-- [ ] 1.1 [easy] The catalog offers `nws`, display name `NWS`, no key, the eight declared variables and no bundle; `[nws, open_meteo_hrrr, seven_timer]` and `[nws]` pass configuration, and the default order is unchanged (verify: `uv run pytest tests/test_provider_catalog.py tests/test_config.py -k nws`)
+- [x] 1.1 [easy] The catalog offers `nws`, display name `NWS`, no key, the eight declared variables and no bundle; `[nws, open_meteo_hrrr, seven_timer]` and `[nws]` pass configuration, and the default order is unchanged (verify: `uv run pytest tests/test_provider_catalog.py tests/test_config.py -k nws`) (✓ `uv run pytest tests/test_provider_catalog.py tests/test_config.py -k nws` passed, 5 tests)
 - [ ] 1.2 [medium] `assemble_snapshot` fills a bundle whole or not at all: with `nws` then `open_meteo`, `cloud_cover` carries `nws` with one `open_meteo` alternate, and `cloud_low`, `cloud_mid`, `cloud_high` have no series and no alternates; every existing fill and alternate test still passes (verify: `uv run pytest tests/test_conditions_provider.py -k "assemble or bundle or alternate"`)
 - [ ] 1.3 [parallel] [easy] A snapshot whose `cloud_cover` series carries `nws` and whose `cloud_high` has no series yields score terms with a `None` high-cloud penalty (verify: `uv run pytest tests/test_scoring.py -k high_cloud`)
 
@@ -28,3 +28,5 @@
 ## Deviations Ledger
 
 <!-- Dated notes on small departures from the plan, written during apply. Stop and ask the user about a large one. -->
+
+- 2026-11-03, task 1.1: `test_each_fetcher_points_at_its_catalog_spec` walks the whole catalog, so it skips `nws` until task 3.3 wires `NwsProvider` into `build_provider`. Task 3.3 removes the skip.

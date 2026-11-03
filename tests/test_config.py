@@ -580,3 +580,35 @@ def test_a_model_outside_its_area_does_not_stop_startup(tmp_path: Path) -> None:
     )
     assert (config.piers[0].latitude, config.piers[0].longitude) == (51.5, -0.12)
     assert config.conditions.providers == ["open_meteo_hrrr", "open_meteo"]
+
+
+# --------------------------------------------------------------------------- #
+# nws-provider 1.1: the National Weather Service is a provider in the list
+# --------------------------------------------------------------------------- #
+
+
+def test_nws_is_kept_in_its_configured_order(tmp_path: Path) -> None:
+    config = load_config(
+        _with_conditions(
+            tmp_path, "conditions:\n  providers: [nws, open_meteo_hrrr, seven_timer]\n"
+        )
+    )
+    assert config.conditions.providers == ["nws", "open_meteo_hrrr", "seven_timer"]
+
+
+def test_nws_alone_satisfies_the_cloud_rule(tmp_path: Path) -> None:
+    config = load_config(_with_conditions(tmp_path, "conditions:\n  providers: [nws]\n"))
+    assert config.conditions.providers == ["nws"]
+
+
+def test_a_pier_outside_nws_coverage_does_not_stop_startup(tmp_path: Path) -> None:
+    # The base pier sits at 51.5, -0.12 (London), outside NWS coverage.
+    config = load_config(
+        _with_conditions(tmp_path, "conditions:\n  providers: [nws, open_meteo]\n")
+    )
+    assert config.conditions.providers == ["nws", "open_meteo"]
+
+
+def test_the_default_order_leaves_out_nws(tmp_path: Path) -> None:
+    config = load_config(_with_conditions(tmp_path, ""))
+    assert "nws" not in config.conditions.providers
