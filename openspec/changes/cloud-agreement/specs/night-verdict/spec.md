@@ -2,7 +2,7 @@
 
 ### Requirement: The document carries cloud agreement
 
-The verdict document SHALL carry an `agreement` object, always present, keyed by variable. Its `cloud_cover` entry SHALL be present exactly when two or more providers, the filled `cloud_cover` series and its alternates, each give a value for at least one hour of the scored window; otherwise `agreement` SHALL be the empty object. The entry SHALL hold `band`, exactly one of `AGREE`, `MIXED` or `DISAGREE`; `spread`, the night's mean cloud gap in percentage points rounded to a whole number; and `providers`, the keys of every provider that returned cloud cover, the filled series' provider first and the alternates in configured order.
+The verdict document SHALL carry an `agreement` object, always present, keyed by variable. Its `cloud_cover` entry SHALL be present exactly when at least one hour of the scored window has a cloud-cover value from two or more providers, counting the filled `cloud_cover` series and its alternates. Otherwise `agreement` SHALL be the empty object. The entry SHALL hold three fields. `band` is exactly one of `AGREE`, `MIXED` or `DISAGREE`. `spread` is the night's mean cloud gap in percentage points, rounded to a whole number. `providers` lists the keys of every provider that gives a value for at least one counted hour, the filled series' provider first when it is among them, then the alternates in configured order.
 
 #### Scenario: Two providers that nearly agree
 
@@ -21,6 +21,16 @@ The verdict document SHALL carry an `agreement` object, always present, keyed by
 - **WHEN** a verdict is produced mid-session and the only `cloud_cover` alternate covers hours that have already passed
 - **THEN** `agreement` is the empty object `{}`
 
+#### Scenario: Providers that never share an hour yield no agreement
+
+- **WHEN** the filled series covers only the first two hours of the scored window and the only alternate covers only its last two hours
+- **THEN** `agreement` is the empty object `{}`
+
+#### Scenario: A provider that shares no counted hour is not listed
+
+- **WHEN** three providers return cloud cover, two cover the whole scored window and the third covers only hours after it
+- **THEN** `agreement.cloud_cover.providers` lists the two providers only
+
 #### Scenario: No dark window means no agreement
 
 - **WHEN** a verdict is `NO-GO` because the selected night has no dark window, and the snapshot carries a `cloud_cover` alternate
@@ -28,7 +38,7 @@ The verdict document SHALL carry an `agreement` object, always present, keyed by
 
 ### Requirement: Cloud agreement is the clarity-weighted mean gap over the scored window
 
-The gap for an hour SHALL be the highest cloud cover any participating provider gives for that hour minus the lowest, counted only for an hour two or more of them cover. The night's mean gap SHALL weight each counted hour by its coverage of the scored window times the clarity weight of that hour's lowest cloud cover, on the same clarity curve the score uses. When every weight is zero, the mean SHALL be 0. `band` SHALL be `AGREE` when the mean is below 15 points, `MIXED` from 15 to 35 inclusive, and `DISAGREE` above 35.
+The gap for an hour SHALL be the highest cloud cover any participating provider gives for that hour minus the lowest, counted only for an hour two or more of them cover. The night's mean gap SHALL weight each counted hour by its coverage of the scored window times the clarity weight of that hour's lowest cloud cover, on the same clarity curve the score uses. When every weight is zero, the mean SHALL be 0. `band` SHALL be decided on the rounded `spread`: `AGREE` below 15 points, `MIXED` from 15 to 35 inclusive, and `DISAGREE` above 35, so the band and the spread a reader sees never disagree.
 
 #### Scenario: A mixed and a disagreeing night
 
@@ -52,6 +62,11 @@ The gap for an hour SHALL be the highest cloud cover any participating provider 
 - **WHEN** the filled series and the alternate differ by 50 points in hours where the lowest value is `5`, and by 5 points in hours where the lowest value is `85`
 - **THEN** `agreement.cloud_cover.spread` is closer to `50` than to `5`
 
+#### Scenario: The band follows the rounded spread
+
+- **WHEN** the unrounded mean gap is 14.6 points
+- **THEN** `agreement.cloud_cover.spread` is `15` and `agreement.cloud_cover.band` is `MIXED`
+
 #### Scenario: Unanimous overcast is agreement
 
 - **WHEN** the filled series and the alternate each give `95` or more for every hour of the dark window
@@ -60,7 +75,7 @@ The gap for an hour SHALL be the highest cloud cover any participating provider 
 
 ### Requirement: Confidence falls with low agreement
 
-Confidence SHALL multiply by an agreement factor: 1 when `agreement.cloud_cover` is absent or `AGREE`, about 0.9 when `MIXED`, and about 0.67 when `DISAGREE`. The factor SHALL be a tuning constant fixed in code with its justification. A verdict that would otherwise have a confidence of 100 SHALL stay at least `MEDIUM` under `DISAGREE`. Agreement SHALL change no gate, no score and no verdict value. An alternate's issue time SHALL NOT change confidence.
+Confidence SHALL multiply by an agreement factor: 1 when `agreement.cloud_cover` is absent or `AGREE`, about 0.9 when `MIXED`, and about 0.67 when `DISAGREE`. The factor SHALL be a tuning constant fixed in code with its justification. The factor SHALL never take a confidence that is `MEDIUM` or `HIGH` without it below `MEDIUM`: when the value before the factor is at or above the `MEDIUM` threshold, the value after it SHALL be at least that threshold. Agreement SHALL change no gate, no score and no verdict value. An alternate's issue time SHALL NOT change confidence.
 
 #### Scenario: Mixed agreement lowers confidence
 
@@ -78,6 +93,16 @@ Confidence SHALL multiply by an agreement factor: 1 when `agreement.cloud_cover`
 - **WHEN** a verdict that would have a confidence of `100` without alternates is produced with an alternate that makes the band `DISAGREE`
 - **THEN** `confidence.band` is `MEDIUM`
 
+#### Scenario: Disagreement at a long lead time stays MEDIUM
+
+- **WHEN** a verdict a day before dusk, with a fresh and complete forecast, would have a confidence of `50` without alternates, and an alternate makes the band `DISAGREE`
+- **THEN** `confidence.value` is `40` and `confidence.band` is `MEDIUM`
+
+#### Scenario: An already LOW confidence still falls
+
+- **WHEN** a verdict that would have a confidence of `30` without alternates is produced with an alternate that makes the band `DISAGREE`
+- **THEN** `confidence.value` is `20`
+
 #### Scenario: A stale alternate does not lower confidence
 
 - **WHEN** two verdicts are produced for the same pier and instant from snapshots that differ only in the issue time of a `cloud_cover` alternate
@@ -85,7 +110,7 @@ Confidence SHALL multiply by an agreement factor: 1 when `agreement.cloud_cover`
 
 ### Requirement: Reasons name the agreement
 
-When `agreement.cloud_cover` is present, the `reasons` list SHALL carry exactly one line `Cloud agreement <agree|mixed|disagree>: <n> providers, spread <spread> points.`, where `<n>` is the number of providers listed and `<spread>` the document's spread, followed by ` Confidence lowered.` when the band is `MIXED` or `DISAGREE`. The line SHALL come after the lines that name the gate or itemize the score, on a gated `NO-GO` as well as a scored verdict, so every line that existed before it keeps its position. When `agreement` is empty, no such line SHALL appear.
+When `agreement.cloud_cover` is present, the `reasons` list SHALL carry exactly one line `Cloud agreement <agree|mixed|disagree>: <n> providers, spread <spread> points.`. `<n>` is the number of providers listed and `<spread>` the document's spread. When the band is `MIXED` or `DISAGREE`, the line SHALL end with ` Confidence lowered.`. The line SHALL come after the lines that name the gate or itemize the score, on a gated `NO-GO` as well as a scored verdict, so every earlier line keeps its position. When `agreement` is empty, no such line SHALL appear.
 
 #### Scenario: A scored verdict names the agreement
 
