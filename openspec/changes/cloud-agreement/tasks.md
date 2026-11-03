@@ -21,7 +21,7 @@
 - [x] 4.1 [medium] `produce_verdict` fills `agreement` from the decision, empty when none, and each timeline entry's `cloud_cover_min` and `cloud_cover_max` from `readings_at`, null for an hour fewer than two providers cover; hours only an alternate covers add no entry (verify: `uv run pytest tests/test_producer.py tests/test_producer_timeline.py`) (✓ `uv run pytest tests/test_producer.py tests/test_producer_timeline.py` passed, 32 tests)
 - [x] 4.2 [easy] Regenerate the existing golden documents once and confirm the diff touches only the new keys (verify: `uv run pytest tests/test_golden_verdict.py`) (✓ `uv run pytest tests/test_golden_verdict.py` passed; a structural diff of all eight goldens showed only `agreement: {}` and null `cloud_cover_min`/`cloud_cover_max` added)
 - [x] 4.3 [medium] Add the `two_cloud_providers` golden case, feeding the recorded Open-Meteo payload as `open_meteo` and a shifted copy as `open_meteo_hrrr`, pinning the alternate, the agreement object, the reason line, the confidence factor and the timeline band in one document (verify: `uv run pytest tests/test_golden_verdict.py -k two_cloud_providers`) (✓ `uv run pytest tests/test_golden_verdict.py -k two_cloud_providers` passed; the golden is GO 81 as in `both_present`, MIXED spread 20, confidence 100 → 90)
-- [ ] 4.4 [easy] The whole suite, lint and types pass, and the core boundary test still holds (verify: `mise run check`)
+- [x] 4.4 [easy] The whole suite, lint and types pass, and the core boundary test still holds (verify: `mise run check`) (✓ `mise run check` passed: ruff, mypy, 1707 tests including `tests/test_core_boundary.py`)
 
 ## Deviations Ledger
 
