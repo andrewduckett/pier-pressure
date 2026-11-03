@@ -19,6 +19,10 @@ Two levels of absence:
   absent when its value is ``None`` or the hour is missing — so a partial series
   is an ordinary, valid value rather than an error.
 
+Beside the filled series, ``alternates`` keeps the series of every later provider
+that also returned the variable (cloud-agreement DD1). The core reads them only to
+measure agreement; an alternate never fills an hour and never adds one.
+
 Variable conventions the core relies on:
 
 - ``cloud_cover`` — percent, 0 (clear) .. 100 (overcast). The clarity curve that
@@ -83,9 +87,13 @@ class Conditions:
     value, the astronomy-only input the service's fallback supplies. The core reads
     through :meth:`value_at` and :meth:`issued_at`, which answer ``None`` for an
     absent series, so missing data degrades the verdict rather than raising.
+
+    ``alternates`` holds, per variable, the series that lost the fill, in
+    configured order. Only :meth:`readings_at` reads them.
     """
 
     series: Mapping[Variable, Series] = field(default_factory=dict)
+    alternates: Mapping[Variable, tuple[Series, ...]] = field(default_factory=dict)
 
     def value_at(self, variable: Variable, time: datetime) -> float | None:
         """The variable's value for the hour beginning at ``time``, or ``None``."""
@@ -97,6 +105,16 @@ class Conditions:
         series = self.series.get(variable)
         return series.issued_at if series is not None else None
 
+    def readings_at(self, variable: Variable, time: datetime) -> tuple[tuple[str, float], ...]:
+        """Each ``(provider, value)`` present for the hour, filled series first, then alternates."""
+        filled = self.series.get(variable)
+        every = ((filled,) if filled is not None else ()) + self.alternates.get(variable, ())
+        return tuple(
+            (series.provider, value)
+            for series in every
+            if (value := series.values.get(time)) is not None
+        )
+
     def hours(self) -> tuple[datetime, ...]:
-        """Every hour any series covers, sorted ascending, each once."""
+        """Every hour any filled series covers, sorted ascending, each once."""
         return tuple(sorted({time for series in self.series.values() for time in series.values}))

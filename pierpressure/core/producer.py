@@ -15,14 +15,15 @@ document.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import get_args
 
 from .clock import Clock
 from .conditions import Conditions, Variable
 from .config import PierConfig
-from .model import Confidence, DarkWindow, TimelineEntry, VerdictDocument
+from .model import Agreement, Confidence, DarkWindow, TimelineEntry, VerdictDocument
 from .ranking import equipment_reasons, rank_targets
-from .scoring import MIN_USABLE_WINDOW, evaluate
+from .scoring import MIN_USABLE_WINDOW, AgreementTerm, evaluate
 from .sky import altitudes_at, dark_window, moon_info
 
 
@@ -78,11 +79,21 @@ def produce_verdict(pier: PierConfig, clock: Clock, conditions: Conditions) -> V
         scored_window=DarkWindow(start=scored_start, end=scored_end),
         moon=moon,
         timeline=_timeline(pier, conditions),
+        agreement=_agreement(decision.agreement),
     )
 
 
+def _agreement(term: AgreementTerm | None) -> dict[str, Agreement]:
+    """The document's ``agreement``: cloud cover only for now, empty without a term."""
+    if term is None:
+        return {}
+    return {
+        "cloud_cover": Agreement(band=term.band, spread=term.spread, providers=list(term.providers))
+    }
+
+
 def _timeline(pier: PierConfig, conditions: Conditions) -> list[TimelineEntry]:
-    """One entry per hour any series covers, sorted, with each series' reading."""
+    """One entry per hour any filled series covers, sorted, with each series' reading."""
     times = list(conditions.hours())
     return [
         TimelineEntry(
@@ -90,6 +101,15 @@ def _timeline(pier: PierConfig, conditions: Conditions) -> list[TimelineEntry]:
             sun_altitude=sun,
             moon_altitude=moon,
             **{variable: conditions.value_at(variable, time) for variable in get_args(Variable)},
+            **_cloud_band(conditions, time),
         )
         for time, (sun, moon) in zip(times, altitudes_at(pier, times), strict=True)
     ]
+
+
+def _cloud_band(conditions: Conditions, time: datetime) -> dict[str, float | None]:
+    """The hour's lowest and highest cloud, null unless two or more providers gave one."""
+    values = [value for _, value in conditions.readings_at("cloud_cover", time)]
+    if len(values) < 2:
+        return {"cloud_cover_min": None, "cloud_cover_max": None}
+    return {"cloud_cover_min": min(values), "cloud_cover_max": max(values)}

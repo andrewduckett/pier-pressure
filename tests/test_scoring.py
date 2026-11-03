@@ -4,15 +4,22 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from pierpressure.core.conditions import Conditions, Series
-from pierpressure.core.model import Moon, MoonPhase, Verdict
+from pierpressure.core.model import AgreementBand, Band, Moon, MoonPhase, Verdict
 from pierpressure.core.scoring import (
+    AGREE_MAX_GAP,
+    MIXED_MAX_GAP,
     OVERCAST_EPSILON,
+    AgreementTerm,
     assemble_score,
     atmosphere_mean,
     clarity_weight,
     clear_hours_total,
+    cloud_agreement,
     cloud_score_term,
+    confidence,
     coverage_weight,
     evaluate,
     high_cloud_penalty,
@@ -506,3 +513,301 @@ def test_partial_atmosphere_lines_state_the_share_of_usable_sky_they_cover() -> 
     assert "Atmosphere factor 97%." in decision.reasons
     assert "Seeing quality 0% (covers 10% of the usable sky)." in decision.reasons
     assert "Transparency quality 0% (covers 10% of the usable sky)." in decision.reasons
+
+
+# --------------------------------------------------------------------------- #
+# Cloud agreement: the clarity-weighted mean gap (cloud-agreement DD3)
+# --------------------------------------------------------------------------- #
+
+
+def _keyed(provider: str, window: tuple[datetime, datetime], values: list[float | None]) -> Series:
+    return Series(
+        provider=provider,
+        issued_at=None,
+        values=dict(zip(hour_slots(*window), values, strict=True)),
+    )
+
+
+def _agreeing(
+    window: tuple[datetime, datetime],
+    filled: list[float | None],
+    *alternates: list[float | None],
+) -> Conditions:
+    """Cloud cover from provider ``a``, with one alternate per list from ``b``, ``c``, ..."""
+    return Conditions(
+        series={"cloud_cover": _keyed("a", window, filled)},
+        alternates={
+            "cloud_cover": tuple(
+                _keyed(chr(ord("b") + i), window, values) for i, values in enumerate(alternates)
+            )
+        },
+    )
+
+
+def test_agreement_is_the_gap_when_every_hour_differs_by_the_same_amount() -> None:
+    window = _window(6)
+    term = cloud_agreement(window, _agreeing(window, [20.0] * 6, [28.0] * 6))
+    assert term is not None
+    assert term.mean_gap == 8.0
+    assert term.providers == ("a", "b")
+
+
+def test_agreement_leaves_out_an_hour_only_one_provider_covers() -> None:
+    window = _window(6)
+    term = cloud_agreement(window, _agreeing(window, [20.0] * 6, [60.0] * 3 + [None] * 3))
+    assert term is not None
+    assert term.mean_gap == 40.0
+
+
+def test_agreement_weighs_clear_hours_more_than_cloudy_ones() -> None:
+    window = _window(4)
+    conditions = _agreeing(window, [5.0, 5.0, 85.0, 85.0], [55.0, 55.0, 90.0, 90.0])
+    term = cloud_agreement(window, conditions)
+    assert term is not None
+    assert abs(term.mean_gap - 50.0) < abs(term.mean_gap - 5.0)
+
+
+def test_agreement_counts_disagreement_in_an_hour_the_filled_series_calls_overcast() -> None:
+    window = _window(6)
+    term = cloud_agreement(window, _agreeing(window, [95.0] * 6, [20.0] * 6))
+    assert term is not None
+    assert term.mean_gap == 75.0
+
+
+def test_agreement_is_zero_when_every_weight_is_zero() -> None:
+    window = _window(6)
+    term = cloud_agreement(window, _agreeing(window, [95.0] * 6, [100.0] * 6))
+    assert term is not None
+    assert term.mean_gap == 0.0
+
+
+def test_agreement_is_none_without_an_alternate() -> None:
+    window = _window(6)
+    assert cloud_agreement(window, _conditions(window, cloud=20.0)) is None
+
+
+def test_agreement_is_none_when_providers_never_share_an_hour() -> None:
+    window = _window(4)
+    conditions = _agreeing(window, [20.0, 20.0, None, None], [None, None, 60.0, 60.0])
+    assert cloud_agreement(window, conditions) is None
+
+
+def test_agreement_is_none_when_the_alternate_covers_only_passed_hours() -> None:
+    window = _window(6)
+    conditions = _agreeing(window, [20.0] * 6, [60.0] * 2 + [None] * 4)
+    remaining = (window[0] + timedelta(hours=2), window[1])
+    assert cloud_agreement(remaining, conditions) is None
+
+
+def test_agreement_lists_only_providers_with_a_value_in_a_counted_hour() -> None:
+    window = _window(4)
+    conditions = _agreeing(window, [20.0] * 4, [30.0] * 4, [None] * 4)
+    term = cloud_agreement(window, conditions)
+    assert term is not None
+    assert term.providers == ("a", "b")
+
+
+def test_agreement_lists_the_filled_provider_first_then_alternates_in_order() -> None:
+    window = _window(2)
+    conditions = _agreeing(window, [None, 20.0], [30.0, None], [40.0, 50.0])
+    term = cloud_agreement(window, conditions)
+    assert term is not None
+    assert term.providers == ("a", "b", "c")
+
+
+@pytest.mark.parametrize(
+    ("gap", "band"),
+    [
+        (0.0, AgreementBand.AGREE),
+        (14.4, AgreementBand.AGREE),
+        (15.0, AgreementBand.MIXED),
+        (35.0, AgreementBand.MIXED),
+        (35.4, AgreementBand.MIXED),
+        (36.0, AgreementBand.DISAGREE),
+    ],
+)
+def test_agreement_band_follows_the_rounded_spread(gap: float, band: AgreementBand) -> None:
+    assert AgreementTerm(gap, ("a", "b")).band is band
+
+
+def test_agreement_band_is_mixed_when_a_14_6_point_gap_rounds_to_15() -> None:
+    term = AgreementTerm(14.6, ("a", "b"))
+    assert term.spread == 15
+    assert term.band is AgreementBand.MIXED
+
+
+def test_agreement_band_thresholds_are_15_and_35() -> None:
+    assert (AGREE_MAX_GAP, MIXED_MAX_GAP) == (15, 35)
+
+
+# --------------------------------------------------------------------------- #
+# Confidence falls with low agreement (cloud-agreement DD4)
+# --------------------------------------------------------------------------- #
+
+
+def _confident(
+    window: tuple[datetime, datetime], issued: datetime, *, cloud_hours: int | None = None
+) -> Conditions:
+    """Complete, freshly issued cloud, seeing and transparency over ``window``.
+
+    ``cloud_hours`` leaves cloud on only the first that many hours, which thins
+    completeness to that share of the window.
+    """
+    slots = hour_slots(*window)
+    covered = slots if cloud_hours is None else slots[:cloud_hours]
+
+    def series(values: dict[datetime, float | None]) -> Series:
+        return Series(provider="a", issued_at=issued, values=values)
+
+    return Conditions(
+        series={
+            "cloud_cover": series(dict.fromkeys(covered, 20.0)),
+            "seeing": series(dict.fromkeys(slots, 0.7)),
+            "transparency": series(dict.fromkeys(slots, 0.7)),
+        }
+    )
+
+
+_AGREE = AgreementTerm(8.0, ("a", "b"))
+_MIXED = AgreementTerm(25.0, ("a", "b"))
+_DISAGREE = AgreementTerm(45.0, ("a", "b"))
+
+
+def _value(
+    instant: datetime,
+    window: tuple[datetime, datetime],
+    conditions: Conditions,
+    agreement: AgreementTerm | None,
+) -> int:
+    return confidence(make_pier(), instant, window, conditions, agreement)[1]
+
+
+def test_confidence_is_unchanged_by_agreement_that_agrees() -> None:
+    window = _window(10)
+    instant = window[0] - timedelta(hours=1)
+    conditions = _confident(window, instant)
+    assert _value(instant, window, conditions, _AGREE) == _value(instant, window, conditions, None)
+
+
+def test_confidence_falls_when_agreement_is_mixed() -> None:
+    window = _window(10)
+    instant = window[0] - timedelta(hours=1)
+    conditions = _confident(window, instant)
+    assert _value(instant, window, conditions, _MIXED) == 90
+
+
+def test_confidence_falls_further_when_forecasts_disagree() -> None:
+    window = _window(10)
+    instant = window[0] - timedelta(hours=1)
+    conditions = _confident(window, instant)
+    assert _value(instant, window, conditions, _DISAGREE) < _value(
+        instant, window, conditions, _MIXED
+    )
+
+
+def test_confidence_from_100_stays_medium_when_forecasts_disagree() -> None:
+    window = _window(10)
+    instant = window[0] - timedelta(hours=1)
+    assert confidence(make_pier(), instant, window, _confident(window, instant), _DISAGREE) == (
+        Band.MEDIUM,
+        67,
+    )
+
+
+def test_confidence_a_day_out_is_clamped_to_medium_when_forecasts_disagree() -> None:
+    window = _window(10)
+    instant = window[0] - timedelta(hours=24)
+    conditions = _confident(window, instant)
+    assert _value(instant, window, conditions, None) == 50
+    assert confidence(make_pier(), instant, window, conditions, _DISAGREE) == (Band.MEDIUM, 40)
+
+
+def test_confidence_already_low_still_falls_when_forecasts_disagree() -> None:
+    window = _window(10)
+    instant = window[0] - timedelta(hours=1)
+    conditions = _confident(window, instant, cloud_hours=3)
+    assert _value(instant, window, conditions, None) == 30
+    assert _value(instant, window, conditions, _DISAGREE) == 20
+
+
+def test_confidence_ignores_an_alternates_issue_time() -> None:
+    window = _window(10)
+    instant = window[0] - timedelta(hours=1)
+    base = _confident(window, instant)
+    slots = hour_slots(*window)
+
+    def with_alternate(issued: datetime) -> Conditions:
+        alternate = Series(provider="b", issued_at=issued, values=dict.fromkeys(slots, 28.0))
+        return Conditions(series=base.series, alternates={"cloud_cover": (alternate,)})
+
+    fresh, stale = with_alternate(instant), with_alternate(instant - timedelta(days=2))
+    assert _value(instant, window, fresh, _AGREE) == _value(instant, window, stale, _AGREE)
+
+
+# --------------------------------------------------------------------------- #
+# Reasons name the agreement (cloud-agreement DD5)
+# --------------------------------------------------------------------------- #
+
+
+def test_a_scored_verdict_ends_its_reasons_with_the_agreement() -> None:
+    window = _window(6)
+    conditions = _agreeing(window, [10.0] * 6, [18.0] * 6)
+    decision = evaluate(make_pier(), _EVAL_INSTANT, window, conditions, _DARK)
+    assert decision.verdict is Verdict.GO
+    assert decision.reasons[-2:] == [
+        f"Score {decision.score}/100.",
+        "Cloud agreement agree: 2 providers, spread 8 points.",
+    ]
+
+
+def test_a_gated_verdict_names_the_gate_reason_then_the_agreement() -> None:
+    window = _window(6)
+    conditions = _agreeing(window, [95.0] * 6, [35.0] * 6)
+    decision = evaluate(make_pier(), _EVAL_INSTANT, window, conditions, _DARK)
+    assert decision.verdict is Verdict.NO_GO
+    assert decision.reasons == [
+        "Overcast for the whole dark window: no usably clear sky.",
+        "Cloud agreement disagree: 2 providers, spread 60 points. Confidence lowered.",
+    ]
+
+
+def test_a_wind_gated_verdict_names_the_agreement_after_the_gate_reason() -> None:
+    window = _window(6)
+    slots = hour_slots(*window)
+    agreeing = _agreeing(window, [10.0] * 6, [35.0] * 6)
+    wind = Series(provider="a", issued_at=None, values=dict.fromkeys(slots, 80.0))
+    conditions = Conditions(
+        series={**agreeing.series, "wind_gust": wind}, alternates=agreeing.alternates
+    )
+    pier = make_pier().model_copy(update={"max_gust": 40.0})
+    decision = evaluate(pier, _EVAL_INSTANT, window, conditions, _DARK)
+    assert decision.verdict is Verdict.NO_GO
+    assert decision.reasons == [
+        "Wind gust over the 40 km/h limit during the dark window.",
+        "Cloud agreement mixed: 2 providers, spread 25 points. Confidence lowered.",
+    ]
+
+
+def test_a_verdict_from_one_provider_adds_no_agreement_reason() -> None:
+    window = _window(6)
+    decision = evaluate(make_pier(), _EVAL_INSTANT, window, _conditions(window, cloud=10.0), _DARK)
+    assert decision.agreement is None
+    assert not any(line.startswith("Cloud agreement") for line in decision.reasons)
+
+
+def test_a_verdict_without_a_dark_window_adds_no_agreement_reason() -> None:
+    window = _window(6)
+    conditions = _agreeing(window, [10.0] * 6, [60.0] * 6)
+    decision = evaluate(make_pier(), _EVAL_INSTANT, (None, None), conditions, _DARK)
+    assert decision.agreement is None
+    assert decision.reasons == ["No astronomical night tonight: the sun never drops below -18°."]
+
+
+def test_a_verdict_carries_the_agreement_its_confidence_used() -> None:
+    window = _window(6)
+    conditions = _agreeing(window, [10.0] * 6, [35.0] * 6)
+    decision = evaluate(make_pier(), _EVAL_INSTANT, window, conditions, _DARK)
+    assert decision.agreement == AgreementTerm(25.0, ("a", "b"))
+    assert (decision.band, decision.confidence) == confidence(
+        make_pier(), _EVAL_INSTANT, window, conditions, decision.agreement
+    )

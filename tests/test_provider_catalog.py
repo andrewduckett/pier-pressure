@@ -24,8 +24,9 @@ from pierpressure.core.providers import (
 _CLOUD_BUNDLE = frozenset({"cloud_cover", "cloud_low", "cloud_mid", "cloud_high"})
 
 
-def test_variables_are_the_timeline_keys_without_time_and_altitudes() -> None:
-    computed = {"time", "sun_altitude", "moon_altitude"}
+def test_variables_are_the_timeline_keys_without_the_computed_ones() -> None:
+    # The cloud band is drawn across providers, so no provider supplies it.
+    computed = {"time", "sun_altitude", "moon_altitude", "cloud_cover_min", "cloud_cover_max"}
     expected = tuple(name for name in TimelineEntry.model_fields if name not in computed)
     assert get_args(Variable) == expected
 

@@ -419,6 +419,103 @@ def test_assemble_a_provider_without_weather_leaves_the_weather_variables_unfill
 
 
 # --------------------------------------------------------------------------- #
+# Alternates: the series that lost the fill (cloud-agreement DD2)
+# --------------------------------------------------------------------------- #
+
+_THIRD = replace(_FIRST, key="third", name="Third")
+
+
+def test_assemble_a_later_providers_cloud_becomes_an_alternate() -> None:
+    conditions = assemble_snapshot(
+        [
+            (_FIRST, _forecast(18, cloud_cover={21: 40.0})),
+            (_SECOND, _forecast(17, cloud_cover={21: 70.0})),
+        ]
+    )
+    assert conditions.series["cloud_cover"].provider == "first"
+    assert conditions.value_at("cloud_cover", _hour(21)) == 40.0
+    (alternate,) = conditions.alternates["cloud_cover"]
+    assert alternate.provider == "second"
+    assert alternate.issued_at == _hour(17)
+    assert alternate.values == {_hour(21): 70.0}
+
+
+def test_assemble_alternates_keep_the_configured_order() -> None:
+    conditions = assemble_snapshot(
+        [
+            (_FIRST, _forecast(18, cloud_cover={21: 40.0})),
+            (_SECOND, _forecast(17, cloud_cover={21: 70.0})),
+            (_THIRD, _forecast(16, cloud_cover={21: 10.0})),
+        ]
+    )
+    assert [s.provider for s in conditions.alternates["cloud_cover"]] == ["second", "third"]
+
+
+def test_assemble_an_alternate_never_fills_an_hour_the_filled_series_lacks() -> None:
+    conditions = assemble_snapshot(
+        [
+            (_FIRST, _forecast(18, cloud_cover={h: 10.0 for h in range(20, 24)})),
+            (_SECOND, _forecast(17, cloud_cover={h: 90.0 for h in range(18, 24)})),
+        ]
+    )
+    assert conditions.value_at("cloud_cover", _hour(19)) is None
+    (alternate,) = conditions.alternates["cloud_cover"]
+    assert alternate.values == {_hour(h): 90.0 for h in range(18, 24)}
+
+
+def test_assemble_a_provider_that_returned_nothing_leaves_no_alternate() -> None:
+    conditions = assemble_snapshot(
+        [
+            (_FIRST, _forecast(18, cloud_cover={21: 40.0})),
+            (_SECOND, _forecast(17, cloud_cover={21: None, 22: None}, wind_gust={21: 9.0})),
+        ]
+    )
+    assert "cloud_cover" not in conditions.alternates
+
+
+def test_assemble_a_failed_provider_leaves_the_snapshot_as_if_unlisted() -> None:
+    first = _forecast(18, cloud_cover={21: 40.0}, wind_gust={21: 9.0})
+    alone = assemble_snapshot([(_FIRST, first)])
+    with_failed = assemble_snapshot([(_FIRST, first), (_SECOND, SourceForecast())])
+    assert with_failed.alternates == {}
+    assert with_failed == alone
+
+
+def test_assemble_a_losing_bundle_becomes_alternates_member_by_member() -> None:
+    four = {
+        "cloud_cover": {21: 70.0},
+        "cloud_low": {21: 1.0},
+        "cloud_mid": {21: 2.0},
+        "cloud_high": {21: 3.0},
+    }
+    conditions = assemble_snapshot(
+        [(_FIRST, _forecast(18, cloud_cover={21: 40.0})), (_SECOND, _forecast(17, **four))]
+    )
+    for variable in ("cloud_cover", "cloud_low", "cloud_mid", "cloud_high"):
+        assert [s.provider for s in conditions.alternates[variable]] == ["second"]
+    for layer in ("cloud_low", "cloud_mid", "cloud_high"):
+        assert conditions.series[layer].provider == "first"
+        assert conditions.series[layer].values == {_hour(21): None}
+
+
+def test_assemble_a_series_has_no_alternate_from_its_own_provider() -> None:
+    total_only = ProviderSpec(
+        key="total", name="Total", needs_key=False, variables=("cloud_cover",)
+    )
+    four = {
+        "cloud_cover": {21: 70.0},
+        "cloud_low": {21: 1.0},
+        "cloud_mid": {21: 2.0},
+        "cloud_high": {21: 3.0},
+    }
+    conditions = assemble_snapshot(
+        [(total_only, _forecast(16, cloud_cover={21: 40.0})), (_SECOND, _forecast(17, **four))]
+    )
+    assert [s.provider for s in conditions.alternates["cloud_cover"]] == ["second"]
+    assert "cloud_low" not in conditions.alternates
+
+
+# --------------------------------------------------------------------------- #
 # Every listed provider is fetched, in order; none is load-bearing
 # (provider-order D4)
 # --------------------------------------------------------------------------- #

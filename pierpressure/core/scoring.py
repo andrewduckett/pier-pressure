@@ -37,7 +37,7 @@ from datetime import datetime, timedelta
 
 from .conditions import Conditions, Variable
 from .config import PierConfig
-from .model import Band, Moon, Verdict, iso_z
+from .model import AgreementBand, Band, Moon, Verdict, iso_z
 
 _HOUR = timedelta(hours=1)
 
@@ -434,6 +434,75 @@ def assemble_score(window: tuple[datetime, datetime], conditions: Conditions, mo
     return score_terms(window, conditions, moon).score
 
 
+# --- Cloud agreement (cloud-agreement DD3) ---------------------------------- #
+# Band edges on the rounded mean gap, in cloud-cover points. A gap under 15 is
+# within one model's own hour-to-hour noise, so the forecasts agree. A gap over
+# 35 spans almost half of the 10-90 clarity ramp, enough to move an hour from
+# usable to not, so they disagree. Between the two they are mixed.
+AGREE_MAX_GAP = 15
+MIXED_MAX_GAP = 35
+
+
+@dataclass(frozen=True)
+class AgreementTerm:
+    """How closely the cloud forecasts agree over the scored window.
+
+    ``mean_gap`` is the clarity-weighted mean, in cloud-cover points, of each
+    counted hour's highest minus lowest reading. ``providers`` are the keys that
+    gave a value in a counted hour, the filled series' provider first.
+    """
+
+    mean_gap: float
+    providers: tuple[str, ...]
+
+    @property
+    def spread(self) -> int:
+        """The mean gap in whole points. ``round`` takes a ``.5`` to the even integer."""
+        return round(self.mean_gap)
+
+    @property
+    def band(self) -> AgreementBand:
+        """The band, decided on :attr:`spread` so the band and the spread never disagree."""
+        if self.spread < AGREE_MAX_GAP:
+            return AgreementBand.AGREE
+        if self.spread <= MIXED_MAX_GAP:
+            return AgreementBand.MIXED
+        return AgreementBand.DISAGREE
+
+
+def cloud_agreement(
+    window: tuple[datetime, datetime], conditions: Conditions
+) -> AgreementTerm | None:
+    """The cloud agreement over ``window``, or ``None`` when no hour has two readings.
+
+    Each hour two or more providers cover is weighted by ``w·q(lowest reading)``:
+    the most optimistic forecast decides how much the hour matters, because the
+    hours any forecast calls usable are the ones the night turns on (brainstorm
+    D2). When every weight is zero, every provider calls the night overcast, so
+    the mean gap is 0.
+    """
+    start, end = window
+    numerator = 0.0
+    denominator = 0.0
+    counted: set[str] = set()
+    for slot in hour_slots(start, end):
+        readings = conditions.readings_at("cloud_cover", slot)
+        if len(readings) < 2:
+            continue
+        values = [value for _, value in readings]
+        weight = coverage_weight(slot, start, end) * clarity_weight(min(values))
+        numerator += weight * (max(values) - min(values))
+        denominator += weight
+        counted.update(provider for provider, _ in readings)
+    if not counted:
+        return None
+    filled = conditions.series.get("cloud_cover")
+    every = ((filled,) if filled is not None else ()) + conditions.alternates.get("cloud_cover", ())
+    providers = tuple(series.provider for series in every if series.provider in counted)
+    mean_gap = 0.0 if denominator <= 0.0 else numerator / denominator
+    return AgreementTerm(mean_gap, providers)
+
+
 # --- Confidence (design D5; task 5.1) -------------------------------------- #
 # Lead time L: 1 within L_FULL hours of dusk (or once mid-session), decaying to
 # L_MIN by L_FAR hours out. Freshness F: 1 within F_FRESH hours of the base
@@ -457,6 +526,13 @@ _K_TRIM_WIND = 0.30
 # Band thresholds on the 0-100 value (design D5, ~40 / ~70).
 _BAND_MEDIUM = 40
 _BAND_HIGH = 70
+# The agreement factor A (cloud-agreement DD4). Mixed forecasts cut about a tenth
+# and disagreeing ones about a third, so a verdict at 100 that disagrees reads 67:
+# still MEDIUM, because disagreement says "be wary", not "ignore this". A value
+# already MEDIUM or HIGH is clamped at the MEDIUM threshold, so agreement alone
+# never takes a verdict to LOW.
+_A_MIXED = 0.90
+_A_DISAGREE = 0.67
 
 
 def _decay(x: float, full: float, far: float, floor: float) -> float:
@@ -538,13 +614,25 @@ def _band_for(value: int) -> Band:
     return Band.LOW
 
 
+def _agreement_factor(agreement: AgreementTerm | None) -> float:
+    """``A``: 1 without agreement or when the forecasts agree."""
+    if agreement is None:
+        return 1.0
+    return {
+        AgreementBand.AGREE: 1.0,
+        AgreementBand.MIXED: _A_MIXED,
+        AgreementBand.DISAGREE: _A_DISAGREE,
+    }[agreement.band]
+
+
 def confidence(
     pier: PierConfig,
     instant: datetime,
     window: tuple[datetime, datetime],
     conditions: Conditions,
+    agreement: AgreementTerm | None = None,
 ) -> tuple[Band, int]:
-    """The forecast-based confidence ``(band, value)`` = ``max(floor, 100·L·F)·K``.
+    """The forecast-based confidence ``(band, value)`` = ``max(floor, 100·L·F)·K·A``.
 
     ``window`` is the scored window. Lead time over it equals lead time over the
     dark window: before dusk they are the same span, and once the night has begun
@@ -554,12 +642,20 @@ def confidence(
 
     Freshness reads the cloud-cover series' issue time only (provider-order D5):
     every other series' issue time is carried for provenance but never folded in,
-    so a lagging seeing provider never lowers confidence.
+    so a lagging seeing provider never lowers confidence. An alternate's issue
+    time is never read either.
+
+    The agreement factor ``A`` applies after the floor, like ``K``, so the floor
+    cannot rescue a disagreeing night. It never takes a value at or above the
+    MEDIUM threshold below it (cloud-agreement DD4).
     """
     lead = lead_time_factor(instant, window)
     fresh = freshness_factor(instant, conditions.issued_at("cloud_cover"))
     complete = completeness_factor(window, conditions, pier.max_gust)
-    value = round(max(_CONFIDENCE_FLOOR, lead * fresh) * complete * 100.0)
+    raw = max(_CONFIDENCE_FLOOR, lead * fresh) * complete * 100.0
+    value = round(raw * _agreement_factor(agreement))
+    if round(raw) >= _BAND_MEDIUM:
+        value = max(value, _BAND_MEDIUM)
     value = max(0, min(100, value))
     return _band_for(value), value
 
@@ -575,6 +671,8 @@ class Decision:
     invariant NO-GO ⟺ null score holds for the delivery layer. ``scored_window`` is
     the span the gates and score judged: the dark window from the scoring instant on
     (score-remaining-night design D1), or ``(None, None)`` without a dark window.
+    ``agreement`` is the cloud agreement confidence used, or ``None`` when fewer
+    than two providers shared a scored hour.
     """
 
     verdict: Verdict
@@ -583,6 +681,7 @@ class Decision:
     confidence: int
     reasons: list[str]
     scored_window: tuple[datetime, datetime] | tuple[None, None]
+    agreement: AgreementTerm | None = None
 
 
 # The shortest span of dark time worth setting up for. A scored window under it
@@ -613,6 +712,15 @@ def _wind_reason(max_gust: float, narrowed: bool) -> str:
 def _span_reason(scored: tuple[datetime, datetime]) -> str:
     """The span line: the scored window in the document's own timestamp strings."""
     return f"Scored from {iso_z(scored[0])} to {iso_z(scored[1])} (the rest of tonight)."
+
+
+def _agreement_reason(agreement: AgreementTerm) -> str:
+    band = agreement.band
+    lowered = "" if band is AgreementBand.AGREE else " Confidence lowered."
+    return (
+        f"Cloud agreement {band.value.lower()}: {len(agreement.providers)} providers,"
+        f" spread {agreement.spread} points.{lowered}"
+    )
 
 
 def _wind_unavailable_reason() -> str:
@@ -704,7 +812,11 @@ def evaluate(
     if scored[0] == scored[1]:
         return Decision(Verdict.MAYBE, 0, Band.LOW, 0, [*span, _REASON_NO_DARK_TIME], scored)
 
-    band, conf_value = confidence(pier, instant, scored, conditions)
+    # Measured once, so confidence and the reason line read the same agreement.
+    # It always comes last, so every gate and score line keeps its position.
+    agreement = cloud_agreement(scored, conditions)
+    band, conf_value = confidence(pier, instant, scored, conditions, agreement)
+    agreed = [_agreement_reason(agreement)] if agreement is not None else []
 
     # 2. Wind gate (opt-in). A forecast gust over the limit is a safety NO-GO,
     #    evaluated before any cloud logic so a missing cloud observation cannot
@@ -713,8 +825,8 @@ def evaluate(
     wind_capped = False
     if pier.max_gust is not None:
         if wind_exceeds_limit(scored, conditions, pier.max_gust):
-            reasons = [*span, _wind_reason(pier.max_gust, narrowed)]
-            return Decision(Verdict.NO_GO, None, band, conf_value, reasons, scored)
+            reasons = [*span, _wind_reason(pier.max_gust, narrowed), *agreed]
+            return Decision(Verdict.NO_GO, None, band, conf_value, reasons, scored, agreement)
         if not wind_fully_covered(scored, conditions):
             wind_capped = True
 
@@ -727,12 +839,14 @@ def evaluate(
         reasons = [*span, unavailable]
         if wind_capped:
             reasons.append(_wind_unavailable_reason())
-        return Decision(Verdict.MAYBE, 0, Band.LOW, 0, reasons, scored)
+        reasons.extend(agreed)
+        return Decision(Verdict.MAYBE, 0, Band.LOW, 0, reasons, scored, agreement)
 
     # 4. Cloud present: the overcast gate can fire; otherwise score the night.
     if is_overcast(scored, conditions):
         overcast = _REASON_OVERCAST_REST if narrowed else _REASON_OVERCAST
-        return Decision(Verdict.NO_GO, None, band, conf_value, [*span, overcast], scored)
+        reasons = [*span, overcast, *agreed]
+        return Decision(Verdict.NO_GO, None, band, conf_value, reasons, scored, agreement)
 
     terms = score_terms(scored, conditions, moon)
     score = terms.score
@@ -743,6 +857,7 @@ def evaluate(
     short = scored[1] - scored[0] < MIN_USABLE_WINDOW
     if short:
         reasons.append(_REASON_SHORT_WINDOW)
+    reasons.extend(agreed)
     is_go = score >= pier.go_threshold and not wind_capped and not short
     verdict = Verdict.GO if is_go else Verdict.MAYBE
-    return Decision(verdict, score, band, conf_value, reasons, scored)
+    return Decision(verdict, score, band, conf_value, reasons, scored, agreement)

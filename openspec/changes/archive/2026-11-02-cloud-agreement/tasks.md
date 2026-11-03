@@ -1,0 +1,32 @@
+<!-- One task is one behavior, its test, and the code that passes it. -->
+
+## 1. Alternates through the seam
+
+- [x] 1.1 [easy] `Conditions` carries `alternates` per variable, default empty, and `readings_at(variable, time)` returns the values present for an hour, filled first then alternates in order; `hours()` still spans the filled series only (verify: `uv run pytest tests/test_conditions_model.py`) (✓ `uv run pytest tests/test_conditions_model.py` passed, 12 tests)
+- [x] 1.2 [medium] `assemble_snapshot` keeps, for each variable, the series of every provider after the filling one that declares it and returned its bundle, in order; a blank column, a failed fetch and a losing bundle behave as the conditions delta's scenarios say, and the filled series is unchanged (verify: `uv run pytest tests/test_conditions_provider.py`) (✓ `uv run pytest tests/test_conditions_provider.py` passed, 69 tests)
+
+## 2. The measure, the factor and the line [depends-on: 1]
+
+- [x] 2.1 [medium] `cloud_agreement(window, conditions)` returns the clarity-weighted mean gap over the scored window, weighting each counted hour by coverage times the clarity of its lowest reading, 0 when every weight is zero, `None` when no hour has two readings; `providers` lists only providers with a value in a counted hour (verify: `uv run pytest tests/test_scoring.py -k agreement`) (✓ `uv run pytest tests/test_scoring.py -k agreement` passed, 10 tests)
+- [x] 2.2 [easy] The band is decided on the rounded spread with `AGREE_MAX_GAP = 15` and `MIXED_MAX_GAP = 35`, justified beside the other tuning constants (verify: `uv run pytest tests/test_scoring.py -k band`) (✓ `uv run pytest tests/test_scoring.py -k band` passed, 8 tests)
+- [x] 2.3 [medium] `confidence` multiplies by `_A_MIXED = 0.90` or `_A_DISAGREE = 0.67`, clamped so a value at or above `_BAND_MEDIUM` before the factor stays at or above it; an alternate's issue time changes nothing (verify: `uv run pytest tests/test_scoring.py -k confidence`) (✓ `uv run pytest tests/test_scoring.py -k confidence` passed, 7 tests)
+- [x] 2.4 [medium] `evaluate` computes agreement once after the no-dark-window and no-dark-time returns, carries it on `Decision`, and appends the `Cloud agreement ...` line after the gate or score lines on the wind gate, overcast gate and scored paths, with ` Confidence lowered.` for mixed and disagree (verify: `uv run pytest tests/test_scoring.py -k reason`) (✓ `uv run pytest tests/test_scoring.py -k reason` passed)
+
+## 3. The document [depends-on: 1]
+
+- [x] 3.1 [parallel] [easy] `VerdictDocument.agreement: dict[str, Agreement]` is declared after `timeline` with `AgreementBand`, `spread` and `providers`, and `TimelineEntry` gains `cloud_cover_min` and `cloud_cover_max` as its last two keys, both round-tripping through JSON (verify: `uv run pytest tests/test_model.py -k "agreement or cloud_cover_min"`) (✓ `uv run pytest tests/test_model.py -k "agreement or cloud_cover_min"` passed, 6 tests)
+
+## 4. Producer and goldens [depends-on: 2, 3]
+
+- [x] 4.1 [medium] `produce_verdict` fills `agreement` from the decision, empty when none, and each timeline entry's `cloud_cover_min` and `cloud_cover_max` from `readings_at`, null for an hour fewer than two providers cover; hours only an alternate covers add no entry (verify: `uv run pytest tests/test_producer.py tests/test_producer_timeline.py`) (✓ `uv run pytest tests/test_producer.py tests/test_producer_timeline.py` passed, 32 tests)
+- [x] 4.2 [easy] Regenerate the existing golden documents once and confirm the diff touches only the new keys (verify: `uv run pytest tests/test_golden_verdict.py`) (✓ `uv run pytest tests/test_golden_verdict.py` passed; a structural diff of all eight goldens showed only `agreement: {}` and null `cloud_cover_min`/`cloud_cover_max` added)
+- [x] 4.3 [medium] Add the `two_cloud_providers` golden case, feeding the recorded Open-Meteo payload as `open_meteo` and a shifted copy as `open_meteo_hrrr`, pinning the alternate, the agreement object, the reason line, the confidence factor and the timeline band in one document (verify: `uv run pytest tests/test_golden_verdict.py -k two_cloud_providers`) (✓ `uv run pytest tests/test_golden_verdict.py -k two_cloud_providers` passed; the golden is GO 81 as in `both_present`, MIXED spread 20, confidence 100 → 90)
+- [x] 4.4 [easy] The whole suite, lint and types pass, and the core boundary test still holds (verify: `mise run check`) (✓ `mise run check` passed: ruff, mypy, 1707 tests including `tests/test_core_boundary.py`)
+
+## Deviations Ledger
+
+- 1.1: `readings_at` returns `(provider, value)` pairs, not bare values, so the agreement measure (2.1) can list the providers that gave a value in a counted hour without walking the series a second time.
+- 2.2: `AgreementBand` lands in `pierpressure/core/model.py` with this task, not with 3.1, because the band needs it first. 3.1 still adds the `Agreement` document model.
+- 2.4: the agreement line is the decision's last line, after the wind-unavailable and short-window lines too, so every earlier line keeps its position. The cloud-missing path also carries it when two alternates share a scored hour, so the line appears whenever `agreement` is non-empty, as the spec requires.
+- 3.1: five tests outside `test_model.py` pinned `timeline` as the document's last key, or every timeline key as a provider variable. They now expect `agreement` last and treat the cloud band keys as computed. The golden documents stay red until 4.2 regenerates them, as the plan orders.
+- 4.3: the shifted copy moves only `cloud_cover`, 20 points cloudier every hour, so the case lands on MIXED and pins a lowered confidence. The layers stay as recorded.

@@ -9,6 +9,8 @@ import pytest
 from pydantic import ValidationError
 
 from pierpressure.core.model import (
+    Agreement,
+    AgreementBand,
     Band,
     Confidence,
     DarkWindow,
@@ -31,6 +33,7 @@ EXPECTED_KEY_ORDER = [
     "scored_window",
     "moon",
     "timeline",
+    "agreement",
 ]
 
 TIMELINE_ENTRY_KEY_ORDER = [
@@ -50,6 +53,8 @@ TIMELINE_ENTRY_KEY_ORDER = [
     "wind_speed",
     "wind_direction",
     "precipitation_probability",
+    "cloud_cover_min",
+    "cloud_cover_max",
 ]
 
 _STUB_MOON = Moon(illumination=0.0, phase=MoonPhase.NEW)
@@ -263,10 +268,39 @@ def _entry(**overrides: object) -> TimelineEntry:
     return TimelineEntry.model_validate(fields)
 
 
-def test_timeline_defaults_to_an_empty_list_and_is_the_last_key() -> None:
+def test_timeline_defaults_to_an_empty_list_and_precedes_only_agreement() -> None:
     payload = json.loads(_gated_no_go().to_json())
     assert payload["timeline"] == []
-    assert list(payload)[-1] == "timeline"
+    assert list(payload)[-2:] == ["timeline", "agreement"]
+
+
+def test_agreement_defaults_to_the_empty_object() -> None:
+    assert json.loads(_gated_no_go().to_json())["agreement"] == {}
+
+
+def test_agreement_serializes_band_spread_and_providers_in_order() -> None:
+    agreement = Agreement(
+        band=AgreementBand.MIXED, spread=25, providers=["open_meteo", "open_meteo_hrrr"]
+    )
+    doc = _gated_no_go().model_copy(update={"agreement": {"cloud_cover": agreement}})
+    assert json.loads(doc.to_json())["agreement"] == {
+        "cloud_cover": {
+            "band": "MIXED",
+            "spread": 25,
+            "providers": ["open_meteo", "open_meteo_hrrr"],
+        }
+    }
+
+
+def test_agreement_round_trips_through_json() -> None:
+    agreement = Agreement(band=AgreementBand.DISAGREE, spread=60, providers=["a", "b"])
+    doc = _gated_no_go().model_copy(update={"agreement": {"cloud_cover": agreement}})
+    assert VerdictDocument.model_validate_json(doc.to_json()) == doc
+
+
+def test_agreement_rejects_an_unknown_band() -> None:
+    with pytest.raises(ValidationError):
+        Agreement.model_validate({"band": "UNSURE", "spread": 3, "providers": ["a", "b"]})
 
 
 def test_timeline_entry_keys_are_in_the_spec_order() -> None:
@@ -331,6 +365,14 @@ def test_timeline_entry_passes_weather_values_through_unrounded() -> None:
 def test_timeline_entry_rejects_unknown_keys() -> None:
     with pytest.raises(ValidationError):
         _entry(pressure=1013.0)
+
+
+def test_timeline_entry_cloud_cover_min_and_max_round_trip_through_json() -> None:
+    entry = _entry(cloud_cover_min=37.0, cloud_cover_max=70.5)
+    payload = json.loads(entry.model_dump_json())
+    assert list(payload)[-2:] == ["cloud_cover_min", "cloud_cover_max"]
+    assert (payload["cloud_cover_min"], payload["cloud_cover_max"]) == (37.0, 70.5)
+    assert TimelineEntry.model_validate_json(entry.model_dump_json()) == entry
 
 
 def test_timeline_round_trips_through_json() -> None:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from pydantic import ValidationError
@@ -10,11 +10,12 @@ from pydantic import ValidationError
 from pierpressure.core.clock import FixedClock
 from pierpressure.core.conditions import Conditions
 from pierpressure.core.config import PierConfig
-from pierpressure.core.model import MoonPhase, Verdict
+from pierpressure.core.model import Agreement, AgreementBand, MoonPhase, Verdict, VerdictDocument
 from pierpressure.core.producer import produce_verdict
+from pierpressure.core.providers import OPEN_METEO, OPEN_METEO_HRRR
 from pierpressure.delivery.mqtt import DeliveryError
 
-from .conftest import make_pier
+from .conftest import make_pier, provider_series
 from .offline_guard import no_network
 
 
@@ -100,3 +101,91 @@ def test_scored_window_is_null_without_a_dark_window() -> None:
         doc = produce_verdict(pier, clock, Conditions())
     assert doc.scored_window.start is None
     assert doc.scored_window.end is None
+
+
+# --------------------------------------------------------------------------- #
+# The document carries cloud agreement (cloud-agreement DD6)
+# --------------------------------------------------------------------------- #
+
+_BEFORE_DUSK = datetime(2026, 9, 8, 14, 0, tzinfo=UTC)
+_ISSUED = datetime(2026, 9, 8, 13, 0, tzinfo=UTC)
+_NIGHT = [datetime(2026, 9, 8, 12, tzinfo=UTC) + timedelta(hours=h) for h in range(24)]
+
+
+def _two_providers(
+    filled: float, alternate: float, *, alternate_issued: datetime = _ISSUED
+) -> Conditions:
+    series = provider_series(OPEN_METEO, _NIGHT, issued_at=_ISSUED, cloud_cover=filled)
+    hrrr = provider_series(
+        OPEN_METEO_HRRR, _NIGHT, issued_at=alternate_issued, cloud_cover=alternate
+    )
+    return Conditions(series=series, alternates={"cloud_cover": (hrrr["cloud_cover"],)})
+
+
+def _produce(conditions: Conditions, pier: PierConfig | None = None) -> VerdictDocument:
+    with no_network():
+        return produce_verdict(pier or make_pier(), FixedClock(_BEFORE_DUSK), conditions)
+
+
+def test_the_document_carries_the_agreement_of_two_providers_that_nearly_agree() -> None:
+    doc = _produce(_two_providers(20.0, 28.0))
+    assert doc.agreement == {
+        "cloud_cover": Agreement(
+            band=AgreementBand.AGREE, spread=8, providers=["open_meteo", "open_meteo_hrrr"]
+        )
+    }
+
+
+def test_the_document_agreement_is_empty_from_one_provider() -> None:
+    series = provider_series(OPEN_METEO, _NIGHT, issued_at=_ISSUED, cloud_cover=20.0)
+    assert _produce(Conditions(series=series)).agreement == {}
+
+
+def test_the_document_agreement_is_empty_without_a_dark_window() -> None:
+    midsummer = datetime(2026, 6, 21, 12, tzinfo=UTC)
+    hours = [midsummer + timedelta(hours=h) for h in range(24)]
+    series = provider_series(OPEN_METEO, hours, issued_at=midsummer, cloud_cover=20.0)
+    hrrr = provider_series(OPEN_METEO_HRRR, hours, issued_at=midsummer, cloud_cover=80.0)
+    conditions = Conditions(series=series, alternates={"cloud_cover": (hrrr["cloud_cover"],)})
+    pier = PierConfig(id="north", latitude=60.0, longitude=10.0, elevation_m=0.0)
+    with no_network():
+        doc = produce_verdict(pier, FixedClock(midsummer), conditions)
+    assert doc.dark_window.start is None
+    assert doc.agreement == {}
+
+
+def test_mixed_agreement_lowers_confidence_without_changing_the_verdict() -> None:
+    agree, mixed = _produce(_two_providers(20.0, 28.0)), _produce(_two_providers(20.0, 45.0))
+    assert mixed.agreement["cloud_cover"].band is AgreementBand.MIXED
+    assert mixed.confidence.value < agree.confidence.value
+    assert (mixed.verdict, mixed.score) == (agree.verdict, agree.score)
+
+
+def test_disagreement_lowers_confidence_below_mixed() -> None:
+    mixed, disagree = _produce(_two_providers(20.0, 45.0)), _produce(_two_providers(20.0, 65.0))
+    assert disagree.agreement["cloud_cover"].band is AgreementBand.DISAGREE
+    assert disagree.confidence.value < mixed.confidence.value
+
+
+def test_a_stale_alternate_leaves_the_document_byte_identical() -> None:
+    fresh = _produce(_two_providers(20.0, 28.0))
+    stale = _produce(_two_providers(20.0, 28.0, alternate_issued=_ISSUED - timedelta(days=3)))
+    assert stale.to_json() == fresh.to_json()
+
+
+def test_alternates_do_not_change_the_cloud_reading() -> None:
+    alone = _produce(Conditions(series=_two_providers(20.0, 80.0).series))
+    paired = _produce(_two_providers(20.0, 80.0))
+    assert (paired.verdict, paired.score, paired.scored_window) == (
+        alone.verdict,
+        alone.score,
+        alone.scored_window,
+    )
+    assert [e.cloud_cover for e in paired.timeline] == [e.cloud_cover for e in alone.timeline]
+
+
+def test_the_agreement_reason_precedes_the_equipment_notes() -> None:
+    doc = _produce(_two_providers(20.0, 28.0))
+    line = "Cloud agreement agree: 2 providers, spread 8 points."
+    assert doc.reasons.count(line) == 1
+    assert doc.reasons.index(line) > doc.reasons.index(f"Score {doc.score}/100.")

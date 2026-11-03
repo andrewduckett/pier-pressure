@@ -10,7 +10,14 @@ from pierpressure.core.conditions import Conditions, Series, Variable
 from pierpressure.core.config import PierConfig
 from pierpressure.core.model import TimelineEntry
 from pierpressure.core.producer import produce_verdict
-from pierpressure.core.providers import OPEN_METEO, SEVEN_TIMER
+from pierpressure.core.providers import (
+    OPEN_METEO,
+    OPEN_METEO_GFS,
+    OPEN_METEO_HRRR,
+    OPEN_METEO_ICON,
+    SEVEN_TIMER,
+    ProviderSpec,
+)
 from pierpressure.core.sky import dark_window
 
 from .conftest import make_pier, provider_series
@@ -250,3 +257,63 @@ def test_hours_outside_the_dark_window_change_no_other_field() -> None:
 def test_the_docstring_no_longer_says_conditions_are_not_consulted() -> None:
     assert produce_verdict.__doc__ is not None
     assert "not consulted" not in produce_verdict.__doc__
+
+
+# --------------------------------------------------------------------------- #
+# The entry's cloud band: the lowest and highest cloud any provider gave
+# --------------------------------------------------------------------------- #
+
+
+def _alternate(times: list[datetime], spec: ProviderSpec, cloud_cover: float) -> Series:
+    return provider_series(spec, times, issued_at=_ISSUED, cloud_cover=cloud_cover)["cloud_cover"]
+
+
+def _timeline(conditions: Conditions) -> list[TimelineEntry]:
+    with no_network():
+        return produce_verdict(
+            make_pier(), FixedClock(datetime(2026, 9, 8, 14, tzinfo=UTC)), conditions
+        ).timeline
+
+
+def test_two_providers_draw_the_cloud_band() -> None:
+    times = _hours(datetime(2026, 9, 8, 21, tzinfo=UTC), 1)
+    conditions = Conditions(
+        series=_base(times, cloud_cover=40.0),
+        alternates={"cloud_cover": (_alternate(times, OPEN_METEO_HRRR, 70.0),)},
+    )
+    [entry] = _timeline(conditions)
+    assert (entry.cloud_cover, entry.cloud_cover_min, entry.cloud_cover_max) == (40.0, 40.0, 70.0)
+
+
+def test_one_provider_leaves_the_cloud_band_null() -> None:
+    times = _hours(datetime(2026, 9, 8, 21, tzinfo=UTC), 1)
+    [entry] = _timeline(Conditions(series=_base(times, cloud_cover=40.0)))
+    assert (entry.cloud_cover, entry.cloud_cover_min, entry.cloud_cover_max) == (40.0, None, None)
+
+
+def test_two_alternates_draw_the_band_for_an_hour_the_filled_series_lacks() -> None:
+    first, second = _hours(datetime(2026, 9, 8, 21, tzinfo=UTC), 2)
+    conditions = Conditions(
+        series={
+            **_base([first], cloud_cover=40.0),
+            **_secondary([first, second], seeing=0.5),
+        },
+        alternates={
+            "cloud_cover": (
+                _alternate([second], OPEN_METEO_HRRR, 10.0),
+                _alternate([second], OPEN_METEO_ICON, 30.0),
+            )
+        },
+    )
+    _, entry = _timeline(conditions)
+    assert (entry.cloud_cover, entry.cloud_cover_min, entry.cloud_cover_max) == (None, 10.0, 30.0)
+
+
+def test_hours_only_an_alternate_covers_add_no_entry() -> None:
+    night = _hours(datetime(2026, 9, 8, 20, tzinfo=UTC), 8)
+    long_run = _hours(datetime(2026, 9, 8, 20, tzinfo=UTC), 56)
+    conditions = Conditions(
+        series=_base(night, cloud_cover=40.0),
+        alternates={"cloud_cover": (_alternate(long_run, OPEN_METEO_GFS, 70.0),)},
+    )
+    assert [entry.time for entry in _timeline(conditions)] == night

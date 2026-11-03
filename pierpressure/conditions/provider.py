@@ -5,7 +5,8 @@ per-hour set of readings plus the data's issue time — and points at its
 :class:`~pierpressure.core.providers.ProviderSpec`, which declares the variables
 it supplies and its bundles. :func:`assemble_snapshot` fills the core's
 :class:`~pierpressure.core.conditions.Conditions` one series per variable, from
-the first provider in the configured order that returned it.
+the first provider in the configured order that returned it, and keeps every
+later provider's series for it as an alternate.
 :class:`CompositeProvider` fetches every provider in that order, each guarded so
 one failing never fails another, then runs the fill. A failed or empty fetch is
 passed over; its variables are never filled from an earlier fetch.
@@ -121,25 +122,37 @@ def assemble_snapshot(fills: Sequence[tuple[ProviderSpec, SourceForecast]]) -> C
     absent and are never taken from another provider. A failed fetch is an empty
     forecast, so it is passed over like any provider that returned nothing.
 
+    Every later provider that declares a variable and returned its bundle
+    becomes one of that variable's alternates, in ``fills`` order
+    (cloud-agreement DD2). Alternates are decided per variable, so a losing
+    bundle yields one alternate per member, a member with no values included.
+
     Variables are walked in the fixed :data:`Variable` order and providers in
     ``fills`` order, so the result depends on nothing but the inputs.
     """
     series: dict[Variable, Series] = {}
+    filled_by: dict[Variable, int] = {}
+    alternates: dict[Variable, list[Series]] = {}
     for variable in get_args(Variable):
-        if variable in series:
-            continue
-        for spec, forecast in fills:
+        for index, (spec, forecast) in enumerate(fills):
             if variable not in spec.variables:
                 continue
             bundle = [member for member in spec.variables if member in spec.bundle_of(variable)]
-            if _returned(forecast, bundle):
+            if not _returned(forecast, bundle):
+                continue
+            if variable not in series:
                 for member in bundle:
                     # An earlier provider that won a member keeps it, even when its
                     # bundles differ from this provider's.
                     if member not in series:
                         series[member] = _series(spec, forecast, member)
-                break
-    return Conditions(series=series)
+                        filled_by[member] = index
+            elif index > filled_by[variable]:
+                alternates.setdefault(variable, []).append(_series(spec, forecast, variable))
+    return Conditions(
+        series=series,
+        alternates={variable: tuple(found) for variable, found in alternates.items()},
+    )
 
 
 def _utcnow() -> datetime:
