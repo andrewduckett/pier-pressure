@@ -83,3 +83,46 @@ def test_series_and_conditions_are_immutable() -> None:
         series.provider = "b"  # type: ignore[misc]
     with pytest.raises(dataclasses.FrozenInstanceError):
         Conditions().series = {}  # type: ignore[misc]
+
+
+def test_conditions_default_to_no_alternates() -> None:
+    assert Conditions().alternates == {}
+
+
+def test_readings_at_lists_the_filled_value_then_each_alternate_in_order() -> None:
+    conditions = Conditions(
+        series={"cloud_cover": Series(provider="a", issued_at=None, values={_t(21): 40.0})},
+        alternates={
+            "cloud_cover": (
+                Series(provider="b", issued_at=None, values={_t(21): 70.0}),
+                Series(provider="c", issued_at=None, values={_t(21): 10.0}),
+            )
+        },
+    )
+    assert conditions.readings_at("cloud_cover", _t(21)) == (("a", 40.0), ("b", 70.0), ("c", 10.0))
+
+
+def test_readings_at_leaves_out_blank_and_missing_hours() -> None:
+    conditions = Conditions(
+        series={"cloud_cover": Series(provider="a", issued_at=None, values={_t(21): None})},
+        alternates={
+            "cloud_cover": (
+                Series(provider="b", issued_at=None, values={_t(21): 70.0}),
+                Series(provider="c", issued_at=None, values={_t(22): 10.0}),
+            )
+        },
+    )
+    assert conditions.readings_at("cloud_cover", _t(21)) == (("b", 70.0),)
+    assert conditions.readings_at("seeing", _t(21)) == ()
+
+
+def test_hours_ignores_hours_only_an_alternate_covers() -> None:
+    conditions = Conditions(
+        series={"cloud_cover": Series(provider="a", issued_at=None, values={_t(21): 40.0})},
+        alternates={
+            "cloud_cover": (
+                Series(provider="b", issued_at=None, values={_t(21): 1.0, _t(23): 1.0}),
+            )
+        },
+    )
+    assert conditions.hours() == (_t(21),)
