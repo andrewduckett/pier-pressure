@@ -23,7 +23,7 @@
 ## 4. Documentation and the full gate [depends-on: 3]
 
 - [x] 4.1 [easy] README names `nws` in the configuration table and the health topic list, and a section says it covers the United States only, gives total cloud with no layer split, that listing it first leaves the layers unavailable, how the two-step lookup and the fixed `User-Agent` work, and that a missing NWS variable shows on the timeline rather than in health; the README docs tests pass (verify: `uv run pytest tests/test_docs.py`) (✓ `uv run pytest tests/test_docs.py` passed, 31 tests)
-- [ ] 4.2 [easy] The whole gate is green: lint, types and every test (verify: `mise run check`)
+- [x] 4.2 [easy] The whole gate is green: lint, types and every test (verify: `mise run check`) (✓ `mise run check` passed: ruff, mypy, 1742 tests)
 
 ## Deviations Ledger
 
