@@ -84,6 +84,9 @@ def parse_nws(payload: dict[str, Any]) -> SourceForecast:
     horizon is cut at it.
     """
     properties = payload.get("properties") or {}
+    # The forecast office's last edit, not the fetch time (D8).
+    update_time = properties.get("updateTime")
+    issued_at = datetime.fromisoformat(update_time).astimezone(UTC) if update_time else None
     periods = [
         (variable, *_period(entry["validTime"]), entry.get("value"))
         for variable, name in PROPERTIES.items()
@@ -91,7 +94,7 @@ def parse_nws(payload: dict[str, Any]) -> SourceForecast:
         for entry in column.get("values") or []
     ]
     if not periods:
-        return SourceForecast()
+        return SourceForecast(issued_at=issued_at)
     horizon = min(start for _, start, _, _ in periods) + _HORIZON
     columns: dict[datetime, dict[Variable, float | None]] = defaultdict(dict)
     for variable, start, duration, value in periods:
@@ -99,5 +102,6 @@ def parse_nws(payload: dict[str, Any]) -> SourceForecast:
             if hour < horizon:
                 columns[hour][variable] = None if value is None else float(value)
     return SourceForecast(
-        readings={hour: SourceReading(**values) for hour, values in sorted(columns.items())}
+        issued_at=issued_at,
+        readings={hour: SourceReading(**values) for hour, values in sorted(columns.items())},
     )

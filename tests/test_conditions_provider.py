@@ -1079,3 +1079,14 @@ def test_nws_unit_null_value_is_absent_for_its_hours() -> None:
     )
     assert forecast.readings[_hour(21)].dew_point is None
     assert forecast.readings[_hour(22)].dew_point is None
+
+
+def test_nws_issue_time_is_the_update_time() -> None:
+    forecast = parse_nws(_nws(skyCover=[("2026-09-08T21:00:00+00:00/PT1H", 45)]))
+    assert forecast.issued_at == datetime(2026, 9, 8, 20, 35, tzinfo=UTC)
+
+
+def test_nws_issue_time_is_none_without_an_update_time() -> None:
+    payload = _nws(skyCover=[("2026-09-08T21:00:00+00:00/PT1H", 45)])
+    del payload["properties"]["updateTime"]
+    assert parse_nws(payload).issued_at is None

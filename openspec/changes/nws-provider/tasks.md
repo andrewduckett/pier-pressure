@@ -12,7 +12,7 @@
 - [x] 2.2 [medium] `parse_nws` holds each period's value across the clock hours it covers: a three-hour sky cover period fills three hours, a one-day-six-hour wind speed period fills thirty hours, and periods for different variables stay independent (verify: `uv run pytest tests/test_conditions_provider.py -k nws_period`) (✓ `uv run pytest tests/test_conditions_provider.py -k nws_period` passed, 3 tests)
 - [x] 2.3 [medium] The parser keeps only hours within 72 hours of the earliest period start across all variables: a period straddling the horizon is cut at it, a period starting past it leaves no reading (verify: `uv run pytest tests/test_conditions_provider.py -k nws_horizon`) (✓ `uv run pytest tests/test_conditions_provider.py -k nws_horizon` passed, 3 tests)
 - [x] 2.4 [easy] A variable whose `uom` is not the expected code is absent in every hour, an expected one is carried unrounded, and a `null` value is absent for its hours (verify: `uv run pytest tests/test_conditions_provider.py -k nws_unit`) (✓ `uv run pytest tests/test_conditions_provider.py -k nws_unit` passed, 3 tests)
-- [ ] 2.5 [easy] The forecast's `updateTime` becomes `issued_at`, and a payload without it gives `None` (verify: `uv run pytest tests/test_conditions_provider.py -k nws_issue`)
+- [x] 2.5 [easy] The forecast's `updateTime` becomes `issued_at`, and a payload without it gives `None` (verify: `uv run pytest tests/test_conditions_provider.py -k nws_issue`) (✓ `uv run pytest tests/test_conditions_provider.py -k nws_issue` passed, 2 tests)
 
 ## 3. The NWS fetch [depends-on: 2]
 
