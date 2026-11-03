@@ -22,7 +22,7 @@
 
 ## 4. Documentation and the full gate [depends-on: 3]
 
-- [ ] 4.1 [easy] README names `nws` in the configuration table and the health topic list, and a section says it covers the United States only, gives total cloud with no layer split, that listing it first leaves the layers unavailable, how the two-step lookup and the fixed `User-Agent` work, and that a missing NWS variable shows on the timeline rather than in health; the README docs tests pass (verify: `uv run pytest tests/test_docs.py`)
+- [x] 4.1 [easy] README names `nws` in the configuration table and the health topic list, and a section says it covers the United States only, gives total cloud with no layer split, that listing it first leaves the layers unavailable, how the two-step lookup and the fixed `User-Agent` work, and that a missing NWS variable shows on the timeline rather than in health; the README docs tests pass (verify: `uv run pytest tests/test_docs.py`) (✓ `uv run pytest tests/test_docs.py` passed, 31 tests)
 - [ ] 4.2 [easy] The whole gate is green: lint, types and every test (verify: `mise run check`)
 
 ## Deviations Ledger
@@ -31,3 +31,4 @@
 
 - 2026-11-03, task 1.1: `test_each_fetcher_points_at_its_catalog_spec` walks the whole catalog, so it skips `nws` until task 3.3 wires `NwsProvider` into `build_provider`. Task 3.3 removes the skip.
 - 2026-11-03, task 3.3: DD5 set the `User-Agent` as a default header on the client the provider creates. It is passed on each request instead, so an injected client carries it too. The header and its value are as planned.
+- 2026-11-03, task 4.1: the design's open question is settled. NWS gets its own README section, "Adding the National Weather Service", after "Choosing Open-Meteo models", which keeps its name.
