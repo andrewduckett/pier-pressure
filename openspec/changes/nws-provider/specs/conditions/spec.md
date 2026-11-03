@@ -38,10 +38,7 @@ forecast office and grid cell, then fetch the raw gridpoint forecast for that
 cell. The provider SHALL remember the resolved grid cell for the pier's
 coordinates for as long as the process runs, so later fetches for the same pier
 make only the gridpoint request. A failed resolution SHALL NOT be remembered.
-The point request SHALL follow a redirect, because NWS answers one when the
-coordinates carry more than four decimal places. When the gridpoint request
-answers status 404, the provider SHALL forget the remembered cell, so the next
-fetch resolves the point again. Nothing SHALL be written to disk.
+Nothing SHALL be written to disk.
 
 #### Scenario: The first fetch makes two requests
 
@@ -63,6 +60,13 @@ fetch resolves the point again. Nothing SHALL be written to disk.
 
 - **WHEN** `nws` is fetched for two piers at different coordinates
 - **THEN** each pier's point is requested once, and each fetch uses its own pier's office and cell
+
+### Requirement: NWS's point request follows redirects and a gridpoint 404 forgets the cell
+
+The point request SHALL follow a redirect, because NWS answers one when the
+coordinates carry more than four decimal places. When the gridpoint request
+answers status 404, the provider SHALL forget the remembered cell, so the next
+fetch resolves the point again.
 
 #### Scenario: Coordinates with five decimal places still resolve
 

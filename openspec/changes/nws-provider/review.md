@@ -46,7 +46,7 @@ CHANGES_APPLIED: yes
 
 ## Rebuttals
 
-1. Fixed. design.md DD3 and the risk line; delta requirement "NWS is fetched in two steps" plus scenario "A gridpoint 404 forgets the cell"; proposal.md What Changes.
+1. Fixed. design.md DD3 and the risk line; proposal.md What Changes; delta requirement "NWS's point request follows redirects and a gridpoint 404 forgets the cell", split out of the two-step requirement because strict validation flagged the combined text as too long, with scenario "A gridpoint 404 forgets the cell".
 2. Fixed. design.md DD3; delta requirement text plus scenario "Coordinates with five decimal places still resolve"; proposal.md What Changes.
 3. Fixed. design.md DD2 last sentence; delta scenarios "A period that straddles the horizon is cut at it" and "A period that starts past the horizon is dropped".
 4. Fixed for the delta: scenario "A bundle travels together" WHEN. Main-spec edit declined, see above.
