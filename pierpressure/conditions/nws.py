@@ -32,6 +32,19 @@ PROPERTIES: Mapping[Variable, str] = {
 }
 """The gridpoint property behind each variable NWS declares."""
 
+UNITS: Mapping[Variable, str] = {
+    "cloud_cover": "wmoUnit:percent",
+    "wind_gust": "wmoUnit:km_h-1",
+    "wind_speed": "wmoUnit:km_h-1",
+    "wind_direction": "wmoUnit:degree_(angle)",
+    "temperature": "wmoUnit:degC",
+    "dew_point": "wmoUnit:degC",
+    "humidity": "wmoUnit:percent",
+    "precipitation_probability": "wmoUnit:percent",
+}
+"""The one unit code each variable is carried in. Any other code leaves the
+variable absent rather than converted (design DD4)."""
+
 # The same reach as 7Timer!, so listing NWS never lengthens the timeline (D2).
 _HORIZON = timedelta(hours=72)
 
@@ -74,7 +87,8 @@ def parse_nws(payload: dict[str, Any]) -> SourceForecast:
     periods = [
         (variable, *_period(entry["validTime"]), entry.get("value"))
         for variable, name in PROPERTIES.items()
-        for entry in (properties.get(name) or {}).get("values") or []
+        if (column := properties.get(name) or {}).get("uom") == UNITS[variable]
+        for entry in column.get("values") or []
     ]
     if not periods:
         return SourceForecast()

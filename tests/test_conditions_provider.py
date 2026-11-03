@@ -1046,3 +1046,36 @@ def test_nws_horizon_is_measured_from_the_earliest_start_across_variables() -> N
         )
     )
     assert max(forecast.readings) == _at(11, 17)
+
+
+def test_nws_unit_expected_codes_are_carried_unrounded() -> None:
+    forecast = parse_nws(
+        _nws(
+            temperature=[("2026-09-08T21:00:00+00:00/PT1H", 12.34)],
+            windSpeed=[("2026-09-08T21:00:00+00:00/PT1H", 14.25)],
+        )
+    )
+    assert forecast.readings[_hour(21)].temperature == 12.34
+    assert forecast.readings[_hour(21)].wind_speed == 14.25
+
+
+def test_nws_unit_unexpected_code_leaves_the_variable_absent() -> None:
+    payload = _nws(
+        windSpeed=[("2026-09-08T21:00:00+00:00/PT2H", 8.0)],
+        temperature=[("2026-09-08T21:00:00+00:00/PT2H", 12.0)],
+    )
+    payload["properties"]["windSpeed"]["uom"] = "wmoUnit:kn"
+    forecast = parse_nws(payload)
+    assert all(r.wind_speed is None for r in forecast.readings.values())
+    assert forecast.readings[_hour(22)].temperature == 12.0
+
+
+def test_nws_unit_null_value_is_absent_for_its_hours() -> None:
+    forecast = parse_nws(
+        _nws(
+            dewpoint=[("2026-09-08T21:00:00+00:00/PT2H", None)],
+            temperature=[("2026-09-08T21:00:00+00:00/PT2H", 12.0)],
+        )
+    )
+    assert forecast.readings[_hour(21)].dew_point is None
+    assert forecast.readings[_hour(22)].dew_point is None
