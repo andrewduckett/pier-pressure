@@ -17,7 +17,7 @@
 ## 3. The NWS fetch [depends-on: 2]
 
 - [x] 3.1 [medium] `NwsProvider.fetch` makes the point request then the gridpoint request on the first fetch for a pier, only the gridpoint request on the second, resolves two piers separately, and follows a 301 from the point request (verify: `uv run pytest tests/test_conditions_provider.py -k nws_fetch`) (✓ `uv run pytest tests/test_conditions_provider.py -k nws_fetch` passed, 4 tests)
-- [ ] 3.2 [medium] A point 503 is not remembered and the next fetch asks again; a point 404 is a failed outcome `HTTPStatusError: 404 Not Found` and the next provider fills cloud through `CompositeProvider`; a gridpoint 404 forgets the cell so the next fetch asks for the point again (verify: `uv run pytest tests/test_conditions_provider.py -k nws_fail`)
+- [x] 3.2 [medium] A point 503 is not remembered and the next fetch asks again; a point 404 is a failed outcome `HTTPStatusError: 404 Not Found` and the next provider fills cloud through `CompositeProvider`; a gridpoint 404 forgets the cell so the next fetch asks for the point again (verify: `uv run pytest tests/test_conditions_provider.py -k nws_fail`) (✓ `uv run pytest tests/test_conditions_provider.py -k nws_fail` passed, 3 tests)
 - [ ] 3.3 [easy] Every NWS request carries a `User-Agent` of `PierPressure/<version> (https://github.com/andrewduckett/pier-pressure)` with no `@`, and `build_provider` wires `nws` to `NwsProvider` pointing at its catalog spec (verify: `uv run pytest tests/test_conditions_provider.py -k "nws_user_agent or catalog_spec"`)
 
 ## 4. Documentation and the full gate [depends-on: 3]

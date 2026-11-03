@@ -122,7 +122,8 @@ class NwsProvider:
     The first fetch for a pier resolves its coordinates to a forecast office and
     grid cell, then fetches that cell's forecast. The cell is remembered for as
     long as this instance lives, so later fetches make only the second request
-    (design DD3). A failed resolution leaves nothing remembered.
+    (design DD3). A failed resolution leaves nothing remembered, and a gridpoint
+    404 forgets the cell.
     """
 
     spec: ClassVar[ProviderSpec] = NWS
@@ -134,6 +135,9 @@ class NwsProvider:
         client = self.client or httpx.Client(timeout=_TIMEOUT_SECONDS)
         try:
             response = client.get(self._gridpoint_url(client, pier))
+            if response.status_code == httpx.codes.NOT_FOUND:
+                # The cell may have moved; resolve the point again next time.
+                del self._cells[(pier.latitude, pier.longitude)]
             response.raise_for_status()
             return parse_nws(response.json())
         finally:

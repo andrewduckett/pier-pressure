@@ -1188,3 +1188,39 @@ def test_nws_fetch_follows_a_redirect_from_the_point_request() -> None:
     forecast = NwsProvider(client=server.client()).fetch(pier)
     assert server.paths[-1] == "/gridpoints/LOT/75,72"
     assert forecast.readings
+
+
+def test_nws_fail_point_503_is_not_remembered() -> None:
+    server = _FakeNws(failures={"/points/43.0389,-87.9065": 503})
+    provider = NwsProvider(client=server.client())
+    with pytest.raises(httpx.HTTPStatusError):
+        provider.fetch(_MILWAUKEE)
+    server.requests.clear()
+    provider.fetch(_MILWAUKEE)
+    assert server.paths == ["/points/43.0389,-87.9065", "/gridpoints/MKX/88,65"]
+
+
+def test_nws_fail_outside_coverage_is_passed_over_for_the_next_provider() -> None:
+    # make_pier() sits in London, which the fake NWS answers with 404.
+    nws = NwsProvider(client=_FakeNws().client())
+    composite = CompositeProvider(
+        fetchers=(nws, _StubProvider(_BASE_FORECAST)), now=lambda: _FETCHED
+    )
+    result = composite.get(make_pier())
+    outcome, _ = result.outcomes
+    assert outcome.key == "nws"
+    assert not outcome.ok
+    assert outcome.error == "HTTPStatusError: 404 Not Found"
+    assert result.conditions.series["cloud_cover"].provider == "open_meteo"
+
+
+def test_nws_fail_gridpoint_404_forgets_the_cell() -> None:
+    server = _FakeNws()
+    provider = NwsProvider(client=server.client())
+    provider.fetch(_MILWAUKEE)
+    server.failures["/gridpoints/MKX/88,65"] = 404
+    with pytest.raises(httpx.HTTPStatusError):
+        provider.fetch(_MILWAUKEE)
+    server.requests.clear()
+    provider.fetch(_MILWAUKEE)
+    assert server.paths == ["/points/43.0389,-87.9065", "/gridpoints/MKX/88,65"]
