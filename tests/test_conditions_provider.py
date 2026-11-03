@@ -23,6 +23,7 @@ from pierpressure.conditions.seven_timer import SevenTimerProvider, parse_seven_
 from pierpressure.core.conditions import Conditions
 from pierpressure.core.providers import (
     CATALOG,
+    NWS,
     OPEN_METEO,
     OPEN_METEO_HRDPS,
     SEVEN_TIMER,
@@ -416,6 +417,23 @@ def test_assemble_a_provider_without_weather_leaves_the_weather_variables_unfill
     for variable in ("temperature", "dew_point", "humidity", "wind_speed", "wind_direction"):
         assert variable not in conditions.series
     assert "precipitation_probability" not in conditions.series
+
+
+def test_assemble_a_later_bundle_is_not_split_around_an_earlier_winner() -> None:
+    four = {
+        "cloud_cover": {21: 70.0},
+        "cloud_low": {21: 1.0},
+        "cloud_mid": {21: 2.0},
+        "cloud_high": {21: 3.0},
+    }
+    conditions = assemble_snapshot(
+        [(NWS, _forecast(16, cloud_cover={21: 40.0})), (OPEN_METEO, _forecast(17, **four))]
+    )
+    assert conditions.series["cloud_cover"].provider == "nws"
+    assert [s.provider for s in conditions.alternates["cloud_cover"]] == ["open_meteo"]
+    for layer in ("cloud_low", "cloud_mid", "cloud_high"):
+        assert layer not in conditions.series
+        assert layer not in conditions.alternates
 
 
 # --------------------------------------------------------------------------- #
