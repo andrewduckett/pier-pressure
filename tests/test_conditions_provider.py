@@ -5,12 +5,13 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import httpx
 import pytest
 
+from pierpressure.conditions.nws import parse_nws
 from pierpressure.conditions.open_meteo import COLUMNS, OpenMeteoProvider, parse_open_meteo
 from pierpressure.conditions.provider import (
     CompositeProvider,
@@ -958,3 +959,58 @@ def test_the_nws_fixture_pair_names_a_grid_cell_and_an_update_time() -> None:
     grid = _load("nws_gridpoints.json")["properties"]
     assert (point["gridId"], point["gridX"], point["gridY"]) == ("MKX", 88, 65)
     assert grid["updateTime"] == "2026-11-03T14:31:48+00:00"
+
+
+_NWS_UNITS = {
+    "skyCover": "wmoUnit:percent",
+    "windSpeed": "wmoUnit:km_h-1",
+    "windGust": "wmoUnit:km_h-1",
+    "windDirection": "wmoUnit:degree_(angle)",
+    "temperature": "wmoUnit:degC",
+    "dewpoint": "wmoUnit:degC",
+    "relativeHumidity": "wmoUnit:percent",
+    "probabilityOfPrecipitation": "wmoUnit:percent",
+}
+
+
+def _nws(**periods: list[tuple[str, float | None]]) -> dict:
+    """A gridpoint payload holding each named NWS property's ``(validTime, value)`` periods."""
+    properties: dict = {"updateTime": "2026-09-08T20:35:00+00:00"}
+    for name, values in periods.items():
+        properties[name] = {
+            "uom": _NWS_UNITS[name],
+            "values": [{"validTime": when, "value": value} for when, value in values],
+        }
+    return {"properties": properties}
+
+
+def _at(day: int, h: int) -> datetime:
+    return datetime(2026, 9, day, h, 0, tzinfo=UTC)
+
+
+def test_nws_period_holds_a_three_hour_sky_cover_across_its_hours() -> None:
+    forecast = parse_nws(_nws(skyCover=[("2026-09-08T21:00:00+00:00/PT3H", 45)]))
+    assert {time: r.cloud_cover for time, r in forecast.readings.items()} == {
+        _hour(21): 45.0,
+        _hour(22): 45.0,
+        _hour(23): 45.0,
+    }
+
+
+def test_nws_period_spanning_days_holds_across_thirty_hours() -> None:
+    forecast = parse_nws(_nws(windSpeed=[("2026-09-08T06:00:00+00:00/P1DT6H", 14.8)]))
+    expected = {_at(8, 6) + timedelta(hours=n): 14.8 for n in range(30)}
+    assert {time: r.wind_speed for time, r in forecast.readings.items()} == expected
+
+
+def test_nws_periods_for_different_variables_stay_independent() -> None:
+    forecast = parse_nws(
+        _nws(
+            skyCover=[("2026-09-08T21:00:00+00:00/PT3H", 45)],
+            temperature=[("2026-09-08T21:00:00+00:00/PT1H", 12.5)],
+        )
+    )
+    assert forecast.readings[_hour(21)].temperature == 12.5
+    for h in (22, 23):
+        assert forecast.readings[_hour(h)].cloud_cover == 45.0
+        assert forecast.readings[_hour(h)].temperature is None
