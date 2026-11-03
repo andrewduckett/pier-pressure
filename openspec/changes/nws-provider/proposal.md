@@ -6,7 +6,7 @@ Every cloud voice a pier can list today comes through one API, Open-Meteo. The N
 
 - A new provider, `nws`, fetches the NWS raw gridpoint forecast in two steps, from the pier's coordinates to its grid cell and then to the data (D4). It declares total cloud cover, wind speed, gust and direction, temperature, dew point, humidity and precipitation probability, with no bundle and no API key (D7).
 - Variable-length NWS periods are expanded onto the hourly grid, held across their hours, out to 72 hours from the first period (D2).
-- The grid cell is remembered per pier in the provider for the life of the process. A failed lookup is not remembered (D3).
+- The grid cell is remembered per pier in the provider for the life of the process. A failed lookup is not remembered, and a gridpoint 404 forgets the cell (D3). The point request follows NWS's redirect for coordinates with more than four decimal places.
 - The issue time is the payload's `updateTime` (D8). A value whose unit code is not the expected one is left absent (D9).
 - Every request sends a fixed `User-Agent` of project name, running version and repository URL (D6).
 - A pier outside NWS coverage is a failed outcome with a 404, passed over like any failed provider. There is no startup check (D5).
@@ -21,7 +21,7 @@ None.
 
 ### Modified Capabilities
 
-- `conditions`: the catalog gains `nws` with its declaration; the fill's bundle rule becomes whole or not at all; NWS periods are resampled onto the hourly grid with a 72-hour horizon; NWS requests carry the fixed `User-Agent`; the issue time comes from `updateTime`; an out-of-coverage pier is a failed outcome.
+- `conditions`: the catalog gains `nws` with its declaration. The fill's bundle rule becomes whole or not at all. NWS periods are resampled onto the hourly grid with a 72-hour horizon. NWS requests carry the fixed `User-Agent`, the issue time comes from `updateTime`, and an out-of-coverage pier is a failed outcome.
 
 ## Impact
 
