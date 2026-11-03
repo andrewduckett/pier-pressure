@@ -1014,3 +1014,35 @@ def test_nws_periods_for_different_variables_stay_independent() -> None:
     for h in (22, 23):
         assert forecast.readings[_hour(h)].cloud_cover == 45.0
         assert forecast.readings[_hour(h)].temperature is None
+
+
+def test_nws_horizon_cuts_a_period_that_straddles_it() -> None:
+    forecast = parse_nws(
+        _nws(
+            temperature=[("2026-09-08T18:00:00+00:00/PT1H", 12.0)],
+            skyCover=[("2026-09-11T16:00:00+00:00/PT3H", 60)],
+        )
+    )
+    assert forecast.readings[_at(11, 16)].cloud_cover == 60.0
+    assert forecast.readings[_at(11, 17)].cloud_cover == 60.0
+    assert _at(11, 18) not in forecast.readings
+
+
+def test_nws_horizon_drops_a_period_that_starts_past_it() -> None:
+    forecast = parse_nws(
+        _nws(
+            temperature=[("2026-09-08T18:00:00+00:00/PT1H", 12.0)],
+            skyCover=[("2026-09-11T19:00:00+00:00/PT1H", 60)],
+        )
+    )
+    assert _at(11, 19) not in forecast.readings
+
+
+def test_nws_horizon_is_measured_from_the_earliest_start_across_variables() -> None:
+    forecast = parse_nws(
+        _nws(
+            skyCover=[("2026-09-08T20:00:00+00:00/PT1H", 30)],
+            temperature=[("2026-09-08T18:00:00+00:00/P4D", 12.0)],
+        )
+    )
+    assert max(forecast.readings) == _at(11, 17)

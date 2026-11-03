@@ -32,6 +32,9 @@ PROPERTIES: Mapping[Variable, str] = {
 }
 """The gridpoint property behind each variable NWS declares."""
 
+# The same reach as 7Timer!, so listing NWS never lengthens the timeline (D2).
+_HORIZON = timedelta(hours=72)
+
 # NWS emits durations in days, hours and minutes only, so this is all the
 # ISO 8601 a period needs. The standard library has no duration parser.
 _DURATION = re.compile(r"P(?:(?P<days>\d+)D)?(?:T(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?)?")
@@ -61,14 +64,25 @@ def _hours(start: datetime, duration: timedelta) -> list[datetime]:
 
 
 def parse_nws(payload: dict[str, Any]) -> SourceForecast:
-    """Map an NWS raw gridpoint payload to an hourly :class:`SourceForecast`."""
+    """Map an NWS raw gridpoint payload to an hourly :class:`SourceForecast`.
+
+    Only hours within 72 hours of the earliest period start, across every
+    variable, are kept. Each hour is checked, so a period that straddles the
+    horizon is cut at it.
+    """
     properties = payload.get("properties") or {}
+    periods = [
+        (variable, *_period(entry["validTime"]), entry.get("value"))
+        for variable, name in PROPERTIES.items()
+        for entry in (properties.get(name) or {}).get("values") or []
+    ]
+    if not periods:
+        return SourceForecast()
+    horizon = min(start for _, start, _, _ in periods) + _HORIZON
     columns: dict[datetime, dict[Variable, float | None]] = defaultdict(dict)
-    for variable, name in PROPERTIES.items():
-        for entry in (properties.get(name) or {}).get("values") or []:
-            start, duration = _period(entry["validTime"])
-            value = entry.get("value")
-            for hour in _hours(start, duration):
+    for variable, start, duration, value in periods:
+        for hour in _hours(start, duration):
+            if hour < horizon:
                 columns[hour][variable] = None if value is None else float(value)
     return SourceForecast(
         readings={hour: SourceReading(**values) for hour, values in sorted(columns.items())}
