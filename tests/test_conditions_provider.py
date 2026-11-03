@@ -11,7 +11,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from pierpressure.conditions.nws import parse_nws
+from pierpressure.conditions.nws import NwsProvider, parse_nws
 from pierpressure.conditions.open_meteo import COLUMNS, OpenMeteoProvider, parse_open_meteo
 from pierpressure.conditions.provider import (
     CompositeProvider,
@@ -22,6 +22,7 @@ from pierpressure.conditions.provider import (
 )
 from pierpressure.conditions.seven_timer import SevenTimerProvider, parse_seven_timer
 from pierpressure.core.conditions import Conditions
+from pierpressure.core.config import PierConfig
 from pierpressure.core.providers import (
     CATALOG,
     NWS,
@@ -1090,3 +1091,100 @@ def test_nws_issue_time_is_none_without_an_update_time() -> None:
     payload = _nws(skyCover=[("2026-09-08T21:00:00+00:00/PT1H", 45)])
     del payload["properties"]["updateTime"]
     assert parse_nws(payload).issued_at is None
+
+
+_MILWAUKEE = PierConfig(id="milwaukee", latitude=43.0389, longitude=-87.9065, elevation_m=180.0)
+_LUDINGTON = PierConfig(id="ludington", latitude=43.9553, longitude=-86.4526, elevation_m=180.0)
+
+
+class _FakeNws:
+    """Serves the recorded NWS pair by URL path and records every request.
+
+    ``cells`` maps a point path to the office and cell it names; any other point
+    is outside coverage and answers 404. ``redirects`` maps a point path to the
+    one NWS redirects it to. ``failures`` answers a path once with a status.
+    """
+
+    def __init__(
+        self,
+        cells: dict[str, tuple[str, int, int]] | None = None,
+        redirects: dict[str, str] | None = None,
+        failures: dict[str, int] | None = None,
+    ) -> None:
+        self.cells = cells or {"/points/43.0389,-87.9065": ("MKX", 88, 65)}
+        self.redirects = redirects or {}
+        self.failures = failures or {}
+        self.requests: list[httpx.Request] = []
+
+    @property
+    def paths(self) -> list[str]:
+        return [request.url.path for request in self.requests]
+
+    def client(self) -> httpx.Client:
+        return httpx.Client(transport=httpx.MockTransport(self._handle))
+
+    def _handle(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        path = request.url.path
+        if path in self.failures:
+            return httpx.Response(self.failures.pop(path))
+        if path in self.redirects:
+            return httpx.Response(
+                301, headers={"Location": f"https://api.weather.gov{self.redirects[path]}"}
+            )
+        if path.startswith("/gridpoints/"):
+            return httpx.Response(200, json=_load("nws_gridpoints.json"))
+        if path not in self.cells:
+            return httpx.Response(404)
+        point = _load("nws_points.json")
+        office, x, y = self.cells[path]
+        point["properties"].update(gridId=office, gridX=x, gridY=y)
+        return httpx.Response(200, json=point)
+
+
+def test_nws_fetch_resolves_the_point_then_requests_its_gridpoint() -> None:
+    server = _FakeNws()
+    forecast = NwsProvider(client=server.client()).fetch(_MILWAUKEE)
+    assert server.paths == ["/points/43.0389,-87.9065", "/gridpoints/MKX/88,65"]
+    assert forecast.issued_at == datetime(2026, 11, 3, 14, 31, 48, tzinfo=UTC)
+    assert forecast.readings
+
+
+def test_nws_fetch_remembers_the_grid_cell_for_the_same_pier() -> None:
+    server = _FakeNws()
+    provider = NwsProvider(client=server.client())
+    provider.fetch(_MILWAUKEE)
+    server.requests.clear()
+    provider.fetch(_MILWAUKEE)
+    assert server.paths == ["/gridpoints/MKX/88,65"]
+
+
+def test_nws_fetch_resolves_two_piers_separately() -> None:
+    server = _FakeNws(
+        cells={
+            "/points/43.0389,-87.9065": ("MKX", 88, 65),
+            "/points/43.9553,-86.4526": ("GRR", 21, 97),
+        }
+    )
+    provider = NwsProvider(client=server.client())
+    for pier in (_MILWAUKEE, _LUDINGTON, _MILWAUKEE, _LUDINGTON):
+        provider.fetch(pier)
+    assert server.paths == [
+        "/points/43.0389,-87.9065",
+        "/gridpoints/MKX/88,65",
+        "/points/43.9553,-86.4526",
+        "/gridpoints/GRR/21,97",
+        "/gridpoints/MKX/88,65",
+        "/gridpoints/GRR/21,97",
+    ]
+
+
+def test_nws_fetch_follows_a_redirect_from_the_point_request() -> None:
+    pier = PierConfig(id="five", latitude=42.12345, longitude=-87.65432, elevation_m=180.0)
+    server = _FakeNws(
+        cells={"/points/42.1235,-87.6543": ("LOT", 75, 72)},
+        redirects={"/points/42.12345,-87.65432": "/points/42.1235,-87.6543"},
+    )
+    forecast = NwsProvider(client=server.client()).fetch(pier)
+    assert server.paths[-1] == "/gridpoints/LOT/75,72"
+    assert forecast.readings

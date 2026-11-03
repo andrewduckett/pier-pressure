@@ -13,12 +13,20 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 from collections.abc import Mapping
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, ClassVar
+
+import httpx
 
 from pierpressure.core.conditions import Variable
+from pierpressure.core.config import PierConfig
+from pierpressure.core.providers import NWS, ProviderSpec
 
 from .provider import SourceForecast, SourceReading
+
+NWS_URL = "https://api.weather.gov"
+_TIMEOUT_SECONDS = 10.0
 
 PROPERTIES: Mapping[Variable, str] = {
     "cloud_cover": "skyCover",
@@ -105,3 +113,43 @@ def parse_nws(payload: dict[str, Any]) -> SourceForecast:
         issued_at=issued_at,
         readings={hour: SourceReading(**values) for hour, values in sorted(columns.items())},
     )
+
+
+@dataclass
+class NwsProvider:
+    """Fetches the NWS raw gridpoint forecast in two steps, and resamples hourly.
+
+    The first fetch for a pier resolves its coordinates to a forecast office and
+    grid cell, then fetches that cell's forecast. The cell is remembered for as
+    long as this instance lives, so later fetches make only the second request
+    (design DD3). A failed resolution leaves nothing remembered.
+    """
+
+    spec: ClassVar[ProviderSpec] = NWS
+
+    client: httpx.Client | None = None
+    _cells: dict[tuple[float, float], str] = field(default_factory=dict, init=False, repr=False)
+
+    def fetch(self, pier: PierConfig) -> SourceForecast:
+        client = self.client or httpx.Client(timeout=_TIMEOUT_SECONDS)
+        try:
+            response = client.get(self._gridpoint_url(client, pier))
+            response.raise_for_status()
+            return parse_nws(response.json())
+        finally:
+            if self.client is None:
+                client.close()
+
+    def _gridpoint_url(self, client: httpx.Client, pier: PierConfig) -> str:
+        coordinates = (pier.latitude, pier.longitude)
+        if coordinates not in self._cells:
+            # NWS redirects coordinates with more than four decimal places.
+            response = client.get(
+                f"{NWS_URL}/points/{pier.latitude},{pier.longitude}", follow_redirects=True
+            )
+            response.raise_for_status()
+            cell = response.json()["properties"]
+            self._cells[coordinates] = (
+                f"{NWS_URL}/gridpoints/{cell['gridId']}/{cell['gridX']},{cell['gridY']}"
+            )
+        return self._cells[coordinates]
