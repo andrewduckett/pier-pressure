@@ -526,6 +526,13 @@ _K_TRIM_WIND = 0.30
 # Band thresholds on the 0-100 value (design D5, ~40 / ~70).
 _BAND_MEDIUM = 40
 _BAND_HIGH = 70
+# The agreement factor A (cloud-agreement DD4). Mixed forecasts cut about a tenth
+# and disagreeing ones about a third, so a verdict at 100 that disagrees reads 67:
+# still MEDIUM, because disagreement says "be wary", not "ignore this". A value
+# already MEDIUM or HIGH is clamped at the MEDIUM threshold, so agreement alone
+# never takes a verdict to LOW.
+_A_MIXED = 0.90
+_A_DISAGREE = 0.67
 
 
 def _decay(x: float, full: float, far: float, floor: float) -> float:
@@ -607,13 +614,25 @@ def _band_for(value: int) -> Band:
     return Band.LOW
 
 
+def _agreement_factor(agreement: AgreementTerm | None) -> float:
+    """``A``: 1 without agreement or when the forecasts agree."""
+    if agreement is None:
+        return 1.0
+    return {
+        AgreementBand.AGREE: 1.0,
+        AgreementBand.MIXED: _A_MIXED,
+        AgreementBand.DISAGREE: _A_DISAGREE,
+    }[agreement.band]
+
+
 def confidence(
     pier: PierConfig,
     instant: datetime,
     window: tuple[datetime, datetime],
     conditions: Conditions,
+    agreement: AgreementTerm | None = None,
 ) -> tuple[Band, int]:
-    """The forecast-based confidence ``(band, value)`` = ``max(floor, 100·L·F)·K``.
+    """The forecast-based confidence ``(band, value)`` = ``max(floor, 100·L·F)·K·A``.
 
     ``window`` is the scored window. Lead time over it equals lead time over the
     dark window: before dusk they are the same span, and once the night has begun
@@ -623,12 +642,20 @@ def confidence(
 
     Freshness reads the cloud-cover series' issue time only (provider-order D5):
     every other series' issue time is carried for provenance but never folded in,
-    so a lagging seeing provider never lowers confidence.
+    so a lagging seeing provider never lowers confidence. An alternate's issue
+    time is never read either.
+
+    The agreement factor ``A`` applies after the floor, like ``K``, so the floor
+    cannot rescue a disagreeing night. It never takes a value at or above the
+    MEDIUM threshold below it (cloud-agreement DD4).
     """
     lead = lead_time_factor(instant, window)
     fresh = freshness_factor(instant, conditions.issued_at("cloud_cover"))
     complete = completeness_factor(window, conditions, pier.max_gust)
-    value = round(max(_CONFIDENCE_FLOOR, lead * fresh) * complete * 100.0)
+    raw = max(_CONFIDENCE_FLOOR, lead * fresh) * complete * 100.0
+    value = round(raw * _agreement_factor(agreement))
+    if round(raw) >= _BAND_MEDIUM:
+        value = max(value, _BAND_MEDIUM)
     value = max(0, min(100, value))
     return _band_for(value), value
 
