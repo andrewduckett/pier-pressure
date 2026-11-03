@@ -4,7 +4,7 @@
 
 - [x] 1.1 [easy] The catalog offers `nws`, display name `NWS`, no key, the eight declared variables and no bundle; `[nws, open_meteo_hrrr, seven_timer]` and `[nws]` pass configuration, and the default order is unchanged (verify: `uv run pytest tests/test_provider_catalog.py tests/test_config.py -k nws`) (✓ `uv run pytest tests/test_provider_catalog.py tests/test_config.py -k nws` passed, 5 tests)
 - [x] 1.2 [medium] `assemble_snapshot` fills a bundle whole or not at all: with `nws` then `open_meteo`, `cloud_cover` carries `nws` with one `open_meteo` alternate, and `cloud_low`, `cloud_mid`, `cloud_high` have no series and no alternates; every existing fill and alternate test still passes (verify: `uv run pytest tests/test_conditions_provider.py -k "assemble or bundle or alternate"`) (✓ `uv run pytest tests/test_conditions_provider.py -k "assemble or bundle or alternate"` passed, 20 tests)
-- [ ] 1.3 [parallel] [easy] A snapshot whose `cloud_cover` series carries `nws` and whose `cloud_high` has no series yields score terms with a `None` high-cloud penalty (verify: `uv run pytest tests/test_scoring.py -k high_cloud`)
+- [x] 1.3 [parallel] [easy] A snapshot whose `cloud_cover` series carries `nws` and whose `cloud_high` has no series yields score terms with a `None` high-cloud penalty (verify: `uv run pytest tests/test_scoring.py -k high_cloud`) (✓ `uv run pytest tests/test_scoring.py -k high_cloud` passed, 12 tests; the new test passed on first run, as scoring already treats a missing `cloud_high` as neutral)
 
 ## 2. The NWS parser [depends-on: 1]
 
