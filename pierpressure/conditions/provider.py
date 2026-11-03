@@ -246,12 +246,14 @@ def build_provider(
     stack without the network. ``now`` stamps each fetch outcome, and
     Open-Meteo's issue time, so the two always come from the same clock.
     """
+    from .nws import NwsProvider
     from .open_meteo import MODELS, OpenMeteoProvider
     from .seven_timer import SevenTimerProvider
 
     real: dict[str, Callable[[], Provider]] = {
         OpenMeteoProvider.spec.key: lambda: OpenMeteoProvider(now=now),
         SevenTimerProvider.spec.key: SevenTimerProvider,
+        NwsProvider.spec.key: NwsProvider,
     }
     for key, model in MODELS.items():
         real[key] = partial(OpenMeteoProvider, spec=CATALOG[key], model=model, now=now)

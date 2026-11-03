@@ -19,6 +19,7 @@ from typing import Any, ClassVar
 
 import httpx
 
+from pierpressure import __version__
 from pierpressure.core.conditions import Variable
 from pierpressure.core.config import PierConfig
 from pierpressure.core.providers import NWS, ProviderSpec
@@ -27,6 +28,10 @@ from .provider import SourceForecast, SourceReading
 
 NWS_URL = "https://api.weather.gov"
 _TIMEOUT_SECONDS = 10.0
+# NWS refuses requests without a User-Agent. A fixed one, with no email, so
+# there is nothing to configure (D6).
+USER_AGENT = f"PierPressure/{__version__} (https://github.com/andrewduckett/pier-pressure)"
+_HEADERS = {"User-Agent": USER_AGENT}
 
 PROPERTIES: Mapping[Variable, str] = {
     "cloud_cover": "skyCover",
@@ -134,7 +139,7 @@ class NwsProvider:
     def fetch(self, pier: PierConfig) -> SourceForecast:
         client = self.client or httpx.Client(timeout=_TIMEOUT_SECONDS)
         try:
-            response = client.get(self._gridpoint_url(client, pier))
+            response = client.get(self._gridpoint_url(client, pier), headers=_HEADERS)
             if response.status_code == httpx.codes.NOT_FOUND:
                 # The cell may have moved; resolve the point again next time.
                 del self._cells[(pier.latitude, pier.longitude)]
@@ -149,7 +154,9 @@ class NwsProvider:
         if coordinates not in self._cells:
             # NWS redirects coordinates with more than four decimal places.
             response = client.get(
-                f"{NWS_URL}/points/{pier.latitude},{pier.longitude}", follow_redirects=True
+                f"{NWS_URL}/points/{pier.latitude},{pier.longitude}",
+                headers=_HEADERS,
+                follow_redirects=True,
             )
             response.raise_for_status()
             cell = response.json()["properties"]

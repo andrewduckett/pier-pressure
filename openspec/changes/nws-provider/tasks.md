@@ -18,7 +18,7 @@
 
 - [x] 3.1 [medium] `NwsProvider.fetch` makes the point request then the gridpoint request on the first fetch for a pier, only the gridpoint request on the second, resolves two piers separately, and follows a 301 from the point request (verify: `uv run pytest tests/test_conditions_provider.py -k nws_fetch`) (✓ `uv run pytest tests/test_conditions_provider.py -k nws_fetch` passed, 4 tests)
 - [x] 3.2 [medium] A point 503 is not remembered and the next fetch asks again; a point 404 is a failed outcome `HTTPStatusError: 404 Not Found` and the next provider fills cloud through `CompositeProvider`; a gridpoint 404 forgets the cell so the next fetch asks for the point again (verify: `uv run pytest tests/test_conditions_provider.py -k nws_fail`) (✓ `uv run pytest tests/test_conditions_provider.py -k nws_fail` passed, 3 tests)
-- [ ] 3.3 [easy] Every NWS request carries a `User-Agent` of `PierPressure/<version> (https://github.com/andrewduckett/pier-pressure)` with no `@`, and `build_provider` wires `nws` to `NwsProvider` pointing at its catalog spec (verify: `uv run pytest tests/test_conditions_provider.py -k "nws_user_agent or catalog_spec"`)
+- [x] 3.3 [easy] Every NWS request carries a `User-Agent` of `PierPressure/<version> (https://github.com/andrewduckett/pier-pressure)` with no `@`, and `build_provider` wires `nws` to `NwsProvider` pointing at its catalog spec (verify: `uv run pytest tests/test_conditions_provider.py -k "nws_user_agent or catalog_spec"`) (✓ `uv run pytest tests/test_conditions_provider.py -k "nws_user_agent or catalog_spec"` passed, 2 tests; the task 1.1 skip is removed)
 
 ## 4. Documentation and the full gate [depends-on: 3]
 
@@ -30,3 +30,4 @@
 <!-- Dated notes on small departures from the plan, written during apply. Stop and ask the user about a large one. -->
 
 - 2026-11-03, task 1.1: `test_each_fetcher_points_at_its_catalog_spec` walks the whole catalog, so it skips `nws` until task 3.3 wires `NwsProvider` into `build_provider`. Task 3.3 removes the skip.
+- 2026-11-03, task 3.3: DD5 set the `User-Agent` as a default header on the client the provider creates. It is passed on each request instead, so an injected client carries it too. The header and its value are as planned.

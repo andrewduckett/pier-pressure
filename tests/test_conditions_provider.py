@@ -11,6 +11,7 @@ from pathlib import Path
 import httpx
 import pytest
 
+from pierpressure import __version__
 from pierpressure.conditions.nws import NwsProvider, parse_nws
 from pierpressure.conditions.open_meteo import COLUMNS, OpenMeteoProvider, parse_open_meteo
 from pierpressure.conditions.provider import (
@@ -699,9 +700,8 @@ def test_build_provider_exposes_each_providers_key_name_and_variables_in_order()
 def test_each_fetcher_points_at_its_catalog_spec() -> None:
     assert OpenMeteoProvider.spec is CATALOG["open_meteo"]
     assert SevenTimerProvider.spec is CATALOG["seven_timer"]
+    assert NwsProvider.spec is CATALOG["nws"]
     for key in CATALOG:
-        if key == "nws":  # wired in nws-provider task 3.3
-            continue
         [fetcher] = build_provider([key]).fetchers
         assert fetcher.spec is CATALOG[key]
 
@@ -1224,3 +1224,15 @@ def test_nws_fail_gridpoint_404_forgets_the_cell() -> None:
     server.requests.clear()
     provider.fetch(_MILWAUKEE)
     assert server.paths == ["/points/43.0389,-87.9065", "/gridpoints/MKX/88,65"]
+
+
+def test_nws_user_agent_names_the_project_version_and_repository() -> None:
+    server = _FakeNws()
+    provider = NwsProvider(client=server.client())
+    provider.fetch(_MILWAUKEE)
+    provider.fetch(_MILWAUKEE)
+    expected = f"PierPressure/{__version__} (https://github.com/andrewduckett/pier-pressure)"
+    assert len(server.requests) == 3
+    for request in server.requests:
+        assert request.headers["User-Agent"] == expected
+        assert "@" not in request.headers["User-Agent"]
