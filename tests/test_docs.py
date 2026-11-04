@@ -136,3 +136,49 @@ def test_the_nws_section_explains_its_limits(fact: str) -> None:
         _README.read_text(encoding="utf-8"), "### Adding the National Weather Service"
     )
     assert fact in section
+
+
+# --------------------------------------------------------------------------- #
+# air-quality-provider 3.2: the README documents the air-quality provider
+# --------------------------------------------------------------------------- #
+
+
+def _conditions_row() -> str:
+    table = _section(_README.read_text(encoding="utf-8"), "## ⚙️ Configuration")
+    [row] = [line for line in table.splitlines() if line.startswith("| `conditions`")]
+    return row
+
+
+def test_the_configuration_table_names_the_air_quality_provider() -> None:
+    assert "`open_meteo_air_quality`" in _conditions_row()
+
+
+def test_the_configuration_table_gives_the_new_default_order() -> None:
+    assert "`[open_meteo, seven_timer, open_meteo_air_quality]`" in _conditions_row()
+
+
+def test_the_example_shows_the_new_default_order() -> None:
+    config = _section(_README.read_text(encoding="utf-8"), "## ⚙️ Configuration")
+    assert "providers: [open_meteo, seven_timer, open_meteo_air_quality]" in config
+
+
+def test_the_health_topic_list_names_the_air_quality_provider() -> None:
+    entities = _section(_README.read_text(encoding="utf-8"), "## 🏠 Home Assistant entities")
+    health_rows = [line for line in entities.splitlines() if "_health" in line]
+    assert all("open_meteo_air_quality" in row for row in health_rows)
+
+
+@pytest.mark.parametrize(
+    "fact",
+    [
+        "`aerosol_optical_depth`",
+        "no unit",
+        "`pm2_5`",
+        "µg/m³",
+        "Nothing reads them yet",
+        "timeline does not show them",
+    ],
+)
+def test_the_air_quality_section_explains_its_variables(fact: str) -> None:
+    section = _section(_README.read_text(encoding="utf-8"), "### Adding the air-quality forecast")
+    assert fact in section

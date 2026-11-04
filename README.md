@@ -188,7 +188,7 @@ To choose where the weather comes from, list the providers, preferred first:
 
 ```yaml
 conditions:
-  providers: [open_meteo, seven_timer]   # optional (default shown)
+  providers: [open_meteo, seven_timer, open_meteo_air_quality]   # optional (default shown)
 ```
 
 | Setting | What it does |
@@ -199,7 +199,7 @@ conditions:
 | `horizon` | Exactly one of: `points` (a list of `[azimuth, altitude]` pairs), `min_altitude` (a flat floor in degrees), or `file` + `format`. Without it the horizon is flat at 0°. The only file format supported today is `nina` (a NINA `.hrz` export). `stellarium` and `telescopius` are recognised but rejected as not yet supported. |
 | `equipment` | Your telescope and camera. With equipment, targets are also ranked on how well they fit the field of view. |
 | `explainer` | The optional LLM summary. See [docs/llm-explainer.md](docs/llm-explainer.md). |
-| `conditions` | Optional. `providers` lists the weather providers, preferred first. The default is `[open_meteo, seven_timer]`. Each forecast variable, such as cloud cover or seeing, comes from the first provider in the list that returned it. PierPressure will not start if the list is empty, names an unknown provider, names a provider more than once, or has no provider that needs no key and supplies cloud cover. The providers are `open_meteo`, the five Open-Meteo models below, `nws` for the National Weather Service, and `seven_timer`. |
+| `conditions` | Optional. `providers` lists the weather providers, preferred first. The default is `[open_meteo, seven_timer, open_meteo_air_quality]`. Each forecast variable, such as cloud cover or seeing, comes from the first provider in the list that returned it. PierPressure will not start if the list is empty, names an unknown provider, names a provider more than once, or has no provider that needs no key and supplies cloud cover. The providers are `open_meteo`, the five Open-Meteo models below, `open_meteo_air_quality` for the air-quality forecast, `nws` for the National Weather Service, and `seven_timer`. |
 
 ### Choosing Open-Meteo models
 
@@ -292,6 +292,34 @@ Before you choose, know these limits:
 - **It reaches 72 hours.** NWS forecasts about 7 days ahead. PierPressure keeps
   the first 72 hours, so listing NWS never lengthens the timeline.
 
+### Adding the air-quality forecast
+
+`open_meteo_air_quality` reads Open-Meteo's air-quality forecast, which comes
+from the Copernicus Atmosphere Monitoring Service (CAMS). It needs no API key,
+and it is in the default list. It gives two values for each hour of the next
+2 days:
+
+| Variable | What it is | Unit |
+|---|---|---|
+| `aerosol_optical_depth` | How much haze, smoke and dust dim the sky overhead. | no unit |
+| `pm2_5` | Fine particles near the ground. | µg/m³ |
+
+Before you rely on it, know these limits:
+
+- **Nothing reads them yet.** The verdict, score and confidence do not change
+  with these values. They are collected so that a later release can judge
+  transparency from them.
+- **The timeline does not show them.** The verdict document has no key for
+  them, and their hours never add a timeline entry. You see the provider only
+  through its health sensor, **Open-Meteo air quality health**.
+- **It does not supply cloud cover.** Listed on its own, it does not meet the
+  rule that the list needs a keyless provider of cloud cover, and PierPressure
+  will not start. List it beside a cloud provider, such as `open_meteo`.
+- **The issue time is the fetch time.** As with the other Open-Meteo providers,
+  the response does not say when the forecast was made.
+
+If you set your own `providers` list and want this provider, add it to the list.
+
 **Secrets.** Any `${VAR}` in a value is replaced with that environment variable
 when the file loads, so passwords and API keys need not sit in the file. If the
 variable is not set, the literal `${VAR}` stays in place, so a missing secret is
@@ -326,7 +354,7 @@ connection, the broker sends PierPressure's last-will message instead.
 | Purpose | Topic | Retained |
 |---|---|---|
 | Discovery configs | `homeassistant/<sensor\|button>/pierpressure_<pier>/<verdict\|score\|top_target\|target_<n>\|cloud_cover\|cloud_low\|cloud_mid\|cloud_high\|wind_gust\|seeing\|transparency\|sun_altitude\|moon_altitude\|temperature\|dew_point\|humidity\|wind_speed\|wind_direction\|precipitation_probability\|narrative\|refresh>/config` | yes |
-| Health discovery configs | `homeassistant/sensor/pierpressure_<pier>/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|nws\|seven_timer>_health/config` | yes |
+| Health discovery configs | `homeassistant/sensor/pierpressure_<pier>/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|open_meteo_air_quality\|nws\|seven_timer>_health/config` | yes |
 | Verdict state | `pierpressure/<pier>/verdict/state` | yes |
 | Verdict attributes (the document without `timeline`) | `pierpressure/<pier>/verdict/attributes` | yes |
 | Top target state and list | `pierpressure/<pier>/top_target/state`, `.../top_target/attributes` | yes |
@@ -334,7 +362,7 @@ connection, the broker sends PierPressure's last-will message instead.
 | Cloud cover state and forecast | `pierpressure/<pier>/cloud_cover/state`, `.../cloud_cover/attributes` | yes |
 | Timeline sensor state and forecast, where `<var>` is `cloud_low`, `cloud_mid`, `cloud_high`, `wind_gust`, `seeing`, `transparency`, `sun_altitude`, `moon_altitude`, `temperature`, `dew_point`, `humidity`, `wind_speed`, `wind_direction` or `precipitation_probability` | `pierpressure/<pier>/<var>/state`, `.../<var>/attributes` | yes |
 | Narrative state and text | `pierpressure/<pier>/narrative/state`, `.../narrative/attributes` | yes |
-| Provider health state and details | `pierpressure/<pier>/health/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|nws\|seven_timer>/state`, `.../attributes` | yes |
+| Provider health state and details | `pierpressure/<pier>/health/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|open_meteo_air_quality\|nws\|seven_timer>/state`, `.../attributes` | yes |
 | Refresh command | `pierpressure/<pier>/refresh/command` | no |
 | Availability | `pierpressure/status` | yes |
 
@@ -436,13 +464,13 @@ automation:
 ### Watching provider health
 
 PierPressure gets its weather from the providers in the `conditions` list. By
-default, Open-Meteo gives cloud, wind and the weather values, and 7Timer! gives
-seeing and transparency. If a provider fails, the verdict still arrives, with
+default, Open-Meteo gives cloud, wind and the weather values, 7Timer! gives
+seeing and transparency, and Open-Meteo air quality gives aerosol and PM2.5. If a provider fails, the verdict still arrives, with
 that provider's data missing. A broken 7Timer! only lowers confidence, so it is
 easy to miss. The health sensors show each failure as it happens.
 
 Each pier has one diagnostic sensor per configured provider: **Open-Meteo
-health** and **7Timer! health** by default. Each Open-Meteo model you list adds
+health**, **7Timer! health** and **Open-Meteo air quality health** by default. Each Open-Meteo model you list adds
 its own, such as **Open-Meteo HRRR health**, and `nws` adds **NWS health**. You
 find them under the pier's device, in the diagnostic section.
 
@@ -457,7 +485,7 @@ is, the longer the provider has been failing.
 | Attribute | Meaning |
 |---|---|
 | `provider` | The provider's name. |
-| `variables` | The variables the provider supplies, as timeline keys. For 7Timer! this is `["seeing", "transparency"]`. It is the same on every publish, whether or not this provider filled them. |
+| `variables` | The variables the provider supplies, as variable keys. For 7Timer! this is `["seeing", "transparency"]`. A key need not be a timeline key: for Open-Meteo air quality it is `["aerosol_optical_depth", "pm2_5"]`. It is the same on every publish, whether or not this provider filled them. |
 | `tracking_since` | When PierPressure started tracking health. It stays the same until PierPressure restarts. |
 | `status` | `ok` or `failed` for the latest fetch, or `null` before the first fetch. |
 | `last_fetch` | When the latest fetch ran, or `null` before the first fetch. |
@@ -549,6 +577,7 @@ for e in sensor/pierpressure_backyard/verdict sensor/pierpressure_backyard/score
          button/pierpressure_backyard/refresh \
          sensor/pierpressure_backyard/open_meteo_health \
          sensor/pierpressure_backyard/seven_timer_health \
+         sensor/pierpressure_backyard/open_meteo_air_quality_health \
          sensor/pierpressure_backyard/target_{1..10}; do
   mosquitto_pub -r -n -t "homeassistant/$e/config"
 done
