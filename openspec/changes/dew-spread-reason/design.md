@@ -55,16 +55,20 @@ hour whose spread is strictly under the margin, or `None`. A margin of 0 returns
 Rejected: the dew line is not a score term and must also follow the cap and
 agreement lines, which `_score_reasons` does not emit.
 
-**D2. Appended in `evaluate` on the gate-passing path only, after `agreed`.**
-The scored path gains `reasons.extend(dew)` after `reasons.extend(agreed)`.
-The missing-cloud `MAYBE` keeps no dew line: its gates passed, but it has no
-score, and its reasons already say the forecast is absent. Alternative: add
-the line to every path with a scored window. Rejected by the brainstorm (D2).
+**D2. Appended in `evaluate` on every gate-passing path, after `agreed`.**
+Both the scored path and the missing-cloud `MAYBE` (score 0) gain
+`reasons.extend(dew)` after `reasons.extend(agreed)`. Each is a verdict whose
+gates passed and whose score is non-null, which is the brainstorm's rule (D2).
+The missing-cloud path still has the weather rows, and the advice holds.
+The gated `NO-GO` paths and the empty-window `MAYBE` get nothing: the former
+by decision, the latter because it tiles no hour. Alternative: add the line to
+every path with a scored window. Rejected by the brainstorm (D2).
 
-**D3. `dew_margin: float = Field(default=4.0, ge=0.0)` on `PierConfig`.**
+**D3. `dew_margin: float = Field(default=4.0, ge=0.0, allow_inf_nan=False)` on `PierConfig`.**
 Opt-out with a default, where `max_gust` is opt-in with `None`, because the
-data is in every forecast. Zero is the off switch, so `ge` not `gt`. The field
-sits beside the other two knobs with a comment naming it the third.
+data is in every forecast. Zero is the off switch, so `ge` not `gt`. `.inf`
+would make every hour qualify, so it is refused. The field sits beside the
+other two knobs with a comment naming it the third.
 Alternative: `float | None` like `max_gust`. Rejected: it would make the
 common case a configuration step.
 
@@ -81,9 +85,12 @@ reading so the spread closes from a chosen hour: at 22:00 UTC above freezing
 for dew, at 00:00 UTC at −1 °C for frost. They go in `_CASES`, so the goldens
 are written with `PP_WRITE_GOLDENS=1`. Existing goldens are untouched.
 
-**D7. The agreement test rewords.** `test_a_scored_verdict_ends_its_reasons_with_the_agreement`
-becomes an assertion that the agreement line directly follows the score line.
-That is what the spec promises; "last" was incidental.
+**D7. The agreement test keeps its tail check and gains a sibling.**
+`test_a_scored_verdict_ends_its_reasons_with_the_agreement` stays as it is:
+with no weather rows there is no dew line, so the agreement line is still
+last. A new test with weather rows asserts the tail `Score`, `Cloud agreement`,
+`Dew likely from`, and another asserts a wind-capped `MAYBE` puts the dew line
+after the cap line and the agreement line.
 
 **D8. Docs.** README gains a `dew_margin` row and example line beside
 `max_gust`. The add-on DOCS note that `dew_margin` is set in the add-on's
@@ -93,12 +100,13 @@ gates and confidence.
 
 ## Risks / Trade-offs
 
-- [A provider's dew point unit differs from °C] → Both values come from the
-  same provider's filled series, each documented as °C in `SourceReading`.
-  No new unit handling.
-- [Temperature and dew point fill from different providers] → Each variable
-  fills independently. The spread then mixes two models. Accepted: the line
-  is advice, not a gate, and the fill order is the pier's choice.
+- [A provider's dew point unit differs from °C] → Every provider normalises
+  temperature and dew point to °C in `SourceReading`, whichever provider
+  fills each. No new unit handling.
+- [Temperature and dew point fill from different providers] → Neither is in
+  a bundle, so each fills independently and the spread can mix two models,
+  or go negative. Accepted: the line is advice, not a gate, a negative spread
+  is simply under the margin, and the fill order is the pier's choice.
 - [Golden churn] → None: no existing fixture carries the variables.
 
 ## Migration & Rollback
