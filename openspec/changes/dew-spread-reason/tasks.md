@@ -1,6 +1,6 @@
 ## 1. The setting
 
-- [ ] 1.1 [easy] `PierConfig.dew_margin` defaults to 4.0, stores a set value, and rejects a negative, `.inf` or `nan` value with an error naming the field, from a constructor and from `load_config` YAML (verify: `uv run pytest tests/test_config.py -k dew_margin`)
+- [x] 1.1 [easy] `PierConfig.dew_margin` defaults to 4.0, stores a set value, and rejects a negative, `.inf` or `nan` value with an error naming the field, from a constructor and from `load_config` YAML (verify: `uv run pytest tests/test_config.py -k dew_margin`) (✓ `uv run pytest tests/test_config.py -k dew_margin` passed, 10 tests)
 
 ## 2. The dew line [depends-on: 1]
 

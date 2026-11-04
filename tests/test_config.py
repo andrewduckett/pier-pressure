@@ -166,6 +166,37 @@ piers:
     assert config.piers[0].max_gust == 45.0
 
 
+def test_omitted_dew_margin_is_4_degrees() -> None:
+    pier = PierConfig(id="p", latitude=51.5, longitude=-0.12, elevation_m=30.0)
+    assert pier.dew_margin == 4.0
+
+
+@pytest.mark.parametrize("value", [0.0, 2.5])
+def test_dew_margin_is_stored_when_set(value: float) -> None:
+    pier = PierConfig(id="p", latitude=51.5, longitude=-0.12, elevation_m=30.0, dew_margin=value)
+    assert pier.dew_margin == value
+
+
+@pytest.mark.parametrize("bad", [-1.0, float("inf"), float("nan")])
+def test_a_negative_or_non_finite_dew_margin_is_rejected(bad: float) -> None:
+    with pytest.raises(ValidationError, match="dew_margin"):
+        PierConfig(id="p", latitude=51.5, longitude=-0.12, elevation_m=30.0, dew_margin=bad)
+
+
+def test_dew_margin_loads_from_yaml(tmp_path: Path) -> None:
+    config = load_config(_write(tmp_path, VALID_CONFIG + "    dew_margin: 3\n"))
+    assert config.piers[0].dew_margin == 3.0
+
+
+@pytest.mark.parametrize("bad", ["-1", ".inf", ".nan"])
+def test_a_bad_dew_margin_in_yaml_skips_the_pier_naming_the_field(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, bad: str
+) -> None:
+    with caplog.at_level(logging.ERROR), pytest.raises(ConfigError):
+        load_config(_write(tmp_path, VALID_CONFIG + f"    dew_margin: {bad}\n"))
+    assert "dew_margin" in caplog.text
+
+
 def test_validate_piers_isolates_each_entry() -> None:
     raw = [
         {"id": "good", "latitude": 51.5, "longitude": -0.12, "elevation_m": 30},
