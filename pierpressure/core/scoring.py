@@ -727,6 +727,30 @@ def _wind_unavailable_reason() -> str:
     return "Wind data unavailable: the safety limit cannot be confirmed, so not a GO."
 
 
+def dew_reason(
+    window: tuple[datetime, datetime], conditions: Conditions, margin: float
+) -> str | None:
+    """The dew or frost line for the first scored hour whose spread is under ``margin``.
+
+    The spread is temperature minus dew point, each from its own filled series. An
+    hour missing either is skipped, and cloud plays no part: dew forms under any
+    sky. The first qualifying hour's own temperature picks the word, so a later
+    frost never adds a second line (dew-spread-reason D1, D5). A zero margin is
+    the pier's off switch.
+    """
+    if margin <= 0.0:
+        return None
+    for slot in hour_slots(*window):
+        temperature = conditions.value_at("temperature", slot)
+        dew_point = conditions.value_at("dew_point", slot)
+        if temperature is None or dew_point is None:
+            continue
+        if temperature - dew_point < margin:
+            word = "Frost" if temperature <= 0.0 else "Dew"
+            return f"{word} likely from {iso_z(slot)}."
+    return None
+
+
 _ATMOSPHERE_TERMS: tuple[tuple[str, Variable], ...] = (
     ("Seeing", "seeing"),
     ("Transparency", "transparency"),

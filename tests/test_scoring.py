@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from pierpressure.core.conditions import Conditions, Series
+from pierpressure.core.conditions import Conditions, Series, Variable
 from pierpressure.core.model import AgreementBand, Band, Moon, MoonPhase, Verdict
 from pierpressure.core.scoring import (
     AGREE_MAX_GAP,
@@ -21,6 +21,7 @@ from pierpressure.core.scoring import (
     cloud_score_term,
     confidence,
     coverage_weight,
+    dew_reason,
     evaluate,
     high_cloud_penalty,
     hour_slots,
@@ -821,3 +822,74 @@ def test_a_verdict_carries_the_agreement_its_confidence_used() -> None:
     assert (decision.band, decision.confidence) == confidence(
         make_pier(), _EVAL_INSTANT, window, conditions, decision.agreement
     )
+
+
+# --------------------------------------------------------------------------- #
+# Reasons name the first dew or frost hour (dew-spread-reason D1, D5)
+# --------------------------------------------------------------------------- #
+
+# 20:30 -> 03:25 UTC: slots 20:00 .. 03:00.
+_DEW_WINDOW = (
+    datetime(2026, 9, 8, 20, 30, tzinfo=UTC),
+    datetime(2026, 9, 9, 3, 25, tzinfo=UTC),
+)
+
+
+def _weather(
+    window: tuple[datetime, datetime],
+    temperature: list[float | None],
+    dew_point: list[float | None],
+    *,
+    cloud: float | None = 10.0,
+) -> Conditions:
+    """Cloud, temperature and dew point, one value per window hour."""
+    hours = len(hour_slots(*window))
+    series: dict[Variable, Series] = {
+        "temperature": _series(window, temperature),
+        "dew_point": _series(window, dew_point),
+    }
+    if cloud is not None:
+        series["cloud_cover"] = _series(window, [cloud] * hours)
+    return Conditions(series=series)
+
+
+def _spreads(
+    window: tuple[datetime, datetime], spreads: list[float], temperature: float = 10.0
+) -> Conditions:
+    """Weather at a fixed temperature whose spread per hour is as given."""
+    return _weather(window, [temperature] * len(spreads), [temperature - s for s in spreads])
+
+
+def test_dew_reason_names_the_first_hour_under_the_margin() -> None:
+    conditions = _spreads(_DEW_WINDOW, [6.0, 5.0, 3.5, 2.0, 2.0, 2.0, 2.0, 2.0])
+    assert dew_reason(_DEW_WINDOW, conditions, 4.0) == "Dew likely from 2026-09-08T22:00:00Z."
+
+
+def test_dew_reason_names_frost_when_the_first_hour_under_the_margin_is_freezing() -> None:
+    temperature = [5.0, 3.0, 1.0, 0.0, -1.0, -1.0, -1.0, -1.0]
+    dew_point = [-5.0, -5.0, -5.0, -1.0, -2.0, -2.0, -2.0, -2.0]
+    conditions = _weather(_DEW_WINDOW, temperature, dew_point)
+    assert dew_reason(_DEW_WINDOW, conditions, 4.0) == "Frost likely from 2026-09-08T23:00:00Z."
+
+
+def test_dew_reason_gives_one_dew_line_when_frost_comes_later() -> None:
+    temperature = [8.0, 2.0, 1.0, -1.0, -1.0, -1.0, -1.0, -1.0]
+    dew_point = [0.0, 0.0, 0.0, -2.0, -2.0, -2.0, -2.0, -2.0]
+    conditions = _weather(_DEW_WINDOW, temperature, dew_point)
+    assert dew_reason(_DEW_WINDOW, conditions, 4.0) == "Dew likely from 2026-09-08T21:00:00Z."
+
+
+def test_dew_reason_is_none_when_the_spread_equals_the_margin() -> None:
+    assert dew_reason(_DEW_WINDOW, _spreads(_DEW_WINDOW, [4.0] * 8), 4.0) is None
+
+
+def test_dew_reason_is_none_with_a_zero_margin() -> None:
+    assert dew_reason(_DEW_WINDOW, _spreads(_DEW_WINDOW, [1.0] * 8), 0.0) is None
+
+
+def test_dew_reason_is_none_when_no_hour_is_under_the_margin() -> None:
+    assert dew_reason(_DEW_WINDOW, _spreads(_DEW_WINDOW, [8.0] * 8), 4.0) is None
+
+
+def test_dew_reason_is_none_without_temperature_or_dew_point() -> None:
+    assert dew_reason(_DEW_WINDOW, _conditions(_DEW_WINDOW, cloud=10.0), 4.0) is None
