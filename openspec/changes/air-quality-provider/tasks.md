@@ -14,7 +14,7 @@
 
 ## 3. Default list and documentation [depends-on: 2]
 
-- [ ] 3.1 [easy] With no `conditions` block or a null `providers`, the order is `open_meteo`, `seven_timer`, `open_meteo_air_quality`, read from one `DEFAULT_PROVIDERS` constant; `[open_meteo_hrrr, open_meteo_air_quality]` is accepted, and `[open_meteo_air_quality]` alone fails the keyless cloud-cover rule (design DD4) (verify: uv run pytest tests/test_config.py)
+- [x] 3.1 [easy] With no `conditions` block or a null `providers`, the order is `open_meteo`, `seven_timer`, `open_meteo_air_quality`, read from one `DEFAULT_PROVIDERS` constant; `[open_meteo_hrrr, open_meteo_air_quality]` is accepted, and `[open_meteo_air_quality]` alone fails the keyless cloud-cover rule (design DD4) (verify: uv run pytest tests/test_config.py) (✓ uv run pytest tests/test_config.py passed)
 - [ ] 3.2 [easy] The README names `open_meteo_air_quality` in the provider table and the default list, gives its two variables and their units, and says nothing reads them yet and the timeline does not show them (verify: uv run pytest tests/test_docs.py)
 - [ ] 3.3 [easy] `docs/night-timeline.md` says the timeline covers every hour a provider returned for a variable it shows, and that the air-quality variables never add an hour (verify: uv run pytest tests/test_timeline_docs.py)
 

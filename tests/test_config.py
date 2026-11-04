@@ -11,6 +11,7 @@ from pydantic import SecretStr, ValidationError
 
 from pierpressure.core.config import (
     DEFAULT_GO_THRESHOLD,
+    DEFAULT_PROVIDERS,
     BrokerSettings,
     ConfigError,
     ConfigFile,
@@ -491,18 +492,25 @@ def test_valid_secrets_are_masked_when_printed(tmp_path: Path) -> None:
 # --------------------------------------------------------------------------- #
 
 
+_DEFAULT_ORDER = ["open_meteo", "seven_timer", "open_meteo_air_quality"]
+
+
+def test_the_default_order_is_one_constant() -> None:
+    assert list(DEFAULT_PROVIDERS) == _DEFAULT_ORDER
+
+
 def _with_conditions(tmp_path: Path, block: str) -> Path:
     return _write(tmp_path, VALID_CONFIG + block)
 
 
 def test_an_absent_conditions_block_gives_the_default_order(tmp_path: Path) -> None:
     config = load_config(_write(tmp_path, VALID_CONFIG))
-    assert config.conditions.providers == ["open_meteo", "seven_timer"]
+    assert config.conditions.providers == _DEFAULT_ORDER
 
 
 def test_a_conditions_block_without_a_list_gives_the_default_order(tmp_path: Path) -> None:
     config = load_config(_with_conditions(tmp_path, "conditions: {}\n"))
-    assert config.conditions.providers == ["open_meteo", "seven_timer"]
+    assert config.conditions.providers == _DEFAULT_ORDER
 
 
 def test_a_configured_order_is_kept_as_written(tmp_path: Path) -> None:
@@ -520,6 +528,10 @@ def test_a_configured_order_is_kept_as_written(tmp_path: Path) -> None:
         ("[open_meteo, seven_timer, open_meteo]", "open_meteo is listed more than once"),
         (
             "[seven_timer]",
+            "the provider list must include a provider that needs no key and supplies cloud cover",
+        ),
+        (
+            "[open_meteo_air_quality]",
             "the provider list must include a provider that needs no key and supplies cloud cover",
         ),
     ],
@@ -544,7 +556,7 @@ def test_a_provider_list_error_carries_no_other_configuration_value(tmp_path: Pa
 
 def test_a_null_provider_list_gives_the_default_order(tmp_path: Path) -> None:
     config = load_config(_with_conditions(tmp_path, "conditions:\n  providers:\n"))
-    assert config.conditions.providers == ["open_meteo", "seven_timer"]
+    assert config.conditions.providers == _DEFAULT_ORDER
 
 
 # --------------------------------------------------------------------------- #
@@ -612,3 +624,17 @@ def test_a_pier_outside_nws_coverage_does_not_stop_startup(tmp_path: Path) -> No
 def test_the_default_order_leaves_out_nws(tmp_path: Path) -> None:
     config = load_config(_with_conditions(tmp_path, ""))
     assert "nws" not in config.conditions.providers
+
+
+# --------------------------------------------------------------------------- #
+# air-quality-provider 3.1: the air-quality forecast is a provider in the list
+# --------------------------------------------------------------------------- #
+
+
+def test_the_air_quality_provider_is_kept_in_its_configured_order(tmp_path: Path) -> None:
+    config = load_config(
+        _with_conditions(
+            tmp_path, "conditions:\n  providers: [open_meteo_hrrr, open_meteo_air_quality]\n"
+        )
+    )
+    assert config.conditions.providers == ["open_meteo_hrrr", "open_meteo_air_quality"]

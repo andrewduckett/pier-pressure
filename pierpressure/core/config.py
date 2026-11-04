@@ -51,6 +51,10 @@ _ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 # little moon) reads GO while a middling one reads MAYBE.
 DEFAULT_GO_THRESHOLD = 65
 
+# The provider order with no ``conditions`` block or a null list. The air-quality
+# forecast is in it so its health builds a track record before anything reads it.
+DEFAULT_PROVIDERS: tuple[str, ...] = ("open_meteo", "seven_timer", "open_meteo_air_quality")
+
 
 class ConfigError(Exception):
     """A configuration is missing required fields, malformed, or has no valid pier."""
@@ -87,13 +91,13 @@ class ConditionsConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
 
-    providers: list[str] = Field(default_factory=lambda: ["open_meteo", "seven_timer"])
+    providers: list[str] = Field(default_factory=lambda: list(DEFAULT_PROVIDERS))
 
     @field_validator("providers", mode="before")
     @classmethod
     def _null_is_absent(cls, providers: Any) -> Any:
         # YAML reads an empty ``providers:`` line as null, which means "not given".
-        return ["open_meteo", "seven_timer"] if providers is None else providers
+        return list(DEFAULT_PROVIDERS) if providers is None else providers
 
     @field_validator("providers")
     @classmethod
