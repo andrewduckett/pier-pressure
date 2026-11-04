@@ -7,8 +7,11 @@ timeline sensors deliver it to Home Assistant, and how to chart it.
 ## What the timeline is
 
 The verdict document has a `timeline` field: a list with one entry per clock
-hour. It covers every hour the weather sources returned, usually two to three
-days, including hours that have already passed. Entries are in time order.
+hour. It covers every hour a provider returned for a variable it shows, usually
+two to three days, including hours that have already passed. Entries are in
+time order. Some providers return variables the timeline does not show, such as
+aerosol optical depth and PM2.5 from the air-quality forecast. The
+air-quality variables never add an hour, so they cannot lengthen the timeline.
 
 Each entry has the same keys, always present:
 
