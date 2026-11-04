@@ -20,7 +20,7 @@
 
 ## 4. Integration [depends-on: 3]
 
-- [ ] 4.1 [medium] The full gate passes with the new default list, including the golden verdicts and the service tests, with no network access (verify: mise run check)
+- [x] 4.1 [medium] The full gate passes with the new default list, including the golden verdicts and the service tests, with no network access (verify: mise run check) (✓ mise run check passed: 1773 tests)
 
 ## Deviations Ledger
 
