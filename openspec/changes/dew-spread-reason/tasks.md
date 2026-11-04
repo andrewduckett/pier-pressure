@@ -1,0 +1,20 @@
+## 1. The setting
+
+- [ ] 1.1 [easy] `PierConfig.dew_margin` defaults to 4.0, stores a set value, and rejects a negative, `.inf` or `nan` value with an error naming the field, from a constructor and from `load_config` YAML (verify: `uv run pytest tests/test_config.py -k dew_margin`)
+
+## 2. The dew line [depends-on: 1]
+
+- [ ] 2.1 [medium] `dew_reason(window, conditions, margin)` returns `Dew likely from <iso_z slot start>.` for the first scored hour slot whose temperature minus dew point is strictly under the margin, `Frost likely from …` when that hour is at or below 0 °C, and `None` when the margin is 0, when a spread equals the margin, or when no hour qualifies (verify: `uv run pytest tests/test_scoring.py -k dew_reason`)
+- [ ] 2.2 [easy] `dew_reason` skips an hour missing temperature or dew point, names a mid-session boundary slot by its top-of-hour start, never names a slot before the scored window, and ignores cloud (verify: `uv run pytest tests/test_scoring.py -k "dew_reason and (skips or boundary or cloud)"`)
+- [ ] 2.3 [medium] `evaluate` appends the dew line last on a scored verdict, after any cap line and the agreement line, and on the missing-cloud `MAYBE`; a gated `NO-GO` carries none; the existing agreement-tail test stays green (verify: `uv run pytest tests/test_scoring.py -k "dew_line or agreement"`)
+- [ ] 2.4 [easy] Two snapshots differing only in temperature and dew point give identical `verdict`, `score` and `confidence`, and reasons that differ by at most one dew or frost line (verify: `uv run pytest tests/test_scoring.py -k dew_changes_nothing_else`)
+
+## 3. Goldens and docs [depends-on: 2]
+
+- [ ] 3.1 [medium] Golden cases `dew_night` and `frost_night` built from the recorded Open-Meteo payload with temperature and dew point added, so one document pins the dew line at 22:00 UTC and the other the frost line at 00:00 UTC; existing goldens are byte-identical (verify: `uv run pytest tests/test_golden_verdict.py`)
+- [ ] 3.2 [parallel] [easy] README documents `dew_margin` in the pier example and the settings table, and `ha-addon/DOCS.md` says it is set in the add-on's `config.yaml` file; the conditions module docstring no longer says nothing reads the weather variables (verify: `grep -q dew_margin README.md ha-addon/DOCS.md`)
+- [ ] 3.3 [easy] The full gate is green (verify: `mise run check`)
+
+## Deviations Ledger
+
+<!-- Dated notes on small departures from the plan, written during apply. Stop and ask the user about a large one. -->
