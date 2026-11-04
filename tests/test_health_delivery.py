@@ -14,7 +14,7 @@ from datetime import UTC, datetime, timedelta, timezone
 import jsonschema
 import pytest
 
-from pierpressure.core.providers import OPEN_METEO, SEVEN_TIMER
+from pierpressure.core.providers import OPEN_METEO, OPEN_METEO_AIR_QUALITY, SEVEN_TIMER
 from pierpressure.delivery.ha_schema import SENSOR_SCHEMA
 from pierpressure.delivery.mqtt import (
     PAYLOAD_OFFLINE,
@@ -139,6 +139,16 @@ def test_the_attributes_list_the_providers_variables_and_no_role() -> None:
         "last_error",
         "issued_at",
     ]
+
+
+def test_the_air_quality_attributes_list_variables_the_timeline_does_not_show() -> None:
+    health = ProviderHealth.empty(
+        key="open_meteo_air_quality",
+        name="Open-Meteo air quality",
+        variables=OPEN_METEO_AIR_QUALITY.variables,
+        tracking_since=_START,
+    )
+    assert health_attributes(health)["variables"] == ["aerosol_optical_depth", "pm2_5"]
 
 
 def test_attributes_after_a_failure_keep_the_earlier_issue_time() -> None:
