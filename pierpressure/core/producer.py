@@ -94,7 +94,7 @@ def _agreement(term: AgreementTerm | None) -> dict[str, Agreement]:
 
 def _timeline(pier: PierConfig, conditions: Conditions) -> list[TimelineEntry]:
     """One entry per hour any filled series covers, sorted, with each series' reading."""
-    times = list(conditions.hours())
+    times = list(conditions.hours(get_args(Variable)))
     return [
         TimelineEntry(
             time=time,

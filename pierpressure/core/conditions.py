@@ -37,7 +37,7 @@ Variable conventions the core relies on:
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Literal
@@ -115,6 +115,11 @@ class Conditions:
             if (value := series.values.get(time)) is not None
         )
 
-    def hours(self) -> tuple[datetime, ...]:
-        """Every hour any filled series covers, sorted ascending, each once."""
-        return tuple(sorted({time for series in self.series.values() for time in series.values}))
+    def hours(self, variables: Iterable[Variable]) -> tuple[datetime, ...]:
+        """Every hour the given variables' filled series cover, sorted ascending, each once.
+
+        The variables are required so that no caller counts a variable's hours by
+        forgetting to leave it out (air-quality-provider DD2).
+        """
+        filled = (self.series[variable] for variable in variables if variable in self.series)
+        return tuple(sorted({time for series in filled for time in series.values}))

@@ -61,13 +61,23 @@ def test_hours_is_the_sorted_union_of_every_series_hours() -> None:
             "seeing": Series(provider="b", issued_at=None, values={_t(21): 0.5, _t(22): 0.5}),
         }
     )
-    assert conditions.hours() == (_t(20), _t(21), _t(22))
+    assert conditions.hours(("cloud_cover", "seeing")) == (_t(20), _t(21), _t(22))
+
+
+def test_hours_counts_only_the_given_variables_series() -> None:
+    conditions = Conditions(
+        series={
+            "cloud_cover": Series(provider="a", issued_at=None, values={_t(21): 1.0}),
+            "seeing": Series(provider="b", issued_at=None, values={_t(22): 0.5, _t(23): 0.5}),
+        }
+    )
+    assert conditions.hours(("cloud_cover",)) == (_t(21),)
 
 
 def test_the_empty_value_has_no_series_and_no_hours() -> None:
     empty = Conditions()
     assert empty.series == {}
-    assert empty.hours() == ()
+    assert empty.hours(("cloud_cover",)) == ()
     assert empty.value_at("cloud_cover", _t(21)) is None
     assert empty.issued_at("cloud_cover") is None
 
@@ -125,4 +135,4 @@ def test_hours_ignores_hours_only_an_alternate_covers() -> None:
             )
         },
     )
-    assert conditions.hours() == (_t(21),)
+    assert conditions.hours(("cloud_cover",)) == (_t(21),)
