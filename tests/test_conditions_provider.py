@@ -930,6 +930,28 @@ def test_a_model_provider_stamps_its_fetch_time_as_the_issue_time() -> None:
         assert series.issued_at == fetched_at
 
 
+def test_build_provider_builds_the_air_quality_fetcher() -> None:
+    [fetcher] = build_provider(["open_meteo_air_quality"], now=lambda: _FETCHED).fetchers
+    assert isinstance(fetcher, OpenMeteoProvider)
+    assert fetcher.spec is OPEN_METEO_AIR_QUALITY
+    assert fetcher.model is None
+    assert fetcher.now() == _FETCHED
+
+
+def test_a_composite_air_quality_fetch_fills_both_series() -> None:
+    stack = build_provider(["open_meteo_air_quality"], now=lambda: _FETCHED)
+    [fetcher] = stack.fetchers
+    assert isinstance(fetcher, OpenMeteoProvider)
+    payload = _load("open_meteo_air_quality.json")
+    fetcher.client = httpx.Client(
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, json=payload))
+    )
+    series = stack.get(make_pier()).conditions.series
+    assert set(series) == {"aerosol_optical_depth", "pm2_5"}
+    assert {s.provider for s in series.values()} == {"open_meteo_air_quality"}
+    assert series["pm2_5"].values[datetime(2026, 11, 4, 1, 0, tzinfo=UTC)] == 8.8
+
+
 # --------------------------------------------------------------------------- #
 # open-meteo-models 3.1: each model's real response parses (design D6)
 # Trimmed live recordings at Toronto (43.65, -79.38), fetched 2026-11-02 UTC.
