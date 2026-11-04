@@ -841,6 +841,10 @@ def evaluate(
     agreement = cloud_agreement(scored, conditions)
     band, conf_value = confidence(pier, instant, scored, conditions, agreement)
     agreed = [_agreement_reason(agreement)] if agreement is not None else []
+    # Advice for a night worth judging, so only gate-passing paths carry it, and
+    # after the agreement line so no earlier line moves (dew-spread-reason D2).
+    dew_line = dew_reason(scored, conditions, pier.dew_margin)
+    dew = [dew_line] if dew_line is not None else []
 
     # 2. Wind gate (opt-in). A forecast gust over the limit is a safety NO-GO,
     #    evaluated before any cloud logic so a missing cloud observation cannot
@@ -864,6 +868,7 @@ def evaluate(
         if wind_capped:
             reasons.append(_wind_unavailable_reason())
         reasons.extend(agreed)
+        reasons.extend(dew)
         return Decision(Verdict.MAYBE, 0, Band.LOW, 0, reasons, scored, agreement)
 
     # 4. Cloud present: the overcast gate can fire; otherwise score the night.
@@ -882,6 +887,7 @@ def evaluate(
     if short:
         reasons.append(_REASON_SHORT_WINDOW)
     reasons.extend(agreed)
+    reasons.extend(dew)
     is_go = score >= pier.go_threshold and not wind_capped and not short
     verdict = Verdict.GO if is_go else Verdict.MAYBE
     return Decision(verdict, score, band, conf_value, reasons, scored, agreement)

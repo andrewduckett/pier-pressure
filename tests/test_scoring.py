@@ -923,3 +923,85 @@ def test_dew_reason_ignores_cloud() -> None:
     for cloud in (None, 0.0, 100.0):
         conditions = _weather(_DEW_WINDOW, temperature, dew_point, cloud=cloud)
         assert dew_reason(_DEW_WINDOW, conditions, 4.0) == "Dew likely from 2026-09-08T21:00:00Z."
+
+
+def _with_weather(conditions: Conditions, window: tuple[datetime, datetime]) -> Conditions:
+    """``conditions`` plus a 1 °C spread above freezing in every window hour."""
+    hours = len(hour_slots(*window))
+    weather = {"temperature": _series(window, [10.0] * hours)}
+    weather["dew_point"] = _series(window, [9.0] * hours)
+    return Conditions(series={**conditions.series, **weather}, alternates=conditions.alternates)
+
+
+_DEW_LINE = "Dew likely from 2026-09-08T21:00:00Z."
+
+
+def test_a_scored_verdict_ends_with_the_agreement_then_the_dew_line() -> None:
+    window = _window(6)
+    conditions = _with_weather(_agreeing(window, [10.0] * 6, [18.0] * 6), window)
+    decision = evaluate(make_pier(), _EVAL_INSTANT, window, conditions, _DARK)
+    assert decision.verdict is Verdict.GO
+    assert decision.reasons[-3:] == [
+        f"Score {decision.score}/100.",
+        "Cloud agreement agree: 2 providers, spread 8 points.",
+        _DEW_LINE,
+    ]
+
+
+def test_a_wind_capped_verdict_puts_the_dew_line_after_the_cap_and_the_agreement() -> None:
+    window = _window(6)
+    conditions = _with_weather(_agreeing(window, [10.0] * 6, [18.0] * 6), window)
+    pier = make_pier().model_copy(update={"max_gust": 40.0})
+    decision = evaluate(pier, _EVAL_INSTANT, window, conditions, _DARK)
+    assert decision.verdict is Verdict.MAYBE
+    assert decision.reasons[-3:] == [
+        "Wind data unavailable: the safety limit cannot be confirmed, so not a GO.",
+        "Cloud agreement agree: 2 providers, spread 8 points.",
+        _DEW_LINE,
+    ]
+
+
+def test_a_short_window_puts_the_dew_line_last() -> None:
+    start = datetime(2026, 9, 8, 21, 0, tzinfo=UTC)
+    window = (start, start + timedelta(minutes=30))
+    conditions = _with_weather(_conditions(window, cloud=10.0), window)
+    decision = evaluate(make_pier(), _EVAL_INSTANT, window, conditions, _DARK)
+    assert decision.verdict is Verdict.MAYBE
+    assert decision.reasons[-1] == _DEW_LINE
+
+
+def test_missing_cloud_still_gets_the_dew_line() -> None:
+    window = _window(6)
+    conditions = _with_weather(Conditions(), window)
+    decision = evaluate(make_pier(), _EVAL_INSTANT, window, conditions, _DARK)
+    assert decision.verdict is Verdict.MAYBE
+    assert decision.reasons[0].startswith("Conditions unavailable")
+    assert decision.reasons[-1] == _DEW_LINE
+
+
+def test_a_gated_no_go_carries_no_dew_line() -> None:
+    window = _window(6)
+    conditions = _with_weather(_conditions(window, cloud=100.0), window)
+    decision = evaluate(make_pier(), _EVAL_INSTANT, window, conditions, _DARK)
+    assert decision.verdict is Verdict.NO_GO
+    assert not any(line.startswith(("Dew", "Frost")) for line in decision.reasons)
+
+
+def test_a_wind_gated_no_go_carries_no_dew_line() -> None:
+    window = _window(6)
+    slots = hour_slots(*window)
+    wind = Series(provider="p", issued_at=None, values=dict.fromkeys(slots, 80.0))
+    weather = _with_weather(_conditions(window, cloud=10.0), window)
+    conditions = Conditions(series={**weather.series, "wind_gust": wind})
+    pier = make_pier().model_copy(update={"max_gust": 40.0})
+    decision = evaluate(pier, _EVAL_INSTANT, window, conditions, _DARK)
+    assert decision.verdict is Verdict.NO_GO
+    assert not any(line.startswith(("Dew", "Frost")) for line in decision.reasons)
+
+
+def test_a_zero_dew_margin_adds_no_dew_line() -> None:
+    window = _window(6)
+    conditions = _with_weather(_conditions(window, cloud=10.0), window)
+    pier = make_pier().model_copy(update={"dew_margin": 0.0})
+    decision = evaluate(pier, _EVAL_INSTANT, window, conditions, _DARK)
+    assert not any(line.startswith(("Dew", "Frost")) for line in decision.reasons)
