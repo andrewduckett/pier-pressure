@@ -16,11 +16,11 @@ The conditions snapshot holds one series per variable, and until now every
 variable also became a key of each timeline entry in the verdict document.
 ADR-0025 made those keys part of the frozen contract: the document only
 grows, so a key, once published, can never be removed or renamed. Some
-variables are now raw inputs to core math rather than evidence a person reads:
-aerosol optical depth and fine particulates, and later column water vapour and
-layer temperatures. Their meaning to a reader is weak until the core turns
-them into an index such as transparency, and the index that reads them may
-change which inputs it needs.
+variables are now raw inputs to core math, not evidence a person reads.
+Aerosol optical depth and fine particulates are the first; column water vapour
+and layer temperatures may follow. They mean little to a reader until the core
+turns them into an index such as transparency. And that index may later change
+which inputs it needs.
 
 ## Decision
 

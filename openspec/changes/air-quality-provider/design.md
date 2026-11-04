@@ -42,6 +42,7 @@
   air-quality series leave the document byte-identical.
 - **Existing seams reused:** `httpx.MockTransport` with a recorded fixture in
   `tests/test_conditions_provider.py` for the request and the parse;
+  `tests/test_conditions_model.py` for `Conditions.hours`;
   `tests/test_provider_catalog.py` for the declaration; `tests/test_config.py`
   for the default list; `tests/test_health_delivery.py` for the `variables`
   attribute.
@@ -75,27 +76,33 @@ whichever provider fills it.
 ### DD2: `Conditions.hours()` takes the variables whose hours count
 
 `hours(variables)` returns the sorted union of the hours of the filled series
-of the given variables. `_timeline` passes `TIMELINE_VARIABLES`. An explicit
-argument keeps the rule visible at the call site and leaves `Conditions`
-free of timeline knowledge.
+of the given variables. The argument is required and has no default, so no
+caller can count a raw variable's hours by forgetting it. `_timeline` passes
+`TIMELINE_VARIABLES`. An explicit argument keeps the rule visible at the call
+site and leaves `Conditions` free of timeline knowledge. The existing callers
+in `tests/test_conditions_model.py` pass their variables explicitly.
 
 Alternative: a separate `timeline_hours()` method on `Conditions`. That puts
 the timeline's rule inside the conditions value, which only carries data.
 
-### DD3: Reuse `OpenMeteoProvider`, with a URL per spec
+### DD3: Reuse `OpenMeteoProvider`, with the endpoint chosen by the spec's key
 
 `COLUMNS` gains `aerosol_optical_depth` and `pm2_5`, each named the same as
-the endpoint's column. `OpenMeteoProvider` gains a `url` field, defaulting to
-the forecast URL. It sends `wind_speed_unit=kmh` only when its spec declares a
-wind variable, so the air-quality request carries no parameter that endpoint
-ignores. `parse_open_meteo` is unchanged: a column the payload lacks is left
-`None`, so each endpoint's payload fills only its own variables.
-`SourceReading` gains the two fields. `build_provider` registers
-`open_meteo_air_quality` as `OpenMeteoProvider(spec=OPEN_METEO_AIR_QUALITY,
-url=AIR_QUALITY_URL, now=now)`.
+the endpoint's column. A module map `ENDPOINTS`, keyed by provider key like
+`MODELS`, sends `open_meteo_air_quality` to the air-quality URL. Every other
+key gets the forecast URL. `OpenMeteoProvider` looks its URL up from its
+spec's key, so no caller can pair the air-quality spec with the forecast URL.
+It sends `wind_speed_unit=kmh` only when its spec declares a wind variable,
+so the air-quality request carries no parameter that endpoint ignores.
+`parse_open_meteo` is unchanged: a column the payload lacks is left `None`, so
+each endpoint's payload fills only its own variables. `SourceReading` gains the
+two fields. `build_provider` registers `open_meteo_air_quality` as
+`OpenMeteoProvider(spec=OPEN_METEO_AIR_QUALITY, now=now)`.
 
-Alternative: a separate module like `nws.py`. That copies the request, the
-parse and the issue-time stamping for no difference in behavior.
+Alternatives: a separate `url` field beside `spec`. It lets a caller pass the
+air-quality spec with the forecast URL, and the forecast endpoint rejects the
+air-quality columns with HTTP 400. A separate module like `nws.py` copies the
+request, the parse and the issue-time stamping for no difference in behavior.
 
 ### DD4: One `DEFAULT_PROVIDERS` constant
 
@@ -120,6 +127,11 @@ No decision here needs a record: each one is local and cheap to undo.
 - [Default installs make one more request per recompute] → it is keyless and
   free, and well inside Open-Meteo's daily limit at any sensible interval. A pier
   that doesn't want it lists its own providers.
+- [The endpoint answers with every value null, for example during a CAMS
+  gap] → the fetch counts as a success, as it does for every provider, so the
+  health sensor shows `ok` while no series is filled. Health tracks whether the
+  provider answered, not whether its values were present. Changing that is a
+  rule for all providers, not for this one.
 - [A new health entity appears on default installs and can show a failure that
   affects nothing] → the README says that nothing reads the air-quality
   variables yet.

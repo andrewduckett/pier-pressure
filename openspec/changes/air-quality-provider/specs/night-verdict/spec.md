@@ -23,7 +23,7 @@ with their presence, absence or values.
 
 ### Requirement: The document carries an hourly timeline
 
-The verdict document SHALL carry a `timeline` list: the hourly series of sky and weather for the pier. The list SHALL hold one entry per clock hour across the union of the hours covered by every filled series of a variable the timeline shows, including hours already past. Hours only an alternate covers SHALL NOT add an entry, and hours only a series of a variable the timeline does not show covers SHALL NOT add an entry. It SHALL be sorted by hour ascending, with no hour repeated. The list SHALL be empty, never absent, when no provider returned rows for a variable the timeline shows.
+The verdict document SHALL carry a `timeline` list: the hourly series of sky and weather for the pier. The list SHALL hold one entry per clock hour that a filled series of a shown variable covers, including hours already past. A shown variable is one the timeline carries as a key. Hours only an alternate covers SHALL NOT add an entry. Hours only a series of a variable the timeline does not show covers SHALL NOT add an entry. It SHALL be sorted by hour ascending, with no hour repeated. The list SHALL be empty, never absent, when no provider returned rows for a variable the timeline shows.
 
 #### Scenario: The timeline spans the union of both providers' hours
 
