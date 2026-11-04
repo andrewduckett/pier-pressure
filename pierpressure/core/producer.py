@@ -19,7 +19,7 @@ from datetime import datetime
 from typing import get_args
 
 from .clock import Clock
-from .conditions import Conditions, Variable
+from .conditions import TIMELINE_VARIABLES, Conditions, Variable
 from .config import PierConfig
 from .model import Agreement, Confidence, DarkWindow, TimelineEntry, VerdictDocument
 from .ranking import equipment_reasons, rank_targets
@@ -100,7 +100,7 @@ def _timeline(pier: PierConfig, conditions: Conditions) -> list[TimelineEntry]:
             time=time,
             sun_altitude=sun,
             moon_altitude=moon,
-            **{variable: conditions.value_at(variable, time) for variable in get_args(Variable)},
+            **{variable: conditions.value_at(variable, time) for variable in TIMELINE_VARIABLES},
             **_cloud_band(conditions, time),
         )
         for time, (sun, moon) in zip(times, altitudes_at(pier, times), strict=True)

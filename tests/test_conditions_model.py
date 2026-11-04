@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import dataclasses
 from datetime import UTC, datetime
+from typing import get_args
 
 import pytest
 
 from pierpressure.core import conditions as conditions_module
-from pierpressure.core.conditions import Conditions, Series
+from pierpressure.core.conditions import TIMELINE_VARIABLES, Conditions, Series, Variable
+from pierpressure.core.model import TimelineEntry
 
 
 def _t(h: int) -> datetime:
@@ -136,3 +138,13 @@ def test_hours_ignores_hours_only_an_alternate_covers() -> None:
         },
     )
     assert conditions.hours(("cloud_cover",)) == (_t(21),)
+
+
+def test_the_air_quality_variables_come_last() -> None:
+    assert get_args(Variable)[-2:] == ("aerosol_optical_depth", "pm2_5")
+
+
+def test_timeline_variables_are_the_timeline_entry_fields_that_hold_a_variable() -> None:
+    not_a_variable = {"time", "sun_altitude", "moon_altitude", "cloud_cover_min", "cloud_cover_max"}
+    shown = tuple(name for name in TimelineEntry.model_fields if name not in not_a_variable)
+    assert shown == TIMELINE_VARIABLES
