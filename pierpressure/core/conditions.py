@@ -32,7 +32,8 @@ Variable conventions the core relies on:
 - ``seeing`` and ``transparency`` — normalized quality in ``[0, 1]`` where 1 is
   best. The provider layer maps each provider's native scale onto this range.
 - The weather variables pass through to the timeline as reported (°C, %, km/h,
-  degrees); no gate, score or confidence term reads them.
+  degrees); no gate, score or confidence term reads them. Temperature and dew
+  point feed only the dew reason line.
 - ``aerosol_optical_depth`` (no unit) and ``pm2_5`` (µg/m³) are carried as
   reported. The timeline does not show them and nothing reads them yet.
 """
