@@ -13,8 +13,11 @@
 
 - [x] 3.1 [medium] Golden cases `dew_night` and `frost_night` built from the recorded Open-Meteo payload with temperature and dew point added, so one document pins the dew line at 22:00 UTC and the other the frost line at 00:00 UTC; existing goldens are byte-identical (verify: `uv run pytest tests/test_golden_verdict.py`) (✓ `uv run pytest tests/test_golden_verdict.py` passed, 11 tests; no existing golden changed)
 - [x] 3.2 [parallel] [easy] README documents `dew_margin` in the pier example and the settings table, and `ha-addon/DOCS.md` says it is set in the add-on's `config.yaml` file; the conditions module docstring no longer says nothing reads the weather variables (verify: `grep -q dew_margin README.md ha-addon/DOCS.md`) (✓ `grep -q dew_margin README.md ha-addon/DOCS.md` passed)
-- [ ] 3.3 [easy] The full gate is green (verify: `mise run check`)
+- [x] 3.3 [easy] The full gate is green (verify: `mise run check`) (✓ `mise run check` passed, 1808 tests)
 
 ## Deviations Ledger
 
 <!-- Dated notes on small departures from the plan, written during apply. Stop and ask the user about a large one. -->
+
+- 2026-11-04: `test_producer_targets` checks every `_CASES` entry against a file in `tests/fixtures/golden/stub/`, so the two new cases gained stub baselines, written from the same expression the test uses. The plan named only the goldens.
+- 2026-11-04: `test_weather_variables_do_not_change_the_verdict` in `tests/test_producer_timeline.py` assumed no term reads the weather variables. It now expects the one dew line, then compares the rest of the document as before.
