@@ -24,6 +24,7 @@ from pierpressure.core.providers import OPEN_METEO, ProviderSpec
 from .provider import SourceForecast, SourceReading
 
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
+OPEN_METEO_AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
 _TIMEOUT_SECONDS = 10.0
 
 
@@ -55,6 +56,16 @@ MODELS: Mapping[str, str] = {
 }
 """The Open-Meteo ``models=`` value behind each model provider's key. It is a
 request detail, so it lives here rather than in the core spec (design D1)."""
+
+
+ENDPOINTS: Mapping[str, str] = {
+    "open_meteo_air_quality": OPEN_METEO_AIR_QUALITY_URL,
+}
+"""The endpoint behind a provider key, where it is not the forecast endpoint.
+Keying it by the spec means no caller can pair a spec with the wrong host, which
+answers the other's columns with HTTP 400 (air-quality-provider DD3)."""
+
+_WIND: frozenset[Variable] = frozenset({"wind_gust", "wind_speed"})
 
 
 def _utcnow() -> datetime:
@@ -101,7 +112,9 @@ class OpenMeteoProvider:
     """Fetches hourly cloud, wind and weather from Open-Meteo.
 
     With no ``model`` it asks for Open-Meteo's best match. With a model it asks
-    for that model alone, so each model is its own provider (design D2).
+    for that model alone, so each model is its own provider (design D2). The
+    air-quality spec asks the air-quality endpoint instead, through the same
+    request and parse.
     """
 
     spec: ProviderSpec = OPEN_METEO
@@ -114,15 +127,17 @@ class OpenMeteoProvider:
             "latitude": pier.latitude,
             "longitude": pier.longitude,
             "hourly": ",".join(COLUMNS[variable] for variable in self.spec.variables),
-            "wind_speed_unit": "kmh",
             "timezone": "UTC",
             "forecast_days": 2,
         }
+        if _WIND & set(self.spec.variables):
+            params["wind_speed_unit"] = "kmh"
         if self.model is not None:
             params["models"] = self.model
         client = self.client or httpx.Client(timeout=_TIMEOUT_SECONDS)
         try:
-            response = client.get(OPEN_METEO_URL, params=params)
+            url = ENDPOINTS.get(self.spec.key, OPEN_METEO_URL)
+            response = client.get(url, params=params)
             response.raise_for_status()
             return parse_open_meteo(response.json(), issued_at=self.now())
         finally:

@@ -28,6 +28,7 @@ from pierpressure.core.providers import (
     CATALOG,
     NWS,
     OPEN_METEO,
+    OPEN_METEO_AIR_QUALITY,
     OPEN_METEO_HRDPS,
     SEVEN_TIMER,
     ProviderSpec,
@@ -172,6 +173,44 @@ def test_open_meteo_request_is_pinned_and_names_no_model() -> None:
     assert params["forecast_days"] == "2"
     assert params["wind_speed_unit"] == "kmh"
     assert params["timezone"] == "UTC"
+    assert "models" not in params
+
+
+def test_the_forecast_providers_ask_the_forecast_endpoint() -> None:
+    for key in ("open_meteo", *(key for key in CATALOG if key.startswith("open_meteo_"))):
+        if key == "open_meteo_air_quality":
+            continue
+        [fetcher] = build_provider([key]).fetchers
+        assert isinstance(fetcher, OpenMeteoProvider)
+        (request,) = _requests_of(lambda client, f=fetcher: replace(f, client=client), {})
+        assert str(request.url.copy_with(query=None)) == "https://api.open-meteo.com/v1/forecast"
+        assert request.url.params["wind_speed_unit"] == "kmh", key
+
+
+def test_the_air_quality_request_asks_the_air_quality_endpoint() -> None:
+    (request,) = _requests_of(
+        lambda client: OpenMeteoProvider(
+            spec=OPEN_METEO_AIR_QUALITY, client=client, now=lambda: _ISSUED
+        ),
+        {},
+    )
+    assert str(request.url.copy_with(query=None)) == (
+        "https://air-quality-api.open-meteo.com/v1/air-quality"
+    )
+
+
+def test_the_air_quality_request_names_its_columns_and_no_wind_unit_or_model() -> None:
+    (request,) = _requests_of(
+        lambda client: OpenMeteoProvider(
+            spec=OPEN_METEO_AIR_QUALITY, client=client, now=lambda: _ISSUED
+        ),
+        {},
+    )
+    params = request.url.params
+    assert params["hourly"] == "aerosol_optical_depth,pm2_5"
+    assert params["forecast_days"] == "2"
+    assert params["timezone"] == "UTC"
+    assert "wind_speed_unit" not in params
     assert "models" not in params
 
 
