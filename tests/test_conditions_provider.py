@@ -177,7 +177,7 @@ def test_open_meteo_request_is_pinned_and_names_no_model() -> None:
 
 def test_every_variable_an_open_meteo_spec_declares_has_a_column() -> None:
     open_meteo_specs = [spec for key, spec in CATALOG.items() if key.startswith("open_meteo")]
-    assert len(open_meteo_specs) == 6
+    assert len(open_meteo_specs) == 7
     for spec in open_meteo_specs:
         assert set(spec.variables) <= COLUMNS.keys(), spec.key
 

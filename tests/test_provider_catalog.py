@@ -11,6 +11,7 @@ from pierpressure.core.providers import (
     CATALOG,
     NWS,
     OPEN_METEO,
+    OPEN_METEO_AIR_QUALITY,
     OPEN_METEO_GFS,
     OPEN_METEO_HRDPS,
     OPEN_METEO_HRRR,
@@ -68,6 +69,14 @@ def test_seven_timer_declares_seeing_and_transparency_and_no_bundle() -> None:
     assert not SEVEN_TIMER.needs_key
 
 
+def test_the_air_quality_provider_declares_aerosol_then_pm2_5_and_no_bundle() -> None:
+    assert OPEN_METEO_AIR_QUALITY.key == "open_meteo_air_quality"
+    assert OPEN_METEO_AIR_QUALITY.name == "Open-Meteo air quality"
+    assert OPEN_METEO_AIR_QUALITY.variables == ("aerosol_optical_depth", "pm2_5")
+    assert OPEN_METEO_AIR_QUALITY.bundles == ()
+    assert not OPEN_METEO_AIR_QUALITY.needs_key
+
+
 _NO_PRECIPITATION = tuple(v for v in OPEN_METEO.variables if v != "precipitation_probability")
 
 
@@ -104,6 +113,7 @@ def test_catalog_maps_each_key_to_its_spec_in_order() -> None:
         ("open_meteo_rdps", OPEN_METEO_RDPS),
         ("open_meteo_icon", OPEN_METEO_ICON),
         ("open_meteo_gfs", OPEN_METEO_GFS),
+        ("open_meteo_air_quality", OPEN_METEO_AIR_QUALITY),
         ("nws", NWS),
         ("seven_timer", SEVEN_TIMER),
     ]

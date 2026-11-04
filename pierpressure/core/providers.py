@@ -75,6 +75,15 @@ OPEN_METEO_RDPS = replace(
 OPEN_METEO_ICON = replace(OPEN_METEO, key="open_meteo_icon", name="Open-Meteo ICON")
 OPEN_METEO_GFS = replace(OPEN_METEO, key="open_meteo_gfs", name="Open-Meteo GFS")
 
+# The air-quality forecast is a different Open-Meteo endpoint. Nothing reads its
+# variables yet, and the timeline does not show them.
+OPEN_METEO_AIR_QUALITY = ProviderSpec(
+    key="open_meteo_air_quality",
+    name="Open-Meteo air quality",
+    needs_key=False,
+    variables=("aerosol_optical_depth", "pm2_5"),
+)
+
 # NWS gives total cloud only, so it declares no bundle and fills no layer.
 NWS = ProviderSpec(
     key="nws",
@@ -108,6 +117,7 @@ CATALOG: Mapping[str, ProviderSpec] = {
         OPEN_METEO_RDPS,
         OPEN_METEO_ICON,
         OPEN_METEO_GFS,
+        OPEN_METEO_AIR_QUALITY,
         NWS,
         SEVEN_TIMER,
     )

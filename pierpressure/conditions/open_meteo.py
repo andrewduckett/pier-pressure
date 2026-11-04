@@ -39,6 +39,8 @@ COLUMNS: Mapping[Variable, str] = {
     "wind_speed": "wind_speed_10m",
     "wind_direction": "wind_direction_10m",
     "precipitation_probability": "precipitation_probability",
+    "aerosol_optical_depth": "aerosol_optical_depth",
+    "pm2_5": "pm2_5",
 }
 """The Open-Meteo hourly column behind each variable. The request and the parser
 both read it, so there is one list of column names (design D3)."""
