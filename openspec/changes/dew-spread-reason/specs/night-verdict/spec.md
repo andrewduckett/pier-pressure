@@ -2,7 +2,7 @@
 
 ### Requirement: Reasons name the first dew or frost hour
 
-When every hard gate passes and the pier's dew margin is above zero, the `reasons` list SHALL carry at most one dew or frost line. The line names the first hour of the scored window whose spread is strictly less than the margin. An hour's spread is its temperature minus its dew point, in °C. The line SHALL read `Frost likely from <time>.` when that hour's temperature is at or below 0 °C, and `Dew likely from <time>.` otherwise. `<time>` is the start of that hour, as the same UTC date and time string the document emits for its timestamps. When no hour qualifies, no such line SHALL appear.
+When every hard gate passes and the pier's dew margin is above zero, `reasons` SHALL carry at most one dew or frost line. It names the first scored hour whose spread, temperature minus dew point in °C, is strictly under the margin. The line SHALL read `Frost likely from <time>.` when that hour is at or below 0 °C, else `Dew likely from <time>.`. `<time>` is the hour's start in the document's UTC timestamp format. With no qualifying hour, no such line SHALL appear.
 
 #### Scenario: Dew is named from the first hour under the margin
 
