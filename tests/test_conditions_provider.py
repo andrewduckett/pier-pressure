@@ -214,6 +214,37 @@ def test_the_air_quality_request_names_its_columns_and_no_wind_unit_or_model() -
     assert "models" not in params
 
 
+_AIR_QUALITY_HOUR = datetime(2026, 11, 4, 1, 0, tzinfo=UTC)
+
+
+def test_the_air_quality_parse_carries_both_values_as_reported() -> None:
+    forecast = parse_open_meteo(_load("open_meteo_air_quality.json"), issued_at=_ISSUED)
+    reading = forecast.readings[_AIR_QUALITY_HOUR]
+    assert (reading.aerosol_optical_depth, reading.pm2_5) == (0.14, 8.8)
+
+
+def test_the_air_quality_parse_covers_every_hour_returned() -> None:
+    forecast = parse_open_meteo(_load("open_meteo_air_quality.json"), issued_at=_ISSUED)
+    assert len(forecast.readings) == 48
+
+
+def test_a_blank_air_quality_aerosol_value_leaves_that_hours_pm2_5_present() -> None:
+    payload = _load("open_meteo_air_quality.json")
+    payload["hourly"]["aerosol_optical_depth"][1] = None
+    reading = parse_open_meteo(payload, issued_at=_ISSUED).readings[_AIR_QUALITY_HOUR]
+    assert (reading.aerosol_optical_depth, reading.pm2_5) == (None, 8.8)
+
+
+def test_the_air_quality_issue_time_is_the_fetch_time() -> None:
+    fetched = datetime(2026, 11, 3, 21, 5, tzinfo=UTC)
+    payload = _load("open_meteo_air_quality.json")
+    client = httpx.Client(
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, json=payload))
+    )
+    provider = OpenMeteoProvider(spec=OPEN_METEO_AIR_QUALITY, client=client, now=lambda: fetched)
+    assert provider.fetch(make_pier()).issued_at == fetched
+
+
 def test_every_variable_an_open_meteo_spec_declares_has_a_column() -> None:
     open_meteo_specs = [spec for key, spec in CATALOG.items() if key.startswith("open_meteo")]
     assert len(open_meteo_specs) == 7
