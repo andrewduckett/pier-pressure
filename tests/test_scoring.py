@@ -1005,3 +1005,32 @@ def test_a_zero_dew_margin_adds_no_dew_line() -> None:
     pier = make_pier().model_copy(update={"dew_margin": 0.0})
     decision = evaluate(pier, _EVAL_INSTANT, window, conditions, _DARK)
     assert not any(line.startswith(("Dew", "Frost")) for line in decision.reasons)
+
+
+@pytest.mark.parametrize(
+    ("temperature", "dew_point"),
+    [(10.0, 9.0), (-1.0, -2.0), (10.0, 2.0)],
+)
+def test_temperature_and_dew_point_dew_changes_nothing_else(
+    temperature: float, dew_point: float
+) -> None:
+    window = _window(6)
+    hours = len(hour_slots(*window))
+    dry = _agreeing(window, [10.0] * 6, [18.0] * 6)
+    weather = {
+        "temperature": _series(window, [temperature] * hours),
+        "dew_point": _series(window, [dew_point] * hours),
+    }
+    wet = Conditions(series={**dry.series, **weather}, alternates=dry.alternates)
+    before = evaluate(make_pier(), _EVAL_INSTANT, window, dry, _DARK)
+    after = evaluate(make_pier(), _EVAL_INSTANT, window, wet, _DARK)
+    assert (after.verdict, after.score, after.band, after.confidence) == (
+        before.verdict,
+        before.score,
+        before.band,
+        before.confidence,
+    )
+    extra = after.reasons[len(before.reasons) :]
+    assert after.reasons[: len(before.reasons)] == before.reasons
+    assert len(extra) <= 1
+    assert all(line.startswith(("Dew likely from ", "Frost likely from ")) for line in extra)
