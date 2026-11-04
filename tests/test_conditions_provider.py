@@ -28,6 +28,7 @@ from pierpressure.core.providers import (
     CATALOG,
     NWS,
     OPEN_METEO,
+    OPEN_METEO_AIR_QUALITY,
     OPEN_METEO_HRDPS,
     SEVEN_TIMER,
     ProviderSpec,
@@ -175,9 +176,78 @@ def test_open_meteo_request_is_pinned_and_names_no_model() -> None:
     assert "models" not in params
 
 
+def test_the_forecast_providers_ask_the_forecast_endpoint() -> None:
+    for key in ("open_meteo", *(key for key in CATALOG if key.startswith("open_meteo_"))):
+        if key == "open_meteo_air_quality":
+            continue
+        [fetcher] = build_provider([key]).fetchers
+        assert isinstance(fetcher, OpenMeteoProvider)
+        (request,) = _requests_of(lambda client, f=fetcher: replace(f, client=client), {})
+        assert str(request.url.copy_with(query=None)) == "https://api.open-meteo.com/v1/forecast"
+        assert request.url.params["wind_speed_unit"] == "kmh", key
+
+
+def test_the_air_quality_request_asks_the_air_quality_endpoint() -> None:
+    (request,) = _requests_of(
+        lambda client: OpenMeteoProvider(
+            spec=OPEN_METEO_AIR_QUALITY, client=client, now=lambda: _ISSUED
+        ),
+        {},
+    )
+    assert str(request.url.copy_with(query=None)) == (
+        "https://air-quality-api.open-meteo.com/v1/air-quality"
+    )
+
+
+def test_the_air_quality_request_names_its_columns_and_no_wind_unit_or_model() -> None:
+    (request,) = _requests_of(
+        lambda client: OpenMeteoProvider(
+            spec=OPEN_METEO_AIR_QUALITY, client=client, now=lambda: _ISSUED
+        ),
+        {},
+    )
+    params = request.url.params
+    assert params["hourly"] == "aerosol_optical_depth,pm2_5"
+    assert params["forecast_days"] == "2"
+    assert params["timezone"] == "UTC"
+    assert "wind_speed_unit" not in params
+    assert "models" not in params
+
+
+_AIR_QUALITY_HOUR = datetime(2026, 11, 4, 1, 0, tzinfo=UTC)
+
+
+def test_the_air_quality_parse_carries_both_values_as_reported() -> None:
+    forecast = parse_open_meteo(_load("open_meteo_air_quality.json"), issued_at=_ISSUED)
+    reading = forecast.readings[_AIR_QUALITY_HOUR]
+    assert (reading.aerosol_optical_depth, reading.pm2_5) == (0.14, 8.8)
+
+
+def test_the_air_quality_parse_covers_every_hour_returned() -> None:
+    forecast = parse_open_meteo(_load("open_meteo_air_quality.json"), issued_at=_ISSUED)
+    assert len(forecast.readings) == 48
+
+
+def test_a_blank_air_quality_aerosol_value_leaves_that_hours_pm2_5_present() -> None:
+    payload = _load("open_meteo_air_quality.json")
+    payload["hourly"]["aerosol_optical_depth"][1] = None
+    reading = parse_open_meteo(payload, issued_at=_ISSUED).readings[_AIR_QUALITY_HOUR]
+    assert (reading.aerosol_optical_depth, reading.pm2_5) == (None, 8.8)
+
+
+def test_the_air_quality_issue_time_is_the_fetch_time() -> None:
+    fetched = datetime(2026, 11, 3, 21, 5, tzinfo=UTC)
+    payload = _load("open_meteo_air_quality.json")
+    client = httpx.Client(
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, json=payload))
+    )
+    provider = OpenMeteoProvider(spec=OPEN_METEO_AIR_QUALITY, client=client, now=lambda: fetched)
+    assert provider.fetch(make_pier()).issued_at == fetched
+
+
 def test_every_variable_an_open_meteo_spec_declares_has_a_column() -> None:
     open_meteo_specs = [spec for key, spec in CATALOG.items() if key.startswith("open_meteo")]
-    assert len(open_meteo_specs) == 6
+    assert len(open_meteo_specs) == 7
     for spec in open_meteo_specs:
         assert set(spec.variables) <= COLUMNS.keys(), spec.key
 
@@ -858,6 +928,28 @@ def test_a_model_provider_stamps_its_fetch_time_as_the_issue_time() -> None:
     for series in conditions.series.values():
         assert series.provider == "open_meteo_rdps"
         assert series.issued_at == fetched_at
+
+
+def test_build_provider_builds_the_air_quality_fetcher() -> None:
+    [fetcher] = build_provider(["open_meteo_air_quality"], now=lambda: _FETCHED).fetchers
+    assert isinstance(fetcher, OpenMeteoProvider)
+    assert fetcher.spec is OPEN_METEO_AIR_QUALITY
+    assert fetcher.model is None
+    assert fetcher.now() == _FETCHED
+
+
+def test_a_composite_air_quality_fetch_fills_both_series() -> None:
+    stack = build_provider(["open_meteo_air_quality"], now=lambda: _FETCHED)
+    [fetcher] = stack.fetchers
+    assert isinstance(fetcher, OpenMeteoProvider)
+    payload = _load("open_meteo_air_quality.json")
+    fetcher.client = httpx.Client(
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, json=payload))
+    )
+    series = stack.get(make_pier()).conditions.series
+    assert set(series) == {"aerosol_optical_depth", "pm2_5"}
+    assert {s.provider for s in series.values()} == {"open_meteo_air_quality"}
+    assert series["pm2_5"].values[datetime(2026, 11, 4, 1, 0, tzinfo=UTC)] == 8.8
 
 
 # --------------------------------------------------------------------------- #

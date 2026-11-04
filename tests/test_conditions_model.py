@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import dataclasses
 from datetime import UTC, datetime
+from typing import get_args
 
 import pytest
 
 from pierpressure.core import conditions as conditions_module
-from pierpressure.core.conditions import Conditions, Series
+from pierpressure.core.conditions import TIMELINE_VARIABLES, Conditions, Series, Variable
+from pierpressure.core.model import TimelineEntry
 
 
 def _t(h: int) -> datetime:
@@ -61,13 +63,23 @@ def test_hours_is_the_sorted_union_of_every_series_hours() -> None:
             "seeing": Series(provider="b", issued_at=None, values={_t(21): 0.5, _t(22): 0.5}),
         }
     )
-    assert conditions.hours() == (_t(20), _t(21), _t(22))
+    assert conditions.hours(("cloud_cover", "seeing")) == (_t(20), _t(21), _t(22))
+
+
+def test_hours_counts_only_the_given_variables_series() -> None:
+    conditions = Conditions(
+        series={
+            "cloud_cover": Series(provider="a", issued_at=None, values={_t(21): 1.0}),
+            "seeing": Series(provider="b", issued_at=None, values={_t(22): 0.5, _t(23): 0.5}),
+        }
+    )
+    assert conditions.hours(("cloud_cover",)) == (_t(21),)
 
 
 def test_the_empty_value_has_no_series_and_no_hours() -> None:
     empty = Conditions()
     assert empty.series == {}
-    assert empty.hours() == ()
+    assert empty.hours(("cloud_cover",)) == ()
     assert empty.value_at("cloud_cover", _t(21)) is None
     assert empty.issued_at("cloud_cover") is None
 
@@ -125,4 +137,14 @@ def test_hours_ignores_hours_only_an_alternate_covers() -> None:
             )
         },
     )
-    assert conditions.hours() == (_t(21),)
+    assert conditions.hours(("cloud_cover",)) == (_t(21),)
+
+
+def test_the_air_quality_variables_come_last() -> None:
+    assert get_args(Variable)[-2:] == ("aerosol_optical_depth", "pm2_5")
+
+
+def test_timeline_variables_are_the_timeline_entry_fields_that_hold_a_variable() -> None:
+    not_a_variable = {"time", "sun_altitude", "moon_altitude", "cloud_cover_min", "cloud_cover_max"}
+    shown = tuple(name for name in TimelineEntry.model_fields if name not in not_a_variable)
+    assert shown == TIMELINE_VARIABLES

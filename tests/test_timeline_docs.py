@@ -227,3 +227,18 @@ def test_page_recorder_example_lists_every_entity(page_text: str) -> None:
     for key in ("cloud_cover", *_NEW_KEYS):
         assert f"- sensor.pierpressure_backyard_{key}\n" in section
     assert "each pier has its own" in " ".join(section.lower().split())
+
+
+# --------------------------------------------------------------------------- #
+# air-quality-provider 3.3: only a variable the timeline shows adds an hour
+# --------------------------------------------------------------------------- #
+
+
+def test_page_says_the_timeline_covers_the_hours_of_the_variables_it_shows(
+    page_text: str,
+) -> None:
+    assert "every hour a provider returned for a variable it shows" in page_text
+
+
+def test_page_says_the_air_quality_variables_never_add_an_hour(page_text: str) -> None:
+    assert "air-quality variables never add an hour" in page_text

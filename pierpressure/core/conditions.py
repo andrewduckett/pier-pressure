@@ -33,18 +33,20 @@ Variable conventions the core relies on:
   best. The provider layer maps each provider's native scale onto this range.
 - The weather variables pass through to the timeline as reported (°C, %, km/h,
   degrees); no gate, score or confidence term reads them.
+- ``aerosol_optical_depth`` (no unit) and ``pm2_5`` (µg/m³) are carried as
+  reported. The timeline does not show them and nothing reads them yet.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Literal
 
-# The per-hour quantities the conditions carry, named by their timeline keys, in
-# timeline order. Every iteration over variables walks this order, so the fill and
-# the document never depend on dict or set order.
+# The per-hour quantities the conditions carry. Every iteration over variables
+# walks this order, so the fill and the document never depend on dict or set
+# order. New variables append last so every earlier one keeps its fill place.
 Variable = Literal[
     "cloud_cover",
     "cloud_low",
@@ -59,7 +61,28 @@ Variable = Literal[
     "wind_speed",
     "wind_direction",
     "precipitation_probability",
+    "aerosol_optical_depth",
+    "pm2_5",
 ]
+
+# The variables the timeline shows, named by their timeline keys, in timeline
+# order. The timeline's keys and its hours both come from this, so a variable
+# left out of it never reaches the document (air-quality-provider DD1).
+TIMELINE_VARIABLES: tuple[Variable, ...] = (
+    "cloud_cover",
+    "cloud_low",
+    "cloud_mid",
+    "cloud_high",
+    "wind_gust",
+    "seeing",
+    "transparency",
+    "temperature",
+    "dew_point",
+    "humidity",
+    "wind_speed",
+    "wind_direction",
+    "precipitation_probability",
+)
 
 
 @dataclass(frozen=True)
@@ -115,6 +138,11 @@ class Conditions:
             if (value := series.values.get(time)) is not None
         )
 
-    def hours(self) -> tuple[datetime, ...]:
-        """Every hour any filled series covers, sorted ascending, each once."""
-        return tuple(sorted({time for series in self.series.values() for time in series.values}))
+    def hours(self, variables: Iterable[Variable]) -> tuple[datetime, ...]:
+        """Every hour the given variables' filled series cover, sorted ascending, each once.
+
+        The variables are required so that no caller counts a variable's hours by
+        forgetting to leave it out (air-quality-provider DD2).
+        """
+        filled = (self.series[variable] for variable in variables if variable in self.series)
+        return tuple(sorted({time for series in filled for time in series.values}))

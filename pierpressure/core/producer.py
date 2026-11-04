@@ -16,10 +16,9 @@ document.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import get_args
 
 from .clock import Clock
-from .conditions import Conditions, Variable
+from .conditions import TIMELINE_VARIABLES, Conditions
 from .config import PierConfig
 from .model import Agreement, Confidence, DarkWindow, TimelineEntry, VerdictDocument
 from .ranking import equipment_reasons, rank_targets
@@ -93,14 +92,14 @@ def _agreement(term: AgreementTerm | None) -> dict[str, Agreement]:
 
 
 def _timeline(pier: PierConfig, conditions: Conditions) -> list[TimelineEntry]:
-    """One entry per hour any filled series covers, sorted, with each series' reading."""
-    times = list(conditions.hours())
+    """One entry per hour a shown variable's filled series covers, sorted, with each reading."""
+    times = list(conditions.hours(TIMELINE_VARIABLES))
     return [
         TimelineEntry(
             time=time,
             sun_altitude=sun,
             moon_altitude=moon,
-            **{variable: conditions.value_at(variable, time) for variable in get_args(Variable)},
+            **{variable: conditions.value_at(variable, time) for variable in TIMELINE_VARIABLES},
             **_cloud_band(conditions, time),
         )
         for time, (sun, moon) in zip(times, altitudes_at(pier, times), strict=True)

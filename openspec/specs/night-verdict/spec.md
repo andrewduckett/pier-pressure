@@ -644,7 +644,7 @@ total-cloud term, the gates, the bands, or the confidence.
 
 ### Requirement: The document carries an hourly timeline
 
-The verdict document SHALL carry a `timeline` list: the hourly series of sky and weather for the pier. The list SHALL hold one entry per clock hour across the union of the hours every filled series in the conditions covers, including hours already past. Hours only an alternate covers SHALL NOT add an entry. It SHALL be sorted by hour ascending, with no hour repeated. The list SHALL be empty, never absent, when no provider returned rows.
+The verdict document SHALL carry a `timeline` list: the hourly series of sky and weather for the pier. The list SHALL hold one entry per clock hour that a filled series of a shown variable covers, including hours already past. A shown variable is one the timeline carries as a key. Hours only an alternate covers SHALL NOT add an entry. Hours only a series of a variable the timeline does not show covers SHALL NOT add an entry. It SHALL be sorted by hour ascending, with no hour repeated. The list SHALL be empty, never absent, when no provider returned rows for a variable the timeline shows.
 
 #### Scenario: The timeline spans the union of both providers' hours
 
@@ -666,6 +666,11 @@ The verdict document SHALL carry a `timeline` list: the hourly series of sky and
 #### Scenario: Hours only an alternate covers add no entry
 
 - **WHEN** every filled series ends at 03:00 and a `cloud_cover` alternate runs to 03:00 two days later
+- **THEN** the `timeline`'s last entry is 03:00 on the first night
+
+#### Scenario: Hours only a hidden variable covers add no entry
+
+- **WHEN** every filled series of a variable the timeline shows ends at 03:00 and an `aerosol_optical_depth` series runs to 03:00 two days later
 - **THEN** the `timeline`'s last entry is 03:00 on the first night
 
 ### Requirement: A timeline entry has a fixed flat shape
@@ -710,7 +715,7 @@ Each entry's `sun_altitude` and `moon_altitude` SHALL be the geometric altitude 
 
 ### Requirement: The timeline is evidence beside the verdict
 
-The timeline SHALL be filled whenever a provider returned rows, whether or not the selected night has a dark window. It SHALL NOT change the verdict, the score, the confidence, the reasons or any other existing field. It carries no verdict of its own: the verdict judges the one night the dark window names, however far the timeline reaches.
+The timeline SHALL be filled whenever a provider returned rows for a variable the timeline shows, whether or not the selected night has a dark window. It SHALL NOT change the verdict, the score, the confidence, the reasons or any other existing field. It carries no verdict of its own: the verdict judges the one night the dark window names, however far the timeline reaches.
 
 #### Scenario: The timeline fills without a dark window
 
@@ -929,3 +934,21 @@ Each timeline entry's `cloud_cover_min` and `cloud_cover_max` SHALL be the lowes
 
 - **WHEN** the filled series lacks an hour that two alternates cover with `10.0` and `30.0`
 - **THEN** that entry's `cloud_cover` is null, `cloud_cover_min` is `10.0` and `cloud_cover_max` is `30.0`
+### Requirement: Variables the timeline does not show never change the document
+
+Some variables in the conditions are not shown on the timeline: today,
+`aerosol_optical_depth` and `pm2_5`. The verdict document SHALL NOT depend on
+them. No gate, score,
+reason, confidence, agreement, timeline entry or timeline hour SHALL change
+with their presence, absence or values.
+
+#### Scenario: Air-quality series leave the document byte-identical
+
+- **WHEN** two verdicts are produced for the same pier and pinned instant, from snapshots that differ only in whether `aerosol_optical_depth` and `pm2_5` series are present and in their values
+- **THEN** the two serialized documents are byte-identical
+
+#### Scenario: Air-quality series alone yield the empty-conditions document
+
+- **WHEN** a verdict is produced from a snapshot whose only series are `aerosol_optical_depth` and `pm2_5`
+- **THEN** the serialized document is byte-identical to the one produced for the same pier and instant from the empty conditions value
+- **AND** its `timeline` is an empty list

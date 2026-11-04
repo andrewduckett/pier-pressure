@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import FrozenInstanceError
-from typing import get_args
 
 import pytest
 
 from pierpressure.core.conditions import Variable
-from pierpressure.core.model import TimelineEntry
 from pierpressure.core.providers import (
     CATALOG,
     NWS,
     OPEN_METEO,
+    OPEN_METEO_AIR_QUALITY,
     OPEN_METEO_GFS,
     OPEN_METEO_HRDPS,
     OPEN_METEO_HRRR,
@@ -23,13 +22,6 @@ from pierpressure.core.providers import (
 )
 
 _CLOUD_BUNDLE = frozenset({"cloud_cover", "cloud_low", "cloud_mid", "cloud_high"})
-
-
-def test_variables_are_the_timeline_keys_without_the_computed_ones() -> None:
-    # The cloud band is drawn across providers, so no provider supplies it.
-    computed = {"time", "sun_altitude", "moon_altitude", "cloud_cover_min", "cloud_cover_max"}
-    expected = tuple(name for name in TimelineEntry.model_fields if name not in computed)
-    assert get_args(Variable) == expected
 
 
 def test_open_meteo_declares_the_cloud_bundle_and_the_weather_variables() -> None:
@@ -77,6 +69,14 @@ def test_seven_timer_declares_seeing_and_transparency_and_no_bundle() -> None:
     assert not SEVEN_TIMER.needs_key
 
 
+def test_the_air_quality_provider_declares_aerosol_then_pm2_5_and_no_bundle() -> None:
+    assert OPEN_METEO_AIR_QUALITY.key == "open_meteo_air_quality"
+    assert OPEN_METEO_AIR_QUALITY.name == "Open-Meteo air quality"
+    assert OPEN_METEO_AIR_QUALITY.variables == ("aerosol_optical_depth", "pm2_5")
+    assert OPEN_METEO_AIR_QUALITY.bundles == ()
+    assert not OPEN_METEO_AIR_QUALITY.needs_key
+
+
 _NO_PRECIPITATION = tuple(v for v in OPEN_METEO.variables if v != "precipitation_probability")
 
 
@@ -113,6 +113,7 @@ def test_catalog_maps_each_key_to_its_spec_in_order() -> None:
         ("open_meteo_rdps", OPEN_METEO_RDPS),
         ("open_meteo_icon", OPEN_METEO_ICON),
         ("open_meteo_gfs", OPEN_METEO_GFS),
+        ("open_meteo_air_quality", OPEN_METEO_AIR_QUALITY),
         ("nws", NWS),
         ("seven_timer", SEVEN_TIMER),
     ]

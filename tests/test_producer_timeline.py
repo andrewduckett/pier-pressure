@@ -317,3 +317,51 @@ def test_hours_only_an_alternate_covers_add_no_entry() -> None:
         alternates={"cloud_cover": (_alternate(long_run, OPEN_METEO_GFS, 70.0),)},
     )
     assert [entry.time for entry in _timeline(conditions)] == night
+
+
+def _air_quality(times: list[datetime], aerosol: float, pm2_5: float) -> dict[Variable, Series]:
+    return {
+        "aerosol_optical_depth": Series(
+            provider="open_meteo_air_quality",
+            issued_at=_ISSUED,
+            values=dict.fromkeys(times, aerosol),
+        ),
+        "pm2_5": Series(
+            provider="open_meteo_air_quality", issued_at=_ISSUED, values=dict.fromkeys(times, pm2_5)
+        ),
+    }
+
+
+def test_hours_only_a_hidden_variable_covers_add_no_entry() -> None:
+    night = _hours(datetime(2026, 9, 8, 20, tzinfo=UTC), 8)
+    long_run = _hours(datetime(2026, 9, 8, 20, tzinfo=UTC), 56)
+    conditions = Conditions(
+        series={**_base(night, cloud_cover=40.0), **_air_quality(long_run, 0.14, 8.8)}
+    )
+    assert [entry.time for entry in _timeline(conditions)] == night
+
+
+def test_air_quality_series_alone_yield_the_empty_conditions_document() -> None:
+    pier = make_pier()
+    clock = FixedClock(_MID_SESSION)
+    times = _hours(datetime(2026, 9, 8, 12, tzinfo=UTC), 36)
+    with no_network():
+        doc = produce_verdict(pier, clock, Conditions(series=_air_quality(times, 0.14, 8.8)))
+        empty = produce_verdict(pier, clock, Conditions())
+    assert doc.model_dump_json() == empty.model_dump_json()
+
+
+def test_air_quality_series_leave_the_document_byte_identical() -> None:
+    pier = make_pier()
+    clock = FixedClock(_MID_SESSION)
+    times = _hours(datetime(2026, 9, 8, 12, tzinfo=UTC), 36)
+    shown = {**_base(times, cloud_cover=10.0, wind_gust=5.0), **_secondary(times, seeing=0.8)}
+
+    def _doc(extra: dict[Variable, Series]) -> str:
+        with no_network():
+            conditions = Conditions(series={**shown, **extra})
+            return produce_verdict(pier, clock, conditions).model_dump_json()
+
+    without = _doc({})
+    assert _doc(_air_quality(times, 0.14, 8.8)) == without
+    assert _doc(_air_quality(_hours(times[0], 60), 0.9, 120.0)) == without

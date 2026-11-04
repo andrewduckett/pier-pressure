@@ -394,8 +394,8 @@ availability.
 The sensor's JSON attributes SHALL carry:
 
 - the provider's name
-- `variables`: the variables the provider declares, as a list of timeline keys in
-  the provider's declared order. It is the same on every publish. There is no
+- `variables`: the variables the provider declares, as a list of variable keys in
+  the provider's declared order. A variable key need not be a timeline key. It is the same on every publish. There is no
   `role` attribute.
 - the time health tracking started: the moment the service loop starts, just before
   the startup reset. It stays the same until the process restarts.
@@ -429,6 +429,11 @@ every existing entity, topic, and mapping is unchanged.
 - **WHEN** the system publishes 7Timer!'s health for a pier
 - **THEN** the attributes carry `variables` equal to `["seeing", "transparency"]`
 - **AND** the attributes carry no `role` key
+
+#### Scenario: The air-quality provider lists variables the timeline does not show
+
+- **WHEN** the system publishes `open_meteo_air_quality`'s health for a pier
+- **THEN** the attributes carry `variables` equal to `["aerosol_optical_depth", "pm2_5"]`
 
 #### Scenario: A successful fetch sets the last-success time
 

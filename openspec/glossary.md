@@ -7,9 +7,10 @@ its own. Agree a term with the user before adding it here.
 ## Timeline
 
 The hourly series of sky and weather for one pier, in the verdict document.
-One entry per clock hour across every hour the conditions providers returned,
-each carrying that hour's conditions and the sun and moon altitude computed by
-the core. The timeline is evidence beside the verdict. It carries no verdict
+One entry per clock hour across every hour a provider returned for a variable
+the timeline shows, each carrying that hour's conditions and the sun and moon
+altitude computed by the core. A variable the timeline does not show never adds
+an hour. The timeline is evidence beside the verdict. It carries no verdict
 of its own, and the verdict judges one night regardless of how far the timeline
 reaches.
 

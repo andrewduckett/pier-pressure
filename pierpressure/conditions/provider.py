@@ -43,7 +43,8 @@ class SourceReading:
 
     The weather fields carry the provider's values unrounded: temperature and dew
     point in °C, humidity and precipitation probability in %, wind speed in km/h
-    and wind direction in degrees.
+    and wind direction in degrees. Aerosol optical depth (no unit) and PM2.5
+    (µg/m³) are carried as reported.
     """
 
     cloud_cover: float | None = None
@@ -59,6 +60,8 @@ class SourceReading:
     wind_speed: float | None = None
     wind_direction: float | None = None
     precipitation_probability: float | None = None
+    aerosol_optical_depth: float | None = None
+    pm2_5: float | None = None
 
 
 @dataclass(frozen=True)
@@ -257,6 +260,9 @@ def build_provider(
     }
     for key, model in MODELS.items():
         real[key] = partial(OpenMeteoProvider, spec=CATALOG[key], model=model, now=now)
+    real["open_meteo_air_quality"] = partial(
+        OpenMeteoProvider, spec=CATALOG["open_meteo_air_quality"], now=now
+    )
     overrides = fetchers or {}
     return CompositeProvider(
         fetchers=tuple(overrides[key] if key in overrides else real[key]() for key in keys),
