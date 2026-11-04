@@ -893,3 +893,33 @@ def test_dew_reason_is_none_when_no_hour_is_under_the_margin() -> None:
 
 def test_dew_reason_is_none_without_temperature_or_dew_point() -> None:
     assert dew_reason(_DEW_WINDOW, _conditions(_DEW_WINDOW, cloud=10.0), 4.0) is None
+
+
+def test_dew_reason_skips_an_hour_missing_a_dew_point() -> None:
+    temperature: list[float | None] = [10.0] * 8
+    dew_point: list[float | None] = [None, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0, 9.0]
+    conditions = _weather(_DEW_WINDOW, temperature, dew_point)
+    assert dew_reason(_DEW_WINDOW, conditions, 4.0) == "Dew likely from 2026-09-08T21:00:00Z."
+
+
+def test_dew_reason_skips_an_hour_missing_a_temperature() -> None:
+    temperature: list[float | None] = [None, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0]
+    conditions = _weather(_DEW_WINDOW, temperature, [9.0] * 8)
+    assert dew_reason(_DEW_WINDOW, conditions, 4.0) == "Dew likely from 2026-09-08T21:00:00Z."
+
+
+def test_dew_reason_names_a_boundary_slot_by_its_start_and_never_a_passed_one() -> None:
+    # Mid-session at 23:30: the 22:00 hour has passed, and the 23:00 slot is
+    # only half inside the scored window but is still named by its start.
+    conditions = _spreads(_DEW_WINDOW, [6.0, 6.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+    scored = (datetime(2026, 9, 8, 23, 30, tzinfo=UTC), _DEW_WINDOW[1])
+    assert dew_reason(scored, conditions, 4.0) == "Dew likely from 2026-09-08T23:00:00Z."
+
+
+def test_dew_reason_ignores_cloud() -> None:
+    spreads = [6.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    temperature = [10.0] * 8
+    dew_point = [10.0 - s for s in spreads]
+    for cloud in (None, 0.0, 100.0):
+        conditions = _weather(_DEW_WINDOW, temperature, dew_point, cloud=cloud)
+        assert dew_reason(_DEW_WINDOW, conditions, 4.0) == "Dew likely from 2026-09-08T21:00:00Z."
