@@ -29,6 +29,7 @@ None.
   - its outcome when an input is missing, as a new fixed error message
   - the default provider list
   - its place under the keyless-cloud guard
+- `night-verdict`: the requirement that variables the timeline does not show never change the document now lists `column_water_vapour`. It also says a value derived from those variables reaches the document only as a shown variable's series.
 
 ## Impact
 
