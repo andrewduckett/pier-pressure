@@ -41,7 +41,7 @@ None.
   - `pierpressure/core/providers.py`: the Open-Meteo specs, their bundles and `COMPUTED`
   - `pierpressure/core/computed.py`: a new pure seeing derivation beside transparency
   - `pierpressure/conditions/provider.py`: `SourceReading`, `ComputedSource.derive` and the computed outcome; `assemble_snapshot` is unchanged
-  - `pierpressure/conditions/open_meteo.py`: `COLUMNS` and the request's wind unit for the 300 hPa wind
+  - `pierpressure/conditions/open_meteo.py`: `COLUMNS`
   - `pierpressure/health.py` and the health publisher: the error wording and the `inputs` attribute
 - **Delivery:** additive, except the reworded `computed` error text. No topic, entity or verdict field changes.
 - **Docs:** a new decision record in `docs/decisions/`, and the README's conditions and health sections. ADR 0027, 0030, 0031 and 0032 are context.
