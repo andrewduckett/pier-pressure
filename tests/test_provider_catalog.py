@@ -39,6 +39,7 @@ def test_open_meteo_declares_the_cloud_bundle_and_the_weather_variables() -> Non
         "wind_speed",
         "wind_direction",
         "precipitation_probability",
+        "column_water_vapour",
     )
     assert OPEN_METEO.bundles == (_CLOUD_BUNDLE,)
     assert not OPEN_METEO.needs_key
@@ -77,7 +78,8 @@ def test_the_air_quality_provider_declares_aerosol_then_pm2_5_and_no_bundle() ->
     assert not OPEN_METEO_AIR_QUALITY.needs_key
 
 
-_NO_PRECIPITATION = tuple(v for v in OPEN_METEO.variables if v != "precipitation_probability")
+_NO_WATER_VAPOUR = tuple(v for v in OPEN_METEO.variables if v != "column_water_vapour")
+_NO_PRECIPITATION = tuple(v for v in _NO_WATER_VAPOUR if v != "precipitation_probability")
 
 
 @pytest.mark.parametrize(
@@ -86,7 +88,7 @@ _NO_PRECIPITATION = tuple(v for v in OPEN_METEO.variables if v != "precipitation
         (OPEN_METEO_HRRR, "open_meteo_hrrr", "Open-Meteo HRRR", OPEN_METEO.variables),
         (OPEN_METEO_HRDPS, "open_meteo_hrdps", "Open-Meteo HRDPS", _NO_PRECIPITATION),
         (OPEN_METEO_RDPS, "open_meteo_rdps", "Open-Meteo RDPS", _NO_PRECIPITATION),
-        (OPEN_METEO_ICON, "open_meteo_icon", "Open-Meteo ICON", OPEN_METEO.variables),
+        (OPEN_METEO_ICON, "open_meteo_icon", "Open-Meteo ICON", _NO_WATER_VAPOUR),
         (OPEN_METEO_GFS, "open_meteo_gfs", "Open-Meteo GFS", OPEN_METEO.variables),
     ],
 )
@@ -103,6 +105,20 @@ def test_each_open_meteo_model_declares_what_its_model_returns(
 def test_hrdps_declares_no_precipitation_probability() -> None:
     assert "precipitation_probability" not in OPEN_METEO_HRDPS.variables
     assert "precipitation_probability" in OPEN_METEO_HRRR.variables
+
+
+def test_hrdps_declares_no_column_water_vapour() -> None:
+    assert "column_water_vapour" not in OPEN_METEO_HRDPS.variables
+
+
+def test_icon_declares_precipitation_but_no_column_water_vapour() -> None:
+    assert "precipitation_probability" in OPEN_METEO_ICON.variables
+    assert "column_water_vapour" not in OPEN_METEO_ICON.variables
+
+
+@pytest.mark.parametrize("spec", [OPEN_METEO_HRRR, OPEN_METEO_GFS])
+def test_hrrr_and_gfs_declare_column_water_vapour_last(spec: ProviderSpec) -> None:
+    assert spec.variables[-1] == "column_water_vapour"
 
 
 def test_catalog_maps_each_key_to_its_spec_in_order() -> None:

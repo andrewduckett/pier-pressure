@@ -50,14 +50,19 @@ OPEN_METEO = ProviderSpec(
         "wind_speed",
         "wind_direction",
         "precipitation_probability",
+        "column_water_vapour",
     ),
     bundles=(frozenset({"cloud_cover", "cloud_low", "cloud_mid", "cloud_high"}),),
 )
 
-# Each named Open-Meteo model is its own provider (ADR-0028). HRDPS and RDPS
-# never send a precipitation probability, so they don't declare one.
+# Each named Open-Meteo model is its own provider (ADR-0028). ICON, HRDPS and
+# RDPS never send column water vapour, and HRDPS and RDPS never send a
+# precipitation probability, so they don't declare them.
+_OPEN_METEO_NO_WATER_VAPOUR = tuple(
+    variable for variable in OPEN_METEO.variables if variable != "column_water_vapour"
+)
 _OPEN_METEO_NO_PRECIPITATION = tuple(
-    variable for variable in OPEN_METEO.variables if variable != "precipitation_probability"
+    variable for variable in _OPEN_METEO_NO_WATER_VAPOUR if variable != "precipitation_probability"
 )
 OPEN_METEO_HRRR = replace(OPEN_METEO, key="open_meteo_hrrr", name="Open-Meteo HRRR")
 OPEN_METEO_HRDPS = replace(
@@ -72,7 +77,12 @@ OPEN_METEO_RDPS = replace(
     name="Open-Meteo RDPS",
     variables=_OPEN_METEO_NO_PRECIPITATION,
 )
-OPEN_METEO_ICON = replace(OPEN_METEO, key="open_meteo_icon", name="Open-Meteo ICON")
+OPEN_METEO_ICON = replace(
+    OPEN_METEO,
+    key="open_meteo_icon",
+    name="Open-Meteo ICON",
+    variables=_OPEN_METEO_NO_WATER_VAPOUR,
+)
 OPEN_METEO_GFS = replace(OPEN_METEO, key="open_meteo_gfs", name="Open-Meteo GFS")
 
 # The air-quality forecast is a different Open-Meteo endpoint. Nothing reads its

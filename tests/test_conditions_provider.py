@@ -181,8 +181,9 @@ def test_open_meteo_request_is_pinned_and_names_no_model() -> None:
     assert params["hourly"] == (
         "cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_gusts_10m,"
         "temperature_2m,dew_point_2m,relative_humidity_2m,wind_speed_10m,"
-        "wind_direction_10m,precipitation_probability"
+        "wind_direction_10m,precipitation_probability,total_column_integrated_water_vapour"
     )
+    assert len(params["hourly"].split(",")) == 12
     assert params["forecast_days"] == "2"
     assert params["wind_speed_unit"] == "kmh"
     assert params["timezone"] == "UTC"
@@ -281,6 +282,7 @@ def test_a_model_provider_asks_for_its_model_and_its_declared_variables_only() -
     assert params["wind_speed_unit"] == "kmh"
     hourly = params["hourly"].split(",")
     assert "precipitation_probability" not in hourly
+    assert "total_column_integrated_water_vapour" not in hourly
     assert hourly == [COLUMNS[variable] for variable in OPEN_METEO_HRDPS.variables]
 
 
@@ -1036,6 +1038,21 @@ def test_the_model_listed_first_fills_cloud_and_the_next_fills_precipitation() -
     for variable in ("cloud_cover", "cloud_low", "cloud_mid", "cloud_high"):
         assert series[variable].provider == "open_meteo_hrdps"
     assert series["precipitation_probability"].provider == "open_meteo"
+
+
+def test_water_vapour_comes_from_the_next_provider_that_declares_it() -> None:
+    # HRDPS is answered with a payload that holds water vapour, so only its
+    # declaration keeps it from filling the variable.
+    stack = _open_meteo_stack(
+        ["open_meteo_hrdps", "open_meteo_gfs"],
+        {
+            "gem_hrdps_continental": httpx.Response(200, json=_load("open_meteo.json")),
+            "gfs_global": httpx.Response(200, json=_load("open_meteo.json")),
+        },
+    )
+    series = stack.get(make_pier()).conditions.series
+    assert series["cloud_cover"].provider == "open_meteo_hrdps"
+    assert series["column_water_vapour"].provider == "open_meteo_gfs"
 
 
 def test_hrrr_outside_its_area_fails_and_is_passed_over() -> None:
