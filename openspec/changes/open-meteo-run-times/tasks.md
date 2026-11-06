@@ -8,7 +8,7 @@
 
 ## 2. Documentation and the full gate [depends-on: 1]
 
-- [ ] 2.1 [easy] The README's model note says each model provider reports its model's latest run start as its issue time, read from Open-Meteo's metadata, and that the issue time is null when that read fails. It names the ICON global and GFS 0.11° choice. The air-quality note no longer says "as with the other Open-Meteo providers". "Watching provider health" says only plain `open_meteo` and air quality stamp the fetch time, so a model's `issued_at` can be hours older than its last success. A test in `tests/test_docs.py` pins these three statements. The `build_provider` docstring says `now` stamps the issue time only for plain `open_meteo` and air quality. (verify: `uv run pytest tests/test_docs.py`)
+- [x] 2.1 [easy] The README's model note says each model provider reports its model's latest run start as its issue time, read from Open-Meteo's metadata, and that the issue time is null when that read fails. It names the ICON global and GFS 0.11° choice. The air-quality note no longer says "as with the other Open-Meteo providers". "Watching provider health" says only plain `open_meteo` and air quality stamp the fetch time, so a model's `issued_at` can be hours older than its last success. A test in `tests/test_docs.py` pins these three statements. The `build_provider` docstring says `now` stamps the issue time only for plain `open_meteo` and air quality. (verify: `uv run pytest tests/test_docs.py`) (✓ `uv run pytest tests/test_docs.py` passed, 73 tests)
 - [ ] 2.2 [easy] The full gate is green. (verify: `mise run check`)
 
 ## Deviations Ledger

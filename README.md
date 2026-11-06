@@ -238,10 +238,14 @@ Before you choose, know these limits:
   model does not reach are left empty, not filled from the next provider,
   because the first provider that returns a variable fills all of it.
   Tonight's dark hours are always within reach.
-- **The issue time is the fetch time.** Open-Meteo does not report when a model
-  ran, so PierPressure records the time of the fetch. A model that runs every 6
-  hours, such as RDPS, ICON or GFS, can be 6 to 12 hours old and still count as
-  fresh.
+- **The issue time is the model's latest run.** The forecast does not say when
+  the model ran, so each model provider also reads Open-Meteo's metadata for its
+  model and records when the latest run started. A run 6 to 12 hours old
+  therefore counts as 6 to 12 hours old. `open_meteo_icon` blends several ICON
+  models and reports ICON global's run, the oldest in the blend.
+  `open_meteo_gfs` reports the run of GFS 0.11°, the model behind its cloud
+  cover. If the metadata cannot be read, the forecast is still used, but its
+  issue time is `null`, so it counts as stale and confidence drops.
 - **Every model calls the same service.** Each provider fetches on its own, one
   after another. If Open-Meteo is slow, each one waits up to 10 seconds, so a
   short list recomputes faster.
@@ -319,8 +323,8 @@ Before you rely on it, know these limits:
 - **It does not supply cloud cover.** Listed on its own, it does not meet the
   rule that the list needs a keyless provider of cloud cover, and PierPressure
   will not start. List it beside a cloud provider, such as `open_meteo`.
-- **The issue time is the fetch time.** As with the other Open-Meteo providers,
-  the response does not say when the forecast was made.
+- **The issue time is the fetch time.** The response does not say when the
+  forecast was made.
 
 If you set your own `providers` list and want this provider, add it to the list.
 
@@ -591,10 +595,12 @@ is, the longer the provider has been failing.
 The error never contains the request URL or your pier's coordinates. The full
 error goes to the PierPressure log.
 
-Open-Meteo does not report when it issued its data, so PierPressure stamps it at
-fetch time. This is true for each Open-Meteo model too. Its `issued_at` and its last success therefore come from the same
-fetch and match closely. 7Timer! reports its own model run time, so its
-`issued_at` can be hours older than its last success.
+Only `open_meteo` and `open_meteo_air_quality` stamp the fetch time as their
+issue time, because Open-Meteo does not report when it issued that data. Their
+`issued_at` and their last success come from the same fetch and match closely.
+7Timer! and each Open-Meteo model report their own model run time, so their
+`issued_at` can be hours older than their last success. An Open-Meteo model
+whose run time could not be read shows `null`.
 
 **Getting told when a provider fails.** This automation notifies you when
 Open-Meteo has not succeeded for 6 hours. It also counts the time a sensor has

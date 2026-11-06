@@ -276,3 +276,36 @@ def test_the_computed_seeing_section_explains_its_models_and_limits(fact: str) -
 def test_the_health_section_shows_the_computed_errors_and_inputs(fact: str) -> None:
     health = _section(_README.read_text(encoding="utf-8"), "### Watching provider health")
     assert fact in health
+
+
+# --------------------------------------------------------------------------- #
+# open-meteo-run-times 2.1: the README says the model providers carry their run
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    "fact",
+    [
+        "**The issue time is the model's latest run.**",
+        "metadata",
+        "`null`",
+        "ICON global",
+        "GFS 0.11°",
+    ],
+)
+def test_the_model_section_says_the_issue_time_is_the_latest_run(fact: str) -> None:
+    section = _section(_README.read_text(encoding="utf-8"), "### Choosing Open-Meteo models")
+    assert fact in section
+    assert "The issue time is the fetch time" not in section
+
+
+def test_the_air_quality_section_no_longer_likens_itself_to_the_models() -> None:
+    section = _section(_README.read_text(encoding="utf-8"), "### Adding the air-quality forecast")
+    assert "As with the other Open-Meteo providers" not in section
+
+
+def test_the_health_section_says_only_best_match_and_air_quality_stamp_the_fetch_time() -> None:
+    health = _section(_README.read_text(encoding="utf-8"), "### Watching provider health")
+    assert "Only `open_meteo` and `open_meteo_air_quality` stamp the fetch time" in health
+    assert "This is true for each Open-Meteo model too" not in health
+    assert "each Open-Meteo model" in health

@@ -447,8 +447,9 @@ def build_provider(
 
     ``keys`` are catalog keys, already checked by the configuration. ``fetchers``
     replaces the real fetcher for a key; tests pass stubs to run the production
-    stack without the network. ``now`` stamps each fetch outcome, and
-    Open-Meteo's issue time, so the two always come from the same clock.
+    stack without the network. ``now`` stamps each fetch outcome, and the issue
+    time of plain ``open_meteo`` and air quality, so the two always come from the
+    same clock. A model provider's issue time is its model's run start instead.
     """
     from .nws import NwsProvider
     from .open_meteo import MODELS, OpenMeteoProvider
