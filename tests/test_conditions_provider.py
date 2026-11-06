@@ -1399,6 +1399,7 @@ def _stack(
                 ),
                 spec=OPEN_METEO_GFS,
             ),
+            "open_meteo_hrdps": _StubProvider(weather, spec=OPEN_METEO_HRDPS),
             "open_meteo_air_quality": _StubProvider(_AEROSOL, spec=OPEN_METEO_AIR_QUALITY),
             "seven_timer": _StubProvider(_SEVEN_TIMER, spec=SEVEN_TIMER, fail=seven_timer_fails),
         },
@@ -1458,3 +1459,92 @@ def test_computed_fill_builds_a_computed_source_for_its_key() -> None:
     [source] = build_provider(["computed"]).fetchers
     assert isinstance(source, ComputedSource)
     assert source.spec is CATALOG["computed"]
+
+
+# --------------------------------------------------------------------------- #
+# computed-transparency 3.2: the computed source reports an outcome like a provider
+# --------------------------------------------------------------------------- #
+
+
+def _computed_outcome(keys: list[str], *, weather: SourceForecast = _WEATHER) -> FetchOutcome:
+    outcomes = _stack(keys, weather=weather).get(make_pier()).outcomes
+    [outcome] = [o for o in outcomes if o.key == "computed"]
+    return outcome
+
+
+def test_computed_outcome_is_successful_with_the_series_issue_time() -> None:
+    assert _computed_outcome(_WITH_COMPUTED) == FetchOutcome(
+        key="computed",
+        name="Computed",
+        variables=("transparency",),
+        fetched_at=_FETCHED,
+        ok=True,
+        issued_at=_hour(17),
+    )
+
+
+def test_computed_outcome_sits_in_its_slot_and_records_when_it_ran() -> None:
+    ticks = iter(range(10))
+    stack = build_provider(
+        ["open_meteo", "computed", "seven_timer"],
+        now=lambda: _FETCHED + timedelta(minutes=next(ticks)),
+        fetchers={
+            "open_meteo": _StubProvider(_WEATHER),
+            "seven_timer": _StubProvider(_SEVEN_TIMER, spec=SEVEN_TIMER),
+        },
+    )
+    outcomes = stack.get(make_pier()).outcomes
+    assert [o.key for o in outcomes] == ["open_meteo", "computed", "seven_timer"]
+    # Both providers are fetched before the computed source runs.
+    assert outcomes[1].fetched_at > max(outcomes[0].fetched_at, outcomes[2].fetched_at)
+
+
+def test_computed_outcome_names_a_missing_aerosol_input() -> None:
+    outcome = _computed_outcome(["open_meteo", "seven_timer", "computed"])
+    assert (outcome.ok, outcome.error, outcome.issued_at) == (
+        False,
+        "missing input: aerosol_optical_depth",
+        None,
+    )
+
+
+def test_computed_outcome_names_both_missing_inputs_in_order() -> None:
+    outcome = _computed_outcome(["open_meteo_hrdps", "computed"])
+    assert (outcome.ok, outcome.error) == (
+        False,
+        "missing input: column_water_vapour, aerosol_optical_depth",
+    )
+
+
+def test_computed_outcome_reports_inputs_that_never_share_a_valued_hour() -> None:
+    late = SourceForecast(
+        issued_at=_hour(18), readings={_hour(23): SourceReading(column_water_vapour=10.0)}
+    )
+    keys = ["open_meteo", "open_meteo_air_quality", "computed"]
+    outcome = _computed_outcome(keys, weather=late)
+    assert (outcome.ok, outcome.error) == (False, "no hour has every input")
+
+
+class _RaisingSource(ComputedSource):
+    def derive(self, conditions: Conditions) -> tuple[SourceForecast, str | None]:
+        raise ZeroDivisionError("at 43.65, -79.38")
+
+
+def test_computed_outcome_of_a_raising_derivation_is_failed_and_fills_nothing(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    keys = ["open_meteo", "open_meteo_air_quality", "computed", "seven_timer"]
+    stubs = {
+        "open_meteo": _StubProvider(_WEATHER),
+        "open_meteo_air_quality": _StubProvider(_AEROSOL, spec=OPEN_METEO_AIR_QUALITY),
+        "seven_timer": _StubProvider(_SEVEN_TIMER, spec=SEVEN_TIMER),
+    }
+    raising = build_provider(
+        keys, now=lambda: _FETCHED, fetchers={**stubs, "computed": _RaisingSource()}
+    )
+    unlisted = build_provider([k for k in keys if k != "computed"], fetchers=stubs)
+    result = raising.get(make_pier())
+    [outcome] = [o for o in result.outcomes if o.key == "computed"]
+    assert (outcome.ok, outcome.error, outcome.fetched_at) == (False, "ZeroDivisionError", _FETCHED)
+    assert result.conditions == unlisted.get(make_pier()).conditions
+    assert "43.65" in caplog.text

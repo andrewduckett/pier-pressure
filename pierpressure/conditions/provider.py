@@ -30,11 +30,18 @@ from datetime import UTC, datetime
 from functools import partial
 from typing import Protocol, get_args
 
-from pierpressure.core.computed import computed_transparency
+from pierpressure.core.computed import MissingInputs, computed_transparency
 from pierpressure.core.conditions import Conditions, Series, Variable
 from pierpressure.core.config import PierConfig
 from pierpressure.core.providers import CATALOG, COMPUTED, ProviderSpec
-from pierpressure.health import NO_READINGS, FetchOutcome, ProviderInfo, describe_error
+from pierpressure.health import (
+    NO_READINGS,
+    NO_SHARED_HOUR,
+    FetchOutcome,
+    ProviderInfo,
+    describe_error,
+    missing_input,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -117,8 +124,10 @@ class ComputedSource:
             conditions.series.get("column_water_vapour"),
             conditions.series.get("aerosol_optical_depth"),
         )
+        if isinstance(result, MissingInputs):
+            return SourceForecast(), missing_input(result.variables)
         if not isinstance(result, Series):
-            return SourceForecast(), NO_READINGS
+            return SourceForecast(), NO_SHARED_HOUR
         return SourceForecast(
             issued_at=result.issued_at,
             readings={
@@ -258,10 +267,18 @@ class CompositeProvider:
     def _safe_derive(
         self, source: ComputedSource, inputs: Conditions
     ) -> tuple[SourceForecast, FetchOutcome]:
-        """Derive one computed source's forecast from the filled inputs."""
+        """Derive one computed source's forecast; a raising derivation is a failed outcome (DD5).
+
+        A bug in the math then leaves the snapshot as if the source returned
+        nothing, and never fails it.
+        """
         spec = source.spec
         fetched_at = self.now()
-        forecast, error = source.derive(inputs)
+        try:
+            forecast, error = source.derive(inputs)
+        except Exception as exc:  # noqa: BLE001 - a failed derivation degrades, never fails
+            logger.warning("computed source %s failed: %s", spec.key, exc)
+            forecast, error = SourceForecast(), describe_error(exc)
         return forecast, FetchOutcome(
             key=spec.key,
             name=spec.name,
