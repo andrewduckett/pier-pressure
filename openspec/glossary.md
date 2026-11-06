@@ -55,8 +55,9 @@ Scope: the conditions snapshot.
 ## Bundle
 
 Variables a provider declares travel together, so they are filled from the same
-provider or not at all. Today the only bundle is cloud total with its low, mid
-and high layers.
+provider or not at all. Two bundles exist: cloud total with its low, mid and
+high layers, and the seeing column (layer temperatures and heights, the 300 hPa
+wind speed and boundary-layer height).
 
 Scope: conditions.
 
