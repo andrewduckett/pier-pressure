@@ -25,7 +25,7 @@ from pierpressure.conditions.provider import (
 from pierpressure.conditions.seven_timer import SevenTimerProvider, parse_seven_timer
 from pierpressure.core.computed import computed_transparency
 from pierpressure.core.conditions import Conditions, Series
-from pierpressure.core.config import PierConfig
+from pierpressure.core.config import DEFAULT_PROVIDERS, PierConfig
 from pierpressure.core.providers import (
     CATALOG,
     NWS,
@@ -1367,7 +1367,7 @@ def test_nws_user_agent_names_the_project_version_and_repository() -> None:
 # computed-transparency 3.1: the computed source fills at its place in the order
 # --------------------------------------------------------------------------- #
 
-_WITH_COMPUTED = ["open_meteo", "seven_timer", "open_meteo_air_quality", "computed"]
+_WITH_COMPUTED = list(DEFAULT_PROVIDERS)
 _DARK = (_hour(21), _hour(22))
 _WEATHER = SourceForecast(
     issued_at=_hour(18),

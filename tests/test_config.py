@@ -523,7 +523,7 @@ def test_valid_secrets_are_masked_when_printed(tmp_path: Path) -> None:
 # --------------------------------------------------------------------------- #
 
 
-_DEFAULT_ORDER = ["open_meteo", "seven_timer", "open_meteo_air_quality"]
+_DEFAULT_ORDER = ["open_meteo", "seven_timer", "open_meteo_air_quality", "computed"]
 
 
 def test_the_default_order_is_one_constant() -> None:
@@ -654,6 +654,7 @@ def test_a_pier_outside_nws_coverage_does_not_stop_startup(tmp_path: Path) -> No
 
 def test_the_default_order_leaves_out_nws(tmp_path: Path) -> None:
     config = load_config(_with_conditions(tmp_path, ""))
+    assert config.conditions.providers == _DEFAULT_ORDER
     assert "nws" not in config.conditions.providers
 
 
