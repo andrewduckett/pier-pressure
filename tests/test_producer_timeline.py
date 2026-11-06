@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from pierpressure.core.clock import FixedClock
-from pierpressure.core.conditions import Conditions, Series, Variable
+from pierpressure.core.conditions import SEEING_COLUMN, Conditions, Series, Variable
 from pierpressure.core.config import PierConfig
 from pierpressure.core.model import TimelineEntry
 from pierpressure.core.producer import produce_verdict
@@ -392,3 +392,28 @@ def test_a_water_vapour_series_leaves_the_document_byte_identical() -> None:
     without = _doc({})
     assert _doc(_water_vapour(times, 18.37)) == without
     assert _doc(_water_vapour(_hours(times[0], 60), 55.0)) == without
+
+
+def _seeing_column(times: list[datetime], value: float) -> dict[Variable, Series]:
+    return {
+        variable: Series(
+            provider="open_meteo", issued_at=_ISSUED, values=dict.fromkeys(times, value)
+        )
+        for variable in SEEING_COLUMN
+    }
+
+
+def test_seeing_column_series_leave_the_document_byte_identical() -> None:
+    pier = make_pier()
+    clock = FixedClock(_MID_SESSION)
+    times = _hours(datetime(2026, 9, 8, 12, tzinfo=UTC), 36)
+    shown = {**_base(times, cloud_cover=10.0, wind_gust=5.0), **_secondary(times, seeing=0.8)}
+
+    def _doc(extra: dict[Variable, Series]) -> str:
+        with no_network():
+            conditions = Conditions(series={**shown, **extra})
+            return produce_verdict(pier, clock, conditions).model_dump_json()
+
+    without = _doc({})
+    assert _doc(_seeing_column(times, -3.27)) == without
+    assert _doc(_seeing_column(_hours(times[0], 60), 142.6)) == without

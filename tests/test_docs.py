@@ -214,10 +214,52 @@ def test_the_clean_up_list_names_the_computed_health_sensor() -> None:
         "uncalibrated",
         "docs/decisions/0032-computed-transparency-estimates-extinction.md",
         "`column_water_vapour`",
-        "`missing input: aerosol_optical_depth`",
-        "`no hour has every input`",
+        "`transparency: missing input: aerosol_optical_depth`",
+        "`transparency: no hour has every input`",
     ],
 )
 def test_the_computed_section_explains_where_to_list_it(fact: str) -> None:
     section = _section(_README.read_text(encoding="utf-8"), "### Computing transparency")
     assert fact in section
+
+
+# --------------------------------------------------------------------------- #
+# computed-seeing 4.1: the README documents computed seeing
+# --------------------------------------------------------------------------- #
+
+
+def test_the_configuration_table_says_computed_gives_transparency_and_seeing() -> None:
+    assert "computes transparency and seeing" in _conditions_row()
+
+
+@pytest.mark.parametrize(
+    "fact",
+    [
+        "`open_meteo`, `open_meteo_hrrr` or `open_meteo_gfs`",
+        "HRDPS, RDPS and ICON",
+        "boundary-layer height",
+        "part of the column",
+        "`seeing: no hour has every input`",
+        "list `open_meteo_hrrr` or `open_meteo_gfs` first",
+        "uncalibrated",
+        "docs/decisions/0033-computed-seeing-sums-capped-penalties.md",
+        "`seeing: missing input: seeing column`",
+    ],
+)
+def test_the_computed_seeing_section_explains_its_models_and_limits(fact: str) -> None:
+    section = _section(_README.read_text(encoding="utf-8"), "### Computing seeing")
+    assert fact in section
+
+
+@pytest.mark.parametrize(
+    "fact",
+    [
+        "`transparency: missing input: aerosol_optical_depth`",
+        "`seeing: missing input: seeing column`",
+        "| `inputs` |",
+        '`{"transparency": ["open_meteo", "open_meteo_air_quality"], "seeing": ["open_meteo"]}`',
+    ],
+)
+def test_the_health_section_shows_the_computed_errors_and_inputs(fact: str) -> None:
+    health = _section(_README.read_text(encoding="utf-8"), "### Watching provider health")
+    assert fact in health

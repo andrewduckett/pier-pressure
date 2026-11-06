@@ -17,7 +17,7 @@ from typing import Any
 
 import httpx
 
-from pierpressure.core.conditions import Variable
+from pierpressure.core.conditions import SEEING_COLUMN, Variable
 from pierpressure.core.config import PierConfig
 from pierpressure.core.providers import OPEN_METEO, ProviderSpec
 
@@ -43,6 +43,7 @@ COLUMNS: Mapping[Variable, str] = {
     "aerosol_optical_depth": "aerosol_optical_depth",
     "pm2_5": "pm2_5",
     "column_water_vapour": "total_column_integrated_water_vapour",
+    **{variable: variable.replace("hpa", "hPa") for variable in SEEING_COLUMN},
 }
 """The Open-Meteo hourly column behind each variable. The request and the parser
 both read it, so there is one list of column names (design D3)."""

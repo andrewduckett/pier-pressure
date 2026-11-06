@@ -9,7 +9,14 @@ from typing import get_args
 import pytest
 
 from pierpressure.core import conditions as conditions_module
-from pierpressure.core.conditions import TIMELINE_VARIABLES, Conditions, Series, Variable
+from pierpressure.core.conditions import (
+    SEEING_COLUMN,
+    SEEING_LEVELS,
+    TIMELINE_VARIABLES,
+    Conditions,
+    Series,
+    Variable,
+)
 from pierpressure.core.model import TimelineEntry
 
 
@@ -141,12 +148,36 @@ def test_hours_ignores_hours_only_an_alternate_covers() -> None:
 
 
 def test_the_air_quality_variables_come_before_water_vapour() -> None:
-    assert get_args(Variable)[-3:-1] == ("aerosol_optical_depth", "pm2_5")
+    before_seeing = get_args(Variable)[: -len(SEEING_COLUMN)]
+    assert before_seeing[-3:-1] == ("aerosol_optical_depth", "pm2_5")
 
 
-def test_column_water_vapour_comes_last_and_the_timeline_does_not_show_it() -> None:
-    assert get_args(Variable)[-1] == "column_water_vapour"
+def test_column_water_vapour_comes_before_the_seeing_column_and_the_timeline_does_not_show_it() -> (
+    None
+):
+    assert get_args(Variable)[-len(SEEING_COLUMN) - 1] == "column_water_vapour"
     assert "column_water_vapour" not in TIMELINE_VARIABLES
+
+
+def test_the_seeing_column_names_every_level() -> None:
+    assert SEEING_LEVELS == (
+        1000, 975, 950, 925, 900, 850, 800, 700, 600, 500, 400, 300, 250, 200, 150, 100, 50
+    )  # fmt: skip
+    per_level = tuple(
+        name
+        for level in SEEING_LEVELS
+        for name in (f"temperature_{level}hpa", f"geopotential_height_{level}hpa")
+    )
+    assert (*per_level, "wind_speed_300hpa", "boundary_layer_height") == SEEING_COLUMN
+    assert len(SEEING_COLUMN) == 36
+    assert not any("_70hpa" in name or "_30hpa" in name for name in SEEING_COLUMN)
+
+
+def test_the_seeing_column_is_the_variable_literals_tail_and_the_timeline_does_not_show_it() -> (
+    None
+):
+    assert get_args(Variable)[-len(SEEING_COLUMN) :] == SEEING_COLUMN
+    assert not set(SEEING_COLUMN) & set(TIMELINE_VARIABLES)
 
 
 def test_timeline_variables_are_the_timeline_entry_fields_that_hold_a_variable() -> None:

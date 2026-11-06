@@ -25,16 +25,25 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from functools import partial
 from typing import Protocol, get_args
 
-from pierpressure.core.computed import MissingInputs, computed_transparency
-from pierpressure.core.conditions import Conditions, Series, Variable
+from pierpressure.core.computed import (
+    Derivation,
+    MissingColumn,
+    MissingInputs,
+    NoSharedHour,
+    SeeingDerivation,
+    computed_seeing,
+    computed_transparency,
+)
+from pierpressure.core.conditions import SEEING_COLUMN, Conditions, Series, Variable
 from pierpressure.core.config import PierConfig
 from pierpressure.core.providers import CATALOG, COMPUTED, ProviderSpec
 from pierpressure.health import (
+    MISSING_SEEING_COLUMN,
     NO_READINGS,
     NO_SHARED_HOUR,
     FetchOutcome,
@@ -57,7 +66,8 @@ class SourceReading:
     The weather fields carry the provider's values unrounded: temperature and dew
     point in °C, humidity and precipitation probability in %, wind speed in km/h
     and wind direction in degrees. Aerosol optical depth (no unit) and PM2.5
-    (µg/m³) are carried as reported, and so is column water vapour (kg/m²).
+    (µg/m³) are carried as reported, and so are column water vapour (kg/m²)
+    and the seeing column, in the units its variables document.
     """
 
     cloud_cover: float | None = None
@@ -76,6 +86,42 @@ class SourceReading:
     aerosol_optical_depth: float | None = None
     pm2_5: float | None = None
     column_water_vapour: float | None = None
+    temperature_1000hpa: float | None = None
+    geopotential_height_1000hpa: float | None = None
+    temperature_975hpa: float | None = None
+    geopotential_height_975hpa: float | None = None
+    temperature_950hpa: float | None = None
+    geopotential_height_950hpa: float | None = None
+    temperature_925hpa: float | None = None
+    geopotential_height_925hpa: float | None = None
+    temperature_900hpa: float | None = None
+    geopotential_height_900hpa: float | None = None
+    temperature_850hpa: float | None = None
+    geopotential_height_850hpa: float | None = None
+    temperature_800hpa: float | None = None
+    geopotential_height_800hpa: float | None = None
+    temperature_700hpa: float | None = None
+    geopotential_height_700hpa: float | None = None
+    temperature_600hpa: float | None = None
+    geopotential_height_600hpa: float | None = None
+    temperature_500hpa: float | None = None
+    geopotential_height_500hpa: float | None = None
+    temperature_400hpa: float | None = None
+    geopotential_height_400hpa: float | None = None
+    temperature_300hpa: float | None = None
+    geopotential_height_300hpa: float | None = None
+    temperature_250hpa: float | None = None
+    geopotential_height_250hpa: float | None = None
+    temperature_200hpa: float | None = None
+    geopotential_height_200hpa: float | None = None
+    temperature_150hpa: float | None = None
+    geopotential_height_150hpa: float | None = None
+    temperature_100hpa: float | None = None
+    geopotential_height_100hpa: float | None = None
+    temperature_50hpa: float | None = None
+    geopotential_height_50hpa: float | None = None
+    wind_speed_300hpa: float | None = None
+    boundary_layer_height: float | None = None
 
 
 @dataclass(frozen=True)
@@ -108,32 +154,105 @@ class Provider(Protocol):
     def fetch(self, pier: PierConfig) -> SourceForecast: ...
 
 
+Fill = tuple[ProviderSpec, SourceForecast]
+"""A provider's declaration and its forecast, as the fill reads them."""
+
+
+@dataclass(frozen=True)
+class Derived:
+    """What the computed source derived on one fetch (computed-seeing DD3, DD5).
+
+    ``fills`` holds one single-variable fill per computed variable that carries a
+    value, in declared order, each with its own issue time. ``inputs`` maps each
+    of those variables to the providers whose filled series it read. ``error``
+    joins a ``<variable>: <reason>`` part for each variable that failed.
+    """
+
+    fills: tuple[Fill, ...] = ()
+    inputs: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
+    error: str | None = None
+
+    @property
+    def issued_at(self) -> datetime | None:
+        """The earliest issue time among the computed series."""
+        known = [f.issued_at for _, f in self.fills if f.issued_at is not None]
+        return min(known) if known else None
+
+
+_TRANSPARENCY_INPUTS: tuple[Variable, ...] = ("column_water_vapour", "aerosol_optical_depth")
+
+
+def _reason(result: MissingInputs | MissingColumn | NoSharedHour) -> str:
+    """Why a derivation computed nothing, worded for health."""
+    match result:
+        case MissingInputs(variables=variables):
+            return missing_input(variables)
+        case MissingColumn():
+            return MISSING_SEEING_COLUMN
+        case NoSharedHour():
+            return NO_SHARED_HOUR
+
+
+def _fill(spec: ProviderSpec, variable: Variable, series: Series) -> Fill:
+    """``series`` as a fill that declares ``variable`` alone."""
+    return replace(spec, variables=(variable,)), SourceForecast(
+        issued_at=series.issued_at,
+        readings={
+            time: SourceReading(**{variable: value}) for time, value in series.values.items()
+        },
+    )
+
+
 @dataclass(frozen=True)
 class ComputedSource:
-    """The computed source: derives transparency from the filled input series (DD2).
+    """The computed source: derives transparency and seeing from the filled series (DD3).
 
     It is not a :class:`Provider`, because its inputs exist only once the
     providers' fill has run. It reads only the filled series, never alternates.
+    Each derivation is a field, so a test can replace one.
     """
 
     spec: ProviderSpec = COMPUTED
+    transparency: Callable[[Series | None, Series | None], Derivation] = computed_transparency
+    seeing: Callable[[Mapping[Variable, Series | None], float], SeeingDerivation] = computed_seeing
 
-    def derive(self, conditions: Conditions) -> tuple[SourceForecast, str | None]:
-        """The computed forecast, and why nothing was computed (``None`` when something was)."""
-        result = computed_transparency(
-            conditions.series.get("column_water_vapour"),
-            conditions.series.get("aerosol_optical_depth"),
+    def derive(self, conditions: Conditions, pier: PierConfig) -> Derived:
+        """Each computed variable's fill, its inputs, and why any variable failed (DD5).
+
+        Each derivation runs on its own, so one that raises fails only its
+        variable.
+        """
+        filled = conditions.series
+
+        def transparency() -> Derivation:
+            return self.transparency(*(filled.get(variable) for variable in _TRANSPARENCY_INPUTS))
+
+        def seeing() -> SeeingDerivation:
+            column = {variable: filled.get(variable) for variable in SEEING_COLUMN}
+            return self.seeing(column, pier.elevation_m)
+
+        derivations: tuple[
+            tuple[Variable, tuple[Variable, ...], Callable[[], Derivation | SeeingDerivation]], ...
+        ] = (
+            ("transparency", _TRANSPARENCY_INPUTS, transparency),
+            ("seeing", SEEING_COLUMN, seeing),
         )
-        if isinstance(result, MissingInputs):
-            return SourceForecast(), missing_input(result.variables)
-        if not isinstance(result, Series):
-            return SourceForecast(), NO_SHARED_HOUR
-        return SourceForecast(
-            issued_at=result.issued_at,
-            readings={
-                time: SourceReading(transparency=value) for time, value in result.values.items()
-            },
-        ), None
+        fills: list[Fill] = []
+        inputs: dict[str, tuple[str, ...]] = {}
+        errors: list[str] = []
+        for variable, needs, derivation in derivations:
+            try:
+                result = derivation()
+            except Exception as exc:  # noqa: BLE001 - a failed derivation degrades, never fails
+                logger.warning("computed %s failed: %s", variable, exc)
+                errors.append(f"{variable}: {describe_error(exc)}")
+                continue
+            if not isinstance(result, Series):
+                errors.append(f"{variable}: {_reason(result)}")
+                continue
+            fills.append(_fill(self.spec, variable, result))
+            inputs[variable] = tuple(dict.fromkeys(filled[need].provider for need in needs))
+        return Derived(fills=tuple(fills), inputs=inputs, error="; ".join(errors) or None)
 
 
 def _returned(forecast: SourceForecast, variables: Iterable[Variable]) -> bool:
@@ -243,31 +362,27 @@ class CompositeProvider:
         A computed source declares nothing another source reads, so the first fill
         gives the same input series as the second, wherever it is listed.
         """
-        fetched: dict[int, tuple[SourceForecast, FetchOutcome]] = {
-            index: self._safe_fetch(fetcher, pier)
-            for index, fetcher in enumerate(self.fetchers)
-            if not isinstance(fetcher, ComputedSource)
-        }
-        inputs = assemble_snapshot(
-            [(self.fetchers[index].spec, forecast) for index, (forecast, _) in fetched.items()]
-        )
+        fetched: dict[int, tuple[tuple[Fill, ...], FetchOutcome]] = {}
+        for index, fetcher in enumerate(self.fetchers):
+            if not isinstance(fetcher, ComputedSource):
+                forecast, outcome = self._safe_fetch(fetcher, pier)
+                fetched[index] = ((fetcher.spec, forecast),), outcome
+        inputs = assemble_snapshot([fill for fills, _ in fetched.values() for fill in fills])
         for index, fetcher in enumerate(self.fetchers):
             if isinstance(fetcher, ComputedSource):
-                fetched[index] = self._safe_derive(fetcher, inputs)
+                fetched[index] = self._safe_derive(fetcher, inputs, pier)
         slots = [fetched[index] for index in range(len(self.fetchers))]
-        fills = [
-            (fetcher.spec, forecast)
-            for fetcher, (forecast, _) in zip(self.fetchers, slots, strict=True)
-        ]
+        # The computed fills sit side by side in their slot. Each declares one
+        # variable the others don't, so none touches another's fill (DD3).
         return FetchResult(
-            conditions=assemble_snapshot(fills),
+            conditions=assemble_snapshot([fill for fills, _ in slots for fill in fills]),
             outcomes=tuple(outcome for _, outcome in slots),
         )
 
     def _safe_derive(
-        self, source: ComputedSource, inputs: Conditions
-    ) -> tuple[SourceForecast, FetchOutcome]:
-        """Derive one computed source's forecast; a raising derivation is a failed outcome (DD5).
+        self, source: ComputedSource, inputs: Conditions, pier: PierConfig
+    ) -> tuple[tuple[Fill, ...], FetchOutcome]:
+        """Derive one computed source's fills; a raising derivation is a failed outcome (DD5).
 
         A bug in the math then leaves the snapshot as if the source returned
         nothing, and never fails it.
@@ -275,18 +390,21 @@ class CompositeProvider:
         spec = source.spec
         fetched_at = self.now()
         try:
-            forecast, error = source.derive(inputs)
+            derived = source.derive(inputs, pier)
         except Exception as exc:  # noqa: BLE001 - a failed derivation degrades, never fails
             logger.warning("computed source %s failed: %s", spec.key, exc)
-            forecast, error = SourceForecast(), describe_error(exc)
-        return forecast, FetchOutcome(
+            kind = describe_error(exc)
+            derived = Derived(error="; ".join(f"{variable}: {kind}" for variable in spec.variables))
+        ok = bool(derived.fills)
+        return derived.fills, FetchOutcome(
             key=spec.key,
             name=spec.name,
             variables=spec.variables,
             fetched_at=fetched_at,
-            ok=error is None,
-            error=error,
-            issued_at=forecast.issued_at if error is None else None,
+            ok=ok,
+            error=derived.error,
+            issued_at=derived.issued_at,
+            inputs=derived.inputs if ok else None,
         )
 
     def _safe_fetch(

@@ -10,6 +10,7 @@ import pytest
 
 from pierpressure.core.providers import OPEN_METEO
 from pierpressure.health import (
+    MISSING_SEEING_COLUMN,
     NO_SHARED_HOUR,
     FetchOutcome,
     ProviderHealth,
@@ -37,6 +38,7 @@ def _outcome(
     ok: bool,
     error: str | None = None,
     issued_at: datetime | None = None,
+    inputs: dict[str, tuple[str, ...]] | None = None,
 ) -> FetchOutcome:
     return FetchOutcome(
         key="open_meteo",
@@ -46,6 +48,7 @@ def _outcome(
         ok=ok,
         error=error,
         issued_at=issued_at,
+        inputs=inputs,
     )
 
 
@@ -110,6 +113,28 @@ def test_a_failure_with_no_earlier_success_leaves_the_success_unknown() -> None:
     assert health.issued_at is None
 
 
+def test_an_empty_record_has_no_inputs() -> None:
+    assert _empty().inputs is None
+
+
+def test_a_partial_computed_success_is_ok_and_keeps_its_error() -> None:
+    error = "transparency: missing input: aerosol_optical_depth"
+    health = fold(_empty(), _outcome(_FIRST, ok=True, error=error, inputs={"seeing": ("a",)}))
+    assert (health.status, health.last_success, health.last_error) == ("ok", _FIRST, error)
+
+
+def test_a_success_holds_its_inputs() -> None:
+    first = fold(_empty(), _outcome(_FIRST, ok=True, inputs={"seeing": ("a",)}))
+    health = fold(first, _outcome(_SECOND, ok=True, inputs={"transparency": ("b", "c")}))
+    assert health.inputs == {"transparency": ("b", "c")}
+
+
+def test_a_failure_keeps_the_earlier_inputs() -> None:
+    succeeded = fold(_empty(), _outcome(_FIRST, ok=True, inputs={"seeing": ("a",)}))
+    health = fold(succeeded, _outcome(_SECOND, ok=False, error="seeing: ValueError"))
+    assert (health.status, health.inputs) == ("failed", {"seeing": ("a",)})
+
+
 # --------------------------------------------------------------------------- #
 # 1.3 describe_error builds text from an allowlist only
 # --------------------------------------------------------------------------- #
@@ -170,3 +195,11 @@ def test_computed_outcome_missing_input_names_each_key_in_order() -> None:
 
 def test_computed_outcome_no_shared_hour_is_a_fixed_string() -> None:
     assert NO_SHARED_HOUR == "no hour has every input"
+
+
+def test_computed_outcome_missing_seeing_column_is_a_fixed_string() -> None:
+    assert MISSING_SEEING_COLUMN == "missing input: seeing column"
+
+
+def test_computed_outcome_inputs_default_to_none() -> None:
+    assert _outcome(_FIRST, ok=True).inputs is None

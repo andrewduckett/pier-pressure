@@ -18,7 +18,7 @@ from paho.mqtt.packettypes import PacketTypes
 from paho.mqtt.reasoncodes import ReasonCode
 
 from pierpressure.conditions import FetchResult
-from pierpressure.core.conditions import Conditions, Series, Variable
+from pierpressure.core.conditions import SEEING_COLUMN, SEEING_LEVELS, Conditions, Series, Variable
 from pierpressure.core.config import MqttConfig, PierConfig
 from pierpressure.core.model import (
     Band,
@@ -474,6 +474,25 @@ def provider_series(
         )
         for variable in spec.variables
     }
+
+
+_STANDARD_HEIGHTS = (
+    110, 320, 540, 760, 990, 1460, 1950, 3010, 4210, 5570, 7190, 9160, 10360, 11790, 13610,
+    16180, 20580,
+)  # fmt: skip
+
+
+def standard_seeing_column(
+    jet: float = 80.0, boundary_layer: float = 150.0
+) -> dict[Variable, float]:
+    """One hour's seeing column with no bad layer: standard cooling up to 200 hPa, then none."""
+    tropopause = _STANDARD_HEIGHTS[SEEING_LEVELS.index(200)]
+    per_level = (
+        value
+        for height in _STANDARD_HEIGHTS
+        for value in (15.0 - 0.0065 * min(height, tropopause), float(height))
+    )
+    return dict(zip(SEEING_COLUMN, (*per_level, jet, boundary_layer), strict=True))
 
 
 def make_mqtt_config(**overrides: Any) -> MqttConfig:

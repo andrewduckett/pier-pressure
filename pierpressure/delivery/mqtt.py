@@ -59,6 +59,7 @@ import paho.mqtt.client as mqtt
 
 from pierpressure.core.config import MqttConfig
 from pierpressure.core.model import Target, TimelineEntry, VerdictDocument, iso_z
+from pierpressure.core.providers import COMPUTED
 from pierpressure.core.ranking import TOP_N
 from pierpressure.health import ProviderHealth
 
@@ -616,8 +617,12 @@ def health_state(health: ProviderHealth) -> str:
 
 
 def health_attributes(health: ProviderHealth) -> dict[str, Any]:
-    """The JSON attributes: the provider, its declared variables, and the latest fetch."""
-    return {
+    """The JSON attributes: the provider, its declared variables, and the latest fetch.
+
+    The computed source's attributes also carry ``inputs``, null until its first
+    success, so no other record changes shape (computed-seeing DD7).
+    """
+    attributes: dict[str, Any] = {
         "provider": health.name,
         "variables": list(health.variables),
         "tracking_since": _iso(health.tracking_since),
@@ -626,6 +631,13 @@ def health_attributes(health: ProviderHealth) -> dict[str, Any]:
         "last_error": health.last_error,
         "issued_at": _iso(health.issued_at),
     }
+    if health.key == COMPUTED.key:
+        attributes["inputs"] = (
+            None
+            if health.inputs is None
+            else {variable: list(keys) for variable, keys in health.inputs.items()}
+        )
+    return attributes
 
 
 # --------------------------------------------------------------------------- #

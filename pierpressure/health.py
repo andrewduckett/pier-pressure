@@ -11,6 +11,7 @@ and the verdict never reads it.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import datetime
 from http import HTTPStatus
@@ -26,6 +27,10 @@ NO_READINGS = "no readings returned"
 # The error for a computed source whose inputs all have a series, but share no
 # hour with a value in each (computed-transparency DD6).
 NO_SHARED_HOUR = "no hour has every input"
+
+# The error for computed seeing when any seeing-column variable has no filled
+# series (computed-seeing DD5). The column is one bundle, so it is named whole.
+MISSING_SEEING_COLUMN = "missing input: seeing column"
 
 
 def missing_input(variables: tuple[str, ...]) -> str:
@@ -49,8 +54,10 @@ class ProviderInfo:
 class FetchOutcome:
     """The result of one fetch from one provider.
 
-    ``error`` is set only when the fetch failed; ``issued_at`` only when it
-    succeeded and the provider gave an issue time for its data.
+    ``error`` is set when the fetch failed, and on a successful computed outcome
+    when one of its variables failed. ``issued_at`` is set only when it succeeded
+    and the provider gave an issue time for its data. ``inputs`` is set only on a
+    successful computed outcome: the provider keys each computed variable read.
     """
 
     key: str
@@ -60,6 +67,7 @@ class FetchOutcome:
     ok: bool
     error: str | None = None
     issued_at: datetime | None = None
+    inputs: Mapping[str, tuple[str, ...]] | None = None
 
 
 @dataclass(frozen=True)
@@ -67,8 +75,9 @@ class ProviderHealth:
     """A provider's health for one pier since the process started.
 
     ``tracking_since`` is when the service loop started, and stays fixed until a
-    restart. ``last_success`` and ``issued_at`` survive a failed fetch; the latest
-    ``status``, ``last_fetch``, and ``last_error`` describe only the latest fetch.
+    restart. ``last_success``, ``issued_at`` and ``inputs`` survive a failed fetch;
+    the latest ``status``, ``last_fetch``, and ``last_error`` describe only the
+    latest fetch. Only the computed source's records carry ``inputs``.
     """
 
     key: str
@@ -80,6 +89,7 @@ class ProviderHealth:
     last_error: str | None = None
     last_success: datetime | None = None
     issued_at: datetime | None = None
+    inputs: Mapping[str, tuple[str, ...]] | None = None
 
     @classmethod
     def empty(
@@ -92,18 +102,20 @@ class ProviderHealth:
 def fold(previous: ProviderHealth, outcome: FetchOutcome) -> ProviderHealth:
     """Fold one fetch's outcome into a provider's health.
 
-    A success sets the last success and its issue time and clears the error. A
-    failure keeps the earlier success and its issue time and records the error.
-    Either way, the outcome becomes the latest status and fetch time.
+    A success sets the last success, its issue time and its inputs, and takes the
+    outcome's error, which only a partly failed computation carries. A failure
+    keeps the earlier success, its issue time and its inputs, and records the
+    error. Either way, the outcome becomes the latest status and fetch time.
     """
     if outcome.ok:
         return replace(
             previous,
             status="ok",
             last_fetch=outcome.fetched_at,
-            last_error=None,
+            last_error=outcome.error,
             last_success=outcome.fetched_at,
             issued_at=outcome.issued_at,
+            inputs=outcome.inputs,
         )
     return replace(
         previous,

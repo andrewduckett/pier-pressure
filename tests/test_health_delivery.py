@@ -14,7 +14,12 @@ from datetime import UTC, datetime, timedelta, timezone
 import jsonschema
 import pytest
 
-from pierpressure.core.providers import OPEN_METEO, OPEN_METEO_AIR_QUALITY, SEVEN_TIMER
+from pierpressure.core.providers import (
+    COMPUTED,
+    OPEN_METEO,
+    OPEN_METEO_AIR_QUALITY,
+    SEVEN_TIMER,
+)
 from pierpressure.delivery.ha_schema import SENSOR_SCHEMA
 from pierpressure.delivery.mqtt import (
     PAYLOAD_OFFLINE,
@@ -28,7 +33,7 @@ from pierpressure.delivery.mqtt import (
     health_state,
     health_state_topic,
 )
-from pierpressure.health import ProviderHealth
+from pierpressure.health import FetchOutcome, ProviderHealth, fold
 
 from .conftest import FakeMqttClient, make_document, make_mqtt_config
 
@@ -161,6 +166,78 @@ def test_attributes_after_a_failure_keep_the_earlier_issue_time() -> None:
         "last_error": "ConnectError",
         "issued_at": "2026-10-05T11:00:00+00:00",
     }
+
+
+def _computed(
+    *,
+    fetched_at: datetime = _SUCCESS,
+    ok: bool = True,
+    error: str | None = None,
+    inputs: dict[str, tuple[str, ...]] | None = None,
+) -> FetchOutcome:
+    return FetchOutcome(
+        key=COMPUTED.key,
+        name=COMPUTED.name,
+        variables=COMPUTED.variables,
+        fetched_at=fetched_at,
+        ok=ok,
+        error=error,
+        inputs=inputs,
+    )
+
+
+def _computed_empty() -> ProviderHealth:
+    return ProviderHealth.empty(
+        key=COMPUTED.key, name=COMPUTED.name, variables=COMPUTED.variables, tracking_since=_START
+    )
+
+
+def test_the_computed_attributes_name_its_inputs() -> None:
+    inputs = {
+        "transparency": ("open_meteo", "open_meteo_air_quality"),
+        "seeing": ("open_meteo_hrrr",),
+    }
+    attributes = health_attributes(fold(_computed_empty(), _computed(inputs=inputs)))
+    assert attributes["inputs"] == {
+        "transparency": ["open_meteo", "open_meteo_air_quality"],
+        "seeing": ["open_meteo_hrrr"],
+    }
+    assert (attributes["status"], attributes["last_error"]) == ("ok", None)
+    assert json.loads(json.dumps(attributes))["inputs"] == attributes["inputs"]
+
+
+def test_a_partial_computed_success_is_ok_and_keeps_its_error() -> None:
+    error = "transparency: missing input: aerosol_optical_depth"
+    health = fold(_computed_empty(), _computed(error=error, inputs={"seeing": ("open_meteo",)}))
+    attributes = health_attributes(health)
+    assert health_state(health) == "2026-10-05T12:00:30+00:00"
+    assert (attributes["status"], attributes["last_error"], attributes["inputs"]) == (
+        "ok",
+        error,
+        {"seeing": ["open_meteo"]},
+    )
+
+
+def test_a_failed_computation_keeps_the_earlier_inputs() -> None:
+    succeeded = fold(_computed_empty(), _computed(inputs={"seeing": ("open_meteo",)}))
+    failed = fold(succeeded, _computed(fetched_at=_FAILED, ok=False, error="seeing: ValueError"))
+    attributes = health_attributes(failed)
+    assert (attributes["status"], attributes["inputs"]) == ("failed", {"seeing": ["open_meteo"]})
+
+
+def test_the_computed_startup_reset_has_null_inputs() -> None:
+    attributes = health_attributes(_computed_empty())
+    assert attributes["inputs"] is None
+    assert list(attributes)[-1] == "inputs"
+
+
+@pytest.mark.parametrize("key", ["open_meteo", "seven_timer", "open_meteo_air_quality"])
+def test_other_providers_attributes_carry_no_inputs(key: str) -> None:
+    health = fold(
+        _empty(key=key),
+        FetchOutcome(key=key, name=key, variables=(), fetched_at=_SUCCESS, ok=True),
+    )
+    assert "inputs" not in health_attributes(health)
 
 
 # --------------------------------------------------------------------------- #

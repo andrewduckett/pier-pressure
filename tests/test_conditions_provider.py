@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import httpx
 import pytest
@@ -17,14 +19,15 @@ from pierpressure.conditions.open_meteo import COLUMNS, OpenMeteoProvider, parse
 from pierpressure.conditions.provider import (
     CompositeProvider,
     ComputedSource,
+    Derived,
     SourceForecast,
     SourceReading,
     assemble_snapshot,
     build_provider,
 )
 from pierpressure.conditions.seven_timer import SevenTimerProvider, parse_seven_timer
-from pierpressure.core.computed import computed_transparency
-from pierpressure.core.conditions import Conditions, Series
+from pierpressure.core.computed import computed_seeing, computed_transparency
+from pierpressure.core.conditions import SEEING_COLUMN, Conditions, Series
 from pierpressure.core.config import DEFAULT_PROVIDERS, PierConfig
 from pierpressure.core.providers import (
     CATALOG,
@@ -33,12 +36,13 @@ from pierpressure.core.providers import (
     OPEN_METEO_AIR_QUALITY,
     OPEN_METEO_GFS,
     OPEN_METEO_HRDPS,
+    OPEN_METEO_HRRR,
     SEVEN_TIMER,
     ProviderSpec,
 )
 from pierpressure.health import FetchOutcome, ProviderInfo, describe_error
 
-from .conftest import make_pier
+from .conftest import make_pier, standard_seeing_column
 
 _FIXTURES = Path(__file__).parent / "fixtures"
 _ISSUED = datetime(2026, 9, 8, 18, 0, tzinfo=UTC)
@@ -137,6 +141,46 @@ def test_open_meteo_leaves_a_null_water_vapour_hour_absent_and_the_rest_intact()
     assert reading.wind_gust == 22.0
 
 
+def _with_seeing_column(payload: dict, value: float = 1.0) -> dict:
+    """``payload`` with every seeing-column array set to ``value`` in every hour."""
+    hours = len(payload["hourly"]["time"])
+    for variable in SEEING_COLUMN:
+        payload["hourly"][COLUMNS[variable]] = [value] * hours
+    return payload
+
+
+def test_the_seeing_column_has_a_reading_field_and_an_open_meteo_column_each() -> None:
+    fields = tuple(field.name for field in dataclasses.fields(SourceReading))
+    assert fields[-len(SEEING_COLUMN) :] == SEEING_COLUMN
+    assert COLUMNS["temperature_850hpa"] == "temperature_850hPa"
+    assert COLUMNS["geopotential_height_50hpa"] == "geopotential_height_50hPa"
+    assert COLUMNS["wind_speed_300hpa"] == "wind_speed_300hPa"
+    assert COLUMNS["boundary_layer_height"] == "boundary_layer_height"
+
+
+def test_open_meteo_parses_the_seeing_column_unrounded() -> None:
+    payload = _with_seeing_column(_load("open_meteo.json"))
+    payload["hourly"]["temperature_850hPa"][1] = -3.27
+    payload["hourly"]["wind_speed_300hPa"][1] = 142.6
+    reading = parse_open_meteo(payload, issued_at=_ISSUED).readings[_hour(21)]
+    assert reading.temperature_850hpa == -3.27
+    assert reading.wind_speed_300hpa == 142.6
+    assert reading.boundary_layer_height == 1.0
+
+
+def test_open_meteo_leaves_a_blank_seeing_column_hour_absent_and_the_rest_intact() -> None:
+    payload = _with_seeing_column(_load("open_meteo.json"))
+    payload["hourly"]["geopotential_height_500hPa"][1] = None
+    reading = parse_open_meteo(payload, issued_at=_ISSUED).readings[_hour(21)]
+    assert reading.geopotential_height_500hpa is None
+    assert reading.temperature_500hpa == 1.0
+    assert reading.cloud_cover is not None
+    assert (
+        parse_open_meteo(payload, issued_at=_ISSUED).readings[_hour(22)].geopotential_height_500hpa
+        == 1.0
+    )
+
+
 def test_open_meteo_fetch_requests_the_weather_variables_in_kmh() -> None:
     requests: list[httpx.Request] = []
 
@@ -184,9 +228,11 @@ def test_open_meteo_request_is_pinned_and_names_no_model() -> None:
     assert params["hourly"] == (
         "cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_gusts_10m,"
         "temperature_2m,dew_point_2m,relative_humidity_2m,wind_speed_10m,"
-        "wind_direction_10m,precipitation_probability,total_column_integrated_water_vapour"
+        "wind_direction_10m,precipitation_probability,total_column_integrated_water_vapour,"
+        + ",".join(COLUMNS[variable] for variable in SEEING_COLUMN)
     )
-    assert len(params["hourly"].split(",")) == 12
+    assert len(params["hourly"].split(",")) == 48
+    assert "temperature_850hPa" in params["hourly"].split(",")
     assert params["forecast_days"] == "2"
     assert params["wind_speed_unit"] == "kmh"
     assert params["timezone"] == "UTC"
@@ -286,6 +332,7 @@ def test_a_model_provider_asks_for_its_model_and_its_declared_variables_only() -
     hourly = params["hourly"].split(",")
     assert "precipitation_probability" not in hourly
     assert "total_column_integrated_water_vapour" not in hourly
+    assert not {COLUMNS[variable] for variable in SEEING_COLUMN} & set(hourly)
     assert hourly == [COLUMNS[variable] for variable in OPEN_METEO_HRDPS.variables]
 
 
@@ -1058,6 +1105,56 @@ def test_water_vapour_comes_from_the_next_provider_that_declares_it() -> None:
     assert series["column_water_vapour"].provider == "open_meteo_gfs"
 
 
+def _model_answer(payload: dict, **seeing: float | None) -> httpx.Response:
+    """``payload`` answered with the named seeing-column variables set in every hour."""
+    hours = len(payload["hourly"]["time"])
+    for variable, value in seeing.items():
+        payload["hourly"][COLUMNS[variable]] = [value] * hours
+    return httpx.Response(200, json=payload)
+
+
+def test_seeing_bundle_from_a_model_with_part_of_the_column_fills_every_member() -> None:
+    stack = _open_meteo_stack(
+        ["open_meteo_hrrr", "open_meteo_gfs"],
+        {
+            "ncep_hrrr_conus": _model_answer(_load("open_meteo.json"), boundary_layer_height=300.0),
+            "gfs_global": httpx.Response(200, json=_with_seeing_column(_load("open_meteo.json"))),
+        },
+    )
+    series = stack.get(make_pier()).conditions.series
+    assert {series[variable].provider for variable in SEEING_COLUMN} == {"open_meteo_hrrr"}
+    assert all(value is None for value in series["temperature_850hpa"].values.values())
+
+
+def test_seeing_bundle_passes_over_a_model_that_returned_none_of_it() -> None:
+    stack = _open_meteo_stack(
+        ["open_meteo_hrrr", "open_meteo_gfs"],
+        {
+            "ncep_hrrr_conus": httpx.Response(200, json=_load("open_meteo.json")),
+            "gfs_global": httpx.Response(200, json=_with_seeing_column(_load("open_meteo.json"))),
+        },
+    )
+    series = stack.get(make_pier()).conditions.series
+    assert series["cloud_cover"].provider == "open_meteo_hrrr"
+    assert {series[variable].provider for variable in SEEING_COLUMN} == {"open_meteo_gfs"}
+
+
+def test_seeing_bundle_comes_from_the_next_model_that_declares_it() -> None:
+    # HRDPS is answered with the whole column, so only its declaration keeps it
+    # from filling the bundle.
+    answer = _with_seeing_column(_load("open_meteo.json"))
+    stack = _open_meteo_stack(
+        ["open_meteo_hrdps", "open_meteo_gfs"],
+        {
+            "gem_hrdps_continental": httpx.Response(200, json=answer),
+            "gfs_global": httpx.Response(200, json=answer),
+        },
+    )
+    series = stack.get(make_pier()).conditions.series
+    assert series["cloud_cover"].provider == "open_meteo_hrdps"
+    assert {series[variable].provider for variable in SEEING_COLUMN} == {"open_meteo_gfs"}
+
+
 def test_hrrr_outside_its_area_fails_and_is_passed_over() -> None:
     stack = _open_meteo_stack(
         ["open_meteo_hrrr", "open_meteo"],
@@ -1381,27 +1478,41 @@ _SEVEN_TIMER = SourceForecast(
     issued_at=_hour(16),
     readings={t: SourceReading(seeing=0.8, transparency=0.7) for t in _DARK},
 )
+_WITH_COLUMN = SourceForecast(
+    issued_at=_hour(18),
+    readings={
+        t: SourceReading(cloud_cover=20.0, column_water_vapour=10.0, **standard_seeing_column())
+        for t in _DARK
+    },
+)
 
 
 def _stack(
-    keys: list[str], *, weather: SourceForecast = _WEATHER, seven_timer_fails: bool = False
+    keys: list[str],
+    *,
+    weather: SourceForecast = _WEATHER,
+    gfs: SourceForecast | None = None,
+    hrrr: SourceForecast | None = None,
+    aerosol: SourceForecast = _AEROSOL,
+    seven_timer_fails: bool = False,
+    computed: ComputedSource | None = None,
 ) -> CompositeProvider:
     """The production stack, with stub forecasts for every network provider."""
+    gfs = gfs or SourceForecast(
+        issued_at=_hour(18),
+        readings={t: SourceReading(column_water_vapour=30.0) for t in _DARK},
+    )
     return build_provider(
         keys,
         now=lambda: _FETCHED,
         fetchers={
             "open_meteo": _StubProvider(weather),
-            "open_meteo_gfs": _StubProvider(
-                SourceForecast(
-                    issued_at=_hour(18),
-                    readings={t: SourceReading(column_water_vapour=30.0) for t in _DARK},
-                ),
-                spec=OPEN_METEO_GFS,
-            ),
+            "open_meteo_gfs": _StubProvider(gfs, spec=OPEN_METEO_GFS),
+            "open_meteo_hrrr": _StubProvider(hrrr, spec=OPEN_METEO_HRRR),
             "open_meteo_hrdps": _StubProvider(weather, spec=OPEN_METEO_HRDPS),
-            "open_meteo_air_quality": _StubProvider(_AEROSOL, spec=OPEN_METEO_AIR_QUALITY),
+            "open_meteo_air_quality": _StubProvider(aerosol, spec=OPEN_METEO_AIR_QUALITY),
             "seven_timer": _StubProvider(_SEVEN_TIMER, spec=SEVEN_TIMER, fail=seven_timer_fails),
+            **({"computed": computed} if computed is not None else {}),
         },
     )
 
@@ -1462,24 +1573,110 @@ def test_computed_fill_builds_a_computed_source_for_its_key() -> None:
 
 
 # --------------------------------------------------------------------------- #
+# computed-seeing 3.2: computed seeing fills at the computed source's place
+# --------------------------------------------------------------------------- #
+
+
+def test_computed_seeing_fill_ahead_of_seven_timer_fills_seeing() -> None:
+    conditions = (
+        _stack(["open_meteo", "computed", "seven_timer"], weather=_WITH_COLUMN)
+        .get(make_pier())
+        .conditions
+    )
+    assert conditions.series["seeing"].provider == "computed"
+    assert conditions.series["seeing"].values == dict.fromkeys(_DARK, 1.0)
+    assert [s.provider for s in conditions.alternates["seeing"]] == ["seven_timer"]
+
+
+def test_computed_seeing_fill_in_the_default_order_leaves_seeing_to_seven_timer() -> None:
+    conditions = _stack(_WITH_COMPUTED, weather=_WITH_COLUMN).get(make_pier()).conditions
+    assert conditions.series["seeing"].provider == "seven_timer"
+    assert [s.provider for s in conditions.alternates["seeing"]] == ["computed"]
+
+
+def test_computed_seeing_fill_in_the_default_order_fills_seeing_when_seven_timer_fails() -> None:
+    stack = _stack(_WITH_COMPUTED, weather=_WITH_COLUMN, seven_timer_fails=True)
+    conditions = stack.get(make_pier()).conditions
+    assert conditions.series["seeing"].provider == "computed"
+    assert conditions.series["transparency"].provider == "computed"
+
+
+def test_computed_seeing_fill_never_reads_an_alternate_column() -> None:
+    # The filled column has a 60 km/h jet, which costs nothing; the GFS
+    # alternate's 200 km/h jet would.
+    weather = SourceForecast(
+        issued_at=_hour(18),
+        readings={
+            t: SourceReading(cloud_cover=20.0, **standard_seeing_column(jet=60.0)) for t in _DARK
+        },
+    )
+    gfs = SourceForecast(
+        issued_at=_hour(18),
+        readings={t: SourceReading(**standard_seeing_column(jet=200.0)) for t in _DARK},
+    )
+    conditions = (
+        _stack(["open_meteo", "open_meteo_gfs", "computed"], weather=weather, gfs=gfs)
+        .get(make_pier())
+        .conditions
+    )
+    assert [s.provider for s in conditions.alternates["wind_speed_300hpa"]] == ["open_meteo_gfs"]
+    expected = computed_seeing(
+        {variable: conditions.series[variable] for variable in SEEING_COLUMN}, 30.0
+    )
+    assert isinstance(expected, Series)
+    assert conditions.series["seeing"].values == expected.values == dict.fromkeys(_DARK, 1.0)
+
+
+def test_computed_seeing_fill_keeps_each_computed_series_issue_time() -> None:
+    weather = replace(_WITH_COLUMN, issued_at=_hour(21).replace(minute=5))
+    aerosol = replace(_AEROSOL, issued_at=_hour(20).replace(minute=40))
+    keys = ["open_meteo", "open_meteo_air_quality", "computed"]
+    conditions = _stack(keys, weather=weather, aerosol=aerosol).get(make_pier()).conditions
+    assert conditions.series["transparency"].issued_at == _hour(20).replace(minute=40)
+    assert conditions.series["seeing"].issued_at == _hour(21).replace(minute=5)
+
+
+def test_computed_seeing_fill_reads_the_piers_elevation() -> None:
+    # A bad layer from 1000 to 975 hPa, whose lower level is at 110 m.
+    column = standard_seeing_column() | {"temperature_975hpa": 15.0 - 0.0065 * 110}
+    weather = SourceForecast(
+        issued_at=_hour(18), readings={t: SourceReading(cloud_cover=20.0, **column) for t in _DARK}
+    )
+    stack = _stack(["open_meteo", "computed"], weather=weather)
+    low = stack.get(make_pier().model_copy(update={"elevation_m": 30.0})).conditions.series[
+        "seeing"
+    ]
+    high = stack.get(make_pier().model_copy(update={"elevation_m": 200.0})).conditions.series[
+        "seeing"
+    ]
+    assert low.values[_hour(21)] == pytest.approx(0.88)
+    assert high.values[_hour(21)] == 1.0
+
+
+# --------------------------------------------------------------------------- #
 # computed-transparency 3.2: the computed source reports an outcome like a provider
 # --------------------------------------------------------------------------- #
 
 
-def _computed_outcome(keys: list[str], *, weather: SourceForecast = _WEATHER) -> FetchOutcome:
-    outcomes = _stack(keys, weather=weather).get(make_pier()).outcomes
+def _computed_outcome(keys: list[str], **stack: Any) -> FetchOutcome:
+    outcomes = _stack(keys, **stack).get(make_pier()).outcomes
     [outcome] = [o for o in outcomes if o.key == "computed"]
     return outcome
+
+
+_TRANSPARENCY_INPUTS = {"transparency": ("open_meteo", "open_meteo_air_quality")}
 
 
 def test_computed_outcome_is_successful_with_the_series_issue_time() -> None:
     assert _computed_outcome(_WITH_COMPUTED) == FetchOutcome(
         key="computed",
         name="Computed",
-        variables=("transparency",),
+        variables=("transparency", "seeing"),
         fetched_at=_FETCHED,
         ok=True,
+        error="seeing: missing input: seeing column",
         issued_at=_hour(17),
+        inputs=_TRANSPARENCY_INPUTS,
     )
 
 
@@ -1500,33 +1697,125 @@ def test_computed_outcome_sits_in_its_slot_and_records_when_it_ran() -> None:
 
 
 def test_computed_outcome_names_a_missing_aerosol_input() -> None:
-    outcome = _computed_outcome(["open_meteo", "seven_timer", "computed"])
-    assert (outcome.ok, outcome.error, outcome.issued_at) == (
-        False,
-        "missing input: aerosol_optical_depth",
-        None,
+    outcome = _computed_outcome(["open_meteo", "seven_timer", "computed"], weather=_WITH_COLUMN)
+    assert (outcome.ok, outcome.error, outcome.inputs) == (
+        True,
+        "transparency: missing input: aerosol_optical_depth",
+        {"seeing": ("open_meteo",)},
     )
 
 
 def test_computed_outcome_names_both_missing_inputs_in_order() -> None:
-    outcome = _computed_outcome(["open_meteo_hrdps", "computed"])
-    assert (outcome.ok, outcome.error) == (
+    outcome = _computed_outcome(["open_meteo_hrdps", "computed"], weather=_WITH_COLUMN)
+    assert (outcome.ok, outcome.error, outcome.issued_at, outcome.inputs) == (
         False,
-        "missing input: column_water_vapour, aerosol_optical_depth",
+        "transparency: missing input: column_water_vapour, aerosol_optical_depth; "
+        "seeing: missing input: seeing column",
+        None,
+        None,
     )
 
 
 def test_computed_outcome_reports_inputs_that_never_share_a_valued_hour() -> None:
     late = SourceForecast(
-        issued_at=_hour(18), readings={_hour(23): SourceReading(column_water_vapour=10.0)}
+        issued_at=_hour(18),
+        readings={_hour(23): SourceReading(column_water_vapour=10.0, **standard_seeing_column())},
     )
     keys = ["open_meteo", "open_meteo_air_quality", "computed"]
     outcome = _computed_outcome(keys, weather=late)
-    assert (outcome.ok, outcome.error) == (False, "no hour has every input")
+    assert (outcome.ok, outcome.error) == (True, "transparency: no hour has every input")
+
+
+def test_computed_outcome_reports_a_column_with_a_blank_in_every_hour() -> None:
+    gappy = SourceForecast(
+        issued_at=_hour(18),
+        readings={
+            t: SourceReading(
+                column_water_vapour=10.0,
+                **(standard_seeing_column() | {"boundary_layer_height": None}),
+            )
+            for t in _DARK
+        },
+    )
+    keys = ["open_meteo", "open_meteo_air_quality", "computed"]
+    outcome = _computed_outcome(keys, weather=gappy)
+    assert (outcome.ok, outcome.error, outcome.inputs) == (
+        True,
+        "seeing: no hour has every input",
+        _TRANSPARENCY_INPUTS,
+    )
+
+
+def test_computed_outcome_with_both_variables_carries_no_error() -> None:
+    keys = ["open_meteo", "open_meteo_air_quality", "computed"]
+    outcome = _computed_outcome(keys, weather=_WITH_COLUMN)
+    assert (outcome.ok, outcome.error) == (True, None)
+    assert outcome.inputs == {**_TRANSPARENCY_INPUTS, "seeing": ("open_meteo",)}
+
+
+def test_computed_outcome_issue_time_is_the_oldest_computed_one() -> None:
+    weather = replace(_WITH_COLUMN, issued_at=_hour(21).replace(minute=5))
+    aerosol = replace(_AEROSOL, issued_at=_hour(20).replace(minute=40))
+    keys = ["open_meteo", "open_meteo_air_quality", "computed"]
+    outcome = _computed_outcome(keys, weather=weather, aerosol=aerosol)
+    assert outcome.issued_at == _hour(20).replace(minute=40)
+
+
+def test_computed_outcome_names_the_providers_each_variable_read() -> None:
+    hrrr = SourceForecast(
+        issued_at=_hour(18),
+        readings={t: SourceReading(**standard_seeing_column()) for t in _DARK},
+    )
+    keys = ["open_meteo_hrrr", "open_meteo", "open_meteo_air_quality", "computed"]
+    outcome = _computed_outcome(keys, hrrr=hrrr)
+    assert outcome.inputs == {
+        "transparency": ("open_meteo", "open_meteo_air_quality"),
+        "seeing": ("open_meteo_hrrr",),
+    }
+
+
+def test_computed_outcome_names_a_provider_that_fed_both_transparency_inputs_once() -> None:
+    both = ProviderSpec(
+        key="stub",
+        name="Stub",
+        needs_key=False,
+        variables=("column_water_vapour", "aerosol_optical_depth"),
+    )
+    forecast = SourceForecast(
+        issued_at=_hour(18),
+        readings={
+            t: SourceReading(column_water_vapour=10.0, aerosol_optical_depth=0.15) for t in _DARK
+        },
+    )
+    stack = build_provider(
+        ["stub", "computed"],
+        now=lambda: _FETCHED,
+        fetchers={"stub": _StubProvider(forecast, spec=both)},
+    )
+    [_, outcome] = stack.get(make_pier()).outcomes
+    assert outcome.inputs == {"transparency": ("stub",)}
+
+
+def _raising(*_: object) -> Series:
+    raise ValueError("at 43.65, -79.38")
+
+
+def test_computed_outcome_of_a_raising_seeing_derivation_fails_seeing_alone() -> None:
+    keys = ["open_meteo", "open_meteo_air_quality", "computed"]
+    stack = _stack(keys, weather=_WITH_COLUMN, computed=ComputedSource(seeing=_raising))
+    result = stack.get(make_pier())
+    [outcome] = [o for o in result.outcomes if o.key == "computed"]
+    assert (outcome.ok, outcome.error, outcome.inputs) == (
+        True,
+        "seeing: ValueError",
+        _TRANSPARENCY_INPUTS,
+    )
+    assert result.conditions.series["transparency"].provider == "computed"
+    assert "seeing" not in result.conditions.series
 
 
 class _RaisingSource(ComputedSource):
-    def derive(self, conditions: Conditions) -> tuple[SourceForecast, str | None]:
+    def derive(self, conditions: Conditions, pier: PierConfig) -> Derived:
         raise ZeroDivisionError("at 43.65, -79.38")
 
 
@@ -1545,6 +1834,11 @@ def test_computed_outcome_of_a_raising_derivation_is_failed_and_fills_nothing(
     unlisted = build_provider([k for k in keys if k != "computed"], fetchers=stubs)
     result = raising.get(make_pier())
     [outcome] = [o for o in result.outcomes if o.key == "computed"]
-    assert (outcome.ok, outcome.error, outcome.fetched_at) == (False, "ZeroDivisionError", _FETCHED)
+    assert (outcome.ok, outcome.error, outcome.fetched_at, outcome.inputs) == (
+        False,
+        "transparency: ZeroDivisionError; seeing: ZeroDivisionError",
+        _FETCHED,
+        None,
+    )
     assert result.conditions == unlisted.get(make_pier()).conditions
     assert "43.65" in caplog.text
