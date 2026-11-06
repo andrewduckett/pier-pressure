@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 import pytest
 
 from pierpressure.core.computed import (
+    MissingColumn,
     MissingInputs,
     NoSharedHour,
     bad_layers,
@@ -406,3 +407,65 @@ def test_the_seeing_value_counts_only_bad_layers_above_the_piers_ground() -> Non
     assert isinstance(low, Series)
     assert isinstance(high, Series)
     assert (low.values[_AT], high.values[_AT]) == (pytest.approx(0.88), 1.0)
+
+
+# --------------------------------------------------------------------------- #
+# computed-seeing 2.3: the computed seeing series
+# --------------------------------------------------------------------------- #
+
+_GOOD_HOUR = _hour_values(0, 80.0, 150.0)
+
+
+def test_the_computed_seeing_series_is_keyed_computed_and_covers_the_columns_hours() -> None:
+    result = computed_seeing(_column(dict.fromkeys(_night(20, 27), _GOOD_HOUR)), 0.0)
+    assert isinstance(result, Series)
+    assert result.provider == "computed"
+    assert list(result.values) == _night(20, 27)
+
+
+@pytest.mark.parametrize("blank", ["temperature_300hpa", "boundary_layer_height"])
+def test_the_computed_seeing_series_is_blank_where_any_member_is(blank: Variable) -> None:
+    hours: dict[datetime, dict[Variable, float | None]] = {
+        _hour(5, 22): {**_GOOD_HOUR, blank: None},
+        _hour(5, 23): dict(_GOOD_HOUR),
+    }
+    result = computed_seeing(_column(hours), 0.0)
+    assert isinstance(result, Series)
+    assert result.values == {_hour(5, 22): None, _hour(5, 23): 1.0}
+
+
+def test_the_computed_seeing_series_carries_the_columns_issue_time() -> None:
+    issued = _hour(5, 21).replace(minute=5)
+    result = computed_seeing(_column({_AT: dict(_GOOD_HOUR)}, issued_at=issued), 0.0)
+    assert isinstance(result, Series)
+    assert result.issued_at == issued
+
+
+def test_the_computed_seeing_series_covers_only_hours_every_member_covers() -> None:
+    column = _column(dict.fromkeys(_night(20, 23), _GOOD_HOUR))
+    short = column["boundary_layer_height"]
+    assert short is not None
+    column["boundary_layer_height"] = Series(
+        provider=short.provider,
+        issued_at=short.issued_at,
+        values={time: value for time, value in short.values.items() if time != _hour(5, 20)},
+    )
+    result = computed_seeing(column, 0.0)
+    assert isinstance(result, Series)
+    assert list(result.values) == _night(21, 23)
+
+
+@pytest.mark.parametrize("missing", ["geopotential_height_500hpa", "wind_speed_300hpa"])
+def test_a_missing_seeing_column_member_is_the_reason(missing: Variable) -> None:
+    column = _column({_AT: dict(_GOOD_HOUR)})
+    assert computed_seeing({**column, missing: None}, 0.0) == MissingColumn()
+    del column[missing]
+    assert computed_seeing(column, 0.0) == MissingColumn()
+
+
+def test_a_seeing_column_with_a_blank_in_every_hour_is_the_reason() -> None:
+    hours: dict[datetime, dict[Variable, float | None]] = {
+        _hour(5, 22): {**_GOOD_HOUR, "temperature_850hpa": None},
+        _hour(5, 23): {**_GOOD_HOUR, "boundary_layer_height": None},
+    }
+    assert computed_seeing(_column(hours), 0.0) == NoSharedHour()
