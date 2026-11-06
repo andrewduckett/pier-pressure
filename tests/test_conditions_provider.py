@@ -204,19 +204,33 @@ def test_open_meteo_fetch_requests_the_weather_variables_in_kmh() -> None:
     assert request.url.params["wind_speed_unit"] == "kmh"
 
 
+def _is_metadata(request: httpx.Request) -> bool:
+    return request.url.path.endswith("/static/meta.json")
+
+
 def _requests_of(
     provider_for: Callable[[httpx.Client], OpenMeteoProvider], payload: dict
 ) -> list[httpx.Request]:
-    """Fetch once through a mock transport and return the requests it sent."""
+    """Fetch once through a mock transport and return the requests it sent.
+
+    A metadata request gets the recorded metadata file; any other gets ``payload``.
+    """
     requests: list[httpx.Request] = []
 
     def handle(request: httpx.Request) -> httpx.Response:
         requests.append(request)
+        if _is_metadata(request):
+            return httpx.Response(200, json=_load("open_meteo_meta.json"))
         return httpx.Response(200, json=payload)
 
     client = httpx.Client(transport=httpx.MockTransport(handle))
     provider_for(client).fetch(make_pier())
     return requests
+
+
+def _forecast_request(requests: list[httpx.Request]) -> httpx.Request:
+    (request,) = (request for request in requests if not _is_metadata(request))
+    return request
 
 
 def test_open_meteo_request_is_pinned_and_names_no_model() -> None:
@@ -246,7 +260,9 @@ def test_the_forecast_providers_ask_the_forecast_endpoint() -> None:
             continue
         [fetcher] = build_provider([key]).fetchers
         assert isinstance(fetcher, OpenMeteoProvider)
-        (request,) = _requests_of(lambda client, f=fetcher: replace(f, client=client), {})
+        request = _forecast_request(
+            _requests_of(lambda client, f=fetcher: replace(f, client=client), {})
+        )
         assert str(request.url.copy_with(query=None)) == "https://api.open-meteo.com/v1/forecast"
         assert request.url.params["wind_speed_unit"] == "kmh", key
 
@@ -335,14 +351,16 @@ def test_every_variable_an_open_meteo_spec_declares_has_a_column() -> None:
 
 
 def test_a_model_provider_asks_for_its_model_and_its_declared_variables_only() -> None:
-    (request,) = _requests_of(
-        lambda client: OpenMeteoProvider(
-            spec=OPEN_METEO_HRDPS,
-            model="gem_hrdps_continental",
-            client=client,
-            now=lambda: _ISSUED,
-        ),
-        _load("open_meteo.json"),
+    request = _forecast_request(
+        _requests_of(
+            lambda client: OpenMeteoProvider(
+                spec=OPEN_METEO_HRDPS,
+                model="gem_hrdps_continental",
+                client=client,
+                now=lambda: _ISSUED,
+            ),
+            _load("open_meteo.json"),
+        )
     )
     params = request.url.params
     assert params.get_list("models") == ["gem_hrdps_continental"]
@@ -988,8 +1006,8 @@ def test_build_provider_passes_its_clock_to_open_meteo() -> None:
 def test_each_model_provider_names_exactly_its_own_model(key: str, model: str) -> None:
     [fetcher] = build_provider([key]).fetchers
     assert isinstance(fetcher, OpenMeteoProvider)
-    (request,) = _requests_of(
-        lambda client: replace(fetcher, client=client), _load("open_meteo.json")
+    request = _forecast_request(
+        _requests_of(lambda client: replace(fetcher, client=client), _load("open_meteo.json"))
     )
     params = request.url.params
     assert params.get_list("models") == [model]
@@ -1084,9 +1102,14 @@ def test_hours_past_hrdps_reach_stay_absent() -> None:
 def _open_meteo_stack(
     keys: list[str], answers: dict[str | None, httpx.Response]
 ) -> CompositeProvider:
-    """The production stack, with Open-Meteo answering by the request's model."""
+    """The production stack, with Open-Meteo answering by the request's model.
+
+    A metadata request gets the recorded metadata file.
+    """
 
     def handle(request: httpx.Request) -> httpx.Response:
+        if _is_metadata(request):
+            return httpx.Response(200, json=_load("open_meteo_meta.json"))
         return answers[request.url.params.get("models")]
 
     client = httpx.Client(transport=httpx.MockTransport(handle))
