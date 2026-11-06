@@ -1017,6 +1017,38 @@ def test_each_model_provider_names_exactly_its_own_model(key: str, model: str) -
     assert params["hourly"].split(",") == [COLUMNS[v] for v in CATALOG[key].variables]
 
 
+@pytest.mark.parametrize(
+    ("key", "name"),
+    [
+        ("open_meteo_hrrr", "ncep_hrrr_conus"),
+        ("open_meteo_hrdps", "cmc_gem_hrdps"),
+        ("open_meteo_rdps", "cmc_gem_rdps_10km"),
+        ("open_meteo_icon", "dwd_icon"),
+        ("open_meteo_gfs", "ncep_gfs013"),
+    ],
+)
+def test_each_model_provider_reads_its_own_metadata_file_before_the_forecast(
+    key: str, name: str
+) -> None:
+    [fetcher] = build_provider([key]).fetchers
+    assert isinstance(fetcher, OpenMeteoProvider)
+    requests = _requests_of(
+        lambda client: replace(fetcher, client=client), _load("open_meteo.json")
+    )
+    metadata, forecast = requests
+    assert str(metadata.url) == f"https://api.open-meteo.com/data/{name}/static/meta.json"
+    assert forecast is _forecast_request(requests)
+
+
+@pytest.mark.parametrize("key", ["open_meteo", "open_meteo_air_quality"])
+def test_plain_open_meteo_and_air_quality_send_no_metadata_request(key: str) -> None:
+    [fetcher] = build_provider([key]).fetchers
+    assert isinstance(fetcher, OpenMeteoProvider)
+    requests = _requests_of(lambda client: replace(fetcher, client=client), {})
+    assert not any(_is_metadata(request) for request in requests)
+    assert len(requests) == 1
+
+
 def test_a_model_provider_stamps_its_fetch_time_as_the_issue_time() -> None:
     fetched_at = datetime(2026, 9, 8, 21, 5, tzinfo=UTC)
 
