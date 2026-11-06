@@ -1333,6 +1333,22 @@ def test_a_model_provider_with_its_run_time_unreadable_succeeds_with_no_issue_ti
     assert "ncep_gfs013" in caplog.text
 
 
+def test_a_model_provider_whose_forecast_fails_with_metadata_answering_fails() -> None:
+    # 2026-11-05 02:00 UTC
+    run_at_two = _metadata_with(last_run_initialisation_time=1793844000)
+    stack = _open_meteo_stack(
+        ["open_meteo_hrrr"],
+        {"ncep_hrrr_conus": httpx.Response(500)},
+        lambda _: httpx.Response(200, json=run_at_two),
+    )
+    result = stack.get(make_pier())
+    (outcome,) = result.outcomes
+    assert not outcome.ok
+    assert outcome.error == "HTTPStatusError: 500 Internal Server Error"
+    assert outcome.issued_at is None
+    assert result.conditions.series == {}
+
+
 # --------------------------------------------------------------------------- #
 # nws-provider: the National Weather Service raw gridpoint forecast
 # --------------------------------------------------------------------------- #
