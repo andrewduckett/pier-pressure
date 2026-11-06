@@ -57,7 +57,8 @@ class SourceReading:
     The weather fields carry the provider's values unrounded: temperature and dew
     point in °C, humidity and precipitation probability in %, wind speed in km/h
     and wind direction in degrees. Aerosol optical depth (no unit) and PM2.5
-    (µg/m³) are carried as reported, and so is column water vapour (kg/m²).
+    (µg/m³) are carried as reported, and so are column water vapour (kg/m²)
+    and the seeing column, in the units its variables document.
     """
 
     cloud_cover: float | None = None
@@ -76,6 +77,42 @@ class SourceReading:
     aerosol_optical_depth: float | None = None
     pm2_5: float | None = None
     column_water_vapour: float | None = None
+    temperature_1000hpa: float | None = None
+    geopotential_height_1000hpa: float | None = None
+    temperature_975hpa: float | None = None
+    geopotential_height_975hpa: float | None = None
+    temperature_950hpa: float | None = None
+    geopotential_height_950hpa: float | None = None
+    temperature_925hpa: float | None = None
+    geopotential_height_925hpa: float | None = None
+    temperature_900hpa: float | None = None
+    geopotential_height_900hpa: float | None = None
+    temperature_850hpa: float | None = None
+    geopotential_height_850hpa: float | None = None
+    temperature_800hpa: float | None = None
+    geopotential_height_800hpa: float | None = None
+    temperature_700hpa: float | None = None
+    geopotential_height_700hpa: float | None = None
+    temperature_600hpa: float | None = None
+    geopotential_height_600hpa: float | None = None
+    temperature_500hpa: float | None = None
+    geopotential_height_500hpa: float | None = None
+    temperature_400hpa: float | None = None
+    geopotential_height_400hpa: float | None = None
+    temperature_300hpa: float | None = None
+    geopotential_height_300hpa: float | None = None
+    temperature_250hpa: float | None = None
+    geopotential_height_250hpa: float | None = None
+    temperature_200hpa: float | None = None
+    geopotential_height_200hpa: float | None = None
+    temperature_150hpa: float | None = None
+    geopotential_height_150hpa: float | None = None
+    temperature_100hpa: float | None = None
+    geopotential_height_100hpa: float | None = None
+    temperature_50hpa: float | None = None
+    geopotential_height_50hpa: float | None = None
+    wind_speed_300hpa: float | None = None
+    boundary_layer_height: float | None = None
 
 
 @dataclass(frozen=True)

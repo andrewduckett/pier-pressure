@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from collections.abc import Callable
 from dataclasses import replace
@@ -24,7 +25,7 @@ from pierpressure.conditions.provider import (
 )
 from pierpressure.conditions.seven_timer import SevenTimerProvider, parse_seven_timer
 from pierpressure.core.computed import computed_transparency
-from pierpressure.core.conditions import Conditions, Series
+from pierpressure.core.conditions import SEEING_COLUMN, Conditions, Series
 from pierpressure.core.config import DEFAULT_PROVIDERS, PierConfig
 from pierpressure.core.providers import (
     CATALOG,
@@ -135,6 +136,46 @@ def test_open_meteo_leaves_a_null_water_vapour_hour_absent_and_the_rest_intact()
     assert reading.column_water_vapour is None
     assert reading.temperature == 11.2
     assert reading.wind_gust == 22.0
+
+
+def _with_seeing_column(payload: dict, value: float = 1.0) -> dict:
+    """``payload`` with every seeing-column array set to ``value`` in every hour."""
+    hours = len(payload["hourly"]["time"])
+    for variable in SEEING_COLUMN:
+        payload["hourly"][COLUMNS[variable]] = [value] * hours
+    return payload
+
+
+def test_the_seeing_column_has_a_reading_field_and_an_open_meteo_column_each() -> None:
+    fields = tuple(field.name for field in dataclasses.fields(SourceReading))
+    assert fields[-len(SEEING_COLUMN) :] == SEEING_COLUMN
+    assert COLUMNS["temperature_850hpa"] == "temperature_850hPa"
+    assert COLUMNS["geopotential_height_50hpa"] == "geopotential_height_50hPa"
+    assert COLUMNS["wind_speed_300hpa"] == "wind_speed_300hPa"
+    assert COLUMNS["boundary_layer_height"] == "boundary_layer_height"
+
+
+def test_open_meteo_parses_the_seeing_column_unrounded() -> None:
+    payload = _with_seeing_column(_load("open_meteo.json"))
+    payload["hourly"]["temperature_850hPa"][1] = -3.27
+    payload["hourly"]["wind_speed_300hPa"][1] = 142.6
+    reading = parse_open_meteo(payload, issued_at=_ISSUED).readings[_hour(21)]
+    assert reading.temperature_850hpa == -3.27
+    assert reading.wind_speed_300hpa == 142.6
+    assert reading.boundary_layer_height == 1.0
+
+
+def test_open_meteo_leaves_a_blank_seeing_column_hour_absent_and_the_rest_intact() -> None:
+    payload = _with_seeing_column(_load("open_meteo.json"))
+    payload["hourly"]["geopotential_height_500hPa"][1] = None
+    reading = parse_open_meteo(payload, issued_at=_ISSUED).readings[_hour(21)]
+    assert reading.geopotential_height_500hpa is None
+    assert reading.temperature_500hpa == 1.0
+    assert reading.cloud_cover is not None
+    assert (
+        parse_open_meteo(payload, issued_at=_ISSUED).readings[_hour(22)].geopotential_height_500hpa
+        == 1.0
+    )
 
 
 def test_open_meteo_fetch_requests_the_weather_variables_in_kmh() -> None:

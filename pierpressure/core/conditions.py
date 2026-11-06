@@ -38,6 +38,10 @@ Variable conventions the core relies on:
   ``column_water_vapour`` (kg/m²) are carried as reported. The timeline does not
   show them, and the verdict never reads them. The provider layer derives the
   computed source's transparency from aerosol and water vapour.
+- The seeing column (:data:`SEEING_COLUMN`) is carried as reported: level
+  temperatures in °C, geopotential heights in metres above sea level, the
+  300 hPa wind in km/h and boundary-layer height in metres above ground. Like
+  the air-quality variables, only the computed source reads it.
 """
 
 from __future__ import annotations
@@ -67,7 +71,89 @@ Variable = Literal[
     "aerosol_optical_depth",
     "pm2_5",
     "column_water_vapour",
+    "temperature_1000hpa",
+    "geopotential_height_1000hpa",
+    "temperature_975hpa",
+    "geopotential_height_975hpa",
+    "temperature_950hpa",
+    "geopotential_height_950hpa",
+    "temperature_925hpa",
+    "geopotential_height_925hpa",
+    "temperature_900hpa",
+    "geopotential_height_900hpa",
+    "temperature_850hpa",
+    "geopotential_height_850hpa",
+    "temperature_800hpa",
+    "geopotential_height_800hpa",
+    "temperature_700hpa",
+    "geopotential_height_700hpa",
+    "temperature_600hpa",
+    "geopotential_height_600hpa",
+    "temperature_500hpa",
+    "geopotential_height_500hpa",
+    "temperature_400hpa",
+    "geopotential_height_400hpa",
+    "temperature_300hpa",
+    "geopotential_height_300hpa",
+    "temperature_250hpa",
+    "geopotential_height_250hpa",
+    "temperature_200hpa",
+    "geopotential_height_200hpa",
+    "temperature_150hpa",
+    "geopotential_height_150hpa",
+    "temperature_100hpa",
+    "geopotential_height_100hpa",
+    "temperature_50hpa",
+    "geopotential_height_50hpa",
+    "wind_speed_300hpa",
+    "boundary_layer_height",
 ]
+
+# The pressure levels of the seeing column, in hPa, from the ground up.
+SEEING_LEVELS: tuple[int, ...] = (
+    1000, 975, 950, 925, 900, 850, 800, 700, 600, 500, 400, 300, 250, 200, 150, 100, 50
+)  # fmt: skip
+
+# The variables computed seeing reads (computed-seeing DD1). They fill as one
+# bundle, so the column always comes from one provider.
+SEEING_COLUMN: tuple[Variable, ...] = (
+    "temperature_1000hpa",
+    "geopotential_height_1000hpa",
+    "temperature_975hpa",
+    "geopotential_height_975hpa",
+    "temperature_950hpa",
+    "geopotential_height_950hpa",
+    "temperature_925hpa",
+    "geopotential_height_925hpa",
+    "temperature_900hpa",
+    "geopotential_height_900hpa",
+    "temperature_850hpa",
+    "geopotential_height_850hpa",
+    "temperature_800hpa",
+    "geopotential_height_800hpa",
+    "temperature_700hpa",
+    "geopotential_height_700hpa",
+    "temperature_600hpa",
+    "geopotential_height_600hpa",
+    "temperature_500hpa",
+    "geopotential_height_500hpa",
+    "temperature_400hpa",
+    "geopotential_height_400hpa",
+    "temperature_300hpa",
+    "geopotential_height_300hpa",
+    "temperature_250hpa",
+    "geopotential_height_250hpa",
+    "temperature_200hpa",
+    "geopotential_height_200hpa",
+    "temperature_150hpa",
+    "geopotential_height_150hpa",
+    "temperature_100hpa",
+    "geopotential_height_100hpa",
+    "temperature_50hpa",
+    "geopotential_height_50hpa",
+    "wind_speed_300hpa",
+    "boundary_layer_height",
+)
 
 # The variables the timeline shows, named by their timeline keys, in timeline
 # order. The timeline's keys and its hours both come from this, so a variable
