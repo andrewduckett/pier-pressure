@@ -1570,7 +1570,7 @@ def test_computed_outcome_is_successful_with_the_series_issue_time() -> None:
     assert _computed_outcome(_WITH_COMPUTED) == FetchOutcome(
         key="computed",
         name="Computed",
-        variables=("transparency",),
+        variables=("transparency", "seeing"),
         fetched_at=_FETCHED,
         ok=True,
         issued_at=_hour(17),

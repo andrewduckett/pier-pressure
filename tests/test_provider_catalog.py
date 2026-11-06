@@ -81,10 +81,10 @@ def test_the_air_quality_provider_declares_aerosol_then_pm2_5_and_no_bundle() ->
     assert not OPEN_METEO_AIR_QUALITY.needs_key
 
 
-def test_computed_declares_transparency_alone_needing_no_key() -> None:
+def test_computed_declares_transparency_then_seeing_needing_no_key() -> None:
     assert COMPUTED.key == "computed"
     assert COMPUTED.name == "Computed"
-    assert COMPUTED.variables == ("transparency",)
+    assert COMPUTED.variables == ("transparency", "seeing")
     assert COMPUTED.bundles == ()
     assert not COMPUTED.needs_key
 

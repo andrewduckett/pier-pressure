@@ -135,7 +135,7 @@ COMPUTED = ProviderSpec(
     key="computed",
     name="Computed",
     needs_key=False,
-    variables=("transparency",),
+    variables=("transparency", "seeing"),
 )
 
 CATALOG: Mapping[str, ProviderSpec] = {
