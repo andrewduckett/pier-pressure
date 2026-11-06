@@ -146,6 +146,24 @@ These fields have the same names in the log and in `config.yaml`:
 | GO threshold | `go_threshold` |
 | Wind-gust limit | `max_gust` |
 
+## Set a pier's dew margin
+
+The verdict's reasons say from which hour dew is likely, or frost when that
+hour is at or below 0 °C. An hour counts when its air temperature is less than
+the dew margin above its dew point. The margin is 4 °C unless you set it. The
+line never changes the verdict, score or confidence.
+
+The Configuration tab has no field for it. To change it, set `dew_margin` for
+the pier in the add-on's `config.yaml` file, as
+[Add settings with config.yaml](#add-settings-with-configyaml) describes. Set
+`dew_margin: 0` to turn the line off.
+
+```yaml
+piers:
+  - id: backyard
+    dew_margin: 3
+```
+
 ## Add settings with config.yaml
 
 The Configuration tab lists your piers. A `config.yaml` file can add the

@@ -263,12 +263,16 @@ class PierConfig(BaseModel):
     latitude: float = Field(ge=-90.0, le=90.0)
     longitude: float = Field(ge=-180.0, le=180.0)
     elevation_m: float
-    # The only two tuning knobs (design D8). ``go_threshold`` defaults to the
+    # The only three tuning knobs (design D8). ``go_threshold`` defaults to the
     # global value when omitted. ``max_gust`` is opt-in: when omitted the wind
     # gate is disabled and no forecast gust can cause a NO-GO. Its unit is the
     # forecast gust unit the provider layer supplies (km/h).
     go_threshold: int = Field(default=DEFAULT_GO_THRESHOLD, ge=0, le=100)
     max_gust: float | None = Field(default=None, gt=0.0)
+    # The third knob, in °C (dew-spread-reason D3). Opt-out, unlike ``max_gust``,
+    # because every forecast carries temperature and dew point; 0 turns the dew
+    # line off, and infinity would flag every hour, so it is refused.
+    dew_margin: float = Field(default=4.0, ge=0.0, allow_inf_nan=False)
     # The declared horizon source (design D3). Absent -> flat 0 open sky. It is
     # resolved to canonical samples during validation and exposed as
     # ``horizon_mask``; the raw block is not consumed by the verdict path.

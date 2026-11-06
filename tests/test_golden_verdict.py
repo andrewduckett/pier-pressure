@@ -80,6 +80,22 @@ def _wind_without_cloud() -> SourceForecast:
     return SourceForecast(issued_at=full.issued_at, readings=readings)
 
 
+def _with_weather(temperature: list[float], dew_point: list[float]) -> SourceForecast:
+    """The recorded Open-Meteo forecast with hourly temperature and dew point added."""
+    payload = _load_raw("open_meteo_full.json")
+    payload["hourly"]["temperature_2m"] = temperature
+    payload["hourly"]["dew_point_2m"] = dew_point
+    return parse_open_meteo(payload, issued_at=_FRESH_ISSUED)
+
+
+# The spread first falls under the 4 °C default margin at 22:00, above freezing.
+_DEW_TEMPERATURE = [12.0, 11.0, 10.0, 9.0, 8.0, 8.0, 7.0, 7.0]
+_DEW_DEW_POINT = [6.0, 6.0, 7.5, 7.0, 6.5, 6.5, 6.0, 6.0]
+# The spread first falls under the margin at 00:00, at −1 °C.
+_FROST_TEMPERATURE = [6.0, 4.0, 2.0, 1.0, -1.0, -1.0, -2.0, -2.0]
+_FROST_DEW_POINT = [-3.0, -3.0, -3.0, -4.0, -3.0, -3.0, -4.0, -4.0]
+
+
 def _subset(forecast: SourceForecast, times: list[datetime]) -> SourceForecast:
     readings = {t: forecast.readings[t] for t in times if t in forecast.readings}
     return SourceForecast(issued_at=forecast.issued_at, readings=readings)
@@ -104,6 +120,16 @@ _CASES: dict[str, Callable[[], tuple[PierConfig, SourceForecast, SourceForecast]
         _subset(_secondary_full(), _WINDOW_SLOTS[4:]),  # seeing only late
     ),
     "empty": lambda: (make_pier(), SourceForecast(), SourceForecast()),
+    "dew_night": lambda: (
+        make_pier(),
+        _with_weather(_DEW_TEMPERATURE, _DEW_DEW_POINT),
+        _secondary_full(),
+    ),
+    "frost_night": lambda: (
+        make_pier(),
+        _with_weather(_FROST_TEMPERATURE, _FROST_DEW_POINT),
+        _secondary_full(),
+    ),
     # An 11h-old base forecast, so freshness decays toward its floor.
     "stale_issued_base": lambda: (
         make_pier(),

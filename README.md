@@ -174,6 +174,7 @@ piers:
     elevation_m: 30
     go_threshold: 65          # score needed for GO (default 65)
     max_gust: 30              # km/h; a higher forecast gust means NO-GO (off by default)
+    dew_margin: 4             # °C; a smaller spread means dew or frost is likely (default 4)
     horizon:
       file: horizons/backyard.hrz   # relative to this config file
       format: nina
@@ -196,6 +197,7 @@ conditions:
 | `piers` | A list. Each pier is checked on its own: an invalid pier is logged and skipped, and the others keep running. If no pier is valid, PierPressure exits with an error. |
 | `go_threshold` | The score a night needs for `GO`. |
 | `max_gust` | Turns on the wind gate. Leave it out to ignore wind gusts. |
+| `dew_margin` | When the air temperature is less than this many °C above the dew point, the reasons say from which hour dew is likely, or frost at 0 °C or below. The default is 4. Set 0 to turn the line off. It never changes the verdict, score or confidence. |
 | `horizon` | Exactly one of: `points` (a list of `[azimuth, altitude]` pairs), `min_altitude` (a flat floor in degrees), or `file` + `format`. Without it the horizon is flat at 0°. The only file format supported today is `nina` (a NINA `.hrz` export). `stellarium` and `telescopius` are recognised but rejected as not yet supported. |
 | `equipment` | Your telescope and camera. With equipment, targets are also ranked on how well they fit the field of view. |
 | `explainer` | The optional LLM summary. See [docs/llm-explainer.md](docs/llm-explainer.md). |

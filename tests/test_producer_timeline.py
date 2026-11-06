@@ -168,6 +168,9 @@ def test_weather_variables_do_not_change_the_verdict() -> None:
             return produce_verdict(pier, clock, conditions).model_dump(mode="json")
 
     plain, wet = _doc(), _doc(**{**_WEATHER, "precipitation_probability": 95.0})
+    # The dew line is the one reason the weather adds (dew-spread-reason D2).
+    assert wet["reasons"] == [*plain["reasons"], "Dew likely from 2026-09-08T23:00:00Z."]
+    wet["reasons"] = plain["reasons"]
     for doc in (plain, wet):
         for entry in doc["timeline"]:
             for key in _WEATHER:
