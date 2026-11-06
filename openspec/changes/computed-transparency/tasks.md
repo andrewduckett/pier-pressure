@@ -20,7 +20,7 @@
 ## 4. Documentation and the full gate [depends-on: 3]
 
 - [x] 4.1 [easy] The README's conditions section names `computed` and its new default place. It explains where to list it: ahead of 7Timer! to prefer it, or after 7Timer! as a fallback. It says the value is uncalibrated and links ADR-0032. The health-topic tables and the clean-up list include `computed`. (verify: `uv run pytest tests/test_docs.py`) (✓ `uv run pytest tests/test_docs.py` passed)
-- [ ] 4.2 [easy] The full gate is green. (verify: `mise run check`)
+- [x] 4.2 [easy] The full gate is green. (verify: `mise run check`) (✓ `mise run check` passed: 1867 tests)
 
 ## Deviations Ledger
 
