@@ -954,12 +954,12 @@ Each timeline entry's `cloud_cover_min` and `cloud_cover_max` SHALL be the lowes
 ### Requirement: Variables the timeline does not show never change the document
 
 Some variables in the conditions are not shown on the timeline: today,
-`aerosol_optical_depth`, `pm2_5` and `column_water_vapour`. The verdict
-document SHALL NOT depend on them. No gate, score,
-reason, confidence, agreement, timeline entry or timeline hour SHALL change
-with their presence, absence or values. A value derived from them reaches the
-document only as the series of a variable the timeline shows, such as the
-computed source's `transparency` series in the snapshot.
+`aerosol_optical_depth`, `pm2_5`, `column_water_vapour` and the 36 variables of
+the seeing column. The verdict document SHALL NOT depend on them. No gate,
+score, reason, confidence, agreement, timeline entry or timeline hour SHALL
+change with their presence, absence or values. A value derived from them
+reaches the document only as the series of a variable the timeline shows, such
+as the computed source's `transparency` and `seeing` series in the snapshot.
 
 #### Scenario: Air-quality series leave the document byte-identical
 
@@ -975,6 +975,11 @@ computed source's `transparency` series in the snapshot.
 #### Scenario: A column water vapour series leaves the document byte-identical
 
 - **WHEN** two verdicts are produced for the same pier and pinned instant, from snapshots that differ only in whether a `column_water_vapour` series is present and in its values
+- **THEN** the two serialized documents are byte-identical
+
+#### Scenario: Seeing-column series leave the document byte-identical
+
+- **WHEN** two verdicts are produced for the same pier and pinned instant, from snapshots that differ only in whether the seeing column's series are present and in their values
 - **THEN** the two serialized documents are byte-identical
 
 ### Requirement: Reasons name the first dew or frost hour

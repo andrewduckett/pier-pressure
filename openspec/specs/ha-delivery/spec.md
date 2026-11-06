@@ -401,12 +401,18 @@ The sensor's JSON attributes SHALL carry:
   the startup reset. It stays the same until the process restarts.
 - the status of the latest fetch (`ok` or `failed`), or null before the first fetch
 - the time of the latest fetch, or null before the first fetch
-- the error from the latest failed fetch, or null when the latest fetch succeeded or
-  there has been no fetch
+- the error from the latest fetch, or null when it carried none or there has been no
+  fetch. A failed fetch always carries one. A successful fetch carries one only from
+  the computed source, when one of its variables failed and another did not
 - the issue time of the data from the last successful fetch, or null when that fetch
   gave no issue time or there has been no success
+- for the computed source only, `inputs`: the inputs of the last successful
+  computation, as the conditions capability defines them. It is an object that maps
+  each computed variable that carried a value to a list of provider keys, or null
+  when there has been no success. No other provider's attributes carry `inputs`.
 
-A failed fetch SHALL leave the last-success time and its issue time unchanged.
+A failed fetch SHALL leave the last-success time, its issue time and the computed
+source's `inputs` unchanged.
 
 The health sensor SHALL be available whenever the process is online. A failing
 provider SHALL NOT make its health sensor unavailable. Health SHALL be held in memory
@@ -441,6 +447,28 @@ every existing entity, topic, and mapping is unchanged.
 - **THEN** that provider's health sensor state is the time of that fetch
 - **AND** its attributes give status `ok`, the fetch time, a null error, and the issue time of the returned data
 
+#### Scenario: The computed source's health names its inputs
+
+- **WHEN** the computed source succeeds for a pier, with transparency read from `open_meteo` and `open_meteo_air_quality`, and seeing read from `open_meteo_hrrr`, and the system publishes
+- **THEN** the `computed` health sensor's attributes carry `inputs` equal to `{"transparency": ["open_meteo", "open_meteo_air_quality"], "seeing": ["open_meteo_hrrr"]}`
+- **AND** they give status `ok` and a null error
+
+#### Scenario: A partly failed computation is ok and keeps its error
+
+- **WHEN** the computed source's outcome is successful with the error `transparency: missing input: aerosol_optical_depth`, and the system publishes
+- **THEN** the `computed` health sensor's state is the time of that computation
+- **AND** its attributes give status `ok`, the error `transparency: missing input: aerosol_optical_depth`, and `inputs` with `seeing` alone
+
+#### Scenario: A failed computation keeps the earlier inputs
+
+- **WHEN** the computed source succeeded earlier with `inputs` `{"seeing": ["open_meteo"]}`, and its next computation fails
+- **THEN** the `computed` health sensor's attributes give status `failed` and still carry `inputs` `{"seeing": ["open_meteo"]}`
+
+#### Scenario: Other providers carry no inputs
+
+- **WHEN** the system publishes 7Timer!'s health for a pier
+- **THEN** the attributes carry no `inputs` key
+
 #### Scenario: A failed fetch keeps the earlier success
 
 - **WHEN** a provider's fetch for a pier succeeded earlier, and its next fetch fails
@@ -453,6 +481,7 @@ every existing entity, topic, and mapping is unchanged.
 - **THEN** the system publishes each configured provider's health with no history before it publishes its online availability
 - **AND** it does so before it fetches any conditions
 - **AND** each health sensor's state is published as unknown, with the tracking start time and the provider's variables, and null status, fetch time, error, and issue time
+- **AND** the `computed` health sensor's `inputs` is null
 
 #### Scenario: A failed startup reset does not go online
 
