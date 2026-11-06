@@ -13,7 +13,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 
-from .conditions import Variable
+from .conditions import SEEING_COLUMN, Variable
 
 
 @dataclass(frozen=True)
@@ -34,6 +34,10 @@ class ProviderSpec:
         return frozenset({variable})
 
 
+_CLOUD_BUNDLE: frozenset[Variable] = frozenset(
+    {"cloud_cover", "cloud_low", "cloud_mid", "cloud_high"}
+)
+
 OPEN_METEO = ProviderSpec(
     key="open_meteo",
     name="Open-Meteo",
@@ -51,15 +55,18 @@ OPEN_METEO = ProviderSpec(
         "wind_direction",
         "precipitation_probability",
         "column_water_vapour",
+        *SEEING_COLUMN,
     ),
-    bundles=(frozenset({"cloud_cover", "cloud_low", "cloud_mid", "cloud_high"}),),
+    bundles=(_CLOUD_BUNDLE, frozenset(SEEING_COLUMN)),
 )
 
 # Each named Open-Meteo model is its own provider (ADR-0028). ICON, HRDPS and
-# RDPS never send column water vapour, and HRDPS and RDPS never send a
-# precipitation probability, so they don't declare them.
+# RDPS never send column water vapour or the whole seeing column, and HRDPS
+# and RDPS never send a precipitation probability, so they don't declare them.
 _OPEN_METEO_NO_WATER_VAPOUR = tuple(
-    variable for variable in OPEN_METEO.variables if variable != "column_water_vapour"
+    variable
+    for variable in OPEN_METEO.variables
+    if variable != "column_water_vapour" and variable not in SEEING_COLUMN
 )
 _OPEN_METEO_NO_PRECIPITATION = tuple(
     variable for variable in _OPEN_METEO_NO_WATER_VAPOUR if variable != "precipitation_probability"
@@ -70,18 +77,21 @@ OPEN_METEO_HRDPS = replace(
     key="open_meteo_hrdps",
     name="Open-Meteo HRDPS",
     variables=_OPEN_METEO_NO_PRECIPITATION,
+    bundles=(_CLOUD_BUNDLE,),
 )
 OPEN_METEO_RDPS = replace(
     OPEN_METEO,
     key="open_meteo_rdps",
     name="Open-Meteo RDPS",
     variables=_OPEN_METEO_NO_PRECIPITATION,
+    bundles=(_CLOUD_BUNDLE,),
 )
 OPEN_METEO_ICON = replace(
     OPEN_METEO,
     key="open_meteo_icon",
     name="Open-Meteo ICON",
     variables=_OPEN_METEO_NO_WATER_VAPOUR,
+    bundles=(_CLOUD_BUNDLE,),
 )
 OPEN_METEO_GFS = replace(OPEN_METEO, key="open_meteo_gfs", name="Open-Meteo GFS")
 

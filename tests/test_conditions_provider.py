@@ -225,9 +225,11 @@ def test_open_meteo_request_is_pinned_and_names_no_model() -> None:
     assert params["hourly"] == (
         "cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_gusts_10m,"
         "temperature_2m,dew_point_2m,relative_humidity_2m,wind_speed_10m,"
-        "wind_direction_10m,precipitation_probability,total_column_integrated_water_vapour"
+        "wind_direction_10m,precipitation_probability,total_column_integrated_water_vapour,"
+        + ",".join(COLUMNS[variable] for variable in SEEING_COLUMN)
     )
-    assert len(params["hourly"].split(",")) == 12
+    assert len(params["hourly"].split(",")) == 48
+    assert "temperature_850hPa" in params["hourly"].split(",")
     assert params["forecast_days"] == "2"
     assert params["wind_speed_unit"] == "kmh"
     assert params["timezone"] == "UTC"
@@ -327,6 +329,7 @@ def test_a_model_provider_asks_for_its_model_and_its_declared_variables_only() -
     hourly = params["hourly"].split(",")
     assert "precipitation_probability" not in hourly
     assert "total_column_integrated_water_vapour" not in hourly
+    assert not {COLUMNS[variable] for variable in SEEING_COLUMN} & set(hourly)
     assert hourly == [COLUMNS[variable] for variable in OPEN_METEO_HRDPS.variables]
 
 
@@ -1097,6 +1100,56 @@ def test_water_vapour_comes_from_the_next_provider_that_declares_it() -> None:
     series = stack.get(make_pier()).conditions.series
     assert series["cloud_cover"].provider == "open_meteo_hrdps"
     assert series["column_water_vapour"].provider == "open_meteo_gfs"
+
+
+def _model_answer(payload: dict, **seeing: float | None) -> httpx.Response:
+    """``payload`` answered with the named seeing-column variables set in every hour."""
+    hours = len(payload["hourly"]["time"])
+    for variable, value in seeing.items():
+        payload["hourly"][COLUMNS[variable]] = [value] * hours
+    return httpx.Response(200, json=payload)
+
+
+def test_seeing_bundle_from_a_model_with_part_of_the_column_fills_every_member() -> None:
+    stack = _open_meteo_stack(
+        ["open_meteo_hrrr", "open_meteo_gfs"],
+        {
+            "ncep_hrrr_conus": _model_answer(_load("open_meteo.json"), boundary_layer_height=300.0),
+            "gfs_global": httpx.Response(200, json=_with_seeing_column(_load("open_meteo.json"))),
+        },
+    )
+    series = stack.get(make_pier()).conditions.series
+    assert {series[variable].provider for variable in SEEING_COLUMN} == {"open_meteo_hrrr"}
+    assert all(value is None for value in series["temperature_850hpa"].values.values())
+
+
+def test_seeing_bundle_passes_over_a_model_that_returned_none_of_it() -> None:
+    stack = _open_meteo_stack(
+        ["open_meteo_hrrr", "open_meteo_gfs"],
+        {
+            "ncep_hrrr_conus": httpx.Response(200, json=_load("open_meteo.json")),
+            "gfs_global": httpx.Response(200, json=_with_seeing_column(_load("open_meteo.json"))),
+        },
+    )
+    series = stack.get(make_pier()).conditions.series
+    assert series["cloud_cover"].provider == "open_meteo_hrrr"
+    assert {series[variable].provider for variable in SEEING_COLUMN} == {"open_meteo_gfs"}
+
+
+def test_seeing_bundle_comes_from_the_next_model_that_declares_it() -> None:
+    # HRDPS is answered with the whole column, so only its declaration keeps it
+    # from filling the bundle.
+    answer = _with_seeing_column(_load("open_meteo.json"))
+    stack = _open_meteo_stack(
+        ["open_meteo_hrdps", "open_meteo_gfs"],
+        {
+            "gem_hrdps_continental": httpx.Response(200, json=answer),
+            "gfs_global": httpx.Response(200, json=answer),
+        },
+    )
+    series = stack.get(make_pier()).conditions.series
+    assert series["cloud_cover"].provider == "open_meteo_hrdps"
+    assert {series[variable].provider for variable in SEEING_COLUMN} == {"open_meteo_gfs"}
 
 
 def test_hrrr_outside_its_area_fails_and_is_passed_over() -> None:
