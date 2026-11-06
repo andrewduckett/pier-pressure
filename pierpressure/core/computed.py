@@ -7,10 +7,11 @@ and nothing reads an alternate.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
-from .conditions import Series, Variable
+from .conditions import SEEING_LEVELS, Series, Variable
 from .providers import COMPUTED
 
 # ADR-0032. Uncalibrated: change a constant only in a new record, so nights
@@ -21,6 +22,12 @@ _MAG_PER_WATER_VAPOUR = 0.006  # mag per kg/m², a haze proxy rather than absorp
 # 7Timer!'s index 1 and index 8 extinction bounds, mag per airmass.
 _BEST_EXTINCTION = 0.3
 _WORST_EXTINCTION = 1.0
+
+# ADR-0033, under the same rule. A potential-temperature rise of 0.5 K per
+# 100 m at 1000 hPa, less the dry adiabatic 0.976 K per 100 m (design DD4).
+_BAD_LAYER_LAPSE = 0.00476  # K/m: a layer cooling more slowly than this is bad
+_TROPOPAUSE_LAPSE = 0.002  # K/m: the WMO tropopause's cooling rate
+_TROPOPAUSE_SEARCH_FROM = SEEING_LEVELS.index(500)
 
 
 @dataclass(frozen=True)
@@ -83,4 +90,33 @@ def computed_transparency(water_vapour: Series | None, aerosol: Series | None) -
         provider=COMPUTED.key,
         issued_at=_earliest(water_vapour.issued_at, aerosol.issued_at),
         values=values,
+    )
+
+
+def _tropopause(heights: Sequence[float], temperatures: Sequence[float]) -> int:
+    """The index of the tropopause level, or the top level's when no level qualifies."""
+    for index in range(_TROPOPAUSE_SEARCH_FROM, len(heights) - 1):
+        rise = heights[index + 1] - heights[index]
+        fall = temperatures[index] - temperatures[index + 1]
+        if rise > 0 and fall <= _TROPOPAUSE_LAPSE * rise:
+            return index
+    return len(heights) - 1
+
+
+def bad_layers(
+    heights: Sequence[float], temperatures: Sequence[float], elevation_m: float
+) -> tuple[int, ...]:
+    """The lower level, in hPa, of each bad layer between the pier's ground and the tropopause.
+
+    ``heights`` (metres above sea level) and ``temperatures`` (°C) hold one value per
+    :data:`~pierpressure.core.conditions.SEEING_LEVELS` level, from the ground up. A
+    layer whose heights don't increase upward is neither bad nor a tropopause, so
+    bad data never divides by zero and never stops the count.
+    """
+    return tuple(
+        SEEING_LEVELS[index]
+        for index in range(_tropopause(heights, temperatures))
+        if heights[index] >= elevation_m
+        and (rise := heights[index + 1] - heights[index]) > 0
+        and temperatures[index] - temperatures[index + 1] < _BAD_LAYER_LAPSE * rise
     )
