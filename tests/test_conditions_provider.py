@@ -8,6 +8,7 @@ from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import httpx
 import pytest
@@ -35,6 +36,7 @@ from pierpressure.core.providers import (
     OPEN_METEO_AIR_QUALITY,
     OPEN_METEO_GFS,
     OPEN_METEO_HRDPS,
+    OPEN_METEO_HRRR,
     SEVEN_TIMER,
     ProviderSpec,
 )
@@ -1490,6 +1492,7 @@ def _stack(
     *,
     weather: SourceForecast = _WEATHER,
     gfs: SourceForecast | None = None,
+    hrrr: SourceForecast | None = None,
     aerosol: SourceForecast = _AEROSOL,
     seven_timer_fails: bool = False,
     computed: ComputedSource | None = None,
@@ -1505,6 +1508,7 @@ def _stack(
         fetchers={
             "open_meteo": _StubProvider(weather),
             "open_meteo_gfs": _StubProvider(gfs, spec=OPEN_METEO_GFS),
+            "open_meteo_hrrr": _StubProvider(hrrr, spec=OPEN_METEO_HRRR),
             "open_meteo_hrdps": _StubProvider(weather, spec=OPEN_METEO_HRDPS),
             "open_meteo_air_quality": _StubProvider(aerosol, spec=OPEN_METEO_AIR_QUALITY),
             "seven_timer": _StubProvider(_SEVEN_TIMER, spec=SEVEN_TIMER, fail=seven_timer_fails),
@@ -1654,10 +1658,13 @@ def test_computed_seeing_fill_reads_the_piers_elevation() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def _computed_outcome(keys: list[str], *, weather: SourceForecast = _WEATHER) -> FetchOutcome:
-    outcomes = _stack(keys, weather=weather).get(make_pier()).outcomes
+def _computed_outcome(keys: list[str], **stack: Any) -> FetchOutcome:
+    outcomes = _stack(keys, **stack).get(make_pier()).outcomes
     [outcome] = [o for o in outcomes if o.key == "computed"]
     return outcome
+
+
+_TRANSPARENCY_INPUTS = {"transparency": ("open_meteo", "open_meteo_air_quality")}
 
 
 def test_computed_outcome_is_successful_with_the_series_issue_time() -> None:
@@ -1667,7 +1674,9 @@ def test_computed_outcome_is_successful_with_the_series_issue_time() -> None:
         variables=("transparency", "seeing"),
         fetched_at=_FETCHED,
         ok=True,
+        error="seeing: missing input: seeing column",
         issued_at=_hour(17),
+        inputs=_TRANSPARENCY_INPUTS,
     )
 
 
@@ -1688,29 +1697,121 @@ def test_computed_outcome_sits_in_its_slot_and_records_when_it_ran() -> None:
 
 
 def test_computed_outcome_names_a_missing_aerosol_input() -> None:
-    outcome = _computed_outcome(["open_meteo", "seven_timer", "computed"])
-    assert (outcome.ok, outcome.error, outcome.issued_at) == (
-        False,
-        "missing input: aerosol_optical_depth",
-        None,
+    outcome = _computed_outcome(["open_meteo", "seven_timer", "computed"], weather=_WITH_COLUMN)
+    assert (outcome.ok, outcome.error, outcome.inputs) == (
+        True,
+        "transparency: missing input: aerosol_optical_depth",
+        {"seeing": ("open_meteo",)},
     )
 
 
 def test_computed_outcome_names_both_missing_inputs_in_order() -> None:
-    outcome = _computed_outcome(["open_meteo_hrdps", "computed"])
-    assert (outcome.ok, outcome.error) == (
+    outcome = _computed_outcome(["open_meteo_hrdps", "computed"], weather=_WITH_COLUMN)
+    assert (outcome.ok, outcome.error, outcome.issued_at, outcome.inputs) == (
         False,
-        "missing input: column_water_vapour, aerosol_optical_depth",
+        "transparency: missing input: column_water_vapour, aerosol_optical_depth; "
+        "seeing: missing input: seeing column",
+        None,
+        None,
     )
 
 
 def test_computed_outcome_reports_inputs_that_never_share_a_valued_hour() -> None:
     late = SourceForecast(
-        issued_at=_hour(18), readings={_hour(23): SourceReading(column_water_vapour=10.0)}
+        issued_at=_hour(18),
+        readings={_hour(23): SourceReading(column_water_vapour=10.0, **standard_seeing_column())},
     )
     keys = ["open_meteo", "open_meteo_air_quality", "computed"]
     outcome = _computed_outcome(keys, weather=late)
-    assert (outcome.ok, outcome.error) == (False, "no hour has every input")
+    assert (outcome.ok, outcome.error) == (True, "transparency: no hour has every input")
+
+
+def test_computed_outcome_reports_a_column_with_a_blank_in_every_hour() -> None:
+    gappy = SourceForecast(
+        issued_at=_hour(18),
+        readings={
+            t: SourceReading(
+                column_water_vapour=10.0,
+                **(standard_seeing_column() | {"boundary_layer_height": None}),
+            )
+            for t in _DARK
+        },
+    )
+    keys = ["open_meteo", "open_meteo_air_quality", "computed"]
+    outcome = _computed_outcome(keys, weather=gappy)
+    assert (outcome.ok, outcome.error, outcome.inputs) == (
+        True,
+        "seeing: no hour has every input",
+        _TRANSPARENCY_INPUTS,
+    )
+
+
+def test_computed_outcome_with_both_variables_carries_no_error() -> None:
+    keys = ["open_meteo", "open_meteo_air_quality", "computed"]
+    outcome = _computed_outcome(keys, weather=_WITH_COLUMN)
+    assert (outcome.ok, outcome.error) == (True, None)
+    assert outcome.inputs == {**_TRANSPARENCY_INPUTS, "seeing": ("open_meteo",)}
+
+
+def test_computed_outcome_issue_time_is_the_oldest_computed_one() -> None:
+    weather = replace(_WITH_COLUMN, issued_at=_hour(21).replace(minute=5))
+    aerosol = replace(_AEROSOL, issued_at=_hour(20).replace(minute=40))
+    keys = ["open_meteo", "open_meteo_air_quality", "computed"]
+    outcome = _computed_outcome(keys, weather=weather, aerosol=aerosol)
+    assert outcome.issued_at == _hour(20).replace(minute=40)
+
+
+def test_computed_outcome_names_the_providers_each_variable_read() -> None:
+    hrrr = SourceForecast(
+        issued_at=_hour(18),
+        readings={t: SourceReading(**standard_seeing_column()) for t in _DARK},
+    )
+    keys = ["open_meteo_hrrr", "open_meteo", "open_meteo_air_quality", "computed"]
+    outcome = _computed_outcome(keys, hrrr=hrrr)
+    assert outcome.inputs == {
+        "transparency": ("open_meteo", "open_meteo_air_quality"),
+        "seeing": ("open_meteo_hrrr",),
+    }
+
+
+def test_computed_outcome_names_a_provider_that_fed_both_transparency_inputs_once() -> None:
+    both = ProviderSpec(
+        key="stub",
+        name="Stub",
+        needs_key=False,
+        variables=("column_water_vapour", "aerosol_optical_depth"),
+    )
+    forecast = SourceForecast(
+        issued_at=_hour(18),
+        readings={
+            t: SourceReading(column_water_vapour=10.0, aerosol_optical_depth=0.15) for t in _DARK
+        },
+    )
+    stack = build_provider(
+        ["stub", "computed"],
+        now=lambda: _FETCHED,
+        fetchers={"stub": _StubProvider(forecast, spec=both)},
+    )
+    [_, outcome] = stack.get(make_pier()).outcomes
+    assert outcome.inputs == {"transparency": ("stub",)}
+
+
+def _raising(*_: object) -> Series:
+    raise ValueError("at 43.65, -79.38")
+
+
+def test_computed_outcome_of_a_raising_seeing_derivation_fails_seeing_alone() -> None:
+    keys = ["open_meteo", "open_meteo_air_quality", "computed"]
+    stack = _stack(keys, weather=_WITH_COLUMN, computed=ComputedSource(seeing=_raising))
+    result = stack.get(make_pier())
+    [outcome] = [o for o in result.outcomes if o.key == "computed"]
+    assert (outcome.ok, outcome.error, outcome.inputs) == (
+        True,
+        "seeing: ValueError",
+        _TRANSPARENCY_INPUTS,
+    )
+    assert result.conditions.series["transparency"].provider == "computed"
+    assert "seeing" not in result.conditions.series
 
 
 class _RaisingSource(ComputedSource):
@@ -1733,6 +1834,11 @@ def test_computed_outcome_of_a_raising_derivation_is_failed_and_fills_nothing(
     unlisted = build_provider([k for k in keys if k != "computed"], fetchers=stubs)
     result = raising.get(make_pier())
     [outcome] = [o for o in result.outcomes if o.key == "computed"]
-    assert (outcome.ok, outcome.error, outcome.fetched_at) == (False, "ZeroDivisionError", _FETCHED)
+    assert (outcome.ok, outcome.error, outcome.fetched_at, outcome.inputs) == (
+        False,
+        "transparency: ZeroDivisionError; seeing: ZeroDivisionError",
+        _FETCHED,
+        None,
+    )
     assert result.conditions == unlisted.get(make_pier()).conditions
     assert "43.65" in caplog.text

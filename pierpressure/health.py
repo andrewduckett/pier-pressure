@@ -11,6 +11,7 @@ and the verdict never reads it.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import datetime
 from http import HTTPStatus
@@ -26,6 +27,10 @@ NO_READINGS = "no readings returned"
 # The error for a computed source whose inputs all have a series, but share no
 # hour with a value in each (computed-transparency DD6).
 NO_SHARED_HOUR = "no hour has every input"
+
+# The error for computed seeing when any seeing-column variable has no filled
+# series (computed-seeing DD5). The column is one bundle, so it is named whole.
+MISSING_SEEING_COLUMN = "missing input: seeing column"
 
 
 def missing_input(variables: tuple[str, ...]) -> str:
@@ -49,8 +54,10 @@ class ProviderInfo:
 class FetchOutcome:
     """The result of one fetch from one provider.
 
-    ``error`` is set only when the fetch failed; ``issued_at`` only when it
-    succeeded and the provider gave an issue time for its data.
+    ``error`` is set when the fetch failed, and on a successful computed outcome
+    when one of its variables failed. ``issued_at`` is set only when it succeeded
+    and the provider gave an issue time for its data. ``inputs`` is set only on a
+    successful computed outcome: the provider keys each computed variable read.
     """
 
     key: str
@@ -60,6 +67,7 @@ class FetchOutcome:
     ok: bool
     error: str | None = None
     issued_at: datetime | None = None
+    inputs: Mapping[str, tuple[str, ...]] | None = None
 
 
 @dataclass(frozen=True)

@@ -32,7 +32,9 @@ from typing import Protocol, get_args
 
 from pierpressure.core.computed import (
     Derivation,
+    MissingColumn,
     MissingInputs,
+    NoSharedHour,
     SeeingDerivation,
     computed_seeing,
     computed_transparency,
@@ -41,6 +43,7 @@ from pierpressure.core.conditions import SEEING_COLUMN, Conditions, Series, Vari
 from pierpressure.core.config import PierConfig
 from pierpressure.core.providers import CATALOG, COMPUTED, ProviderSpec
 from pierpressure.health import (
+    MISSING_SEEING_COLUMN,
     NO_READINGS,
     NO_SHARED_HOUR,
     FetchOutcome,
@@ -157,14 +160,16 @@ Fill = tuple[ProviderSpec, SourceForecast]
 
 @dataclass(frozen=True)
 class Derived:
-    """What the computed source derived on one fetch (computed-seeing DD3).
+    """What the computed source derived on one fetch (computed-seeing DD3, DD5).
 
     ``fills`` holds one single-variable fill per computed variable that carries a
-    value, in declared order, each with its own issue time. ``error`` says why
-    nothing was computed, or ``None`` when something was.
+    value, in declared order, each with its own issue time. ``inputs`` maps each
+    of those variables to the providers whose filled series it read. ``error``
+    joins a ``<variable>: <reason>`` part for each variable that failed.
     """
 
     fills: tuple[Fill, ...] = ()
+    inputs: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
     error: str | None = None
 
     @property
@@ -172,6 +177,20 @@ class Derived:
         """The earliest issue time among the computed series."""
         known = [f.issued_at for _, f in self.fills if f.issued_at is not None]
         return min(known) if known else None
+
+
+_TRANSPARENCY_INPUTS: tuple[Variable, ...] = ("column_water_vapour", "aerosol_optical_depth")
+
+
+def _reason(result: MissingInputs | MissingColumn | NoSharedHour) -> str:
+    """Why a derivation computed nothing, worded for health."""
+    match result:
+        case MissingInputs(variables=variables):
+            return missing_input(variables)
+        case MissingColumn():
+            return MISSING_SEEING_COLUMN
+        case NoSharedHour():
+            return NO_SHARED_HOUR
 
 
 def _fill(spec: ProviderSpec, variable: Variable, series: Series) -> Fill:
@@ -198,31 +217,42 @@ class ComputedSource:
     seeing: Callable[[Mapping[Variable, Series | None], float], SeeingDerivation] = computed_seeing
 
     def derive(self, conditions: Conditions, pier: PierConfig) -> Derived:
-        """Each computed variable's fill, and why nothing was computed."""
+        """Each computed variable's fill, its inputs, and why any variable failed (DD5).
+
+        Each derivation runs on its own, so one that raises fails only its
+        variable.
+        """
         filled = conditions.series
-        transparency = self.transparency(
-            filled.get("column_water_vapour"), filled.get("aerosol_optical_depth")
+
+        def transparency() -> Derivation:
+            return self.transparency(*(filled.get(variable) for variable in _TRANSPARENCY_INPUTS))
+
+        def seeing() -> SeeingDerivation:
+            column = {variable: filled.get(variable) for variable in SEEING_COLUMN}
+            return self.seeing(column, pier.elevation_m)
+
+        derivations: tuple[
+            tuple[Variable, tuple[Variable, ...], Callable[[], Derivation | SeeingDerivation]], ...
+        ] = (
+            ("transparency", _TRANSPARENCY_INPUTS, transparency),
+            ("seeing", SEEING_COLUMN, seeing),
         )
-        seeing = self.seeing(
-            {variable: filled.get(variable) for variable in SEEING_COLUMN}, pier.elevation_m
-        )
-        results: tuple[tuple[Variable, Derivation | SeeingDerivation], ...] = (
-            ("transparency", transparency),
-            ("seeing", seeing),
-        )
-        fills = tuple(
-            _fill(self.spec, variable, result)
-            for variable, result in results
-            if isinstance(result, Series)
-        )
-        error: str | None = None
-        if not fills:
-            error = (
-                missing_input(transparency.variables)
-                if isinstance(transparency, MissingInputs)
-                else NO_SHARED_HOUR
-            )
-        return Derived(fills=fills, error=error)
+        fills: list[Fill] = []
+        inputs: dict[str, tuple[str, ...]] = {}
+        errors: list[str] = []
+        for variable, needs, derivation in derivations:
+            try:
+                result = derivation()
+            except Exception as exc:  # noqa: BLE001 - a failed derivation degrades, never fails
+                logger.warning("computed %s failed: %s", variable, exc)
+                errors.append(f"{variable}: {describe_error(exc)}")
+                continue
+            if not isinstance(result, Series):
+                errors.append(f"{variable}: {_reason(result)}")
+                continue
+            fills.append(_fill(self.spec, variable, result))
+            inputs[variable] = tuple(dict.fromkeys(filled[need].provider for need in needs))
+        return Derived(fills=tuple(fills), inputs=inputs, error="; ".join(errors) or None)
 
 
 def _returned(forecast: SourceForecast, variables: Iterable[Variable]) -> bool:
@@ -363,15 +393,18 @@ class CompositeProvider:
             derived = source.derive(inputs, pier)
         except Exception as exc:  # noqa: BLE001 - a failed derivation degrades, never fails
             logger.warning("computed source %s failed: %s", spec.key, exc)
-            derived = Derived(error=describe_error(exc))
+            kind = describe_error(exc)
+            derived = Derived(error="; ".join(f"{variable}: {kind}" for variable in spec.variables))
+        ok = bool(derived.fills)
         return derived.fills, FetchOutcome(
             key=spec.key,
             name=spec.name,
             variables=spec.variables,
             fetched_at=fetched_at,
-            ok=derived.error is None,
+            ok=ok,
             error=derived.error,
             issued_at=derived.issued_at,
+            inputs=derived.inputs if ok else None,
         )
 
     def _safe_fetch(

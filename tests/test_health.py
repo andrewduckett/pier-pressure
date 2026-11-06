@@ -10,6 +10,7 @@ import pytest
 
 from pierpressure.core.providers import OPEN_METEO
 from pierpressure.health import (
+    MISSING_SEEING_COLUMN,
     NO_SHARED_HOUR,
     FetchOutcome,
     ProviderHealth,
@@ -170,3 +171,11 @@ def test_computed_outcome_missing_input_names_each_key_in_order() -> None:
 
 def test_computed_outcome_no_shared_hour_is_a_fixed_string() -> None:
     assert NO_SHARED_HOUR == "no hour has every input"
+
+
+def test_computed_outcome_missing_seeing_column_is_a_fixed_string() -> None:
+    assert MISSING_SEEING_COLUMN == "missing input: seeing column"
+
+
+def test_computed_outcome_inputs_default_to_none() -> None:
+    assert _outcome(_FIRST, ok=True).inputs is None
