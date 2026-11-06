@@ -11,6 +11,11 @@ later provider's series for it as an alternate.
 one failing never fails another, then runs the fill. A failed or empty fetch is
 passed over; its variables are never filled from an earlier fetch.
 
+A :class:`ComputedSource` fetches nothing. It derives its series from the
+providers' filled series, after every provider has been fetched, and that
+series then takes part in the fill at the source's place in the order
+(ADR-0031).
+
 Each fetch also reports a :class:`~pierpressure.health.FetchOutcome` per provider.
 The outcomes travel beside the conditions in a :class:`FetchResult`, so they feed
 provider health and never reach the verdict (provider-health-entities D1).
@@ -25,9 +30,10 @@ from datetime import UTC, datetime
 from functools import partial
 from typing import Protocol, get_args
 
+from pierpressure.core.computed import computed_transparency
 from pierpressure.core.conditions import Conditions, Series, Variable
 from pierpressure.core.config import PierConfig
-from pierpressure.core.providers import CATALOG, ProviderSpec
+from pierpressure.core.providers import CATALOG, COMPUTED, ProviderSpec
 from pierpressure.health import NO_READINGS, FetchOutcome, ProviderInfo, describe_error
 
 logger = logging.getLogger(__name__)
@@ -93,6 +99,32 @@ class Provider(Protocol):
     def spec(self) -> ProviderSpec: ...
 
     def fetch(self, pier: PierConfig) -> SourceForecast: ...
+
+
+@dataclass(frozen=True)
+class ComputedSource:
+    """The computed source: derives transparency from the filled input series (DD2).
+
+    It is not a :class:`Provider`, because its inputs exist only once the
+    providers' fill has run. It reads only the filled series, never alternates.
+    """
+
+    spec: ProviderSpec = COMPUTED
+
+    def derive(self, conditions: Conditions) -> tuple[SourceForecast, str | None]:
+        """The computed forecast, and why nothing was computed (``None`` when something was)."""
+        result = computed_transparency(
+            conditions.series.get("column_water_vapour"),
+            conditions.series.get("aerosol_optical_depth"),
+        )
+        if not isinstance(result, Series):
+            return SourceForecast(), NO_READINGS
+        return SourceForecast(
+            issued_at=result.issued_at,
+            readings={
+                time: SourceReading(transparency=value) for time, value in result.values.items()
+            },
+        ), None
 
 
 def _returned(forecast: SourceForecast, variables: Iterable[Variable]) -> bool:
@@ -185,7 +217,7 @@ class CompositeProvider:
     ``now`` stamps each outcome's fetch time; tests pass a fixed clock.
     """
 
-    fetchers: Sequence[Provider]
+    fetchers: Sequence[Provider | ComputedSource]
     now: Callable[[], datetime] = _utcnow
 
     @property
@@ -197,14 +229,47 @@ class CompositeProvider:
         )
 
     def get(self, pier: PierConfig) -> FetchResult:
-        fetched = [self._safe_fetch(fetcher, pier) for fetcher in self.fetchers]
+        """Fetch, fill the inputs, derive, then fill again with every slot (DD1).
+
+        A computed source declares nothing another source reads, so the first fill
+        gives the same input series as the second, wherever it is listed.
+        """
+        fetched: dict[int, tuple[SourceForecast, FetchOutcome]] = {
+            index: self._safe_fetch(fetcher, pier)
+            for index, fetcher in enumerate(self.fetchers)
+            if not isinstance(fetcher, ComputedSource)
+        }
+        inputs = assemble_snapshot(
+            [(self.fetchers[index].spec, forecast) for index, (forecast, _) in fetched.items()]
+        )
+        for index, fetcher in enumerate(self.fetchers):
+            if isinstance(fetcher, ComputedSource):
+                fetched[index] = self._safe_derive(fetcher, inputs)
+        slots = [fetched[index] for index in range(len(self.fetchers))]
         fills = [
             (fetcher.spec, forecast)
-            for fetcher, (forecast, _) in zip(self.fetchers, fetched, strict=True)
+            for fetcher, (forecast, _) in zip(self.fetchers, slots, strict=True)
         ]
         return FetchResult(
             conditions=assemble_snapshot(fills),
-            outcomes=tuple(outcome for _, outcome in fetched),
+            outcomes=tuple(outcome for _, outcome in slots),
+        )
+
+    def _safe_derive(
+        self, source: ComputedSource, inputs: Conditions
+    ) -> tuple[SourceForecast, FetchOutcome]:
+        """Derive one computed source's forecast from the filled inputs."""
+        spec = source.spec
+        fetched_at = self.now()
+        forecast, error = source.derive(inputs)
+        return forecast, FetchOutcome(
+            key=spec.key,
+            name=spec.name,
+            variables=spec.variables,
+            fetched_at=fetched_at,
+            ok=error is None,
+            error=error,
+            issued_at=forecast.issued_at if error is None else None,
         )
 
     def _safe_fetch(
@@ -241,7 +306,7 @@ def build_provider(
     keys: Sequence[str],
     *,
     now: Callable[[], datetime] = _utcnow,
-    fetchers: Mapping[str, Provider] | None = None,
+    fetchers: Mapping[str, Provider | ComputedSource] | None = None,
 ) -> CompositeProvider:
     """Assemble the production provider stack from the configured provider order.
 
@@ -254,10 +319,11 @@ def build_provider(
     from .open_meteo import MODELS, OpenMeteoProvider
     from .seven_timer import SevenTimerProvider
 
-    real: dict[str, Callable[[], Provider]] = {
+    real: dict[str, Callable[[], Provider | ComputedSource]] = {
         OpenMeteoProvider.spec.key: lambda: OpenMeteoProvider(now=now),
         SevenTimerProvider.spec.key: SevenTimerProvider,
         NwsProvider.spec.key: NwsProvider,
+        COMPUTED.key: ComputedSource,
     }
     for key, model in MODELS.items():
         real[key] = partial(OpenMeteoProvider, spec=CATALOG[key], model=model, now=now)

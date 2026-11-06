@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from .provider import (
     CompositeProvider,
+    ComputedSource,
     FetchResult,
     Provider,
     SourceForecast,
@@ -25,6 +26,7 @@ from .provider import (
 
 __all__ = [
     "CompositeProvider",
+    "ComputedSource",
     "FetchResult",
     "Provider",
     "SourceForecast",
