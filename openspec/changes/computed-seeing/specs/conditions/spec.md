@@ -106,10 +106,9 @@ raise computed seeing.
 ### Requirement: A bad layer is a strongly stable layer
 
 A layer SHALL be the air between two adjacent pressure levels of the seeing
-column. A layer SHALL be bad when its potential temperature rises by more than
-0.5 K per 100 m of geopotential height across it. Potential temperature at a
-level SHALL be its temperature in kelvin times `(1000 / p) ^ 0.286`, for the
-level's pressure `p` in hPa.
+column. A layer SHALL be bad when, per 100 m of geopotential height across it,
+its temperature falls by less than 0.476 K or rises. The test SHALL be the same
+at every height.
 
 #### Scenario: An inversion is a bad layer
 
@@ -121,12 +120,22 @@ level's pressure `p` in hPa.
 - **WHEN** an hour's column has 850 hPa at 1500 m and 0.0 °C, and 800 hPa at 2000 m and -3.25 °C
 - **THEN** the layer from 850 to 800 hPa is not counted as bad
 
+#### Scenario: A layer high up cooling at the standard rate is not bad
+
+- **WHEN** an hour's column has 250 hPa at 10400 m and -45.0 °C, and 200 hPa at 11800 m and -54.1 °C
+- **THEN** the layer from 250 to 200 hPa is not counted as bad
+
+#### Scenario: A layer cooling slowly is bad
+
+- **WHEN** an hour's column has 700 hPa at 3000 m and -5.0 °C, and 600 hPa at 4200 m and -9.8 °C
+- **THEN** the layer from 700 to 600 hPa is counted as bad
+
 ### Requirement: Bad layers are counted between the pier's ground and the tropopause
 
 A layer SHALL be counted only when the geopotential height of its lower level is
 at or above the pier's elevation, and it lies below the tropopause. The
-tropopause SHALL be the lowest level at 500 hPa or higher up from which
-temperature falls by 2 K per km or less to the next level up. When no level
+tropopause SHALL be the lowest level at 500 hPa or higher up from which the
+next level up is higher and temperature falls by 2 K per km or less to it. When no level
 qualifies, every layer above the pier's ground SHALL be counted.
 
 #### Scenario: A layer below the pier's ground is not counted
@@ -430,3 +439,51 @@ failed.
 
 - **WHEN** both computed series carry values
 - **THEN** the `computed` outcome is reported as successful with no error
+
+### Requirement: The snapshot records when its data was issued
+
+The snapshot SHALL record an issue time on each series: the one its provider
+gave for the data it returned on this fetch. Series filled by the same provider
+SHALL carry the same issue time, except the computed source's: each computed
+series carries the issue time its own inputs give it. Recording it per series
+lets downstream trust reflect the age of the data it actually reads, even when
+providers refresh on different cadences.
+
+#### Scenario: Each source's issue time reflects the data actually carried
+
+- **WHEN** a snapshot is filled from two providers that gave different issue times
+- **THEN** each series carries the issue time of the provider that filled it
+- **AND** each recorded issue time is the one that provider gave for the data it returned on this fetch
+
+### Requirement: The computed source fills transparency at its place in the order
+
+The computed transparency series SHALL take part in the fill for `transparency`
+at the computed source's place in the provider order, exactly as a provider's
+series would. It SHALL count as returned when at least one hour carries a
+value. When it does not fill `transparency`, it SHALL be kept as an alternate,
+as any later provider's series is.
+
+#### Scenario: Listed ahead of 7Timer!, the computed source fills transparency
+
+- **WHEN** the order is `open_meteo`, `open_meteo_air_quality`, `computed`, `seven_timer`, the inputs and 7Timer! both give transparency for the dark window, and Open-Meteo returns no seeing column
+- **THEN** the `transparency` series carries the key `computed`
+- **AND** `transparency` has one alternate, carrying the key `seven_timer`
+- **AND** the `seeing` series carries the key `seven_timer`
+
+#### Scenario: In the default order, 7Timer! fills transparency
+
+- **WHEN** the order is the default, and the inputs and 7Timer! both give transparency for the dark window
+- **THEN** the `transparency` series carries the key `seven_timer`
+- **AND** `transparency` has one alternate, carrying the key `computed`
+
+#### Scenario: In the default order, the computed source fills transparency when 7Timer! fails
+
+- **WHEN** the order is the default, 7Timer! cannot be reached, Open-Meteo and the air-quality forecast both return their transparency inputs for the dark window, and Open-Meteo returns no seeing column
+- **THEN** the `transparency` series carries the key `computed`
+- **AND** seeing is unavailable
+
+#### Scenario: A computed series with no values leaves no series and no alternate
+
+- **WHEN** the order is `open_meteo`, `computed`, `seven_timer`, and no listed provider returns `aerosol_optical_depth`
+- **THEN** the `transparency` series carries the key `seven_timer`
+- **AND** `transparency` has no alternate from `computed`

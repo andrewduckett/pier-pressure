@@ -43,11 +43,13 @@ feeds each hour's index and every index is worked out the same way. For each
 hour that has the whole column:
 
 1. **Bad layers.** A layer between two adjacent levels is bad when its
-   potential temperature `θ = T_K × (1000 / p) ^ 0.286` rises by more than
-   0.5 K per 100 m. Count `n`, the bad layers whose lower level is at or
-   above the pier's elevation and which lie below the tropopause.
+   temperature falls by less than 0.476 K per 100 m, or rises. That is a
+   potential-temperature rise of more than 0.5 K per 100 m, measured as if
+   the layer were at 1000 hPa. Count `n`, the bad layers whose lower level is
+   at or above the pier's elevation and which lie below the tropopause.
 2. **Tropopause.** The tropopause is the lowest level at 500 hPa or higher up
-   from which temperature falls by 2 K per km or less to the next level.
+   from which temperature falls by 2 K per km or less to the next, higher,
+   level.
 3. **Index.** `q = clamp(1 − 0.12 × n − P_jet − P_blh, 0, 1)`, where:
    - `P_jet = 0.4 × clamp((w − 126) / 126, 0, 1) + 0.15 × clamp((18 − w) / 18, 0, 1)`
      for the 300 hPa wind `w` in km/h
@@ -63,10 +65,9 @@ For example, 2 bad layers, a 150 km/h jet and a 500 m boundary layer give
 - **Easier:** each term can be read and calibrated on its own, and each
   penalty only grows as its input worsens. Tests can check the shape of the
   index without fixing its calibration.
-- **Easier:** reading the gradient as potential temperature means air that
-  cools at the normal rate, about 0.65 K per 100 m, is not bad. The count then
-  varies with the night, which a literal reading of meteoblue's gradient
-  would not.
+- **Easier:** the test reads stability the same way at every height, so air
+  that cools at the normal rate, about 0.65 K per 100 m, is never bad. The
+  count then varies with the night, not with the season's tropopause height.
 - **Easier:** a value from HRRR and one from GFS mean the same thing, so the
   computed source's health can name the model, and nights can be compared
   across a change of model.
@@ -102,7 +103,14 @@ For example, 2 bad layers, a 150 km/h jet and a 500 m boundary layer give
 - **Why not**: a single strong inversion would read as the worst seeing
   possible, which over-punishes one feature of the column.
 
-### Alternative 4: Read meteoblue's gradient literally, as temperature change in either direction
+### Alternative 4: Use the raw potential-temperature gradient
+- **Pros**: the textbook measure of stability, with no correction.
+- **Cons**: the raw gradient grows with height, about 1.6 times at 200 hPa.
+  Air cooling at the normal rate counts as bad above about 250 hPa.
+- **Why not**: on a summer night, with a high tropopause, every hour would
+  start with one to three bad layers.
+
+### Alternative 5: Read meteoblue's gradient literally, as temperature change in either direction
 - **Pros**: it follows the quoted description word for word.
 - **Cons**: normal air cools by more than 0.5 K per 100 m, so most layers
   count as bad on most nights.

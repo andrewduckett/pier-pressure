@@ -61,6 +61,8 @@ Written out, the names stay typed for mypy and easy to search for.
 
 ### DD3. Each computed variable is its own fill at the computed slot
 
+`ComputedSource` holds its two derivations as fields, `transparency=computed_transparency` and `seeing=computed_seeing`. A test replaces one through `build_provider(fetchers={"computed": ComputedSource(seeing=raising)})`, at the primary seam.
+
 `ComputedSource.derive(conditions, pier)` returns a `Derived` value:
 
 - `fills`: one `(spec, forecast)` pair per computed variable that carries a value, in declared order. Each spec is `replace(COMPUTED, variables=(variable,))`, and each forecast carries that variable's issue time.
@@ -80,12 +82,11 @@ Written out, the names stay typed for mypy and easy to search for.
 
 Per hour:
 
-1. **Potential temperature.** Work out `θ = (T + 273.15) × (1000 / p) ^ 0.286` at each level.
-2. **Tropopause.** Walk the levels upward from 500 hPa. The tropopause is the first level whose temperature falls by 2 K per km or less to the next level. If none does, there is no cap.
-3. **Bad layers.** Count `n`: the layers between adjacent levels whose lower height is at or above `elevation_m`, which lie below the tropopause, and whose `Δθ / Δz` is greater than 0.005 K/m.
-4. **Index.** Apply DD6 to `n`, the 300 hPa wind and the boundary-layer height.
+1. **Tropopause.** Walk the levels upward from 500 hPa. The tropopause is the first level whose next level is higher, and whose temperature falls by 2 K per km or less to that level. If none qualifies, there is no cap.
+2. **Bad layers.** Count `n`: the layers between adjacent levels whose lower height is at or above `elevation_m`, which lie below the tropopause, and whose `ΔT / Δz` is greater than −0.00476 K/m.
+3. **Index.** Apply DD6 to `n`, the 300 hPa wind and the boundary-layer height.
 
-A layer whose two heights aren't increasing upward is not bad, so bad data never divides by zero. `computed_transparency` is unchanged.
+The bad-layer threshold is a potential-temperature rise of 0.5 K per 100 m, measured at 1000 hPa: `ΔT / Δz + g / c_p > 0.005 K/m`, with `g / c_p` = 0.00976 K/m. A raw `Δθ / Δz` grows with `(1000 / p) ^ 0.286`, about 1.6 times at 200 hPa. Above about 250 hPa it would count air cooling at the standard 6.5 K per km as bad, so summer nights with a high tropopause would start with bad layers. Every comparison multiplies by `Δz` rather than dividing by it. A layer whose heights don't increase upward is neither bad nor a tropopause, so bad data never divides by zero and never caps the count. `computed_transparency` is unchanged.
 
 ### DD5. The outcome is built from per-variable results
 
@@ -101,7 +102,7 @@ The parts are joined with `"; "` in declared order, transparency first.
 - `issued_at` is the earliest issue time, ignoring `None`, among the series that succeeded.
 - `inputs` maps each successful variable to the provider keys of the filled series it read, each key once, in input order. For seeing that is the column's one provider.
 
-`_safe_derive` still guards the whole call. If `derive` itself raises, the outcome is failed with the error kind, unprefixed, as today.
+`_safe_derive` still guards the whole call, for a bug outside the per-variable `try`. If `derive` itself raises, the outcome is failed. Its error gives the error kind once for each declared variable, in the same `<variable>: <reason>` form.
 
 `FetchOutcome` gains `inputs: Mapping[str, tuple[str, ...]] | None = None`. Providers leave it `None`.
 
@@ -140,7 +141,8 @@ The bad layers carry the largest share, since they are the term the story is nam
 - [When 7Timer! is down, uncalibrated seeing reaches default verdicts] → This only happens on outage nights. It moves the score by at most the atmosphere factor's seeing half. The `computed` health record and its `inputs` show when it ran and from which model.
 - [The tropopause test misreads a strong inversion between 500 hPa and the real tropopause, and stops counting early] → This is rare at night in mid-latitudes, and it only undercounts. The ADR names it as a calibration target.
 - [The Open-Meteo request grows to 48 columns for three models] → It is still one request per model. The URL is about 1.5 kB, well inside common limits. The request test pins the count.
-- [A model drops the column] → The bundle falls through to the next model that declares it. If none is left, the error names `seeing column`.
+- [A model drops the whole column] → The bundle falls through to the next model that declares it. If none is left, the error names `seeing column`.
+- [A declaring model returns only part of the column, for example best match at a pier where it picks a model with no boundary-layer height] → It wins the bundle, as ADR-0027's fill rule says, and the next model's complete column is only an alternate. Seeing then fails with `seeing: no hour has every input`. The `computed` health record shows it, so the pier owner can list HRRR or GFS first. The D1 check covered one location, so the README names this case.
 - [36 named fields are long to read in `Variable` and `SourceReading`] → One tuple and one test keep them in step (DD1).
 
 ## Migration & Rollback
