@@ -9,6 +9,7 @@ import pytest
 from pierpressure.core.conditions import Variable
 from pierpressure.core.providers import (
     CATALOG,
+    COMPUTED,
     NWS,
     OPEN_METEO,
     OPEN_METEO_AIR_QUALITY,
@@ -78,6 +79,14 @@ def test_the_air_quality_provider_declares_aerosol_then_pm2_5_and_no_bundle() ->
     assert not OPEN_METEO_AIR_QUALITY.needs_key
 
 
+def test_computed_declares_transparency_alone_needing_no_key() -> None:
+    assert COMPUTED.key == "computed"
+    assert COMPUTED.name == "Computed"
+    assert COMPUTED.variables == ("transparency",)
+    assert COMPUTED.bundles == ()
+    assert not COMPUTED.needs_key
+
+
 _NO_WATER_VAPOUR = tuple(v for v in OPEN_METEO.variables if v != "column_water_vapour")
 _NO_PRECIPITATION = tuple(v for v in _NO_WATER_VAPOUR if v != "precipitation_probability")
 
@@ -132,6 +141,7 @@ def test_catalog_maps_each_key_to_its_spec_in_order() -> None:
         ("open_meteo_air_quality", OPEN_METEO_AIR_QUALITY),
         ("nws", NWS),
         ("seven_timer", SEVEN_TIMER),
+        ("computed", COMPUTED),
     ]
 
 

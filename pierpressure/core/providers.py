@@ -118,6 +118,16 @@ SEVEN_TIMER = ProviderSpec(
     variables=("seeing", "transparency"),
 )
 
+# The computed source fetches nothing: the provider layer derives its series from
+# other providers' filled series (ADR-0031). It supplies no cloud, so it never
+# satisfies the configuration's cloud rule.
+COMPUTED = ProviderSpec(
+    key="computed",
+    name="Computed",
+    needs_key=False,
+    variables=("transparency",),
+)
+
 CATALOG: Mapping[str, ProviderSpec] = {
     spec.key: spec
     for spec in (
@@ -130,5 +140,6 @@ CATALOG: Mapping[str, ProviderSpec] = {
         OPEN_METEO_AIR_QUALITY,
         NWS,
         SEVEN_TIMER,
+        COMPUTED,
     )
 }
