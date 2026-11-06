@@ -19,7 +19,7 @@
 
 ## 4. Documentation and the full gate [depends-on: 3]
 
-- [ ] 4.1 [easy] The README's conditions section explains computed seeing. It says which models can feed it, and why HRDPS, RDPS and ICON can't. It says that a model returning part of the column fails seeing, and that listing HRRR or GFS first avoids it. It says the value is uncalibrated, and links ADR-0033. Its health section shows the prefixed error wording and the `inputs` attribute. (verify: `uv run pytest tests/test_docs.py`)
+- [x] 4.1 [easy] The README's conditions section explains computed seeing. It says which models can feed it, and why HRDPS, RDPS and ICON can't. It says that a model returning part of the column fails seeing, and that listing HRRR or GFS first avoids it. It says the value is uncalibrated, and links ADR-0033. Its health section shows the prefixed error wording and the `inputs` attribute. (verify: `uv run pytest tests/test_docs.py`) (✓ `uv run pytest tests/test_docs.py` passed)
 - [ ] 4.2 [easy] The full gate is green. (verify: `mise run check`)
 
 ## Deviations Ledger

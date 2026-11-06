@@ -201,7 +201,7 @@ conditions:
 | `horizon` | Exactly one of: `points` (a list of `[azimuth, altitude]` pairs), `min_altitude` (a flat floor in degrees), or `file` + `format`. Without it the horizon is flat at 0°. The only file format supported today is `nina` (a NINA `.hrz` export). `stellarium` and `telescopius` are recognised but rejected as not yet supported. |
 | `equipment` | Your telescope and camera. With equipment, targets are also ranked on how well they fit the field of view. |
 | `explainer` | The optional LLM summary. See [docs/llm-explainer.md](docs/llm-explainer.md). |
-| `conditions` | Optional. `providers` lists the weather providers, preferred first. The default is `[open_meteo, seven_timer, open_meteo_air_quality, computed]`. Each forecast variable, such as cloud cover or seeing, comes from the first provider in the list that returned it. PierPressure will not start if the list is empty, names an unknown provider, names a provider more than once, or has no provider that needs no key and supplies cloud cover. The providers are `open_meteo`, the five Open-Meteo models below, `open_meteo_air_quality` for the air-quality forecast, `nws` for the National Weather Service, `seven_timer`, and `computed`, which computes transparency from other providers' values. |
+| `conditions` | Optional. `providers` lists the weather providers, preferred first. The default is `[open_meteo, seven_timer, open_meteo_air_quality, computed]`. Each forecast variable, such as cloud cover or seeing, comes from the first provider in the list that returned it. PierPressure will not start if the list is empty, names an unknown provider, names a provider more than once, or has no provider that needs no key and supplies cloud cover. The providers are `open_meteo`, the five Open-Meteo models below, `open_meteo_air_quality` for the air-quality forecast, `nws` for the National Weather Service, `seven_timer`, and `computed`, which computes transparency and seeing from other providers' values. |
 
 ### Choosing Open-Meteo models
 
@@ -360,13 +360,56 @@ Before you rely on it, know these limits:
   [ADR-0032](docs/decisions/0032-computed-transparency-estimates-extinction.md).
 - **It needs its inputs in the list.** Listing `computed` without them does
   not stop PierPressure from starting. Its health sensor, **Computed health**,
-  shows `failed` with an error that names each missing input, such as
-  `missing input: aerosol_optical_depth`. If both inputs have values but never
-  in the same hour, the error is `no hour has every input`.
+  shows an error that names each missing input, such as
+  `transparency: missing input: aerosol_optical_depth`. If both inputs have
+  values but never in the same hour, the error is
+  `transparency: no hour has every input`.
 - **It does not supply cloud cover.** Like the air-quality provider, it does
   not meet the rule that the list needs a keyless provider of cloud cover.
 - **Its issue time is the older input's.** The computed values are as old as
   the older of the two forecasts they came from.
+
+### Computing seeing
+
+`computed` also computes an hourly seeing value, from 0 to 1 where 1 is best. It
+reads one weather model's view of the air above the pier, called the seeing
+column:
+
+| Variable | What it is | Unit |
+|---|---|---|
+| `temperature_<p>hpa` | The temperature at each pressure level `<p>`, from 1000 to 50 hPa | °C |
+| `geopotential_height_<p>hpa` | The height of each pressure level above sea level | m |
+| `wind_speed_300hpa` | The jet-stream wind at 300 hPa | km/h |
+| `boundary_layer_height` | How deep the mixed air near the ground is | m |
+
+Seeing is worse when the column has more stable layers, where the air barely
+cools with height or warms, between your pier's elevation and the tropopause, when the jet stream is faster than 126 km/h
+or slower than 18 km/h, and when the boundary layer is deeper. None of these
+values shows on the timeline.
+
+**Which models can feed it.** The seeing column comes only from
+`open_meteo`, `open_meteo_hrrr` or `open_meteo_gfs`. HRDPS, RDPS and ICON send
+no boundary-layer height, so they don't declare the column, and the next model
+in the list that does fills it. The whole column always comes from one model.
+
+Where you list `computed` works for seeing as it does for transparency. In the
+default list, 7Timer! fills seeing, and `computed` fills it only when 7Timer! returned none. To prefer
+the computed value, list `computed` ahead of `seven_timer`.
+
+Before you rely on it, know these limits:
+
+- **The value is uncalibrated.** The weights are a first guess, and have not
+  been checked against real nights. The formula is in
+  [ADR-0033](docs/decisions/0033-computed-seeing-sums-capped-penalties.md).
+- **A model that returns part of the column fails seeing.** The first model
+  that returns any part of the column fills all of it, even the parts it left
+  blank. Seeing then fails with `seeing: no hour has every input`. Best match
+  can do this where it picks a model with no boundary-layer height. To avoid
+  it, list `open_meteo_hrrr` or `open_meteo_gfs` first.
+- **It needs a model that supplies the column.** With none in the list,
+  **Computed health** shows `seeing: missing input: seeing column`.
+- **Its issue time is the column's.** The column comes from one model, so the
+  computed seeing is as old as that model's forecast.
 
 **Secrets.** Any `${VAR}` in a value is replaced with that environment variable
 when the file loads, so passwords and API keys need not sit in the file. If the
@@ -514,7 +557,7 @@ automation:
 PierPressure gets its weather from the providers in the `conditions` list. By
 default, Open-Meteo gives cloud, wind and the weather values, 7Timer! gives
 seeing and transparency, and Open-Meteo air quality gives aerosol and PM2.5. The
-computed source fills transparency when 7Timer! returned none. If a provider fails, the verdict still arrives, with
+computed source fills transparency and seeing when 7Timer! returned none. If a provider fails, the verdict still arrives, with
 that provider's data missing. A broken 7Timer! only lowers confidence, so it is
 easy to miss. The health sensors show each failure as it happens.
 
@@ -539,8 +582,9 @@ is, the longer the provider has been failing.
 | `tracking_since` | When PierPressure started tracking health. It stays the same until PierPressure restarts. |
 | `status` | `ok` or `failed` for the latest fetch, or `null` before the first fetch. |
 | `last_fetch` | When the latest fetch ran, or `null` before the first fetch. |
-| `last_error` | Why the latest fetch failed, such as `ConnectError` or `HTTPStatusError: 503 Service Unavailable`. `null` when it succeeded. A fetch that returns no data fails with `no readings returned`. For `computed`, the errors are `missing input: …` and `no hour has every input`. |
-| `issued_at` | When the provider issued the data from the last successful fetch, or `null`. |
+| `last_error` | Why the latest fetch failed, such as `ConnectError` or `HTTPStatusError: 503 Service Unavailable`. `null` when it succeeded. A fetch that returns no data fails with `no readings returned`. For `computed`, each variable that failed adds `<variable>: <reason>`, such as `transparency: missing input: aerosol_optical_depth` or `seeing: missing input: seeing column`. When both fail, the two are joined by `; `. `computed` is `ok` when at least one variable has values, and then still shows the error for the one that failed. |
+| `issued_at` | When the provider issued the data from the last successful fetch, or `null`. For `computed`, the oldest of its computed values. |
+| `inputs` | `computed` only. Which providers each computed variable read on the last success, such as `{"transparency": ["open_meteo", "open_meteo_air_quality"], "seeing": ["open_meteo"]}`. A variable that failed is left out. `null` until the first success. A failed computation keeps the earlier value. |
 
 The error never contains the request URL or your pier's coordinates. The full
 error goes to the PierPressure log.
