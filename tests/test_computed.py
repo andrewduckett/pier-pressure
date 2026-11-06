@@ -10,9 +10,10 @@ from pierpressure.core.computed import (
     MissingInputs,
     NoSharedHour,
     bad_layers,
+    computed_seeing,
     computed_transparency,
 )
-from pierpressure.core.conditions import SEEING_LEVELS, Series
+from pierpressure.core.conditions import SEEING_COLUMN, SEEING_LEVELS, Series, Variable
 
 _AT = datetime(2026, 11, 5, 22, 0, tzinfo=UTC)
 
@@ -295,3 +296,113 @@ def test_bad_layer_count_takes_no_layer_whose_heights_do_not_increase_as_the_tro
     heights |= {400: heights[500]}
     temperatures |= {400: temperatures[500] + 1.0}
     assert _bad(heights, temperatures) == (300,)
+
+
+# --------------------------------------------------------------------------- #
+# computed-seeing 2.2: the seeing index (ADR-0033)
+# --------------------------------------------------------------------------- #
+
+# Layers below 500 hPa, so that none of them is read as the tropopause.
+_BAD_LAYERS = (950, 900, 850, 800, 700, 600)
+
+
+def _hour_values(bad: int, jet: float, boundary_layer: float) -> dict[Variable, float]:
+    """One hour's seeing column with ``bad`` bad layers, a jet and a boundary layer."""
+    heights, temperatures = _profile(dict.fromkeys(_BAD_LAYERS[:bad], 0.0))
+    per_level = (
+        value for level in SEEING_LEVELS for value in (temperatures[level], heights[level])
+    )
+    return dict(zip(SEEING_COLUMN, (*per_level, jet, boundary_layer), strict=True))
+
+
+def _column(
+    hours: dict[datetime, dict[Variable, float | None]],
+    issued_at: datetime | None = None,
+) -> dict[Variable, Series | None]:
+    return {
+        variable: Series(
+            provider="open_meteo",
+            issued_at=issued_at,
+            values={time: values.get(variable) for time, values in hours.items()},
+        )
+        for variable in SEEING_COLUMN
+    }
+
+
+def _seeing(bad: int, jet: float, boundary_layer: float) -> float:
+    result = computed_seeing(_column({_AT: _hour_values(bad, jet, boundary_layer)}), 0.0)
+    assert isinstance(result, Series)
+    value = result.values[_AT]
+    assert value is not None
+    return value
+
+
+def test_the_built_column_has_the_bad_layers_it_names() -> None:
+    for bad in range(len(_BAD_LAYERS) + 1):
+        heights, temperatures = _profile(dict.fromkeys(_BAD_LAYERS[:bad], 0.0))
+        assert _bad(heights, temperatures) == _BAD_LAYERS[:bad]
+
+
+@pytest.mark.parametrize(
+    ("bad", "jet", "boundary_layer", "expected"),
+    [(0, 80.0, 150.0, 1.0), (2, 150.0, 500.0, 0.6261), (3, 250.0, 900.0, 0.1117)],
+)
+def test_the_seeing_value_matches_the_adr_worked_examples(
+    bad: int, jet: float, boundary_layer: float, expected: float
+) -> None:
+    assert _seeing(bad, jet, boundary_layer) == pytest.approx(expected, abs=5e-5)
+
+
+_BADS = tuple(range(len(_BAD_LAYERS) + 1))
+_JETS = (0.0, 5.0, 15.0, 18.0, 60.0, 126.0, 130.0, 180.0, 252.0, 400.0)
+_BOUNDARY_LAYERS = (0.0, 150.0, 200.0, 500.0, 1200.0, 1500.0, 3000.0)
+
+
+def test_every_seeing_value_lies_in_zero_to_one() -> None:
+    for bad in _BADS:
+        for jet in _JETS:
+            for boundary_layer in _BOUNDARY_LAYERS:
+                assert 0.0 <= _seeing(bad, jet, boundary_layer) <= 1.0, (bad, jet, boundary_layer)
+
+
+def test_a_bad_layer_more_never_gives_a_better_seeing_value() -> None:
+    for jet in _JETS:
+        for boundary_layer in _BOUNDARY_LAYERS:
+            values = [_seeing(bad, jet, boundary_layer) for bad in _BADS]
+            assert values == sorted(values, reverse=True), (jet, boundary_layer)
+
+
+def test_a_jet_further_outside_the_good_range_never_gives_a_better_seeing_value() -> None:
+    above = tuple(jet for jet in _JETS if jet >= 126.0)
+    below = tuple(jet for jet in reversed(_JETS) if jet <= 18.0)
+    for bad in _BADS:
+        for boundary_layer in _BOUNDARY_LAYERS:
+            for jets in (above, below):
+                values = [_seeing(bad, jet, boundary_layer) for jet in jets]
+                assert values == sorted(values, reverse=True), (bad, boundary_layer, jets)
+
+
+def test_a_jet_inside_the_good_range_costs_nothing_in_the_seeing_value() -> None:
+    assert {_seeing(0, jet, 150.0) for jet in (18.0, 60.0, 126.0)} == {1.0}
+
+
+def test_the_spec_seeing_value_scenarios_hold() -> None:
+    assert _seeing(1, 60.0, 300.0) <= _seeing(0, 60.0, 300.0)
+    assert _seeing(1, 180.0, 300.0) <= _seeing(1, 130.0, 300.0)
+    assert _seeing(1, 5.0, 300.0) <= _seeing(1, 15.0, 300.0)
+    assert _seeing(1, 60.0, 1200.0) <= _seeing(1, 60.0, 200.0)
+
+
+def test_a_deeper_boundary_layer_never_gives_a_better_seeing_value() -> None:
+    for bad in _BADS:
+        for jet in _JETS:
+            values = [_seeing(bad, jet, boundary_layer) for boundary_layer in _BOUNDARY_LAYERS]
+            assert values == sorted(values, reverse=True), (bad, jet)
+
+
+def test_the_seeing_value_counts_only_bad_layers_above_the_piers_ground() -> None:
+    column = _column({_AT: _hour_values(1, 80.0, 150.0)})
+    low, high = computed_seeing(column, 0.0), computed_seeing(column, 1000.0)
+    assert isinstance(low, Series)
+    assert isinstance(high, Series)
+    assert (low.values[_AT], high.values[_AT]) == (pytest.approx(0.88), 1.0)
