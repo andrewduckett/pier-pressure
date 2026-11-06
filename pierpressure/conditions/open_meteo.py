@@ -103,7 +103,7 @@ def _float_at(values: list[Any], index: int) -> float | None:
     return _as_float(values[index]) if index < len(values) else None
 
 
-def parse_open_meteo(payload: dict[str, Any], issued_at: datetime) -> SourceForecast:
+def parse_open_meteo(payload: dict[str, Any], issued_at: datetime | None) -> SourceForecast:
     """Map an Open-Meteo forecast payload to a :class:`SourceForecast`.
 
     Missing or ``null`` values for an hour are left absent, so a gappy forecast is
@@ -120,6 +120,12 @@ def parse_open_meteo(payload: dict[str, Any], issued_at: datetime) -> SourceFore
             **{variable: _float_at(values, index) for variable, values in columns.items()}
         )
     return SourceForecast(issued_at=issued_at, readings=readings)
+
+
+def _run_start(client: httpx.Client, name: str) -> datetime | None:
+    """The start of the latest run in Open-Meteo's metadata file ``name``."""
+    response = client.get(OPEN_METEO_METADATA_URL.format(name=name))
+    return datetime.fromtimestamp(response.json()["last_run_initialisation_time"], UTC)
 
 
 @dataclass
@@ -155,12 +161,11 @@ class OpenMeteoProvider:
         client = self.client or httpx.Client(timeout=_TIMEOUT_SECONDS)
         try:
             run_metadata = RUN_METADATA.get(self.spec.key)
-            if run_metadata is not None:
-                client.get(OPEN_METEO_METADATA_URL.format(name=run_metadata))
+            issued_at = self.now() if run_metadata is None else _run_start(client, run_metadata)
             url = ENDPOINTS.get(self.spec.key, OPEN_METEO_URL)
             response = client.get(url, params=params)
             response.raise_for_status()
-            return parse_open_meteo(response.json(), issued_at=self.now())
+            return parse_open_meteo(response.json(), issued_at=issued_at)
         finally:
             if self.client is None:
                 client.close()

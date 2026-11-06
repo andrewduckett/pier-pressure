@@ -1049,21 +1049,35 @@ def test_plain_open_meteo_and_air_quality_send_no_metadata_request(key: str) -> 
     assert len(requests) == 1
 
 
-def test_a_model_provider_stamps_its_fetch_time_as_the_issue_time() -> None:
-    fetched_at = datetime(2026, 9, 8, 21, 5, tzinfo=UTC)
+_RUN_START = datetime(2026, 11, 5, 18, 0, tzinfo=UTC)
+"""The run start in ``open_meteo_meta.json``: ``1793901600``. The run became
+available at 21:55 the same day."""
 
-    def handle(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json=_load("open_meteo.json"))
 
-    stack = build_provider(["open_meteo_rdps"], now=lambda: fetched_at)
-    [fetcher] = stack.fetchers
-    assert isinstance(fetcher, OpenMeteoProvider)
-    fetcher.client = httpx.Client(transport=httpx.MockTransport(handle))
-    conditions = stack.get(make_pier()).conditions
-    assert conditions.series
-    for series in conditions.series.values():
+def test_a_model_provider_carries_its_run_start_as_the_issue_time() -> None:
+    stack = _open_meteo_stack(
+        ["open_meteo_rdps"],
+        {"gem_regional": httpx.Response(200, json=_load("open_meteo.json"))},
+    )
+    result = stack.get(make_pier())
+    assert result.conditions.series
+    for series in result.conditions.series.values():
         assert series.provider == "open_meteo_rdps"
-        assert series.issued_at == fetched_at
+        assert series.issued_at == _RUN_START
+    (outcome,) = result.outcomes
+    assert outcome.ok
+    assert outcome.issued_at == _RUN_START
+
+
+def test_plain_open_meteo_still_stamps_its_fetch_time_as_the_issue_time() -> None:
+    stack = _open_meteo_stack(
+        ["open_meteo"], {None: httpx.Response(200, json=_load("open_meteo.json"))}
+    )
+    result = stack.get(make_pier())
+    assert result.conditions.series
+    assert {series.issued_at for series in result.conditions.series.values()} == {_FETCHED}
+    (outcome,) = result.outcomes
+    assert outcome.issued_at == _FETCHED
 
 
 def test_build_provider_builds_the_air_quality_fetcher() -> None:
