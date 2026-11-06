@@ -6,13 +6,15 @@
 ## Review Summary
 
 ADR review completed for this change. The design's four decisions (DD1–DD4)
-are local to `pierpressure/conditions/open_meteo.py` and cheap to reverse: where
-the metadata names live, the order of two requests, which errors the run-time
-read absorbs, and that a failed forecast still fails the fetch. The behaviour a
-reader relies on, a null issue time when the run time cannot be read, is a spec
-requirement, not an architectural fork. The change builds on ADR-0005 (network
+stay inside `pierpressure/conditions/open_meteo.py` and are cheap to reverse.
+They settle where the metadata names live, the order of two requests, which
+errors the run-time read absorbs, and that a failed forecast still fails the
+fetch. The null issue time when the provider cannot read the run time is a spec
+requirement, not an architectural fork.
+
+The change builds on three records and changes none of them: ADR-0005 (network
 only at the provider edge), ADR-0027 (each series carries its provider's issue
-time) and ADR-0028 (each model is its own provider), and changes none of them.
+time) and ADR-0028 (each model is its own provider).
 
 ## In-Force ADRs Reviewed
 

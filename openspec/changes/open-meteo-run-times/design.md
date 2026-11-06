@@ -48,6 +48,13 @@ since the Unix epoch. Only `last_run_initialisation_time` is read (D1).
   fixture loader and `_open_meteo_stack` helper. The helper answers by the
   `models=` parameter today, so it must route metadata requests by path. Model
   tests that do not care about the run time get a default metadata answer.
+  `_requests_of` returns every request, so the tests that unpack exactly one
+  request from a model provider must pick the forecast request instead:
+  `test_the_forecast_providers_ask_the_forecast_endpoint`,
+  `test_a_model_provider_asks_for_its_model_and_its_declared_variables_only`
+  and `test_each_model_provider_names_exactly_its_own_model`.
+  `test_a_model_provider_stamps_its_fetch_time_as_the_issue_time` pins the
+  removed requirement, so it is replaced, not patched.
   New fixture: a recorded `meta.json` trimmed of `crs_wkt`.
 
 ## Scrutiny Tier & Blast Radius
@@ -55,7 +62,8 @@ since the Unix epoch. Only `last_run_initialisation_time` is read (D1).
 - **Tier:** medium. One module on an established pattern, but a new endpoint
   call on every model fetch and a change in the confidence those piers see.
 - **Blast radius:** `pierpressure/conditions/open_meteo.py` and its tests; the
-  README. No core, delivery or configuration change.
+  `build_provider` docstring; the README. No core, delivery or configuration
+  change.
 
 ## Decisions
 
@@ -83,14 +91,26 @@ side for this story.
 ### DD3: The run-time read never raises
 
 A private `_run_start(client, name) -> datetime | None` makes the request and
-returns `None` on `httpx.HTTPError` (status and transport errors), on a body
-that is not a JSON object, and when `last_run_initialisation_time` is not an
-`int` (a `bool` is not accepted). It logs a warning with the error, as
-`_safe_fetch` does, so the full text stays in the log only (D8). It converts
-the value with `datetime.fromtimestamp(value, UTC)`.
+converts the value with `datetime.fromtimestamp(value, UTC)`. It returns `None`
+in each of these cases:
+
+- `httpx.HTTPError`: status and transport errors;
+- `ValueError` from `response.json()`: a body that is not JSON, such as an HTML
+  error page sent with status 200;
+- a parsed body that is not a JSON object;
+- a `last_run_initialisation_time` that is missing or not an `int` (a `bool` is
+  not accepted);
+- `OverflowError`, `OSError` or `ValueError` from `fromtimestamp`: an integer
+  outside the range a `datetime` can hold.
+
+It logs a warning with the error, as `_safe_fetch` does, so the full text stays
+in the log only (D8).
 
 Exceptions outside that set, such as a bug, still raise and fail the fetch
 through `_safe_fetch`, which is the project's rule for unexpected errors.
+
+`parse_open_meteo` widens `issued_at` to `datetime | None`, so a model provider
+can pass the null run time through.
 
 - *Alternative:* catch every exception. That would hide a bug as a null issue
   time, and a null issue time only shows as lower confidence.
@@ -111,6 +131,12 @@ discarded; no new code path.
 - [A second request per model doubles the calls to Open-Meteo] → The metadata
   file is small and keyless, on the same 10-second timeout. Five models make
   ten calls per recompute, within Open-Meteo's free limits.
+- [The metadata file does not depend on the pier, yet each pier fetches it
+  again, and a pier outside a regional model's area fetches it only for the
+  forecast to fail. Three piers and five models make 15 metadata calls per
+  recompute] → Accepted. Each call is a small keyless file, and the forecast
+  calls already scale the same way. Sharing a fetch across piers would add
+  state between per-pier fetches, which this change keeps out (Non-Goals).
 - [ICON global is older than ICON-EU or -D2 for a European pier, so its first
   hours look older than they are] → Accepted (D5). It errs toward lower
   confidence.

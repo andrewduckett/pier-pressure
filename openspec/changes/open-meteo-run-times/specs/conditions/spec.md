@@ -13,7 +13,7 @@ outcome SHALL carry the same issue time. The `open_meteo` and
 - **THEN** each series it fills carries an issue time of 12:00
 - **AND** its fetch outcome is successful and carries 12:00 as its issue time
 
-#### Scenario: The run start is used, not when the run became available
+#### Scenario: The provider carries the run start, not when the run became available
 
 - **WHEN** a model provider's metadata reports a latest run that started at 18:00 and became available at 21:22
 - **THEN** each series that provider fills carries an issue time of 18:00
@@ -52,13 +52,12 @@ since the Unix epoch, in UTC.
 
 ### Requirement: A model provider with no run time succeeds with a null issue time
 
-When a model provider's forecast returns readings but its run time cannot be
-read, the fetch SHALL still succeed, and every series it fills and its fetch
-outcome SHALL carry a null issue time. The run time cannot be read when the
-metadata request fails, or when the response has no
-`last_run_initialisation_time` that is a whole number. The outcome's error
-SHALL stay null. A forecast that fails, or returns no readings, SHALL fail the
-fetch as it does for any provider, whatever the metadata gives.
+When a model provider's forecast returns readings but it cannot read a run
+time, the fetch SHALL succeed with a null error, and a null issue time on its
+outcome and every series it fills. It cannot read a run time when the metadata
+request fails, the body is not a JSON object, or `last_run_initialisation_time`
+is missing, not a whole number, or outside the range of a date. A forecast that
+fails, or returns no readings, SHALL fail the fetch as for any provider.
 
 #### Scenario: The metadata request fails
 
@@ -69,6 +68,12 @@ fetch as it does for any provider, whatever the metadata gives.
 #### Scenario: The metadata gives no run time
 
 - **WHEN** `open_meteo_icon` is fetched, its forecast returns readings, and its metadata response has no `last_run_initialisation_time`
+- **THEN** each series it fills carries a null issue time
+- **AND** its fetch outcome is successful, with a null error and a null issue time
+
+#### Scenario: The metadata body is not JSON
+
+- **WHEN** `open_meteo_hrdps` is fetched, its forecast returns readings, and its metadata request answers with status 200 and an HTML page
 - **THEN** each series it fills carries a null issue time
 - **AND** its fetch outcome is successful, with a null error and a null issue time
 
@@ -88,4 +93,4 @@ latest run from Open-Meteo's metadata.
 
 **Migration**: Nothing to configure. A pier whose cloud comes from a model
 provider sees confidence reflect the run's real age. Read the issue time as the
-run start, or null when it could not be read.
+run start, or null when the provider could not read it.

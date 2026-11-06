@@ -20,8 +20,9 @@ it before agreement (#158) starts comparing model runs.
 - The fetch outcome and the health sensor's `issued_at` carry the run time, or
   null, with no new field (D8).
 - Plain `open_meteo` and the air-quality provider keep the fetch time (D11).
-- The README's provider notes and "Watching provider health" say the model
-  providers report their run time.
+- The README's model notes, its air-quality note and "Watching provider
+  health" say the model providers report their run time, and that only plain
+  `open_meteo` and air quality stamp the fetch time.
 
 ## Capabilities
 
@@ -39,7 +40,8 @@ None.
 
 - **Code:** `pierpressure/conditions/open_meteo.py` (the model table and
   `OpenMeteoProvider.fetch`), and `pierpressure/conditions/provider.py`
-  (`build_provider`) if the model providers need the metadata name passed in.
+  (`build_provider`, whose docstring says `now` stamps Open-Meteo's issue
+  time; that stays true only for plain `open_meteo` and air quality).
   The core is unchanged: `freshness_factor` already reads the cloud series'
   issue time and treats null as stale.
 - **Network:** one extra request per model provider per recompute, to
@@ -47,5 +49,6 @@ None.
   forecast endpoint.
 - **Verdict document and delivery:** no shape change. Confidence for a pier whose
   cloud comes from a model provider drops to reflect the run's real age.
-- **Docs:** README provider notes and "Watching provider health".
+- **Docs:** README model notes, air-quality note and "Watching provider
+  health".
 - **Dependencies:** none.
