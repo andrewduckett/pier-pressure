@@ -34,10 +34,10 @@ Variable conventions the core relies on:
 - The weather variables pass through to the timeline as reported (°C, %, km/h,
   degrees); no gate, score or confidence term reads them. Temperature and dew
   point feed only the dew reason line.
-- ``aerosol_optical_depth`` (no unit) and ``pm2_5`` (µg/m³) are carried as
-  reported. The timeline does not show them and nothing reads them yet.
-- ``column_water_vapour`` (kg/m²) is carried as reported. The timeline does not
-  show it.
+- ``aerosol_optical_depth`` (no unit), ``pm2_5`` (µg/m³) and
+  ``column_water_vapour`` (kg/m²) are carried as reported. The timeline does not
+  show them, and the verdict never reads them. The provider layer derives the
+  computed source's transparency from aerosol and water vapour.
 """
 
 from __future__ import annotations

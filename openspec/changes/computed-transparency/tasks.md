@@ -19,7 +19,7 @@
 
 ## 4. Documentation and the full gate [depends-on: 3]
 
-- [ ] 4.1 [easy] The README's conditions section names `computed` and its new default place. It explains where to list it: ahead of 7Timer! to prefer it, or after 7Timer! as a fallback. It says the value is uncalibrated and links ADR-0032. The health-topic tables and the clean-up list include `computed`. (verify: `uv run pytest tests/test_docs.py`)
+- [x] 4.1 [easy] The README's conditions section names `computed` and its new default place. It explains where to list it: ahead of 7Timer! to prefer it, or after 7Timer! as a fallback. It says the value is uncalibrated and links ADR-0032. The health-topic tables and the clean-up list include `computed`. (verify: `uv run pytest tests/test_docs.py`) (✓ `uv run pytest tests/test_docs.py` passed)
 - [ ] 4.2 [easy] The full gate is green. (verify: `mise run check`)
 
 ## Deviations Ledger
@@ -28,3 +28,4 @@
 
 - 2026-11-05, task 1.3: `test_each_fetcher_points_at_its_catalog_spec` builds every catalog key, and `computed` has no source until task 3.1. The test leaves `computed` out until 3.1 puts it back.
 - 2026-11-05, task 1.4: done after task 3.2 instead of before task 2.1. `__main__` builds the default list, so adding `computed` to it before 3.1 gives it a source would break startup in the commits between.
+- 2026-11-05, task 4.1: the README's air-quality section said "Nothing reads them yet", which the computed source makes untrue. It now says the verdict does not read them directly, and links the new section. The doc test's fact changed with it. The same stale line was fixed in the `core/conditions.py` docstring and a `core/providers.py` comment.

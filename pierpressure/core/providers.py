@@ -85,8 +85,8 @@ OPEN_METEO_ICON = replace(
 )
 OPEN_METEO_GFS = replace(OPEN_METEO, key="open_meteo_gfs", name="Open-Meteo GFS")
 
-# The air-quality forecast is a different Open-Meteo endpoint. Nothing reads its
-# variables yet, and the timeline does not show them.
+# The air-quality forecast is a different Open-Meteo endpoint. The timeline does
+# not show its variables; only the computed source reads its aerosol.
 OPEN_METEO_AIR_QUALITY = ProviderSpec(
     key="open_meteo_air_quality",
     name="Open-Meteo air quality",

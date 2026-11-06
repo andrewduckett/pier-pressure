@@ -154,12 +154,12 @@ def test_the_configuration_table_names_the_air_quality_provider() -> None:
 
 
 def test_the_configuration_table_gives_the_new_default_order() -> None:
-    assert "`[open_meteo, seven_timer, open_meteo_air_quality]`" in _conditions_row()
+    assert "`[open_meteo, seven_timer, open_meteo_air_quality, computed]`" in _conditions_row()
 
 
 def test_the_example_shows_the_new_default_order() -> None:
     config = _section(_README.read_text(encoding="utf-8"), "## ⚙️ Configuration")
-    assert "providers: [open_meteo, seven_timer, open_meteo_air_quality]" in config
+    assert "providers: [open_meteo, seven_timer, open_meteo_air_quality, computed]" in config
 
 
 def test_the_health_topic_list_names_the_air_quality_provider() -> None:
@@ -175,10 +175,49 @@ def test_the_health_topic_list_names_the_air_quality_provider() -> None:
         "no unit",
         "`pm2_5`",
         "µg/m³",
-        "Nothing reads them yet",
+        "The verdict does not read them directly",
         "timeline does not show them",
     ],
 )
 def test_the_air_quality_section_explains_its_variables(fact: str) -> None:
     section = _section(_README.read_text(encoding="utf-8"), "### Adding the air-quality forecast")
+    assert fact in section
+
+
+# --------------------------------------------------------------------------- #
+# computed-transparency 4.1: the README documents the computed source
+# --------------------------------------------------------------------------- #
+
+
+def test_the_configuration_table_names_computed() -> None:
+    assert "`computed`" in _conditions_row()
+
+
+def test_the_health_topic_list_names_computed() -> None:
+    entities = _section(_README.read_text(encoding="utf-8"), "## 🏠 Home Assistant entities")
+    health_rows = [line for line in entities.splitlines() if "_health" in line]
+    assert health_rows
+    assert all("computed" in row for row in health_rows)
+
+
+def test_the_clean_up_list_names_the_computed_health_sensor() -> None:
+    removing = _section(_README.read_text(encoding="utf-8"), "### Removing the entities")
+    assert "sensor/pierpressure_backyard/computed_health" in removing
+
+
+@pytest.mark.parametrize(
+    "fact",
+    [
+        "last in the default list",
+        "ahead of `seven_timer`",
+        "after `seven_timer`",
+        "uncalibrated",
+        "docs/decisions/0032-computed-transparency-estimates-extinction.md",
+        "`column_water_vapour`",
+        "`missing input: aerosol_optical_depth`",
+        "`no hour has every input`",
+    ],
+)
+def test_the_computed_section_explains_where_to_list_it(fact: str) -> None:
+    section = _section(_README.read_text(encoding="utf-8"), "### Computing transparency")
     assert fact in section
