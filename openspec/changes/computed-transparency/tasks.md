@@ -7,7 +7,7 @@
 
 ## 2. Computed transparency in the core [depends-on: 1]
 
-- [ ] 2.1 [medium] A pure `computed_transparency` in `pierpressure/core/computed.py` gives the ADR-0032 values for an hour with both inputs: 1.0 for AOD 0.05 with 10 kg/m², 0.6959 for 0.15 with 30, and 0.0834 for 0.60 with 20. Every value lies in `[0, 1]`, and raising either input never raises the value (design DD3, DD4). (verify: `uv run pytest tests/test_computed.py -k value`)
+- [x] 2.1 [medium] A pure `computed_transparency` in `pierpressure/core/computed.py` gives the ADR-0032 values for an hour with both inputs: 1.0 for AOD 0.05 with 10 kg/m², 0.6959 for 0.15 with 30, and 0.0834 for 0.60 with 20. Every value lies in `[0, 1]`, and raising either input never raises the value (design DD3, DD4). (verify: `uv run pytest tests/test_computed.py -k value`) (✓ `uv run pytest tests/test_computed.py -k value` passed)
 - [ ] 2.2 [medium] The computed series is keyed `computed`. It covers only the hours both input series cover, with `None` where either input is blank. It carries the earlier of the inputs' issue times that is not `None` (design DD3). (verify: `uv run pytest tests/test_computed.py -k "covers or issue"`)
 - [ ] 2.3 [medium] With no hour computed, `computed_transparency` returns the reason instead of a series. One reason is the missing input keys, `column_water_vapour` before `aerosol_optical_depth`. The other is that no hour has both values. The core module imports nothing from the conditions layer or `health` (design DD3). (verify: `uv run pytest tests/test_computed.py tests/test_core_boundary.py`)
 - [ ] 2.4 [parallel] [easy] Two verdicts whose snapshots differ only in a `column_water_vapour` series serialize byte-identically (the night-verdict delta). (verify: `uv run pytest tests/test_producer_timeline.py -k water_vapour`)
@@ -27,3 +27,4 @@
 <!-- Dated notes on small departures from the plan, written during apply. Stop and ask the user about a large one. -->
 
 - 2026-11-05, task 1.3: `test_each_fetcher_points_at_its_catalog_spec` builds every catalog key, and `computed` has no source until task 3.1. The test leaves `computed` out until 3.1 puts it back.
+- 2026-11-05, task 1.4: done after task 3.2 instead of before task 2.1. `__main__` builds the default list, so adding `computed` to it before 3.1 gives it a source would break startup in the commits between.
