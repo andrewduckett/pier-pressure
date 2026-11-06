@@ -60,3 +60,72 @@ def test_more_water_vapour_never_gives_a_better_value() -> None:
 def test_the_spec_value_scenarios_hold() -> None:
     assert _value(0.60, 20.0) <= _value(0.05, 20.0)
     assert _value(0.15, 35.0) <= _value(0.15, 5.0)
+
+
+def _hour(day: int, h: int) -> datetime:
+    return datetime(2026, 11, day, h, 0, tzinfo=UTC)
+
+
+def _night(first: int, last: int) -> list[datetime]:
+    """Every hour from ``first`` on the 5th to ``last``, which may run into the 6th."""
+    return [_hour(5, h) if h < 24 else _hour(6, h - 24) for h in range(first, last + 1)]
+
+
+def _series(
+    provider: str, values: dict[datetime, float | None], issued_at: datetime | None = None
+) -> Series:
+    return Series(provider=provider, issued_at=issued_at, values=values)
+
+
+def test_the_computed_series_is_keyed_computed() -> None:
+    result = computed_transparency(
+        _series("open_meteo", {_AT: 10.0}), _series("open_meteo_air_quality", {_AT: 0.1})
+    )
+    assert isinstance(result, Series)
+    assert result.provider == "computed"
+
+
+def test_the_series_covers_only_hours_both_inputs_cover() -> None:
+    water_vapour = _series("open_meteo", dict.fromkeys(_night(18, 23), 10.0))
+    aerosol = _series("open_meteo_air_quality", dict.fromkeys(_night(20, 27), 0.1))
+    result = computed_transparency(water_vapour, aerosol)
+    assert isinstance(result, Series)
+    assert list(result.values) == _night(20, 23)
+
+
+def test_the_series_covers_an_hour_blank_in_one_input_as_none() -> None:
+    water_vapour = _series("open_meteo", {_hour(5, 21): 10.0, _hour(5, 22): 10.0})
+    aerosol = _series("open_meteo_air_quality", {_hour(5, 21): 0.1, _hour(5, 22): None})
+    result = computed_transparency(water_vapour, aerosol)
+    assert isinstance(result, Series)
+    assert result.values[_hour(5, 22)] is None
+    assert result.values[_hour(5, 21)] is not None
+
+
+@pytest.mark.parametrize(
+    ("vapour_issued", "aerosol_issued", "expected"),
+    [
+        (
+            _hour(5, 21).replace(minute=5),
+            _hour(5, 20).replace(minute=40),
+            _hour(5, 20).replace(minute=40),
+        ),
+        (
+            _hour(5, 20).replace(minute=40),
+            _hour(5, 21).replace(minute=5),
+            _hour(5, 20).replace(minute=40),
+        ),
+        (None, _hour(5, 21), _hour(5, 21)),
+        (_hour(5, 19), None, _hour(5, 19)),
+        (None, None, None),
+    ],
+)
+def test_the_series_carries_the_earlier_input_issue_time(
+    vapour_issued: datetime | None, aerosol_issued: datetime | None, expected: datetime | None
+) -> None:
+    result = computed_transparency(
+        _series("open_meteo", {_AT: 10.0}, vapour_issued),
+        _series("open_meteo_air_quality", {_AT: 0.1}, aerosol_issued),
+    )
+    assert isinstance(result, Series)
+    assert result.issued_at == expected

@@ -32,14 +32,27 @@ def _transparency(water_vapour: float, aerosol: float) -> float:
     return min(1.0, max(0.0, quality))
 
 
+def _earliest(*times: datetime | None) -> datetime | None:
+    known = [time for time in times if time is not None]
+    return min(known) if known else None
+
+
 def computed_transparency(water_vapour: Series, aerosol: Series) -> Series:
-    """Hourly transparency in ``[0, 1]`` from column water vapour and aerosol optical depth."""
+    """Hourly transparency in ``[0, 1]`` from column water vapour and aerosol optical depth.
+
+    The series covers only the hours both inputs cover, blank where either input
+    is, and carries the older input's issue time.
+    """
     values: dict[datetime, float | None] = {}
-    for time, vapour in water_vapour.values.items():
-        optical_depth = aerosol.values.get(time)
+    for time in sorted(water_vapour.values.keys() & aerosol.values.keys()):
+        vapour, optical_depth = water_vapour.values[time], aerosol.values[time]
         values[time] = (
             None
             if vapour is None or optical_depth is None
             else _transparency(vapour, optical_depth)
         )
-    return Series(provider=COMPUTED.key, issued_at=None, values=values)
+    return Series(
+        provider=COMPUTED.key,
+        issued_at=_earliest(water_vapour.issued_at, aerosol.issued_at),
+        values=values,
+    )
