@@ -111,6 +111,38 @@ models do not supply.
 - **WHEN** the order is `open_meteo_hrdps` then `open_meteo_gfs`, and both return readings for the dark window
 - **THEN** the `column_water_vapour` series carries the key `open_meteo_gfs`
 
+### Requirement: The catalog offers the National Weather Service as a provider
+
+The catalog SHALL offer a provider with the key `nws` and the display name
+`NWS`. It SHALL need no key. It SHALL declare `cloud_cover`, `wind_gust`,
+`wind_speed`, `wind_direction`, `temperature`, `dew_point`, `humidity` and
+`precipitation_probability`, and no bundle. It SHALL NOT declare `cloud_low`,
+`cloud_mid`, `cloud_high`, `seeing` or `transparency`. It SHALL be listed,
+filled, fetched and reported like any other provider, and it SHALL NOT be in
+the default provider order.
+
+#### Scenario: The catalog offers NWS
+
+- **WHEN** the catalog is read
+- **THEN** it holds `nws` with the display name `NWS`, needing no key
+- **AND** its declaration lists `cloud_cover`, `wind_gust`, `wind_speed`, `wind_direction`, `temperature`, `dew_point`, `humidity` and `precipitation_probability`, and no bundle
+
+#### Scenario: NWS is accepted in the provider list
+
+- **WHEN** the configuration lists `providers: [nws, open_meteo_hrrr, seven_timer]`
+- **THEN** startup succeeds and the provider order is `nws`, `open_meteo_hrrr`, `seven_timer`
+
+#### Scenario: NWS alone satisfies the cloud rule
+
+- **WHEN** the configuration lists `providers: [nws]`
+- **THEN** startup succeeds, because `nws` needs no key and supplies cloud cover
+
+#### Scenario: The default order does not include NWS
+
+- **WHEN** the configuration has no `conditions` block
+- **THEN** the provider order is `open_meteo`, `seven_timer`, `open_meteo_air_quality`, `computed`
+- **AND** it does not include `nws`
+
 ## ADDED Requirements
 
 ### Requirement: Column water vapour is carried as reported

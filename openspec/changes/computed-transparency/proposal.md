@@ -10,7 +10,7 @@ Transparency comes only from 7Timer!. Its index is 3-hourly, built from GFS, and
 - The `computed` entry gets a health record, like a provider. If no hour could be computed, its outcome is `failed`, and the error names each missing input. If any hour was computed, the outcome is `ok` (D7). Listing `computed` without the providers it needs does not stop startup (D9).
 - `computed` is added at the end of the default provider list. It fills transparency only when 7Timer! returned none (D5).
 - A decision record gives the formula and says it is uncalibrated.
-- The README explains that `computed` fills transparency only when it is listed ahead of 7Timer!.
+- The README explains where to list `computed`. Ahead of 7Timer!, it fills transparency. After 7Timer!, it fills transparency only when 7Timer! returned none.
 
 Nothing breaks. The verdict document and its entities stay the same, and a new health entity is added for `computed`. When 7Timer! returns transparency, a pier on the default list gets the same verdict as before.
 
@@ -38,7 +38,7 @@ None.
   - `pierpressure/core/providers.py`: `CATALOG` and the Open-Meteo specs
   - `pierpressure/core/config.py`: `DEFAULT_PROVIDERS`
   - a new pure transparency computation in `pierpressure/core/`
-  - `pierpressure/conditions/provider.py`: `assemble_snapshot`, `CompositeProvider` and `build_provider`
+  - `pierpressure/conditions/provider.py`: `CompositeProvider` and `build_provider`; `assemble_snapshot` is unchanged
   - `pierpressure/conditions/open_meteo.py`: `COLUMNS`
   - `pierpressure/health.py`: the missing-input error message
 - **Delivery:** additive only. A new `computed` health sensor appears for each pier, through the existing per-provider health entities.

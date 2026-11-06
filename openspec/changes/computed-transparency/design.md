@@ -14,7 +14,7 @@
 - Derive transparency in pure core code, from the filled input series only.
 - Keep `assemble_snapshot` and its existing tests unchanged. The computed series takes part as one more `(spec, forecast)` pair.
 - Give `computed` a health record by the same path as every provider.
-- Let computed seeing (#160) add a second derivation to the same source without reshaping it.
+- Give computed seeing (#160) a catalog entry, a core module and a fill path to extend. How it reports a second derivation's issue time and outcome is left to that story.
 
 **Non-Goals:**
 
@@ -60,9 +60,9 @@
 
 ### DD2. `ComputedSource` is a derived source, not a `Provider`
 
-The conditions layer gets a `ComputedSource` with a `spec` (`COMPUTED`) and a `derive(conditions) -> SourceForecast` method. `CompositeProvider.fetchers` becomes `Sequence[Provider | ComputedSource]`. `get` fetches the providers, defers the derived sources to step 3 of DD1, and keeps each outcome in its slot. `providers` reads every entry's `spec`, so the health records follow without change.
+The conditions layer gets a `ComputedSource` with a `spec` (`COMPUTED`) and a `derive(conditions)` method. It returns the computed `SourceForecast` and the failure reason for the outcome, which is `None` on success. `CompositeProvider.fetchers` becomes `Sequence[Provider | ComputedSource]`. `get` fetches the providers, defers the derived sources to step 3 of DD1, and keeps each outcome in its slot. `providers` reads every entry's `spec`, so the health records follow without change.
 
-`build_provider` maps the key `computed` to a `ComputedSource`, and the `fetchers` overrides still apply to it.
+`build_provider` maps the key `computed` to a `ComputedSource`. Its `fetchers` overrides widen to `Mapping[str, Provider | ComputedSource]`, so a test can still replace any entry.
 
 **Alternative:** a `derived` flag on `ProviderSpec`. Configuration has no use for it, and it would put an edge concern into the core catalog.
 
@@ -73,7 +73,7 @@ The conditions layer gets a `ComputedSource` with a `spec` (`COMPUTED`) and a `d
 - a `Series` keyed `computed`, covering the hours both inputs cover, with `None` where either value is blank, and carrying the earlier issue time that is not `None`, or
 - the reason nothing was computed: the missing input keys, or no shared hour with a value.
 
-`ComputedSource.derive` turns the result into a `SourceForecast` of `transparency` readings, plus a failure reason for the outcome. Seeing (#160) adds a sibling function to this module.
+`ComputedSource.derive` turns the result into a `SourceForecast` of `transparency` readings and the failure reason. Seeing (#160) adds a sibling function to this module.
 
 ### DD4. The formula estimates extinction, then maps it onto 7Timer!'s scale
 
@@ -129,3 +129,7 @@ If `derive` raises, the outcome is failed with the kind of error, built by `desc
 
 - **Deploy:** none. On upgrade, a pier without an explicit provider list gains `computed` at the end of its order, and a `computed` health sensor appears.
 - **Rollback:** revert the change. The retained `computed` health discovery config stays on the broker until it is cleared. The README's clean-up list gains `sensor/pierpressure_<pier>/computed_health`.
+
+## Open Questions
+
+- **For computed seeing (#160).** A `SourceForecast` carries one issue time, and the outcome is all or nothing. When `computed` derives two variables, their inputs can have different issue times, and one can fail while the other succeeds. #160 decides how those reach the series and the health record. This story derives one variable, so neither case arises here.
