@@ -23,6 +23,18 @@ Status = Literal["ok", "failed"]
 # The error for a fetch that completed but returned nothing usable.
 NO_READINGS = "no readings returned"
 
+# The error for a computed source whose inputs all have a series, but share no
+# hour with a value in each (computed-transparency DD6).
+NO_SHARED_HOUR = "no hour has every input"
+
+
+def missing_input(variables: tuple[str, ...]) -> str:
+    """The error for a computed source with no filled series for these input keys.
+
+    It is built from variable keys only, so it is safe like :func:`describe_error`.
+    """
+    return f"missing input: {', '.join(variables)}"
+
 
 @dataclass(frozen=True)
 class ProviderInfo:

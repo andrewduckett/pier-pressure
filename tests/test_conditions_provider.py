@@ -16,19 +16,22 @@ from pierpressure.conditions.nws import NwsProvider, parse_nws
 from pierpressure.conditions.open_meteo import COLUMNS, OpenMeteoProvider, parse_open_meteo
 from pierpressure.conditions.provider import (
     CompositeProvider,
+    ComputedSource,
     SourceForecast,
     SourceReading,
     assemble_snapshot,
     build_provider,
 )
 from pierpressure.conditions.seven_timer import SevenTimerProvider, parse_seven_timer
-from pierpressure.core.conditions import Conditions
-from pierpressure.core.config import PierConfig
+from pierpressure.core.computed import computed_transparency
+from pierpressure.core.conditions import Conditions, Series
+from pierpressure.core.config import DEFAULT_PROVIDERS, PierConfig
 from pierpressure.core.providers import (
     CATALOG,
     NWS,
     OPEN_METEO,
     OPEN_METEO_AIR_QUALITY,
+    OPEN_METEO_GFS,
     OPEN_METEO_HRDPS,
     SEVEN_TIMER,
     ProviderSpec,
@@ -121,6 +124,19 @@ def test_open_meteo_absent_weather_array_leaves_that_field_none_every_hour() -> 
     assert forecast.readings[_hour(23)].wind_direction == 250.0
 
 
+def test_open_meteo_parses_column_water_vapour_unrounded() -> None:
+    forecast = parse_open_meteo(_load("open_meteo.json"), issued_at=_ISSUED)
+    assert forecast.readings[_hour(20)].column_water_vapour == 18.37
+
+
+def test_open_meteo_leaves_a_null_water_vapour_hour_absent_and_the_rest_intact() -> None:
+    forecast = parse_open_meteo(_load("open_meteo.json"), issued_at=_ISSUED)
+    reading = forecast.readings[_hour(22)]
+    assert reading.column_water_vapour is None
+    assert reading.temperature == 11.2
+    assert reading.wind_gust == 22.0
+
+
 def test_open_meteo_fetch_requests_the_weather_variables_in_kmh() -> None:
     requests: list[httpx.Request] = []
 
@@ -168,8 +184,9 @@ def test_open_meteo_request_is_pinned_and_names_no_model() -> None:
     assert params["hourly"] == (
         "cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,wind_gusts_10m,"
         "temperature_2m,dew_point_2m,relative_humidity_2m,wind_speed_10m,"
-        "wind_direction_10m,precipitation_probability"
+        "wind_direction_10m,precipitation_probability,total_column_integrated_water_vapour"
     )
+    assert len(params["hourly"].split(",")) == 12
     assert params["forecast_days"] == "2"
     assert params["wind_speed_unit"] == "kmh"
     assert params["timezone"] == "UTC"
@@ -268,6 +285,7 @@ def test_a_model_provider_asks_for_its_model_and_its_declared_variables_only() -
     assert params["wind_speed_unit"] == "kmh"
     hourly = params["hourly"].split(",")
     assert "precipitation_probability" not in hourly
+    assert "total_column_integrated_water_vapour" not in hourly
     assert hourly == [COLUMNS[variable] for variable in OPEN_METEO_HRDPS.variables]
 
 
@@ -1025,6 +1043,21 @@ def test_the_model_listed_first_fills_cloud_and_the_next_fills_precipitation() -
     assert series["precipitation_probability"].provider == "open_meteo"
 
 
+def test_water_vapour_comes_from_the_next_provider_that_declares_it() -> None:
+    # HRDPS is answered with a payload that holds water vapour, so only its
+    # declaration keeps it from filling the variable.
+    stack = _open_meteo_stack(
+        ["open_meteo_hrdps", "open_meteo_gfs"],
+        {
+            "gem_hrdps_continental": httpx.Response(200, json=_load("open_meteo.json")),
+            "gfs_global": httpx.Response(200, json=_load("open_meteo.json")),
+        },
+    )
+    series = stack.get(make_pier()).conditions.series
+    assert series["cloud_cover"].provider == "open_meteo_hrdps"
+    assert series["column_water_vapour"].provider == "open_meteo_gfs"
+
+
 def test_hrrr_outside_its_area_fails_and_is_passed_over() -> None:
     stack = _open_meteo_stack(
         ["open_meteo_hrrr", "open_meteo"],
@@ -1328,3 +1361,190 @@ def test_nws_user_agent_names_the_project_version_and_repository() -> None:
     for request in server.requests:
         assert request.headers["User-Agent"] == expected
         assert "@" not in request.headers["User-Agent"]
+
+
+# --------------------------------------------------------------------------- #
+# computed-transparency 3.1: the computed source fills at its place in the order
+# --------------------------------------------------------------------------- #
+
+_WITH_COMPUTED = list(DEFAULT_PROVIDERS)
+_DARK = (_hour(21), _hour(22))
+_WEATHER = SourceForecast(
+    issued_at=_hour(18),
+    readings={t: SourceReading(cloud_cover=20.0, column_water_vapour=10.0) for t in _DARK},
+)
+_AEROSOL = SourceForecast(
+    issued_at=_hour(17),
+    readings={t: SourceReading(aerosol_optical_depth=0.15) for t in _DARK},
+)
+_SEVEN_TIMER = SourceForecast(
+    issued_at=_hour(16),
+    readings={t: SourceReading(seeing=0.8, transparency=0.7) for t in _DARK},
+)
+
+
+def _stack(
+    keys: list[str], *, weather: SourceForecast = _WEATHER, seven_timer_fails: bool = False
+) -> CompositeProvider:
+    """The production stack, with stub forecasts for every network provider."""
+    return build_provider(
+        keys,
+        now=lambda: _FETCHED,
+        fetchers={
+            "open_meteo": _StubProvider(weather),
+            "open_meteo_gfs": _StubProvider(
+                SourceForecast(
+                    issued_at=_hour(18),
+                    readings={t: SourceReading(column_water_vapour=30.0) for t in _DARK},
+                ),
+                spec=OPEN_METEO_GFS,
+            ),
+            "open_meteo_hrdps": _StubProvider(weather, spec=OPEN_METEO_HRDPS),
+            "open_meteo_air_quality": _StubProvider(_AEROSOL, spec=OPEN_METEO_AIR_QUALITY),
+            "seven_timer": _StubProvider(_SEVEN_TIMER, spec=SEVEN_TIMER, fail=seven_timer_fails),
+        },
+    )
+
+
+def test_computed_fill_ahead_of_seven_timer_fills_transparency() -> None:
+    keys = ["open_meteo", "open_meteo_air_quality", "computed", "seven_timer"]
+    conditions = _stack(keys).get(make_pier()).conditions
+    assert conditions.series["transparency"].provider == "computed"
+    assert [s.provider for s in conditions.alternates["transparency"]] == ["seven_timer"]
+    assert conditions.series["seeing"].provider == "seven_timer"
+
+
+def test_computed_fill_in_the_default_order_leaves_transparency_to_seven_timer() -> None:
+    conditions = _stack(_WITH_COMPUTED).get(make_pier()).conditions
+    assert conditions.series["transparency"].provider == "seven_timer"
+    assert [s.provider for s in conditions.alternates["transparency"]] == ["computed"]
+
+
+def test_computed_fill_in_the_default_order_fills_transparency_when_seven_timer_fails() -> None:
+    conditions = _stack(_WITH_COMPUTED, seven_timer_fails=True).get(make_pier()).conditions
+    transparency = conditions.series["transparency"]
+    assert transparency.provider == "computed"
+    assert transparency.issued_at == _hour(17)
+    assert transparency.values[_hour(21)] == pytest.approx(0.8673, abs=5e-5)
+    assert "seeing" not in conditions.series
+
+
+def test_computed_fill_with_no_values_leaves_no_series_and_no_alternate() -> None:
+    conditions = _stack(["open_meteo", "computed", "seven_timer"]).get(make_pier()).conditions
+    assert conditions.series["transparency"].provider == "seven_timer"
+    assert "transparency" not in conditions.alternates
+
+
+def test_computed_fill_never_reads_an_input_alternate() -> None:
+    keys = ["open_meteo", "open_meteo_gfs", "open_meteo_air_quality", "computed"]
+    conditions = _stack(keys).get(make_pier()).conditions
+    assert [s.provider for s in conditions.alternates["column_water_vapour"]] == ["open_meteo_gfs"]
+    # Water vapour 10.0 from open_meteo, not 30.0 from the GFS alternate.
+    expected = computed_transparency(
+        conditions.series["column_water_vapour"], conditions.series["aerosol_optical_depth"]
+    )
+    assert isinstance(expected, Series)
+    assert conditions.series["transparency"].values == expected.values
+    # 30.0 would give 0.6959.
+    assert conditions.series["transparency"].values[_hour(21)] == pytest.approx(0.8673, abs=5e-5)
+
+
+def test_computed_fill_listed_ahead_of_its_inputs_reads_them_all_the_same() -> None:
+    keys = ["computed", "open_meteo", "open_meteo_air_quality"]
+    conditions = _stack(keys).get(make_pier()).conditions
+    assert conditions.series["transparency"].provider == "computed"
+
+
+def test_computed_fill_builds_a_computed_source_for_its_key() -> None:
+    [source] = build_provider(["computed"]).fetchers
+    assert isinstance(source, ComputedSource)
+    assert source.spec is CATALOG["computed"]
+
+
+# --------------------------------------------------------------------------- #
+# computed-transparency 3.2: the computed source reports an outcome like a provider
+# --------------------------------------------------------------------------- #
+
+
+def _computed_outcome(keys: list[str], *, weather: SourceForecast = _WEATHER) -> FetchOutcome:
+    outcomes = _stack(keys, weather=weather).get(make_pier()).outcomes
+    [outcome] = [o for o in outcomes if o.key == "computed"]
+    return outcome
+
+
+def test_computed_outcome_is_successful_with_the_series_issue_time() -> None:
+    assert _computed_outcome(_WITH_COMPUTED) == FetchOutcome(
+        key="computed",
+        name="Computed",
+        variables=("transparency",),
+        fetched_at=_FETCHED,
+        ok=True,
+        issued_at=_hour(17),
+    )
+
+
+def test_computed_outcome_sits_in_its_slot_and_records_when_it_ran() -> None:
+    ticks = iter(range(10))
+    stack = build_provider(
+        ["open_meteo", "computed", "seven_timer"],
+        now=lambda: _FETCHED + timedelta(minutes=next(ticks)),
+        fetchers={
+            "open_meteo": _StubProvider(_WEATHER),
+            "seven_timer": _StubProvider(_SEVEN_TIMER, spec=SEVEN_TIMER),
+        },
+    )
+    outcomes = stack.get(make_pier()).outcomes
+    assert [o.key for o in outcomes] == ["open_meteo", "computed", "seven_timer"]
+    # Both providers are fetched before the computed source runs.
+    assert outcomes[1].fetched_at > max(outcomes[0].fetched_at, outcomes[2].fetched_at)
+
+
+def test_computed_outcome_names_a_missing_aerosol_input() -> None:
+    outcome = _computed_outcome(["open_meteo", "seven_timer", "computed"])
+    assert (outcome.ok, outcome.error, outcome.issued_at) == (
+        False,
+        "missing input: aerosol_optical_depth",
+        None,
+    )
+
+
+def test_computed_outcome_names_both_missing_inputs_in_order() -> None:
+    outcome = _computed_outcome(["open_meteo_hrdps", "computed"])
+    assert (outcome.ok, outcome.error) == (
+        False,
+        "missing input: column_water_vapour, aerosol_optical_depth",
+    )
+
+
+def test_computed_outcome_reports_inputs_that_never_share_a_valued_hour() -> None:
+    late = SourceForecast(
+        issued_at=_hour(18), readings={_hour(23): SourceReading(column_water_vapour=10.0)}
+    )
+    keys = ["open_meteo", "open_meteo_air_quality", "computed"]
+    outcome = _computed_outcome(keys, weather=late)
+    assert (outcome.ok, outcome.error) == (False, "no hour has every input")
+
+
+class _RaisingSource(ComputedSource):
+    def derive(self, conditions: Conditions) -> tuple[SourceForecast, str | None]:
+        raise ZeroDivisionError("at 43.65, -79.38")
+
+
+def test_computed_outcome_of_a_raising_derivation_is_failed_and_fills_nothing(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    keys = ["open_meteo", "open_meteo_air_quality", "computed", "seven_timer"]
+    stubs = {
+        "open_meteo": _StubProvider(_WEATHER),
+        "open_meteo_air_quality": _StubProvider(_AEROSOL, spec=OPEN_METEO_AIR_QUALITY),
+        "seven_timer": _StubProvider(_SEVEN_TIMER, spec=SEVEN_TIMER),
+    }
+    raising = build_provider(
+        keys, now=lambda: _FETCHED, fetchers={**stubs, "computed": _RaisingSource()}
+    )
+    unlisted = build_provider([k for k in keys if k != "computed"], fetchers=stubs)
+    result = raising.get(make_pier())
+    [outcome] = [o for o in result.outcomes if o.key == "computed"]
+    assert (outcome.ok, outcome.error, outcome.fetched_at) == (False, "ZeroDivisionError", _FETCHED)
+    assert result.conditions == unlisted.get(make_pier()).conditions
+    assert "43.65" in caplog.text

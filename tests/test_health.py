@@ -9,7 +9,14 @@ import httpx
 import pytest
 
 from pierpressure.core.providers import OPEN_METEO
-from pierpressure.health import FetchOutcome, ProviderHealth, describe_error, fold
+from pierpressure.health import (
+    NO_SHARED_HOUR,
+    FetchOutcome,
+    ProviderHealth,
+    describe_error,
+    fold,
+    missing_input,
+)
 
 _START = datetime(2026, 10, 5, 9, 0, tzinfo=UTC)
 _FIRST = datetime(2026, 10, 5, 12, 0, tzinfo=UTC)
@@ -152,3 +159,14 @@ def test_a_value_error_holding_a_latitude_gives_its_type_only() -> None:
 )
 def test_other_errors_give_their_type_name(exc: Exception) -> None:
     assert describe_error(exc) == type(exc).__name__
+
+
+def test_computed_outcome_missing_input_names_each_key_in_order() -> None:
+    assert missing_input(("aerosol_optical_depth",)) == "missing input: aerosol_optical_depth"
+    assert missing_input(("column_water_vapour", "aerosol_optical_depth")) == (
+        "missing input: column_water_vapour, aerosol_optical_depth"
+    )
+
+
+def test_computed_outcome_no_shared_hour_is_a_fixed_string() -> None:
+    assert NO_SHARED_HOUR == "no hour has every input"

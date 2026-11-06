@@ -523,7 +523,7 @@ def test_valid_secrets_are_masked_when_printed(tmp_path: Path) -> None:
 # --------------------------------------------------------------------------- #
 
 
-_DEFAULT_ORDER = ["open_meteo", "seven_timer", "open_meteo_air_quality"]
+_DEFAULT_ORDER = ["open_meteo", "seven_timer", "open_meteo_air_quality", "computed"]
 
 
 def test_the_default_order_is_one_constant() -> None:
@@ -654,6 +654,7 @@ def test_a_pier_outside_nws_coverage_does_not_stop_startup(tmp_path: Path) -> No
 
 def test_the_default_order_leaves_out_nws(tmp_path: Path) -> None:
     config = load_config(_with_conditions(tmp_path, ""))
+    assert config.conditions.providers == _DEFAULT_ORDER
     assert "nws" not in config.conditions.providers
 
 
@@ -669,3 +670,34 @@ def test_the_air_quality_provider_is_kept_in_its_configured_order(tmp_path: Path
         )
     )
     assert config.conditions.providers == ["open_meteo_hrrr", "open_meteo_air_quality"]
+
+
+# --------------------------------------------------------------------------- #
+# computed-transparency 1.3: the computed source is a provider in the list
+# --------------------------------------------------------------------------- #
+
+
+def test_computed_is_kept_in_its_configured_order(tmp_path: Path) -> None:
+    config = load_config(
+        _with_conditions(
+            tmp_path, "conditions:\n  providers: [open_meteo, computed, seven_timer]\n"
+        )
+    )
+    assert config.conditions.providers == ["open_meteo", "computed", "seven_timer"]
+
+
+def test_computed_alone_does_not_satisfy_the_cloud_rule(tmp_path: Path) -> None:
+    path = _with_conditions(tmp_path, "conditions:\n  providers: [computed, seven_timer]\n")
+    with pytest.raises(ConfigError) as excinfo:
+        load_config(path)
+    assert str(excinfo.value) == (
+        "Invalid conditions configuration: the provider list must include a provider"
+        " that needs no key and supplies cloud cover"
+    )
+
+
+def test_computed_without_its_input_providers_does_not_stop_startup(tmp_path: Path) -> None:
+    config = load_config(
+        _with_conditions(tmp_path, "conditions:\n  providers: [open_meteo_hrdps, computed]\n")
+    )
+    assert config.conditions.providers == ["open_meteo_hrdps", "computed"]

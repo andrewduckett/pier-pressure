@@ -16,7 +16,8 @@
     "relative_humidity_2m": "%",
     "wind_speed_10m": "km/h",
     "wind_direction_10m": "°",
-    "precipitation_probability": "%"
+    "precipitation_probability": "%",
+    "total_column_integrated_water_vapour": "kg/m²"
   },
   "hourly": {
     "time": [
@@ -35,6 +36,7 @@
     "relative_humidity_2m": [85, 87, 90, 92],
     "wind_speed_10m": [14.25, 12.1, 10.4, 8.0],
     "wind_direction_10m": [230, 235, 240, 250],
-    "precipitation_probability": [35, 20, 10, 5]
+    "precipitation_probability": [35, 20, 10, 5],
+    "total_column_integrated_water_vapour": [18.37, 19.2, null, 21.05]
   }
 }

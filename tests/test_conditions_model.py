@@ -140,8 +140,13 @@ def test_hours_ignores_hours_only_an_alternate_covers() -> None:
     assert conditions.hours(("cloud_cover",)) == (_t(21),)
 
 
-def test_the_air_quality_variables_come_last() -> None:
-    assert get_args(Variable)[-2:] == ("aerosol_optical_depth", "pm2_5")
+def test_the_air_quality_variables_come_before_water_vapour() -> None:
+    assert get_args(Variable)[-3:-1] == ("aerosol_optical_depth", "pm2_5")
+
+
+def test_column_water_vapour_comes_last_and_the_timeline_does_not_show_it() -> None:
+    assert get_args(Variable)[-1] == "column_water_vapour"
+    assert "column_water_vapour" not in TIMELINE_VARIABLES
 
 
 def test_timeline_variables_are_the_timeline_entry_fields_that_hold_a_variable() -> None:

@@ -51,9 +51,14 @@ _ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 # little moon) reads GO while a middling one reads MAYBE.
 DEFAULT_GO_THRESHOLD = 65
 
-# The provider order with no ``conditions`` block or a null list. The air-quality
-# forecast is in it so its health builds a track record before anything reads it.
-DEFAULT_PROVIDERS: tuple[str, ...] = ("open_meteo", "seven_timer", "open_meteo_air_quality")
+# The provider order with no ``conditions`` block or a null list. The computed
+# source is last, so it fills transparency only when 7Timer! returned none.
+DEFAULT_PROVIDERS: tuple[str, ...] = (
+    "open_meteo",
+    "seven_timer",
+    "open_meteo_air_quality",
+    "computed",
+)
 
 
 class ConfigError(Exception):
