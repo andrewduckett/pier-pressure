@@ -75,8 +75,9 @@ class ProviderHealth:
     """A provider's health for one pier since the process started.
 
     ``tracking_since`` is when the service loop started, and stays fixed until a
-    restart. ``last_success`` and ``issued_at`` survive a failed fetch; the latest
-    ``status``, ``last_fetch``, and ``last_error`` describe only the latest fetch.
+    restart. ``last_success``, ``issued_at`` and ``inputs`` survive a failed fetch;
+    the latest ``status``, ``last_fetch``, and ``last_error`` describe only the
+    latest fetch. Only the computed source's records carry ``inputs``.
     """
 
     key: str
@@ -88,6 +89,7 @@ class ProviderHealth:
     last_error: str | None = None
     last_success: datetime | None = None
     issued_at: datetime | None = None
+    inputs: Mapping[str, tuple[str, ...]] | None = None
 
     @classmethod
     def empty(
@@ -100,18 +102,20 @@ class ProviderHealth:
 def fold(previous: ProviderHealth, outcome: FetchOutcome) -> ProviderHealth:
     """Fold one fetch's outcome into a provider's health.
 
-    A success sets the last success and its issue time and clears the error. A
-    failure keeps the earlier success and its issue time and records the error.
-    Either way, the outcome becomes the latest status and fetch time.
+    A success sets the last success, its issue time and its inputs, and takes the
+    outcome's error, which only a partly failed computation carries. A failure
+    keeps the earlier success, its issue time and its inputs, and records the
+    error. Either way, the outcome becomes the latest status and fetch time.
     """
     if outcome.ok:
         return replace(
             previous,
             status="ok",
             last_fetch=outcome.fetched_at,
-            last_error=None,
+            last_error=outcome.error,
             last_success=outcome.fetched_at,
             issued_at=outcome.issued_at,
+            inputs=outcome.inputs,
         )
     return replace(
         previous,

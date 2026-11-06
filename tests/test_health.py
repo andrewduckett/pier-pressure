@@ -38,6 +38,7 @@ def _outcome(
     ok: bool,
     error: str | None = None,
     issued_at: datetime | None = None,
+    inputs: dict[str, tuple[str, ...]] | None = None,
 ) -> FetchOutcome:
     return FetchOutcome(
         key="open_meteo",
@@ -47,6 +48,7 @@ def _outcome(
         ok=ok,
         error=error,
         issued_at=issued_at,
+        inputs=inputs,
     )
 
 
@@ -109,6 +111,28 @@ def test_a_failure_with_no_earlier_success_leaves_the_success_unknown() -> None:
     assert health.last_fetch == _FIRST
     assert health.last_success is None
     assert health.issued_at is None
+
+
+def test_an_empty_record_has_no_inputs() -> None:
+    assert _empty().inputs is None
+
+
+def test_a_partial_computed_success_is_ok_and_keeps_its_error() -> None:
+    error = "transparency: missing input: aerosol_optical_depth"
+    health = fold(_empty(), _outcome(_FIRST, ok=True, error=error, inputs={"seeing": ("a",)}))
+    assert (health.status, health.last_success, health.last_error) == ("ok", _FIRST, error)
+
+
+def test_a_success_holds_its_inputs() -> None:
+    first = fold(_empty(), _outcome(_FIRST, ok=True, inputs={"seeing": ("a",)}))
+    health = fold(first, _outcome(_SECOND, ok=True, inputs={"transparency": ("b", "c")}))
+    assert health.inputs == {"transparency": ("b", "c")}
+
+
+def test_a_failure_keeps_the_earlier_inputs() -> None:
+    succeeded = fold(_empty(), _outcome(_FIRST, ok=True, inputs={"seeing": ("a",)}))
+    health = fold(succeeded, _outcome(_SECOND, ok=False, error="seeing: ValueError"))
+    assert (health.status, health.inputs) == ("failed", {"seeing": ("a",)})
 
 
 # --------------------------------------------------------------------------- #
