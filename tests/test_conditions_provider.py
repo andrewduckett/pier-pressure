@@ -18,13 +18,14 @@ from pierpressure.conditions.open_meteo import COLUMNS, OpenMeteoProvider, parse
 from pierpressure.conditions.provider import (
     CompositeProvider,
     ComputedSource,
+    Derived,
     SourceForecast,
     SourceReading,
     assemble_snapshot,
     build_provider,
 )
 from pierpressure.conditions.seven_timer import SevenTimerProvider, parse_seven_timer
-from pierpressure.core.computed import computed_transparency
+from pierpressure.core.computed import computed_seeing, computed_transparency
 from pierpressure.core.conditions import SEEING_COLUMN, Conditions, Series
 from pierpressure.core.config import DEFAULT_PROVIDERS, PierConfig
 from pierpressure.core.providers import (
@@ -39,7 +40,7 @@ from pierpressure.core.providers import (
 )
 from pierpressure.health import FetchOutcome, ProviderInfo, describe_error
 
-from .conftest import make_pier
+from .conftest import make_pier, standard_seeing_column
 
 _FIXTURES = Path(__file__).parent / "fixtures"
 _ISSUED = datetime(2026, 9, 8, 18, 0, tzinfo=UTC)
@@ -1475,27 +1476,39 @@ _SEVEN_TIMER = SourceForecast(
     issued_at=_hour(16),
     readings={t: SourceReading(seeing=0.8, transparency=0.7) for t in _DARK},
 )
+_WITH_COLUMN = SourceForecast(
+    issued_at=_hour(18),
+    readings={
+        t: SourceReading(cloud_cover=20.0, column_water_vapour=10.0, **standard_seeing_column())
+        for t in _DARK
+    },
+)
 
 
 def _stack(
-    keys: list[str], *, weather: SourceForecast = _WEATHER, seven_timer_fails: bool = False
+    keys: list[str],
+    *,
+    weather: SourceForecast = _WEATHER,
+    gfs: SourceForecast | None = None,
+    aerosol: SourceForecast = _AEROSOL,
+    seven_timer_fails: bool = False,
+    computed: ComputedSource | None = None,
 ) -> CompositeProvider:
     """The production stack, with stub forecasts for every network provider."""
+    gfs = gfs or SourceForecast(
+        issued_at=_hour(18),
+        readings={t: SourceReading(column_water_vapour=30.0) for t in _DARK},
+    )
     return build_provider(
         keys,
         now=lambda: _FETCHED,
         fetchers={
             "open_meteo": _StubProvider(weather),
-            "open_meteo_gfs": _StubProvider(
-                SourceForecast(
-                    issued_at=_hour(18),
-                    readings={t: SourceReading(column_water_vapour=30.0) for t in _DARK},
-                ),
-                spec=OPEN_METEO_GFS,
-            ),
+            "open_meteo_gfs": _StubProvider(gfs, spec=OPEN_METEO_GFS),
             "open_meteo_hrdps": _StubProvider(weather, spec=OPEN_METEO_HRDPS),
-            "open_meteo_air_quality": _StubProvider(_AEROSOL, spec=OPEN_METEO_AIR_QUALITY),
+            "open_meteo_air_quality": _StubProvider(aerosol, spec=OPEN_METEO_AIR_QUALITY),
             "seven_timer": _StubProvider(_SEVEN_TIMER, spec=SEVEN_TIMER, fail=seven_timer_fails),
+            **({"computed": computed} if computed is not None else {}),
         },
     )
 
@@ -1553,6 +1566,87 @@ def test_computed_fill_builds_a_computed_source_for_its_key() -> None:
     [source] = build_provider(["computed"]).fetchers
     assert isinstance(source, ComputedSource)
     assert source.spec is CATALOG["computed"]
+
+
+# --------------------------------------------------------------------------- #
+# computed-seeing 3.2: computed seeing fills at the computed source's place
+# --------------------------------------------------------------------------- #
+
+
+def test_computed_seeing_fill_ahead_of_seven_timer_fills_seeing() -> None:
+    conditions = (
+        _stack(["open_meteo", "computed", "seven_timer"], weather=_WITH_COLUMN)
+        .get(make_pier())
+        .conditions
+    )
+    assert conditions.series["seeing"].provider == "computed"
+    assert conditions.series["seeing"].values == dict.fromkeys(_DARK, 1.0)
+    assert [s.provider for s in conditions.alternates["seeing"]] == ["seven_timer"]
+
+
+def test_computed_seeing_fill_in_the_default_order_leaves_seeing_to_seven_timer() -> None:
+    conditions = _stack(_WITH_COMPUTED, weather=_WITH_COLUMN).get(make_pier()).conditions
+    assert conditions.series["seeing"].provider == "seven_timer"
+    assert [s.provider for s in conditions.alternates["seeing"]] == ["computed"]
+
+
+def test_computed_seeing_fill_in_the_default_order_fills_seeing_when_seven_timer_fails() -> None:
+    stack = _stack(_WITH_COMPUTED, weather=_WITH_COLUMN, seven_timer_fails=True)
+    conditions = stack.get(make_pier()).conditions
+    assert conditions.series["seeing"].provider == "computed"
+    assert conditions.series["transparency"].provider == "computed"
+
+
+def test_computed_seeing_fill_never_reads_an_alternate_column() -> None:
+    # The filled column has a 60 km/h jet, which costs nothing; the GFS
+    # alternate's 200 km/h jet would.
+    weather = SourceForecast(
+        issued_at=_hour(18),
+        readings={
+            t: SourceReading(cloud_cover=20.0, **standard_seeing_column(jet=60.0)) for t in _DARK
+        },
+    )
+    gfs = SourceForecast(
+        issued_at=_hour(18),
+        readings={t: SourceReading(**standard_seeing_column(jet=200.0)) for t in _DARK},
+    )
+    conditions = (
+        _stack(["open_meteo", "open_meteo_gfs", "computed"], weather=weather, gfs=gfs)
+        .get(make_pier())
+        .conditions
+    )
+    assert [s.provider for s in conditions.alternates["wind_speed_300hpa"]] == ["open_meteo_gfs"]
+    expected = computed_seeing(
+        {variable: conditions.series[variable] for variable in SEEING_COLUMN}, 30.0
+    )
+    assert isinstance(expected, Series)
+    assert conditions.series["seeing"].values == expected.values == dict.fromkeys(_DARK, 1.0)
+
+
+def test_computed_seeing_fill_keeps_each_computed_series_issue_time() -> None:
+    weather = replace(_WITH_COLUMN, issued_at=_hour(21).replace(minute=5))
+    aerosol = replace(_AEROSOL, issued_at=_hour(20).replace(minute=40))
+    keys = ["open_meteo", "open_meteo_air_quality", "computed"]
+    conditions = _stack(keys, weather=weather, aerosol=aerosol).get(make_pier()).conditions
+    assert conditions.series["transparency"].issued_at == _hour(20).replace(minute=40)
+    assert conditions.series["seeing"].issued_at == _hour(21).replace(minute=5)
+
+
+def test_computed_seeing_fill_reads_the_piers_elevation() -> None:
+    # A bad layer from 1000 to 975 hPa, whose lower level is at 110 m.
+    column = standard_seeing_column() | {"temperature_975hpa": 15.0 - 0.0065 * 110}
+    weather = SourceForecast(
+        issued_at=_hour(18), readings={t: SourceReading(cloud_cover=20.0, **column) for t in _DARK}
+    )
+    stack = _stack(["open_meteo", "computed"], weather=weather)
+    low = stack.get(make_pier().model_copy(update={"elevation_m": 30.0})).conditions.series[
+        "seeing"
+    ]
+    high = stack.get(make_pier().model_copy(update={"elevation_m": 200.0})).conditions.series[
+        "seeing"
+    ]
+    assert low.values[_hour(21)] == pytest.approx(0.88)
+    assert high.values[_hour(21)] == 1.0
 
 
 # --------------------------------------------------------------------------- #
@@ -1620,7 +1714,7 @@ def test_computed_outcome_reports_inputs_that_never_share_a_valued_hour() -> Non
 
 
 class _RaisingSource(ComputedSource):
-    def derive(self, conditions: Conditions) -> tuple[SourceForecast, str | None]:
+    def derive(self, conditions: Conditions, pier: PierConfig) -> Derived:
         raise ZeroDivisionError("at 43.65, -79.38")
 
 
