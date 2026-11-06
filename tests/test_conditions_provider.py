@@ -1145,17 +1145,23 @@ def test_hours_past_hrdps_reach_stay_absent() -> None:
 # --------------------------------------------------------------------------- #
 
 
+def _recorded_metadata(_: httpx.Request) -> httpx.Response:
+    return httpx.Response(200, json=_load("open_meteo_meta.json"))
+
+
 def _open_meteo_stack(
-    keys: list[str], answers: dict[str | None, httpx.Response]
+    keys: list[str],
+    answers: dict[str | None, httpx.Response],
+    metadata: Callable[[httpx.Request], httpx.Response] = _recorded_metadata,
 ) -> CompositeProvider:
     """The production stack, with Open-Meteo answering by the request's model.
 
-    A metadata request gets the recorded metadata file.
+    ``metadata`` answers a metadata request; by default with the recorded file.
     """
 
     def handle(request: httpx.Request) -> httpx.Response:
         if _is_metadata(request):
-            return httpx.Response(200, json=_load("open_meteo_meta.json"))
+            return metadata(request)
         return answers[request.url.params.get("models")]
 
     client = httpx.Client(transport=httpx.MockTransport(handle))
@@ -1260,6 +1266,71 @@ def test_hrrr_outside_its_area_fails_and_is_passed_over() -> None:
     assert hrrr.error == "HTTPStatusError: 400 Bad Request"
     assert best_match.ok
     assert result.conditions.series["cloud_cover"].provider == "open_meteo"
+
+
+# --------------------------------------------------------------------------- #
+# open-meteo-run-times 1.4: a run time that cannot be read leaves a null issue time
+# --------------------------------------------------------------------------- #
+
+
+def _metadata_with(**fields: Any) -> dict[str, Any]:
+    return {**_load("open_meteo_meta.json"), **fields}
+
+
+def _without_run_start() -> dict[str, Any]:
+    payload = _load("open_meteo_meta.json")
+    del payload["last_run_initialisation_time"]
+    return payload
+
+
+def _transport_error(request: httpx.Request) -> httpx.Response:
+    raise httpx.ConnectError("connection refused", request=request)
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        pytest.param(lambda _: httpx.Response(503), id="status-503"),
+        pytest.param(_transport_error, id="transport-error"),
+        pytest.param(
+            lambda _: httpx.Response(200, text="<html><body>Bad gateway</body></html>"),
+            id="html-body",
+        ),
+        pytest.param(lambda _: httpx.Response(200, json=[1793901600]), id="json-array"),
+        pytest.param(lambda _: httpx.Response(200, json=_without_run_start()), id="missing"),
+        pytest.param(
+            lambda _: httpx.Response(200, json=_metadata_with(last_run_initialisation_time=True)),
+            id="true",
+        ),
+        pytest.param(
+            lambda _: httpx.Response(200, json=_metadata_with(last_run_initialisation_time=1.5)),
+            id="float",
+        ),
+        pytest.param(
+            lambda _: httpx.Response(200, json=_metadata_with(last_run_initialisation_time=10**20)),
+            id="out-of-range",
+        ),
+    ],
+)
+def test_a_model_provider_with_its_run_time_unreadable_succeeds_with_no_issue_time(
+    metadata: Callable[[httpx.Request], httpx.Response], caplog: pytest.LogCaptureFixture
+) -> None:
+    stack = _open_meteo_stack(
+        ["open_meteo_gfs"],
+        {"gfs_global": httpx.Response(200, json=_load("open_meteo.json"))},
+        metadata,
+    )
+    with caplog.at_level("WARNING"):
+        result = stack.get(make_pier())
+    assert result.conditions.series
+    for series in result.conditions.series.values():
+        assert series.provider == "open_meteo_gfs"
+        assert series.issued_at is None
+    (outcome,) = result.outcomes
+    assert outcome.ok
+    assert outcome.error is None
+    assert outcome.issued_at is None
+    assert "ncep_gfs013" in caplog.text
 
 
 # --------------------------------------------------------------------------- #

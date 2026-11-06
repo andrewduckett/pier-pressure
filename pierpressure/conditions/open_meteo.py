@@ -10,6 +10,7 @@ recorded fixture with no network.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -27,6 +28,8 @@ OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 OPEN_METEO_AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
 OPEN_METEO_METADATA_URL = "https://api.open-meteo.com/data/{name}/static/meta.json"
 _TIMEOUT_SECONDS = 10.0
+
+logger = logging.getLogger(__name__)
 
 
 COLUMNS: Mapping[Variable, str] = {
@@ -123,9 +126,30 @@ def parse_open_meteo(payload: dict[str, Any], issued_at: datetime | None) -> Sou
 
 
 def _run_start(client: httpx.Client, name: str) -> datetime | None:
-    """The start of the latest run in Open-Meteo's metadata file ``name``."""
-    response = client.get(OPEN_METEO_METADATA_URL.format(name=name))
-    return datetime.fromtimestamp(response.json()["last_run_initialisation_time"], UTC)
+    """The start of the latest run in Open-Meteo's metadata file ``name``.
+
+    ``None`` when the file cannot be read or gives no usable run start. The
+    forecast is still usable then, so this never fails the fetch; the error goes
+    to the log only (open-meteo-run-times DD3). Any other exception is a bug and
+    still raises.
+    """
+    try:
+        response = client.get(OPEN_METEO_METADATA_URL.format(name=name))
+        response.raise_for_status()
+        payload = response.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.warning("Open-Meteo metadata %s unreadable: %s", name, exc)
+        return None
+    value = payload.get("last_run_initialisation_time") if isinstance(payload, dict) else None
+    # bool is an int subclass, and `true` is no run time.
+    if not isinstance(value, int) or isinstance(value, bool):
+        logger.warning("Open-Meteo metadata %s gives no run start: %r", name, value)
+        return None
+    try:
+        return datetime.fromtimestamp(value, UTC)
+    except (OverflowError, OSError, ValueError) as exc:
+        logger.warning("Open-Meteo metadata %s run start %d out of range: %s", name, value, exc)
+        return None
 
 
 @dataclass
