@@ -44,7 +44,7 @@ class SourceReading:
     The weather fields carry the provider's values unrounded: temperature and dew
     point in °C, humidity and precipitation probability in %, wind speed in km/h
     and wind direction in degrees. Aerosol optical depth (no unit) and PM2.5
-    (µg/m³) are carried as reported.
+    (µg/m³) are carried as reported, and so is column water vapour (kg/m²).
     """
 
     cloud_cover: float | None = None
@@ -62,6 +62,7 @@ class SourceReading:
     precipitation_probability: float | None = None
     aerosol_optical_depth: float | None = None
     pm2_5: float | None = None
+    column_water_vapour: float | None = None
 
 
 @dataclass(frozen=True)

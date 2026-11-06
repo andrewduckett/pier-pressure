@@ -36,6 +36,8 @@ Variable conventions the core relies on:
   point feed only the dew reason line.
 - ``aerosol_optical_depth`` (no unit) and ``pm2_5`` (µg/m³) are carried as
   reported. The timeline does not show them and nothing reads them yet.
+- ``column_water_vapour`` (kg/m²) is carried as reported. The timeline does not
+  show it.
 """
 
 from __future__ import annotations
@@ -64,6 +66,7 @@ Variable = Literal[
     "precipitation_probability",
     "aerosol_optical_depth",
     "pm2_5",
+    "column_water_vapour",
 ]
 
 # The variables the timeline shows, named by their timeline keys, in timeline

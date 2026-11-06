@@ -121,6 +121,19 @@ def test_open_meteo_absent_weather_array_leaves_that_field_none_every_hour() -> 
     assert forecast.readings[_hour(23)].wind_direction == 250.0
 
 
+def test_open_meteo_parses_column_water_vapour_unrounded() -> None:
+    forecast = parse_open_meteo(_load("open_meteo.json"), issued_at=_ISSUED)
+    assert forecast.readings[_hour(20)].column_water_vapour == 18.37
+
+
+def test_open_meteo_leaves_a_null_water_vapour_hour_absent_and_the_rest_intact() -> None:
+    forecast = parse_open_meteo(_load("open_meteo.json"), issued_at=_ISSUED)
+    reading = forecast.readings[_hour(22)]
+    assert reading.column_water_vapour is None
+    assert reading.temperature == 11.2
+    assert reading.wind_gust == 22.0
+
+
 def test_open_meteo_fetch_requests_the_weather_variables_in_kmh() -> None:
     requests: list[httpx.Request] = []
 
