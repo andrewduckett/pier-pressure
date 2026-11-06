@@ -26,9 +26,12 @@ def test_pierpressure_imports() -> None:
 # core only receives its result as plain data (ha-addon-mqtt-service D2).
 # "pierpressure.addon_options" reads the add-on's Configuration form; the core
 # only receives it in the config file's shape (addon-options-form D1).
+# "pierpressure.health" is the provider-health edge; the core reports why a
+# derivation failed as plain data, and the edge words it (computed-transparency DD6).
 _FORBIDDEN = (
     "pierpressure.addon_options",
     "delivery",
+    "pierpressure.health",
     "httpx",
     "pierpressure.conditions",
     "pierpressure.explain",

@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from pierpressure.core.computed import computed_transparency
+from pierpressure.core.computed import MissingInputs, NoSharedHour, computed_transparency
 from pierpressure.core.conditions import Series
 
 _AT = datetime(2026, 11, 5, 22, 0, tzinfo=UTC)
@@ -129,3 +129,33 @@ def test_the_series_carries_the_earlier_input_issue_time(
     )
     assert isinstance(result, Series)
     assert result.issued_at == expected
+
+
+_VAPOUR = _series("open_meteo", {_AT: 10.0})
+_AEROSOL = _series("open_meteo_air_quality", {_AT: 0.1})
+
+
+@pytest.mark.parametrize(
+    ("water_vapour", "aerosol", "missing"),
+    [
+        (None, None, ("column_water_vapour", "aerosol_optical_depth")),
+        (None, _AEROSOL, ("column_water_vapour",)),
+        (_VAPOUR, None, ("aerosol_optical_depth",)),
+    ],
+)
+def test_a_missing_input_is_the_reason_naming_its_keys_in_order(
+    water_vapour: Series | None, aerosol: Series | None, missing: tuple[str, ...]
+) -> None:
+    assert computed_transparency(water_vapour, aerosol) == MissingInputs(missing)
+
+
+def test_inputs_with_no_shared_hour_are_the_reason() -> None:
+    water_vapour = _series("open_meteo", {_hour(5, 21): 10.0})
+    aerosol = _series("open_meteo_air_quality", {_hour(5, 22): 0.1})
+    assert computed_transparency(water_vapour, aerosol) == NoSharedHour()
+
+
+def test_inputs_that_share_hours_but_never_a_value_are_the_reason() -> None:
+    water_vapour = _series("open_meteo", {_hour(5, 21): 10.0, _hour(5, 22): None})
+    aerosol = _series("open_meteo_air_quality", {_hour(5, 21): None, _hour(5, 22): 0.1})
+    assert computed_transparency(water_vapour, aerosol) == NoSharedHour()
