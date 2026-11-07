@@ -93,11 +93,11 @@ export class PierPressureCard extends LitElement {
         <dt>Verdict</dt>
         <dd data-field="verdict">${entity.state === "unknown" ? DASH : entity.state}</dd>
         <dt>Score</dt>
-        <dd data-field="score">${shown(entity.attributes["score"])}</dd>
+        <dd data-field="score">${shownNumber(entity.attributes["score"])}</dd>
         <dt>Confidence</dt>
         <dd>
-          <span data-field="confidence-band">${shown(confidence?.["band"])}</span> ·
-          <span data-field="confidence-value">${shown(confidence?.["value"])}</span>
+          <span data-field="confidence-band">${shownText(confidence?.["band"])}</span> ·
+          <span data-field="confidence-value">${shownNumber(confidence?.["value"])}</span>
         </dd>
       </dl>
     </div>`;
@@ -111,10 +111,12 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
 }
 
 // A type check, not a truthiness check: a score or confidence of 0 is a value.
-function shown(value: unknown): string {
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  if (typeof value === "string" && value !== "") return value;
-  return DASH;
+function shownNumber(value: unknown): string {
+  return typeof value === "number" && Number.isFinite(value) ? String(value) : DASH;
+}
+
+function shownText(value: unknown): string {
+  return typeof value === "string" && value !== "" ? value : DASH;
 }
 
 // HACS can load the file again when it updates the card in place; defining

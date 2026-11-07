@@ -62,6 +62,7 @@ describe("the score", () => {
     ["72", { score: 72 }],
     ["0", { score: 0 }],
     ["—", { score: null }],
+    ["—", { score: "n/a" }],
     ["—", {}],
   ])("shows %s for %j", async (shown, attributes) => {
     const card = await mountCard({ [VERDICT]: verdictEntity("MAYBE", attributes) });
@@ -75,6 +76,7 @@ describe("the confidence", () => {
     [["HIGH", "82"], { confidence: { band: "HIGH", value: 82 } }],
     [["LOW", "0"], { confidence: { band: "LOW", value: 0 } }],
     [["MEDIUM", "—"], { confidence: { band: "MEDIUM", value: null } }],
+    [["MEDIUM", "—"], { confidence: { band: "MEDIUM", value: "high" } }],
     [["—", "—"], { confidence: null }],
     [["—", "—"], {}],
   ])("shows %j for %j", async (shown, attributes) => {
