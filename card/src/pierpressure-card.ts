@@ -99,6 +99,13 @@ export class PierPressureCard extends LitElement {
       bottom: 0;
       border-radius: 2px;
     }
+    /* Fills the cell, so the arrow is as large as the cell's shorter side allows. */
+    .cell svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+      color: var(--secondary-text-color);
+    }
     .marks {
       color: #898781;
       font-size: 0.75em;
@@ -172,7 +179,7 @@ export class PierPressureCard extends LitElement {
   }
 
   getCardSize(): number {
-    return 6;
+    return 10;
   }
 
   // A sections view gives a card half its section's width by default, too
@@ -284,19 +291,33 @@ function renderCell(cell: Cell, axis: Axis) {
   const width = share(cell.to - cell.from, axis);
   const insetStart = cell.from === cell.hour ? 1 : 0;
   const insetEnd = cell.to === cell.hour + HOUR ? 1 : 0;
-  const style =
-    `left: calc(${left}% + ${insetStart}px); width: calc(${width}% - ${insetStart + insetEnd}px); ` +
-    `background-color: ${cell.shade}`;
+  const place =
+    `left: calc(${left}% + ${insetStart}px); ` +
+    `width: calc(${width}% - ${insetStart + insetEnd}px)`;
+  const style = cell.shade === undefined ? place : `${place}; background-color: ${cell.shade}`;
+  // `nothing` leaves an attribute out; `undefined` would leave it empty.
   return html`<div
     class="cell"
     style=${style}
     data-hour=${iso(cell.hour)}
     data-from=${iso(cell.from)}
     data-to=${iso(cell.to)}
-    data-shade=${cell.shade}
+    data-shade=${cell.shade ?? nothing}
+    data-arrow=${cell.arrow ?? nothing}
     title=${cell.text}
     aria-label=${cell.text}
-  ></div>`;
+  >
+    ${cell.arrow === undefined ? nothing : renderArrow(cell.arrow)}
+  </div>`;
+}
+
+// An arrow pointing up, turned about the centre of its 12 by 12 box.
+function renderArrow(degrees: number) {
+  return html`<svg viewBox="0 0 12 12" aria-hidden="true">
+    <g transform=${`rotate(${degrees} 6 6)`}>
+      <path d="M6 1 L10.5 6 H7.5 V11 H4.5 V6 H1.5 Z" fill="currentColor"></path>
+    </g>
+  </svg>`;
 }
 
 function renderBar(bar: Bar, axis: Axis) {

@@ -62,8 +62,9 @@ describe("the card's size", () => {
     return document.createElement("pierpressure-card") as PierPressureCard;
   }
 
-  it("is six rows high in a masonry view", async () => {
-    expect((await card()).getCardSize()).toBe(6);
+  // Fifteen strip rows of 16 px with 2 px gaps, under the verdict lines.
+  it("is ten rows high in a masonry view", async () => {
+    expect((await card()).getCardSize()).toBe(10);
   });
 
   // The strip's time labels need the room, as the YAML strip's grid options give it.

@@ -47,20 +47,51 @@ export function asRecord(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
-interface RowKind {
+// A row draws each hour as a shade, or, for a direction, as an arrow.
+type Mark =
+  | { shade: (value: number) => string; arrow?: never }
+  | { arrow: (value: number) => number; shade?: never };
+
+type RowKind = Mark & {
   key: string;
   label: string;
   unit: string;
-  shade: (value: number) => string;
-}
+  // The value is for the hour that ends at its datetime, not the one that starts there.
+  hourBefore?: true;
+  // How hovering writes the value, when the unit alone is not enough.
+  reading?: (value: number) => string;
+};
 
-// Top to bottom, as in the YAML night strip.
+// Top to bottom: the YAML night strip's nine, then the rest in the order
+// PierPressure publishes them.
 export const ROWS: readonly RowKind[] = [
   { key: "sun_altitude", label: "Sun altitude", unit: "°", shade: sunShade },
-  { key: "cloud_cover", label: "Cloud cover", unit: "%", shade: cloudShade },
-  { key: "cloud_low", label: "Cloud low", unit: "%", shade: cloudShade },
-  { key: "cloud_mid", label: "Cloud mid", unit: "%", shade: cloudShade },
-  { key: "cloud_high", label: "Cloud high", unit: "%", shade: cloudShade },
+  { key: "moon_altitude", label: "Moon altitude", unit: "°", shade: moonShade },
+  { key: "cloud_cover", label: "Cloud cover", unit: "%", shade: percentShade },
+  { key: "cloud_low", label: "Cloud low", unit: "%", shade: percentShade },
+  { key: "cloud_mid", label: "Cloud mid", unit: "%", shade: percentShade },
+  { key: "cloud_high", label: "Cloud high", unit: "%", shade: percentShade },
+  { key: "wind_gust", label: "Wind gust", unit: " km/h", shade: windShade },
+  { key: "seeing", label: "Seeing", unit: "", shade: qualityShade },
+  { key: "transparency", label: "Transparency", unit: "", shade: qualityShade },
+  { key: "temperature", label: "Temperature", unit: " °C", shade: temperatureShade },
+  { key: "dew_point", label: "Dew point", unit: " °C", shade: temperatureShade },
+  { key: "humidity", label: "Humidity", unit: "%", shade: percentShade },
+  { key: "wind_speed", label: "Wind speed", unit: " km/h", shade: windShade },
+  {
+    key: "wind_direction",
+    label: "Wind direction",
+    unit: "°",
+    arrow: windArrow,
+    reading: (degrees) => `${degrees}° from ${compassPoint(degrees)}`,
+  },
+  {
+    key: "precipitation_probability",
+    label: "Rain chance",
+    unit: "%",
+    shade: percentShade,
+    hourBefore: true,
+  },
 ];
 
 export interface Cell {
@@ -69,7 +100,10 @@ export interface Cell {
   from: number;
   to: number;
   value: number;
-  shade: string;
+  // One of the two, as the row draws it: a blue, or an arrow's turn in degrees
+  // clockwise from pointing up.
+  shade?: string;
+  arrow?: number;
   // What hovering over the cell shows.
   text: string;
 }
@@ -126,14 +160,22 @@ export function buildStrip(
   return {
     axis,
     labels: timeLabels(axis, time),
-    rows: ROWS.map(({ key, label, unit, shade }) => ({
-      key,
-      label,
-      cells: rowCells(forecastOf(states[pierEntityId(pier, key)]), axis, shade).map((cell) => ({
-        ...cell,
-        text: `${label}, the hour from ${time(cell.hour)}: ${cell.value}${unit}`,
-      })),
-    })),
+    rows: ROWS.map(({ key, label, unit, hourBefore, reading, ...mark }) => {
+      const write = reading ?? ((value: number) => `${value}${unit}`);
+      return {
+        key,
+        label,
+        cells: rowCells(
+          forecastOf(states[pierEntityId(pier, key)]),
+          axis,
+          (value) => (mark.arrow ? { arrow: mark.arrow(value) } : { shade: mark.shade(value) }),
+          hourBefore ? -HOUR : 0,
+        ).map((cell) => ({
+          ...cell,
+          text: `${label}, the hour from ${time(cell.hour)}: ${write(cell.value)}`,
+        })),
+      };
+    }),
     moonUp: moonUpBars(forecastOf(states[pierEntityId(pier, "moon_altitude")]), axis, time),
     lines: [...(night === undefined ? [] : nightLines(night, time)), ...nowLine(now, axis, time)],
   };
@@ -161,12 +203,14 @@ function forecastOf(entity: States[string]): unknown {
 function rowCells(
   forecast: unknown,
   axis: Axis,
-  shade: (value: number) => string,
+  mark: (value: number) => Pick<Cell, "shade" | "arrow">,
+  shift: number,
 ): Omit<Cell, "text">[] {
   if (!Array.isArray(forecast)) return [];
   return forecast.flatMap((point: unknown) => {
     const record = asRecord(point);
-    const hour = readTime(record?.["datetime"]);
+    const time = readTime(record?.["datetime"]);
+    const hour = time === undefined ? undefined : time + shift;
     const value = record?.["value"];
     if (hour === undefined || hour + HOUR <= axis.start || hour >= axis.end) return [];
     // A type check, not a truthiness check: 0% cloud or 0° is a value, null is a gap.
@@ -177,7 +221,7 @@ function rowCells(
         from: Math.max(hour, axis.start),
         to: Math.min(hour + HOUR, axis.end),
         value,
-        shade: shade(value),
+        ...mark(value),
       },
     ];
   });
@@ -236,7 +280,7 @@ function hourlyValues(forecast: unknown): Map<number, unknown> {
   return new Map([...values].sort(([a], [b]) => a - b));
 }
 
-// The YAML strip's seven blues, lightest to darkest, one step per 15% of cloud.
+// The YAML strip's seven blues, lightest to darkest.
 const BLUES = [
   "#cde2fb",
   "#9ec5f4",
@@ -247,16 +291,54 @@ const BLUES = [
   "#0d366b",
 ] as const;
 
-function cloudShade(percent: number): string {
-  const step = Math.min(BLUES.length - 1, Math.max(0, Math.floor(percent / 15)));
-  return BLUES[step] ?? BLUES[0];
+// A value outside its row's range takes the nearest end of the palette.
+function blue(step: number): string {
+  return BLUES[Math.min(BLUES.length - 1, Math.max(0, step))] ?? BLUES[0];
+}
+
+function percentShade(percent: number): string {
+  return blue(Math.floor(percent / 15));
 }
 
 // The YAML strip's twilight band: sun up, civil, nautical and astronomical
 // twilight, then the darkest blue for astronomical night from −18°.
 function sunShade(degrees: number): string {
-  const step = degrees > 0 ? 0 : degrees > -6 ? 1 : degrees > -12 ? 2 : degrees > -18 ? 3 : 6;
-  return BLUES[step] ?? BLUES[0];
+  return blue(degrees > 0 ? 0 : degrees > -6 ? 1 : degrees > -12 ? 2 : degrees > -18 ? 3 : 6);
+}
+
+// The YAML strip's moon band: lightest while the moon is down, then one step per 6°.
+function moonShade(degrees: number): string {
+  return blue(degrees <= 0 ? 0 : 1 + Math.floor(degrees / 6));
+}
+
+// A quality from 0 to 1, where 1 is best, so darker is worse, as in the YAML strip.
+function qualityShade(quality: number): string {
+  return blue(Math.round((1 - quality) * 7));
+}
+
+// Temperature and Dew point share this scale, so the two rows compare by eye:
+// one step per 5 °C, from below −5 °C to 20 °C or more.
+function temperatureShade(celsius: number): string {
+  return blue(Math.floor((celsius + 10) / 5));
+}
+
+// The sensor gives the direction the wind blows from; the arrow points the
+// way it blows to, as on a weather map.
+function windArrow(degrees: number): number {
+  return (((degrees + 180) % 360) + 360) % 360;
+}
+
+const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"] as const;
+
+// The nearest of eight points; halfway between two rounds to the next clockwise.
+function compassPoint(degrees: number): string {
+  const turned = ((degrees % 360) + 360) % 360;
+  return COMPASS[Math.round(turned / 45) % COMPASS.length] ?? COMPASS[0];
+}
+
+// One step per 7 km/h, so 42 km/h or more is the darkest, as in the YAML strip.
+function windShade(speed: number): string {
+  return blue(Math.floor(speed / 7));
 }
 
 const QUARTER = 15 * 60 * 1000;

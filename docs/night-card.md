@@ -1,9 +1,8 @@
 # The PierPressure card: tonight's verdict on your dashboard
 
 The PierPressure card is a Home Assistant dashboard card. It shows tonight's
-verdict, score and confidence for one pier, and a night strip with the sun, the
-cloud forecast and the moon hour by hour, crossed by dusk, dawn and now. Later
-releases add the other conditions to the strip.
+verdict, score and confidence for one pier, and a night strip with every
+forecast condition hour by hour, crossed by dusk, dawn and now.
 
 The card only shows what PierPressure already publishes. It never computes a
 verdict and never fetches data. If you would rather not install a card, the
@@ -28,24 +27,56 @@ since it started. The lines fill in when it does.
 
 ### The night strip
 
-Under the verdict, the strip shows the night hour by hour:
+Under the verdict, the strip shows the night hour by hour, one row per
+condition, from top to bottom:
 
-| Row | Sensor |
-|---|---|
-| **Sun altitude** | `sensor.pierpressure_<pier>_sun_altitude` |
-| **Cloud cover** | `sensor.pierpressure_<pier>_cloud_cover` |
-| **Cloud low** | `sensor.pierpressure_<pier>_cloud_low` |
-| **Cloud mid** | `sensor.pierpressure_<pier>_cloud_mid` |
-| **Cloud high** | `sensor.pierpressure_<pier>_cloud_high` |
-| **Moon up** | `sensor.pierpressure_<pier>_moon_altitude` |
+| Row | Sensor | Unit |
+|---|---|---|
+| **Sun altitude** | `sensor.pierpressure_<pier>_sun_altitude` | ° |
+| **Moon altitude** | `sensor.pierpressure_<pier>_moon_altitude` | ° |
+| **Cloud cover** | `sensor.pierpressure_<pier>_cloud_cover` | % |
+| **Cloud low** | `sensor.pierpressure_<pier>_cloud_low` | % |
+| **Cloud mid** | `sensor.pierpressure_<pier>_cloud_mid` | % |
+| **Cloud high** | `sensor.pierpressure_<pier>_cloud_high` | % |
+| **Wind gust** | `sensor.pierpressure_<pier>_wind_gust` | km/h |
+| **Seeing** | `sensor.pierpressure_<pier>_seeing` | none: 0 to 1, where 1 is best |
+| **Transparency** | `sensor.pierpressure_<pier>_transparency` | none: 0 to 1, where 1 is best |
+| **Temperature** | `sensor.pierpressure_<pier>_temperature` | °C |
+| **Dew point** | `sensor.pierpressure_<pier>_dew_point` | °C |
+| **Humidity** | `sensor.pierpressure_<pier>_humidity` | % |
+| **Wind speed** | `sensor.pierpressure_<pier>_wind_speed` | km/h |
+| **Wind direction** | `sensor.pierpressure_<pier>_wind_direction` | ° |
+| **Rain chance** | `sensor.pierpressure_<pier>_precipitation_probability` | % |
+
+Under the rows is the **Moon up** lane, which also reads
+`sensor.pierpressure_<pier>_moon_altitude`.
 
 The strip runs from 4 hours before dusk to 5 hours after dawn, the dark window
 on the Verdict sensor. Some nights have no astronomical darkness, such as a
 summer night far from the equator. Then the strip runs from
 6 hours before now to 18 hours after.
 
-Each cell is one hour. In the **Sun altitude** row, the blue darkens as the sun
-goes down:
+#### How to read the rows
+
+Each cell is one hour, shaded in one of seven blues. Darker means more of what
+the row names. Seeing and Transparency are the exception: for those two rows,
+darker means worse.
+
+| Row | Lightest | Darkest |
+|---|---|---|
+| Sun altitude | Sun above the horizon | Astronomical night. See the steps below. |
+| Moon altitude | Moon on or below the horizon | Moon 30° high or more. One step darker for every 6°. |
+| Cloud cover, Cloud low, Cloud mid, Cloud high | Clear | Overcast. One step darker for every 15%. |
+| Wind gust, Wind speed | Calm | 42 km/h or more. One step darker for every 7 km/h. |
+| Seeing, Transparency | Excellent, 1 | Poor, 0. |
+| Temperature, Dew point | Below −5 °C | 20 °C or more. One step darker for every 5 °C. |
+| Humidity, Rain chance | 0% | 90% or more. One step darker for every 15%. |
+
+The rows the [night dashboard](night-dashboard.md#how-to-read-the-night-strip)
+also has use its shades. It has no Temperature, Dew point, Humidity, Wind
+speed, Wind direction or Rain chance row.
+
+In the **Sun altitude** row, the blue darkens as the sun goes down:
 
 | Shade | The sun's altitude |
 |---|---|
@@ -55,21 +86,33 @@ goes down:
 | Dark | Astronomical twilight, down to −18° |
 | Darkest | Astronomical night, −18° or lower |
 
-The altitude is the sun's at the start of the hour. So the dusk line can fall
-inside an hour still shaded as twilight.
+The sun's and the moon's altitude are for the start of the hour. So the dusk
+line can fall inside an hour still shaded as twilight.
 
-In the cloud rows, the blue runs from light for a clear sky to dark for
-overcast, in seven steps of 15%: the same shades as the
-[night dashboard](night-dashboard.md#how-to-read-the-night-strip).
+Temperature and Dew point use the same scale, so you can compare the two rows
+by eye. Dew is more likely the closer the dew point comes to the temperature.
+Matching shades only mean that both values are in the same 5 °C step, so hover
+to see the values.
+
+A **Wind direction** cell has no shade. It holds an arrow that points the way
+the wind blows to, as on a weather map. A wind from the south-west has an arrow
+pointing north-east.
+
+A **Rain chance** value is the chance of rain or snow in the hour before its
+time. So its cell fills the hour before that time: the chance at 22:00 fills
+the cell from 21:00 to 22:00.
 
 A blank hour in a row means the weather source has no value for that hour. A
 row with no cells at all means its sensor is unavailable or has no forecast.
 
-Hover over a cell to see its row, the hour it starts and its value, such as
-"Cloud cover, the hour from 21:00: 40%" or
-"Sun altitude, the hour from 21:00: -14.235°".
+Hover over a cell to see its row, the hour it starts and its value with its
+unit, such as "Cloud cover, the hour from 21:00: 40%",
+"Wind gust, the hour from 21:00: 12.5 km/h" or
+"Sun altitude, the hour from 21:00: -14.235°". Seeing and Transparency have no
+unit. A Wind direction cell also names the compass point the wind blows from,
+such as "Wind direction, the hour from 21:00: 225° from SW".
 
-Under the cloud rows, the **Moon up** lane has a grey bar for each run of hours
+The **Moon up** lane has a grey bar for each run of hours
 when the moon is above the horizon. Like the sun's, each moon altitude is for
 the start of its hour, so a bar can start up to an hour before moonrise and end
 up to an hour after moonset. Hover over a bar to see when the moon rises and
