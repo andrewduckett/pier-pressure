@@ -81,7 +81,8 @@ description = "Stop the local dev stack."
 run = "docker compose down"
 
 [tasks.dashboard-check]
-description = "Start a throwaway Home Assistant with the night dashboard, for checking it by eye."
+description = "Start a throwaway Home Assistant with the night dashboard and the card, for checking them by eye."
+depends = ["card"]
 run = "uv run python scripts/dashboard_check.py"
 
 [tasks.test-integration]

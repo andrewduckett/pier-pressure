@@ -3,8 +3,9 @@
 ``mise run dashboard-check`` runs this. It writes a fresh Home Assistant config
 under ``.workspace/dashboard-check/``, installs the pinned plotly-graph-card
 release, and starts Home Assistant beside mosquitto and PierPressure under the
-``dashboard`` compose profile. Then it completes onboarding, adds the MQTT
-integration, waits for PierPressure's Verdict entity, and prints the URL and
+``dashboard`` compose profile. It also installs the locally built dashboard
+card on a second dashboard. Then it completes onboarding, adds the MQTT
+integration, waits for PierPressure's Verdict entity, and prints the URLs and
 the login. The stack stays up so a person can open the dashboard and take the
 screenshot; ``docker compose --profile dashboard down`` stops it.
 
@@ -14,9 +15,11 @@ and throwaway.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -39,6 +42,9 @@ USERNAME = "pier"
 PASSWORD = "pressure-check"
 DASHBOARD_PATH = "pierpressure-night"
 DASHBOARD_FILE = "night-dashboard.yaml"
+CARD_BUILT = ROOT / "card" / "dist" / "pierpressure-card.js"
+CARD_DASHBOARD_PATH = "pierpressure-card"
+CARD_DASHBOARD_FILE = "card-dashboard.yaml"
 VERDICT_ENTITY = "sensor.pierpressure_backyard_verdict"
 
 # A US pier, like the user's, so the check sees a real evening in local time (D9).
@@ -63,14 +69,27 @@ def dashboard_yaml(page: str) -> str:
     return str(blocks[0])
 
 
-def write_config(workdir: Path, page: str) -> None:
+def write_config(workdir: Path, page: str, card_hash: str) -> None:
     """Write Home Assistant's config and PierPressure's config under ``workdir``.
 
-    The dashboard file is the page's YAML block, unchanged.
+    The night dashboard file is the page's YAML block, unchanged. ``card_hash``
+    goes on the card's resource URL, so the browser loads a rebuilt card rather
+    than the one it cached on an earlier run.
     """
     config_dir = workdir / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
     (config_dir / DASHBOARD_FILE).write_text(dashboard_yaml(page), encoding="utf-8")
+    card_view = {
+        "views": [
+            {
+                "title": "Card",
+                "cards": [{"type": "custom:pierpressure-card", "pier": "backyard"}],
+            }
+        ]
+    }
+    (config_dir / CARD_DASHBOARD_FILE).write_text(
+        yaml.safe_dump(card_view, sort_keys=False), encoding="utf-8"
+    )
     configuration = {
         "default_config": None,
         "homeassistant": {
@@ -86,7 +105,11 @@ def write_config(workdir: Path, page: str) -> None:
         "lovelace": {
             "resource_mode": "yaml",
             "resources": [
-                {"url": "/local/plotly-graph-card/plotly-graph-card.js", "type": "module"}
+                {"url": "/local/plotly-graph-card/plotly-graph-card.js", "type": "module"},
+                {
+                    "url": f"/local/pierpressure-card/pierpressure-card.js?v={card_hash}",
+                    "type": "module",
+                },
             ],
             "dashboards": {
                 DASHBOARD_PATH: {
@@ -95,7 +118,14 @@ def write_config(workdir: Path, page: str) -> None:
                     "title": "Night",
                     "icon": "mdi:telescope",
                     "show_in_sidebar": True,
-                }
+                },
+                CARD_DASHBOARD_PATH: {
+                    "mode": "yaml",
+                    "filename": CARD_DASHBOARD_FILE,
+                    "title": "PierPressure card",
+                    "icon": "mdi:card-text-outline",
+                    "show_in_sidebar": True,
+                },
             },
         },
     }
@@ -139,6 +169,16 @@ def install_plotly_graph_card(www: Path, version: str = PLOTLY_GRAPH_CARD_VERSIO
         with urllib.request.urlopen(asset["browser_download_url"], timeout=60) as response:
             (www / asset["name"]).write_bytes(response.read())
     marker.write_text(version, encoding="utf-8")
+
+
+def install_pierpressure_card(www: Path, built: Path = CARD_BUILT) -> str:
+    """Copy the locally built card into ``www`` and return a short hash of it."""
+    if not built.is_file():
+        raise RuntimeError(f"{built} is missing: run `mise run card` first")
+    target = www / "pierpressure-card"
+    target.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(built, target / built.name)
+    return hashlib.sha256(built.read_bytes()).hexdigest()[:12]
 
 
 # --------------------------------------------------------------------------- #
@@ -306,8 +346,9 @@ def _reset_home_assistant_state() -> None:
 def ready_message() -> str:
     """What to open and how to log in. The password stays in this file, never in output."""
     return (
-        f"\nHome Assistant is up with the night dashboard.\n"
+        f"\nHome Assistant is up with the night dashboard and the PierPressure card.\n"
         f"  Dashboard: {HA_URL}/{DASHBOARD_PATH}\n"
+        f"  Card:      {HA_URL}/{CARD_DASHBOARD_PATH}\n"
         f"  Login:     {USERNAME}, with the PASSWORD in scripts/dashboard_check.py\n"
         f"  Stop it:   docker compose --profile dashboard down\n"
     )
@@ -317,7 +358,8 @@ def main() -> int:
     try:
         _compose("down")
         _reset_home_assistant_state()
-        write_config(WORKDIR, PAGE.read_text(encoding="utf-8"))
+        card_hash = install_pierpressure_card(WORKDIR / "config" / "www")
+        write_config(WORKDIR, PAGE.read_text(encoding="utf-8"), card_hash)
         install_plotly_graph_card(WORKDIR / "config" / "www" / "plotly-graph-card")
         _compose("up", "-d", "--build", "--wait")
         token = onboard()
