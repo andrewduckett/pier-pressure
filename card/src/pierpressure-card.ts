@@ -428,6 +428,21 @@ export class PierPressureCard extends LitElement {
       if (drag !== undefined) this.heldStart = drag.held;
     },
     lostpointercapture: (event) => this.endDrag(event),
+    // Not passive, so a sideways swipe can be kept from the browser, which would
+    // otherwise take it for going back a page. An up or down one scrolls the page.
+    wheel: {
+      passive: false,
+      handleEvent: (event: WheelEvent) => {
+        if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
+        event.preventDefault();
+        const strip = this.shownStrip();
+        const width = this.renderRoot.querySelector(".times")?.getBoundingClientRect().width ?? 0;
+        if (strip === undefined || width <= 0) return;
+        const pixels = event.deltaX * (WHEEL_UNIT[event.deltaMode] ?? width);
+        const length = strip.axis.end - strip.axis.start;
+        this.panTo(strip.axis.start + (pixels / width) * length);
+      },
+    },
   };
 
   private endDrag(event: PointerEvent): Drag | undefined {
@@ -459,7 +474,12 @@ interface StripInput {
   pointerup: (event: PointerEvent) => void;
   pointercancel: (event: PointerEvent) => void;
   lostpointercapture: (event: PointerEvent) => void;
+  wheel: { passive: false; handleEvent: (event: WheelEvent) => void };
 }
+
+// Pixels per wheel unit: deltaMode 0 is pixels and 1 is lines; 2, a page, is the
+// width the hours are drawn across.
+const WHEEL_UNIT: Record<number, number | undefined> = { 0: 1, 1: 16 };
 
 // How far, in px, a pointer moves sideways before a drag starts to pan.
 const DRAG_SLOP = 8;
@@ -549,6 +569,7 @@ function renderStrip(strip: Strip | undefined, input: StripInput) {
     @pointerup=${input.pointerup}
     @pointercancel=${input.pointercancel}
     @lostpointercapture=${input.lostpointercapture}
+    @wheel=${input.wheel}
   >
     <span></span>
     <div class="track marks">${strip.lines.map((line) => renderMark(line, strip.axis))}</div>

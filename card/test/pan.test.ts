@@ -470,27 +470,30 @@ describe("the Back to tonight button", () => {
   });
 });
 
+// A 24-hour opening axis from 06:00 to 06:00, with forecast hours either side of it.
+const DAY_AROUND_NOW = {
+  [VERDICT]: verdictEntity("GO", { dark_window: { start: null, end: null } }),
+  [CLOUD_COVER]: forecastEntity(hourly("2026-11-01T00:00:00Z", 60)),
+};
+
+// The clock at noon, and the hours drawn across 400 px; happy-dom lays nothing out.
+function layOutDayAroundNow(): void {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-11-01T12:00:00Z"));
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 0, 400, 16),
+  );
+}
+
+function cleanUp(): void {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  document.body.replaceChildren();
+}
+
 describe("dragging the strip", () => {
-  // The hours are drawn across 400 px; happy-dom lays nothing out.
-  beforeEach(() => {
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2026-11-01T12:00:00Z"));
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
-      new DOMRect(0, 0, 400, 16),
-    );
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.restoreAllMocks();
-    document.body.replaceChildren();
-  });
-
-  // A 24-hour opening axis from 06:00 to 06:00, with forecast hours either side of it.
-  const DAY_AROUND_NOW = {
-    [VERDICT]: verdictEntity("GO", { dark_window: { start: null, end: null } }),
-    [CLOUD_COVER]: forecastEntity(hourly("2026-11-01T00:00:00Z", 60)),
-  };
+  beforeEach(layOutDayAroundNow);
+  afterEach(cleanUp);
 
   function drag(card: PierPressureCard, moves: Array<[number, number]>, end = "pointerup") {
     const strip = stripOf(card);
@@ -642,6 +645,66 @@ describe("dragging the strip", () => {
 
   it("does not select the strip's text", () => {
     expect(cardStyles()).toMatch(/\.strip\s*\{[^}]*user-select:\s*none/);
+  });
+});
+
+describe("a wheel over the strip", () => {
+  beforeEach(layOutDayAroundNow);
+  afterEach(cleanUp);
+
+  async function turn(card: PierPressureCard, init: WheelEventInit): Promise<WheelEvent> {
+    const event = new WheelEvent("wheel", { bubbles: true, cancelable: true, ...init });
+    stripOf(card)?.dispatchEvent(event);
+    await card.updateComplete;
+    return event;
+  }
+
+  it("pans later when it moves right", async () => {
+    const card = await mountCard(DAY_AROUND_NOW);
+
+    await turn(card, { deltaX: 100 });
+
+    expect(axisOf(card)).toEqual(["2026-11-01T12:00:00.000Z", "2026-11-02T12:00:00.000Z"]);
+  });
+
+  it("keeps a sideways movement from the browser", async () => {
+    const card = await mountCard(DAY_AROUND_NOW);
+
+    const event = await turn(card, { deltaX: 100 });
+
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it("keeps a sideways movement from the browser at the end of the reach", async () => {
+    const card = await mountCard(DAY_AROUND_NOW);
+
+    const event = await turn(card, { deltaX: -400 });
+
+    expect([axisOf(card)[0], event.defaultPrevented]).toEqual(["2026-11-01T00:00:00.000Z", true]);
+  });
+
+  it("leaves a mostly vertical movement to the page", async () => {
+    const card = await mountCard(DAY_AROUND_NOW);
+
+    const event = await turn(card, { deltaX: 20, deltaY: 100 });
+
+    expect([axisOf(card)[0], event.defaultPrevented]).toEqual(["2026-11-01T06:00:00.000Z", false]);
+  });
+
+  it("counts a line as 16 px", async () => {
+    const card = await mountCard(DAY_AROUND_NOW);
+
+    await turn(card, { deltaX: 6.25, deltaMode: 1 });
+
+    expect(axisOf(card)[0]).toBe("2026-11-01T12:00:00.000Z");
+  });
+
+  it("counts a page as the width the hours are drawn across", async () => {
+    const card = await mountCard(DAY_AROUND_NOW);
+
+    await turn(card, { deltaX: 0.25, deltaMode: 2 });
+
+    expect(axisOf(card)[0]).toBe("2026-11-01T12:00:00.000Z");
   });
 });
 
