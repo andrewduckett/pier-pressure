@@ -6,9 +6,8 @@
 ## Review Summary
 
 ADR review completed for this change. Of design.md's decisions, only DD12
-passes the test: shipping a JavaScript card from this repository through HACS
-reverses ADR-0026 in part, and undoing it later would strand every user who
-installed the card. The bundler (DD1), the task layout (DD7) and the release
+passes the test. Shipping a JavaScript card through HACS reverses ADR-0026 in
+part, and undoing it later would strand every user who installed the card. The bundler (DD1), the task layout (DD7) and the release
 steps (DD8) can be changed from code at little cost, so they stay in the
 design. ADR-0026 is marked superseded by ADR-0034, with a note that its YAML
 dashboard decision still stands.

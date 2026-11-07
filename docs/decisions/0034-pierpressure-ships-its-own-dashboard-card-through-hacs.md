@@ -3,7 +3,7 @@ id: adrs-adr0034
 date: 2026-11-06
 status: accepted
 title: 'ADR-0034: PierPressure ships its own dashboard card, from this repository, through HACS'
-description: Architecture Decision Record for shipping a PierPressure Home Assistant dashboard card, built in Lit with TypeScript, from this repository as a HACS Dashboard repository, with the card versioned and released with the app, in place of the decision to add no JavaScript card of PierPressure's own.
+description: Architecture Decision Record for shipping PierPressure's own Home Assistant dashboard card from this repository through HACS, released with the app. It replaces the decision to add no JavaScript card.
 ---
 
 # ADR-0034: PierPressure ships its own dashboard card, from this repository, through HACS
@@ -13,9 +13,9 @@ description: Architecture Decision Record for shipping a PierPressure Home Assis
 PierPressure publishes its verdict and an hourly timeline to Home Assistant as
 MQTT sensors. Until now its dashboard has been a block of YAML in the docs, on
 Home Assistant's core cards plus the community plotly-graph-card. That YAML
-cannot draw the night the way PierPressure means it: one time axis with the
-coloured condition rows, the darkness, the moon and the target windows, each
-placed from the published entities. The logic it does have is JavaScript inside
+cannot draw the night the way PierPressure means it. That view is one time
+axis with the coloured condition rows, the darkness, the moon and the target
+windows, each placed from the published entities. The logic it does have is JavaScript inside
 the YAML, which no test runs.
 
 A Home Assistant dashboard card is a JavaScript file the browser loads from a

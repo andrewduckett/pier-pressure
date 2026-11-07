@@ -18,9 +18,9 @@ that shows tonight's verdict, score and confidence for one pier.
   request (D8).
 - `hacs.json` at the repository root names the built file, so the repository
   is a HACS Dashboard repository as well as an add-on repository.
-- Each release builds the card with the release version in it and attaches the
-  file to the GitHub release, so the card's version is the app's (D9). The
-  release's check gate builds and tests the card too.
+- Each release builds the card with the release version in it. It attaches
+  the file to the GitHub release, so the card's version is the app's (D9).
+  The release's check gate builds and tests the card too.
 - Renovate groups npm minor and patch updates into one weekly pull request
   (D10).
 - `mise run dashboard-check` installs the locally built card in its throwaway
@@ -56,11 +56,14 @@ Nothing in the core, the verdict document or the MQTT delivery changes.
 - New: `card/` (TypeScript source, tests, `package.json`,
   `package-lock.json`, build config), `hacs.json`, `docs/night-card.md`, and
   a new decision record in `docs/decisions/`.
-- Changed: `mise.toml` (a card task), `.github/workflows/ci.yml` (`check`
+- Changed: `mise.toml` (card tasks), `.github/workflows/ci.yml` (`check`
   job), `.github/workflows/release.yml` (build and attach the card),
-  `.github/renovate.json5` (npm group), `scripts/dashboard_check.py` and its
-  test, `README.md` (link to the card docs), and ADR 0026's status.
+  `.github/renovate.json5` (npm group), `.gitignore` (`node_modules/`),
+  `scripts/dashboard_check.py` and its test, and ADR 0026's status.
+- Docs brought in step: `README.md` (a link to the card docs, and its
+  development, dependency update and releasing sections) and `AGENTS.md`
+  (what `mise run check` runs).
 - New dependencies, for the card only: Lit at runtime; TypeScript, Vite,
-  Vitest and happy-dom at build time. No Python dependency changes.
+  Vitest, happy-dom and `@types/node` at build time. No Python dependency changes.
 - Developers and CI now need `npm ci` in `card/` to build the card. Node is
   already pinned in `mise.toml`.

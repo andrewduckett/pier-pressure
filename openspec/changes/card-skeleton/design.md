@@ -12,9 +12,11 @@
   `gh release create`. The `release` job does not use mise today; it sets up
   Python with `actions/setup-python`.
 - `.gitignore` already ignores every `dist/` folder, so a build output in
-  `card/dist/` is never committed. HACS looks for a card in a root `dist/`
-  first, then in the latest release's assets. With no root `dist/`, it reads
-  the release asset.
+  `card/dist/` is never committed. It does not ignore `node_modules/` yet.
+- This repository already has releases. For a repository with releases, HACS
+  reads `hacs.json` and the file tree at the latest release tag, not at
+  `main`, and takes the card's file from that release's assets. So HACS can
+  add the repository only once a release carries `hacs.json` and the card.
 - Home Assistant writes the Verdict sensor's entity id as
   `sensor.pierpressure_<pier>_verdict`: the device is `PierPressure <pier>`, the
   entity is `Verdict`, and `has_entity_name` is on
@@ -54,11 +56,13 @@
   object (`{ states: { ... } }`), then read the rendered shadow DOM's text.
   The same suite runs Vite's build into a temporary folder and inspects the
   output, which covers "one self-contained file" and the version stamp.
-- **Existing seams reused:** pytest for repository files: a new
+- **Existing seams reused:** pytest for repository files. A new
   `tests/test_night_card_doc.py` reads `hacs.json`, `docs/night-card.md` and
-  `README.md`, in the style of `tests/test_night_dashboard_doc.py`; and
-  `tests/test_dashboard_check.py` gains tests for the card's resource,
-  dashboard and file copy.
+  `README.md`, in the style of `tests/test_night_dashboard_doc.py`. It also
+  parses `release.yml`, as `tests/test_ha_addon.py` does, to check that the
+  card build comes before the image build and that `gh release create`
+  attaches the file. `tests/test_dashboard_check.py` gains tests for the
+  card's resource, dashboard, file copy and ready message.
 
 ## Scrutiny Tier & Blast Radius
 
@@ -66,8 +70,9 @@
   a new public contract (the card type, its `pier` key and the release asset
   HACS installs), and edits both required CI and the release workflow.
 - **Blast radius:** new `card/` folder; `mise.toml` tasks; `.github/workflows/ci.yml`
-  and `release.yml`; `.github/renovate.json5`; `hacs.json`;
-  `scripts/dashboard_check.py`; docs and decision records. The Python package
+  and `release.yml`; `.github/renovate.json5`; `hacs.json`; `.gitignore`;
+  `scripts/dashboard_check.py`; `README.md`, `AGENTS.md`, docs and decision
+  records. The Python package
   `pierpressure/`, the verdict document and the MQTT delivery do not change.
 
 ## Decisions
@@ -98,6 +103,8 @@ defaults.
 
 The card declares only what it reads:
 `{ states: Record<string, { state: string; attributes: Record<string, unknown> }> }`.
+Its `hass` property is optional (`hass?: HomeAssistant`), because Home
+Assistant calls `setConfig` and attaches the card before it sets `hass`.
 It does not depend on `custom-card-helpers` or Home Assistant's frontend
 types: the first is unmaintained, and the second is not published as a
 package. A smaller surface also means fewer ways a frontend release can break
@@ -105,54 +112,81 @@ the card.
 
 ### DD4: The pier slug follows Home Assistant's rule
 
-`verdictEntityId(pier)` lower-cases the id, removes accents (Unicode NFKD,
-then drops combining marks), replaces each run of characters outside `a-z`
-and `0-9` with one `_`, and trims `_` from both ends. That matches Home
-Assistant's `slugify` for the ids PierPressure accepts and the rule the night
-dashboard docs give. It is a pure function, tested on its own.
+`pierSlug(pier)` lower-cases the id and removes accents: Unicode NFKD, then
+it drops combining marks. It replaces each run of characters outside `a-z`
+and `0-9` with one `_`, and trims `_` from both ends. `verdictEntityId(pier)`
+wraps the slug. Both are pure functions, tested on their own.
+
+The rule matches Home Assistant for ASCII and accented Latin ids, which the
+night dashboard docs already assume. Home Assistant transliterates other
+letters (`ß` becomes `ss`, `ø` becomes `o`, Cyrillic is romanised). The card
+does not, so for such an id it shows the missing-entity message. The docs say
+how to read the real entity id from Home Assistant. A transliteration table
+would bring a dependency for a rare case; a later story can add an `entity`
+override if anyone needs it.
 
 ### DD5: What the card renders
 
-- `setConfig` throws `Error("pier is required")` when `pier` is missing,
-  empty or not a string. Home Assistant shows a thrown error as an error card.
+- `setConfig` throws `Error("pier is required")` when `pier` is not a string
+  or its slug is empty (`""`, `"   "`, `"---"`). Home Assistant shows a
+  thrown error as an error card.
+- Before `hass` is set, the card renders the `ha-card` frame and nothing in
+  it.
 - The card renders an `ha-card` with the header `PierPressure <pier>` and
-  three labelled values: Verdict, Score, Confidence. A null or missing
-  `score` shows `—`. Confidence shows `<band> · <value>`, with `—` for each
-  missing part.
+  three labelled values: Verdict, Score, Confidence. The state `unknown`
+  shows `—` as the verdict. A `score` that is not a number shows `—`; the
+  check is on type, so `0` shows `0`. Confidence shows `<band> · <value>`,
+  with `—` for each missing or null part, and for a null `confidence`.
 - No entity: one line, `No PierPressure verdict found: <entity id>`.
 - State `unavailable`: one line, `PierPressure is offline`.
 - `getCardSize()` returns 2.
-- Loading the module defines `pierpressure-card` once (a second load does not
-  throw), pushes `{type: "pierpressure-card", name: "PierPressure",
-  description: ...}` to `window.customCards`, and calls
-  `console.info("PIERPRESSURE-CARD <version>")`.
+- Loading the module defines `pierpressure-card` only if it is not defined
+  yet. It adds `{type: "pierpressure-card", name: "PierPressure",
+  description: ...}` to `window.customCards` only if no entry has that type.
+  Then it calls `console.info("PIERPRESSURE-CARD <version>")`.
 
 ### DD6: The version is stamped at build time
 
-`vite.config.ts` defines `__CARD_VERSION__` as `process.env.PIERPRESSURE_VERSION`,
-or `dev` when it is unset. The name matches the image's build argument. The
+`vite.config.ts` defines `__CARD_VERSION__` as
+`process.env.PIERPRESSURE_VERSION?.trim() || "dev"`, so an unset or blank
+variable gives `dev`. `@types/node` is a dev dependency, so `tsc` can check
+`vite.config.ts` alongside `src/` and `test/`. The name matches the image's build argument. The
 release job sets it to the computed version when it builds the card. The
 `package.json` version stays `0.0.0` and `private: true`: the card is never
 published to npm, and its version comes from the release (brainstorm D9).
 
 ### DD7: `mise run card`, run by `mise run check`
 
-A new `card` task runs in `card/`:
-`npm ci --ignore-scripts --no-audit --no-fund`, then `npm run typecheck`
-(`tsc --noEmit`), `npm test` (`vitest run`) and `npm run build`
-(`vite build`). `check` becomes lint, typecheck, test, card. So the CI `check`
+Two new tasks run in `card/`:
+
+- `card-install` runs `npm ci --ignore-scripts --no-audit --no-fund`. Its mise
+  `sources` is `package-lock.json` and its `outputs` is
+  `node_modules/.package-lock.json`, so mise skips it while the installed
+  packages match the lockfile. `npm ci` deletes `node_modules/` first, so
+  this keeps `mise run check` from reinstalling on every run, and lets it
+  run offline once the packages are installed.
+- `card` depends on `card-install`, then runs `npm run typecheck`
+  (`tsc --noEmit`), `npm test` (`vitest run`) and `npm run build`
+  (`vite build`).
+
+`install` also runs `card-install`, beside `uv sync`. `check` becomes lint,
+typecheck, test, card. So the CI `check`
 job and the release's `check` job run the card with no new step, and the
 statement in `AGENTS.md` that `mise run check` is the CI gate stays true.
 `--ignore-scripts` refuses package install scripts; Vite's and Rollup's
 native binaries arrive as optional dependencies and need none. If a needed
-package turns out to rely on an install script, the task drops the flag and
-the reason is recorded.
+package turns out to rely on an install script, the implementer drops the
+flag and says why in a comment on the task.
 
 - *A separate `card` step in CI only* keeps `mise run check` Python-only and
   faster, but makes "the CI gate" two commands and lets a developer push a
   broken card after a green `mise run check`.
 
-CI caches `~/.npm`, keyed on `card/package-lock.json`, beside the uv cache.
+CI's `check` job and both jobs of the release workflow cache `~/.npm`, keyed
+on `card/package-lock.json`, beside the uv cache. `.gitignore` gains
+`node_modules/`. The image build needs no `.dockerignore`: the `Dockerfile`
+copies named paths only, and BuildKit sends only the files those `COPY`
+lines name.
 
 ### DD8: The release builds and attaches the card before the image
 
@@ -184,9 +218,12 @@ is on by default and finds `card/package.json` without further config.
 
 `mise run dashboard-check` gains `depends = ["card"]`. The script copies
 `card/dist/pierpressure-card.js` into `config/www/pierpressure-card/`, adds
-`/local/pierpressure-card/pierpressure-card.js` to the YAML-mode resources,
-and adds a second YAML-mode dashboard, `pierpressure-card`, whose one view
-holds `type: custom:pierpressure-card` with `pier: backyard`. A missing
+`/local/pierpressure-card/pierpressure-card.js?v=<hash>` to the YAML-mode
+resources, where `<hash>` is the first 12 hex digits of the file's SHA-256.
+The query makes the browser fetch a rebuilt card instead of a cached one.
+It adds a second YAML-mode dashboard, `pierpressure-card`, whose one view holds
+`type: custom:pierpressure-card` with `pier: backyard`. `ready_message()`
+prints that dashboard's URL beside the night dashboard's. A missing
 built file is a `RuntimeError` naming `mise run card`. The night dashboard
 YAML stays exactly the docs page's block.
 
@@ -205,21 +242,24 @@ dashboard decision stands. The ADR step writes it.
 - [TypeScript 7 is the new native compiler, released recently] → The card uses
   plain strict TypeScript with no decorators or emit; `tsc` only type-checks.
   If it misbehaves, pin TypeScript 5.9, which needs no code change.
-- [Releases made before this change have no card asset, so HACS lists versions
-  it cannot install] → The docs say to install the latest release. The first
-  release after merge is the first card release.
+- [Until a release carries the card, HACS cannot add this repository: it
+  validates the latest release tag, which has no `hacs.json`] → The docs say
+  the HACS route works from the first release that carries the card. The
+  maintainer cuts a release after merge and checks the HACS install then.
 - [happy-dom is not a browser, and Home Assistant's `ha-card` is not defined in
   tests] → Tests read text and structure only. `dashboard-check` shows the
   card in a real Home Assistant, by eye, before the pull request is ready.
-- [The release workflow cannot be tested before it runs] → The change keeps
-  the edit small and in the same shape as the existing steps; the first
-  release is checked by hand: the asset exists and its console line shows the
-  version.
-- [`mise run check` now needs network for `npm ci` on a cold cache] → The same
-  is already true of `uv sync`; a warm npm cache installs offline.
+- [The release workflow cannot run before merge] → A pytest test parses
+  `release.yml` and checks the order of the card build and the image build,
+  and the asset on `gh release create`. The maintainer checks the first
+  release by hand: the asset exists, and its console line shows the version.
+- [`mise run check` needs network the first time, to install the card's
+  packages] → `card-install` runs only when the lockfile changes (DD7). After
+  that, `mise run check` works offline.
 
 ## Migration & Rollback
 
-N/A: no data or document shape changes. Rollback is a revert. Removing
-`hacs.json` alone stops new HACS installs; cards already installed keep
-working until the user removes them.
+N/A: no data or document shape changes. Rollback is a revert. HACS reads the
+latest release tag, so a revert on `main` changes nothing for HACS users
+until the next release, which then carries no `hacs.json` and no card. Cards
+already installed keep working until the user removes them.
