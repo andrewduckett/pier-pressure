@@ -1,18 +1,20 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   CLOUD_COVER,
+  MOON_ALTITUDE,
   HUMIDITY,
   PRECIPITATION_PROBABILITY,
   SEEING,
   TEMPERATURE,
   VERDICT,
   WIND_GUST,
+  WIND_SPEED,
   cells,
   forecastEntity,
   mountCard,
   verdictEntity,
 } from "./harness";
-import type { PierPressureCard } from "../src/pierpressure-card";
+import type { HassEntity, PierPressureCard } from "../src/pierpressure-card";
 
 beforeAll(async () => {
   vi.spyOn(console, "info").mockImplementation(() => {});
@@ -33,6 +35,18 @@ function rows(card: PierPressureCard): HTMLElement[] {
 
 function row(card: PierPressureCard, key: string): HTMLElement | undefined {
   return rows(card).find((element) => element.dataset["row"] === key);
+}
+
+// One value an hour from 21:00 UTC, inside the night's axis.
+function hourly(values: number[]): HassEntity {
+  return forecastEntity(
+    values.map((value, n) => [new Date(Date.UTC(2026, 9, 31, 21 + n)).toISOString(), value]),
+  );
+}
+
+async function shades(entityId: string, key: string, values: number[]): Promise<string[]> {
+  const card = await mountCard({ [VERDICT]: NIGHT, [entityId]: hourly(values) });
+  return cells(card, key).map((cell) => cell.dataset["shade"] ?? "");
 }
 
 const SUN_AND_CLOUD = ["sun_altitude", "cloud_cover", "cloud_low", "cloud_mid", "cloud_high"];
@@ -145,6 +159,39 @@ describe("a Rain chance value fills the hour before its time", () => {
       ["2026-10-31T16:00:00.000Z", "2026-10-31T16:30:00.000Z", "2026-10-31T17:00:00.000Z"],
       ["2026-11-01T08:00:00.000Z", "2026-11-01T08:00:00.000Z", "2026-11-01T08:25:00.000Z"],
     ]);
+  });
+});
+
+describe("the Moon altitude row darkens as the moon climbs", () => {
+  it("steps from set to high", async () => {
+    const altitudes = [-10, 0, 3, 6, 12, 18, 24, 30, 60];
+    expect(await shades(MOON_ALTITUDE, "moon_altitude", altitudes)).toEqual([
+      "#cde2fb",
+      "#cde2fb",
+      "#9ec5f4",
+      "#6da7ec",
+      "#3987e5",
+      "#256abf",
+      "#184f95",
+      "#0d366b",
+      "#0d366b",
+    ]);
+  });
+});
+
+describe("more wind is darker", () => {
+  it("steps Wind gust from calm to gale", async () => {
+    expect(await shades(WIND_GUST, "wind_gust", [0, 6.9, 7, 41, 42])).toEqual([
+      "#cde2fb",
+      "#cde2fb",
+      "#9ec5f4",
+      "#184f95",
+      "#0d366b",
+    ]);
+  });
+
+  it("shades Wind speed on the same scale", async () => {
+    expect(await shades(WIND_SPEED, "wind_speed", [21])).toEqual(["#3987e5"]);
   });
 });
 

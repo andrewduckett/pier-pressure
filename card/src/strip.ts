@@ -60,24 +60,24 @@ interface RowKind {
 // PierPressure publishes them.
 export const ROWS: readonly RowKind[] = [
   { key: "sun_altitude", label: "Sun altitude", unit: "°", shade: sunShade },
-  { key: "moon_altitude", label: "Moon altitude", unit: "", shade: cloudShade },
-  { key: "cloud_cover", label: "Cloud cover", unit: "%", shade: cloudShade },
-  { key: "cloud_low", label: "Cloud low", unit: "%", shade: cloudShade },
-  { key: "cloud_mid", label: "Cloud mid", unit: "%", shade: cloudShade },
-  { key: "cloud_high", label: "Cloud high", unit: "%", shade: cloudShade },
-  { key: "wind_gust", label: "Wind gust", unit: "", shade: cloudShade },
-  { key: "seeing", label: "Seeing", unit: "", shade: cloudShade },
-  { key: "transparency", label: "Transparency", unit: "", shade: cloudShade },
-  { key: "temperature", label: "Temperature", unit: "", shade: cloudShade },
-  { key: "dew_point", label: "Dew point", unit: "", shade: cloudShade },
-  { key: "humidity", label: "Humidity", unit: "", shade: cloudShade },
-  { key: "wind_speed", label: "Wind speed", unit: "", shade: cloudShade },
-  { key: "wind_direction", label: "Wind direction", unit: "", shade: cloudShade },
+  { key: "moon_altitude", label: "Moon altitude", unit: "", shade: moonShade },
+  { key: "cloud_cover", label: "Cloud cover", unit: "%", shade: percentShade },
+  { key: "cloud_low", label: "Cloud low", unit: "%", shade: percentShade },
+  { key: "cloud_mid", label: "Cloud mid", unit: "%", shade: percentShade },
+  { key: "cloud_high", label: "Cloud high", unit: "%", shade: percentShade },
+  { key: "wind_gust", label: "Wind gust", unit: "", shade: windShade },
+  { key: "seeing", label: "Seeing", unit: "", shade: percentShade },
+  { key: "transparency", label: "Transparency", unit: "", shade: percentShade },
+  { key: "temperature", label: "Temperature", unit: "", shade: percentShade },
+  { key: "dew_point", label: "Dew point", unit: "", shade: percentShade },
+  { key: "humidity", label: "Humidity", unit: "", shade: percentShade },
+  { key: "wind_speed", label: "Wind speed", unit: "", shade: windShade },
+  { key: "wind_direction", label: "Wind direction", unit: "", shade: percentShade },
   {
     key: "precipitation_probability",
     label: "Rain chance",
     unit: "",
-    shade: cloudShade,
+    shade: percentShade,
     hourBefore: true,
   },
 ];
@@ -262,7 +262,7 @@ function hourlyValues(forecast: unknown): Map<number, unknown> {
   return new Map([...values].sort(([a], [b]) => a - b));
 }
 
-// The YAML strip's seven blues, lightest to darkest, one step per 15% of cloud.
+// The YAML strip's seven blues, lightest to darkest.
 const BLUES = [
   "#cde2fb",
   "#9ec5f4",
@@ -273,16 +273,29 @@ const BLUES = [
   "#0d366b",
 ] as const;
 
-function cloudShade(percent: number): string {
-  const step = Math.min(BLUES.length - 1, Math.max(0, Math.floor(percent / 15)));
-  return BLUES[step] ?? BLUES[0];
+// A value outside its row's range takes the nearest end of the palette.
+function blue(step: number): string {
+  return BLUES[Math.min(BLUES.length - 1, Math.max(0, step))] ?? BLUES[0];
+}
+
+function percentShade(percent: number): string {
+  return blue(Math.floor(percent / 15));
 }
 
 // The YAML strip's twilight band: sun up, civil, nautical and astronomical
 // twilight, then the darkest blue for astronomical night from −18°.
 function sunShade(degrees: number): string {
-  const step = degrees > 0 ? 0 : degrees > -6 ? 1 : degrees > -12 ? 2 : degrees > -18 ? 3 : 6;
-  return BLUES[step] ?? BLUES[0];
+  return blue(degrees > 0 ? 0 : degrees > -6 ? 1 : degrees > -12 ? 2 : degrees > -18 ? 3 : 6);
+}
+
+// The YAML strip's moon band: lightest while the moon is down, then one step per 6°.
+function moonShade(degrees: number): string {
+  return blue(degrees <= 0 ? 0 : 1 + Math.floor(degrees / 6));
+}
+
+// One step per 7 km/h, so 42 km/h or more is the darkest, as in the YAML strip.
+function windShade(speed: number): string {
+  return blue(Math.floor(speed / 7));
 }
 
 const QUARTER = 15 * 60 * 1000;
