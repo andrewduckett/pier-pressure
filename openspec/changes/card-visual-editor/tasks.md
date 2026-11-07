@@ -9,7 +9,7 @@
 
 ## 2. The card's docs [depends-on: 1]
 
-- [ ] 2.1 [easy] `docs/night-card.md`, "Add the card to a dashboard", says to pick **PierPressure** in the card picker and the pier from the **Pier** list, or type it, with the YAML as the other route; "Find your pier's entity id" says the **Pier** list already uses the real id, so the step is for YAML only (design D-7; test: `tests/test_night_card_doc.py`) (verify: uv run pytest tests/test_night_card_doc.py -k editor)
+- [x] 2.1 [easy] `docs/night-card.md`, "Add the card to a dashboard", says to pick **PierPressure** in the card picker and the pier from the **Pier** list, or type it, with the YAML as the other route; "Find your pier's entity id" says the **Pier** list already uses the real id, so the step is for YAML only (design D-7; test: `tests/test_night_card_doc.py`) (verify: uv run pytest tests/test_night_card_doc.py -k editor) (✓ pytest tests/test_night_card_doc.py -k editor passed; whole file 121 passed)
 
 ## 3. The whole path [depends-on: 1, 2]
 

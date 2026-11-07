@@ -420,3 +420,23 @@ def test_docs_moon_section_says_a_dash_on_a_night_with_no_darkness() -> None:
     sentences = _before_the_strip().split(". ")
 
     assert any("dash" in s and "No astronomical darkness tonight" in s for s in sentences)
+
+
+def _section(heading: str) -> str:
+    page = _page()
+    section = page[page.index(heading) + len(heading) :]
+    return section.split("\n## ", 1)[0]
+
+
+@pytest.mark.parametrize("term", ["card picker", "**PierPressure**", "**Pier**", "type its id"])
+def test_docs_editor_says_how_to_pick_the_pier(term: str) -> None:
+    assert term in _section("## Add the card to a dashboard")
+
+
+def test_docs_editor_keeps_the_yaml_route() -> None:
+    assert "```yaml" in _section("## Add the card to a dashboard")
+
+
+@pytest.mark.parametrize("term", ["**Pier**", "YAML"])
+def test_docs_editor_says_the_list_already_uses_the_real_id(term: str) -> None:
+    assert term in _section("## Find your pier's entity id")
