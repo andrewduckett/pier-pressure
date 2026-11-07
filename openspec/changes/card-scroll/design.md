@@ -155,9 +155,9 @@ and a later change can replace any of them there at little cost.
 
 ## Risks / Trade-offs
 
-- [A drag redraws the strip on every pointer move, on a slow phone] → Lit
-  batches updates to one per frame at most, and the strip has about 1,200
-  items. The by-eye check (ledger D15) drags on a real Home Assistant; if it
+- [A drag redraws the strip on every pointer move, on a slow phone] →
+  browsers send at most one `pointermove` per frame, Lit draws once per batch
+  of changes, and the strip has about 1,200 items. The by-eye check (ledger D15) drags on a real Home Assistant; if it
   stutters, throttling moves to `requestAnimationFrame`, inside the card.
 - [The browser reads a sideways swipe at the reach's end as "go back"] → the
   wheel listener calls `preventDefault` for every sideways movement, even when
