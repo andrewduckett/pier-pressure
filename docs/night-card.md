@@ -55,8 +55,9 @@ Under the rows is the **Moon up** lane, which also reads
 
 The strip runs from 4 hours before dusk to 5 hours after dawn, the dark window
 on the Verdict sensor. Some nights have no astronomical darkness, such as a
-summer night far from the equator. Then the strip runs from
-6 hours before now to 18 hours after.
+summer night far from the equator. Then the card shows
+"No astronomical darkness tonight" under the confidence, and the strip runs
+from 6 hours before now to 18 hours after.
 
 #### How to read the rows
 
@@ -104,8 +105,22 @@ A **Rain chance** value is the chance of rain or snow in the hour before its
 time. So its cell fills the hour before that time: the chance at 22:00 fills
 the cell from 21:00 to 22:00.
 
-A blank hour in a row means the weather source has no value for that hour. A
-row with no cells at all means its sensor is unavailable or has no forecast.
+A blank hour in a row means the weather source has no value for that hour.
+
+A row with no cells at all says why, with **Not found**, **Unavailable** or
+**No forecast**. Hover over the message to see the sensor's entity id, such as
+"sensor.pierpressure_backyard_seeing is unavailable". The **Moon up** lane
+reads the Moon altitude sensor, so it shows the same message as the Moon
+altitude row. A lane with no bar and no message means the moon stays down.
+
+| Message | What it means |
+|---|---|
+| **Not found** | Home Assistant has no entity with the sensor's id. |
+| **Unavailable** | The sensor is unavailable. Its forecast is hidden or out of date. |
+| **No forecast** | The sensor has no value for any hour on the strip. |
+
+The other rows draw as usual. See [If something looks wrong](#if-something-looks-wrong)
+for what to do.
 
 Hover over a cell to see its row, the hour it starts and its value with its
 unit, such as "Cloud cover, the hour from 21:00: 40%",
