@@ -377,3 +377,26 @@ describe("the moon's lit side", () => {
     expect(drawing(card)?.dataset["mirrored"]).toBe("false");
   });
 });
+
+describe("the moon drawing's text", () => {
+  const TEXT = "Moon: waxing gibbous, 78% lit";
+
+  it("is an image to a screen reader", async () => {
+    const card = await mountCard(withMoon(WAXING_GIBBOUS));
+
+    expect(drawing(card)?.getAttribute("role")).toBe("img");
+  });
+
+  it("is read by a screen reader", async () => {
+    const card = await mountCard(withMoon(WAXING_GIBBOUS));
+
+    expect(drawing(card)?.getAttribute("aria-label")).toBe(TEXT);
+  });
+
+  it("shows on hover", async () => {
+    const card = await mountCard(withMoon(WAXING_GIBBOUS));
+
+    const title = drawing(card)?.querySelector("title");
+    expect([title?.textContent, title?.namespaceURI]).toEqual([TEXT, SVG]);
+  });
+});

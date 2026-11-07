@@ -30,6 +30,7 @@ export interface MoonDrawing {
   lit: "none" | "all" | number;
   // True when the lit part touches the left edge rather than the right.
   mirrored: boolean;
+  text: string;
 }
 
 // Each text falls back to a dash on its own, as the verdict lines do. The
@@ -56,11 +57,12 @@ export function readMoon(
 // those two phases draw no lit part and the whole disc. At 0 or 1 no phase has
 // a lit path to draw.
 function drawn(phase: string, illumination: number, latitude: unknown): MoonDrawing {
-  if (phase === "new" || illumination === 0) return { lit: "none", mirrored: false };
-  if (phase === "full" || illumination === 1) return { lit: "all", mirrored: false };
+  const text = `Moon: ${phase}, ${percent(illumination)}% lit`;
+  if (phase === "new" || illumination === 0) return { lit: "none", mirrored: false, text };
+  if (phase === "full" || illumination === 1) return { lit: "all", mirrored: false, text };
   // Seen from the north, a waxing moon is lit on the right; from the south, on the left.
   const south = typeof latitude === "number" && latitude < 0;
-  return { lit: illumination, mirrored: WANING.includes(phase) !== south };
+  return { lit: illumination, mirrored: WANING.includes(phase) !== south, text };
 }
 
 // The right half-disc's edge, then the terminator back to the top as a

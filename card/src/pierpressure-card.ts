@@ -341,7 +341,10 @@ function renderDrawing(drawing: MoonDrawing) {
     height="48"
     data-lit=${drawing.lit}
     data-mirrored=${drawing.mirrored}
+    role="img"
+    aria-label=${drawing.text}
   >
+    <title>${drawing.text}</title>
     <circle r="1" fill="#3b3a36"></circle>
     ${renderLit(drawing)}
     <circle r="1" fill="none" stroke="#898781" stroke-width="0.08"></circle>
