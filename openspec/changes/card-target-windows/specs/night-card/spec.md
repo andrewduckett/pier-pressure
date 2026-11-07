@@ -12,7 +12,13 @@ Under the Moon up lane, the strip SHALL have one lane for each rank from Target 
 - **THEN** the lane labelled `Target 3` comes straight after the lane labelled `Target 1`
 
 ### Requirement: A rank with no target tonight leaves no lane
-A rank SHALL have a target tonight only when its sensor is in Home Assistant, its state is not `unavailable`, and its `window` attribute holds a `start` and an `end` that are readable times, with `end` after `start`. Any other rank SHALL leave no lane. The card SHALL NOT throw, and SHALL draw the rows and the Moon up lane as usual.
+A rank SHALL have a target tonight only when all of these hold:
+
+- its sensor is in Home Assistant;
+- its state is not `unavailable`, `unknown` or empty;
+- its `window` attribute holds a `start` and an `end` that are readable times, with `end` after `start`.
+
+Any other rank SHALL leave no lane. The card SHALL NOT throw, and SHALL draw the rows and the Moon up lane as usual.
 
 #### Scenario: Every rank is empty
 - **WHEN** Target 1 to Target 10 all have the state `unavailable`
@@ -26,12 +32,16 @@ A rank SHALL have a target tonight only when its sensor is in Home Assistant, it
 - **WHEN** `sensor.pierpressure_backyard_target_1` has the state `unavailable` and a `window` of `{start: 2026-10-31T21:00:00Z, end: 2026-11-01T02:00:00Z}`
 - **THEN** the strip has no lane labelled `Target 1`
 
+#### Scenario: A rank whose name has not arrived
+- **WHEN** Target 1 has the state `unknown` and Target 2 has an empty state, and each has a `window` of `{start: 2026-10-31T21:00:00Z, end: 2026-11-01T02:00:00Z}`
+- **THEN** the strip has no lane labelled `Target 1` or `Target 2`
+
 #### Scenario: A broken window
 - **WHEN** Target 1 has the state `Andromeda Galaxy` and a `window` of `{start: 2026-11-01T02:00:00Z, end: 2026-10-31T21:00:00Z}`, Target 2 has a `window` with no `end`, and Target 3 has a `window` whose `start` is `soon`
 - **THEN** the strip has no lane labelled `Target 1`, `Target 2` or `Target 3`
 
 ### Requirement: A target bar spans its window
-Each target lane SHALL hold one violet `#6250d6` bar from the target's `window.start` to its `window.end`. The card SHALL cut the bar off at an axis end. A window wholly outside the axis SHALL keep its lane, with no bar.
+Each target lane SHALL hold one violet `#6250d6` bar from the target's `window.start` to its `window.end`. The card SHALL cut the bar off at an axis end. A window wholly outside the axis SHALL keep its lane, with no bar. A window that ends at the axis start, or starts at the axis end, counts as wholly outside.
 
 #### Scenario: A window inside the night
 - **WHEN** the axis runs from 2026-10-31T16:30:00Z to 2026-11-01T08:25:00Z and Target 1's `window` is `{start: 2026-10-31T21:00:00Z, end: 2026-11-01T02:00:00Z}`
@@ -53,7 +63,7 @@ Each target bar SHALL show the Target sensor's state, the target's name, as its 
 - **THEN** the lane labelled `Target 1` has a bar whose text is `Andromeda Galaxy`
 
 ### Requirement: Hovering over a target bar shows its window
-Hovering over a target bar SHALL show `<name> from <HH:MM> to <HH:MM>`: the Target sensor's state, then the window's own start and end in Home Assistant's time zone, even where the axis cuts the bar off.
+Hovering over a target bar SHALL show `<name> from <HH:MM> to <HH:MM>`. The name SHALL be the Target sensor's state. The two times SHALL be the window's own start and end in Home Assistant's time zone, even where the axis cuts the bar off. When the window lasts 24 hours or more, or its start and end read the same `HH:MM`, the hover SHALL show `<name>` alone.
 
 #### Scenario: A window in UTC
 - **WHEN** Home Assistant's time zone is `UTC`, Target 1 has the state `Andromeda Galaxy` and its `window` is `{start: 2026-10-31T21:00:00Z, end: 2026-11-01T02:00:00Z}`
@@ -62,6 +72,10 @@ Hovering over a target bar SHALL show `<name> from <HH:MM> to <HH:MM>`: the Targ
 #### Scenario: A window cut off at the axis end
 - **WHEN** Home Assistant's time zone is `UTC`, the axis ends at 2026-11-01T08:25:00Z, Target 1 has the state `Orion Nebula` and its `window` is `{start: 2026-11-01T06:00:00Z, end: 2026-11-01T10:00:00Z}`
 - **THEN** hovering over its bar shows `Orion Nebula from 06:00 to 10:00`
+
+#### Scenario: A target up all through a polar night
+- **WHEN** Home Assistant's time zone is `UTC`, Target 1 has the state `IC2184` and its `window` is `{start: 2026-12-21T10:58:02Z, end: 2026-12-22T10:58:32Z}`
+- **THEN** hovering over its bar shows `IC2184`
 
 ### Requirement: The card's size grows with its target lanes
 The card SHALL report a size of 10 to Home Assistant, plus 1 for every three target lanes it shows, rounding up.
@@ -91,6 +105,13 @@ The card SHALL report a size of 10 to Home Assistant, plus 1 for every three tar
 - **WHEN** `docs/night-card.md` is read
 - **THEN** it names the sensors `sensor.pierpressure_<pier>_target_1` and `sensor.pierpressure_<pier>_target_10` and the lane label `Target 1`
 - **AND** it names the words observable window, no target tonight and leaves no lane
+
+### Requirement: The docs' opening names the targets
+The opening paragraph of `docs/night-card.md` SHALL say that the card shows the ranked targets' windows as well as the conditions.
+
+#### Scenario: The opening names the targets
+- **WHEN** the first paragraph of `docs/night-card.md` is read
+- **THEN** it names the ranked targets
 
 ## MODIFIED Requirements
 
