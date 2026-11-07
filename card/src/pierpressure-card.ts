@@ -1,6 +1,6 @@
-import { LitElement, css, html, nothing } from "lit";
+import { LitElement, css, html, nothing, svg } from "lit";
 import { pierSlug, verdictEntityId } from "./entity";
-import { type MoonView, readMoon } from "./moon";
+import { type MoonDrawing, type MoonView, litPath, readMoon } from "./moon";
 import {
   type Axis,
   type Band,
@@ -310,6 +310,7 @@ const DASH = "—";
 
 function renderMoon(moon: MoonView) {
   return html`<section class="moon" aria-label="Moon">
+    ${moon.drawing === undefined ? nothing : renderDrawing(moon.drawing)}
     <dl>
       <dt>Phase</dt>
       <dd data-field="moon-phase">${moon.phase}</dd>
@@ -321,6 +322,18 @@ function renderMoon(moon: MoonView) {
       <dd data-field="moon-set">${moon.set}</dd>
     </dl>
   </section>`;
+}
+
+// The unlit disc, the lit part, then the outline on top, so the lit part never
+// covers the edge. The lit part is a fragment inside the <svg>, so it needs Lit's
+// svg tag: an html fragment there would make unknown HTML elements a browser does
+// not paint.
+function renderDrawing(drawing: MoonDrawing) {
+  return html`<svg viewBox="-1.1 -1.1 2.2 2.2" width="48" height="48" data-lit=${drawing.lit}>
+    <circle r="1" fill="#3b3a36"></circle>
+    ${svg`<path d=${litPath(drawing.lit)} fill="#ece8dc"></path>`}
+    <circle r="1" fill="none" stroke="#898781" stroke-width="0.08"></circle>
+  </svg>`;
 }
 
 function renderNote(strip: Strip | undefined) {

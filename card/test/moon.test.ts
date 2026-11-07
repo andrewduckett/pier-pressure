@@ -181,3 +181,85 @@ describe("the Moon section's dashes", () => {
     expect(MOON_FIELDS.map((name) => field(card, name))).toEqual(["—", "—", "—", "—"]);
   });
 });
+
+const SVG = "http://www.w3.org/2000/svg";
+
+function drawing(card: PierPressureCard): SVGSVGElement | null {
+  return moonSection(card)?.querySelector<SVGSVGElement>("svg") ?? null;
+}
+
+function litPath(card: PierPressureCard): Element | null {
+  return drawing(card)?.querySelector("path") ?? null;
+}
+
+// The lit path's terminator is a half-ellipse from the bottom of the disc back
+// to its top: `A <rx> 1 0 0 <sweep> 0 -1`. Sweep 0 bulges right and 1 left.
+function terminator(card: PierPressureCard): { rx: number; crossing: number } {
+  const match = /A ([\d.]+) 1 0 0 ([01]) 0 -1/.exec(litPath(card)?.getAttribute("d") ?? "");
+  const rx = Number(match?.[1]);
+  return { rx, crossing: match?.[2] === "0" ? rx : -rx };
+}
+
+// The lit part runs from the terminator to the disc's right edge, at x = 1.
+function litShareOfWidth(card: PierPressureCard): number {
+  return (1 - terminator(card).crossing) / 2;
+}
+
+describe("the moon drawing", () => {
+  it("is drawn in SVG layers, not unknown HTML elements", async () => {
+    const card = await mountCard(withMoon(WAXING_GIBBOUS));
+
+    const layers = [...(drawing(card)?.querySelectorAll("circle, path") ?? [])];
+    expect(layers.map((layer) => [layer.tagName.toLowerCase(), layer.namespaceURI])).toEqual([
+      ["circle", SVG],
+      ["path", SVG],
+      ["circle", SVG],
+    ]);
+  });
+
+  it("draws a thin outline on top of the lit part", async () => {
+    const card = await mountCard(withMoon(WAXING_GIBBOUS));
+
+    const outline = drawing(card)?.querySelector("circle:last-of-type");
+    expect([outline?.getAttribute("fill"), outline?.getAttribute("stroke-width")]).toEqual([
+      "none",
+      "0.08",
+    ]);
+  });
+
+  it("lights a quarter of the width for a quarter lit", async () => {
+    const card = await mountCard(withMoon({ phase: "waxing crescent", illumination: 0.25 }));
+
+    expect(litShareOfWidth(card)).toBeCloseTo(0.25);
+  });
+
+  it("lights three quarters of the width for three quarters lit", async () => {
+    const card = await mountCard(withMoon({ phase: "waning gibbous", illumination: 0.75 }));
+
+    expect(litShareOfWidth(card)).toBeCloseTo(0.75);
+  });
+
+  it("draws a straight terminator at half lit", async () => {
+    const card = await mountCard(withMoon({ phase: "first quarter", illumination: 0.5 }));
+
+    expect([terminator(card).rx, litShareOfWidth(card)]).toEqual([0, 0.5]);
+  });
+
+  it("is not drawn without a valid illumination", async () => {
+    const card = await mountCard(withMoon({ phase: "full" }));
+
+    expect(drawing(card)).toBeNull();
+  });
+
+  it("is not drawn without a valid phase", async () => {
+    const card = await mountCard(withMoon({ phase: "blue", illumination: 0.5 }));
+
+    expect(drawing(card)).toBeNull();
+  });
+
+  it("leaves the texts in place when it is not drawn", async () => {
+    const card = await mountCard(withMoon({ phase: "full" }));
+
+    expect([field(card, "moon-phase"), field(card, "moon-illumination")]).toEqual(["Full", "—"]);
+  });
+});
