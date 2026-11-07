@@ -427,7 +427,7 @@ Each pier becomes one device, `PierPressure <pier>`, with these entities:
 | **Top target** (sensor) | The best target's name, or its catalogue id | The full ranked list is in its attributes. Unavailable when nothing is rankable. See [docs/target-ranking.md](docs/target-ranking.md). |
 | **Target 1** to **Target 10** (sensors) | The name, or catalogue id, of the target at that rank | One sensor per rank, so any dashboard card can list the whole ranking. Its attributes hold the rank and that target's fields. Unavailable when no target holds that rank tonight. |
 | **Cloud cover** (sensor) | The current hour's cloud cover, in % | Its `forecast` attribute holds every timeline hour, for a chart card. Unknown when the current hour has no value; the forecast stays readable. See [docs/night-timeline.md](docs/night-timeline.md). |
-| **Cloud low**, **Cloud mid**, **Cloud high** (%), **Wind gust** (km/h), **Seeing**, **Transparency** (0 to 1), **Sun altitude**, **Moon altitude** (°), **Temperature**, **Dew point** (°C), **Humidity** (%), **Wind speed** (km/h), **Wind direction** (°), **Precipitation probability** (%) (sensors) | The current hour's value | Like Cloud cover: one sensor per timeline variable, each with its own `forecast` attribute. Unknown when the current hour has no value. An altitude is for the start of the hour, not the live sky. See [docs/night-timeline.md](docs/night-timeline.md). |
+| **Cloud low**, **Cloud mid**, **Cloud high** (%), **Wind gust** (km/h), **Seeing**, **Transparency** (0 to 1), **Sun altitude**, **Moon altitude** (°), **Temperature**, **Dew point** (°C), **Humidity** (%), **Wind speed** (km/h), **Wind direction** (°), **Precipitation probability**, **Cloud cover min**, **Cloud cover max** (%) (sensors) | The current hour's value | Like Cloud cover: one sensor per timeline value, each with its own `forecast` attribute. Unknown when the current hour has no value. An altitude is for the start of the hour, not the live sky. Cloud cover min and max are the lowest and highest cloud any provider gave, and are unknown unless two or more did. See [docs/night-timeline.md](docs/night-timeline.md). |
 | **Refresh** (button) | — | "Show me now": recomputes and republishes straight away. |
 | **Narrative** (sensor) | `ready` or unavailable | Only when the explainer is on. The text is in its attributes. |
 | **Open-Meteo health**, **7Timer! health**, **Computed health**, and **Open-Meteo HRRR health** and so on for each listed model (diagnostic sensors) | When that weather source last succeeded, or unknown | One per provider in the `conditions` list. See [Watching provider health](#watching-provider-health). |
@@ -447,14 +447,14 @@ connection, the broker sends PierPressure's last-will message instead.
 
 | Purpose | Topic | Retained |
 |---|---|---|
-| Discovery configs | `homeassistant/<sensor\|button>/pierpressure_<pier>/<verdict\|score\|top_target\|target_<n>\|cloud_cover\|cloud_low\|cloud_mid\|cloud_high\|wind_gust\|seeing\|transparency\|sun_altitude\|moon_altitude\|temperature\|dew_point\|humidity\|wind_speed\|wind_direction\|precipitation_probability\|narrative\|refresh>/config` | yes |
+| Discovery configs | `homeassistant/<sensor\|button>/pierpressure_<pier>/<verdict\|score\|top_target\|target_<n>\|cloud_cover\|cloud_low\|cloud_mid\|cloud_high\|wind_gust\|seeing\|transparency\|sun_altitude\|moon_altitude\|temperature\|dew_point\|humidity\|wind_speed\|wind_direction\|precipitation_probability\|cloud_cover_min\|cloud_cover_max\|narrative\|refresh>/config` | yes |
 | Health discovery configs | `homeassistant/sensor/pierpressure_<pier>/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|open_meteo_air_quality\|nws\|seven_timer\|computed>_health/config` | yes |
 | Verdict state | `pierpressure/<pier>/verdict/state` | yes |
 | Verdict attributes (the document without `timeline`) | `pierpressure/<pier>/verdict/attributes` | yes |
 | Top target state and list | `pierpressure/<pier>/top_target/state`, `.../top_target/attributes` | yes |
 | Target rank `<n>` (1 to 10) state and details | `pierpressure/<pier>/target_<n>/state`, `.../target_<n>/attributes` | yes |
 | Cloud cover state and forecast | `pierpressure/<pier>/cloud_cover/state`, `.../cloud_cover/attributes` | yes |
-| Timeline sensor state and forecast, where `<var>` is `cloud_low`, `cloud_mid`, `cloud_high`, `wind_gust`, `seeing`, `transparency`, `sun_altitude`, `moon_altitude`, `temperature`, `dew_point`, `humidity`, `wind_speed`, `wind_direction` or `precipitation_probability` | `pierpressure/<pier>/<var>/state`, `.../<var>/attributes` | yes |
+| Timeline sensor state and forecast, where `<var>` is `cloud_low`, `cloud_mid`, `cloud_high`, `wind_gust`, `seeing`, `transparency`, `sun_altitude`, `moon_altitude`, `temperature`, `dew_point`, `humidity`, `wind_speed`, `wind_direction`, `precipitation_probability`, `cloud_cover_min` or `cloud_cover_max` | `pierpressure/<pier>/<var>/state`, `.../<var>/attributes` | yes |
 | Narrative state and text | `pierpressure/<pier>/narrative/state`, `.../narrative/attributes` | yes |
 | Provider health state and details | `pierpressure/<pier>/health/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|open_meteo_air_quality\|nws\|seven_timer\|computed>/state`, `.../attributes` | yes |
 | Refresh command | `pierpressure/<pier>/refresh/command` | no |
@@ -671,6 +671,7 @@ for e in sensor/pierpressure_backyard/verdict sensor/pierpressure_backyard/score
          sensor/pierpressure_backyard/humidity sensor/pierpressure_backyard/wind_speed \
          sensor/pierpressure_backyard/wind_direction \
          sensor/pierpressure_backyard/precipitation_probability \
+         sensor/pierpressure_backyard/cloud_cover_min sensor/pierpressure_backyard/cloud_cover_max \
          button/pierpressure_backyard/refresh \
          sensor/pierpressure_backyard/open_meteo_health \
          sensor/pierpressure_backyard/seven_timer_health \

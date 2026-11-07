@@ -555,6 +555,8 @@ def make_timeline(
             wind_speed=14.2,
             wind_direction=230.0,
             precipitation_probability=35.0,
+            cloud_cover_min=30.0,
+            cloud_cover_max=55.0,
         )
         for i in range(count)
     ]

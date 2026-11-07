@@ -26,6 +26,7 @@ Each entry has the same keys, always present:
 | `humidity` | Relative humidity 2 m above the ground, in percent, from Open-Meteo. |
 | `wind_speed`, `wind_direction` | The forecast wind 10 m above the ground: speed in km/h, and the direction it blows from in degrees, from Open-Meteo. |
 | `precipitation_probability` | The chance of more than 0.1 mm of rain or snow in the hour that ends at `time`, in percent, from Open-Meteo. Unlike the other values, it is for the hour before `time`, not the hour that starts at it. |
+| `cloud_cover_min`, `cloud_cover_max` | The lowest and highest total cloud any provider gave for the hour, in percent. Both are `null` unless two or more providers gave cloud cover for that hour. |
 
 A weather value is `null` when its source has no data for that hour. The sun and
 moon altitudes are always present.
@@ -57,6 +58,8 @@ value's key. For a pier called `backyard`, the Cloud cover sensor is
 | `sensor.pierpressure_<pier>_wind_speed` | km/h | The forecast wind speed |
 | `sensor.pierpressure_<pier>_wind_direction` | ° | The direction the wind blows from |
 | `sensor.pierpressure_<pier>_precipitation_probability` | % | The chance of rain or snow in the hour that ends at the start of the current hour |
+| `sensor.pierpressure_<pier>_cloud_cover_min` | % | The lowest total cloud any provider gave. Unknown unless two or more providers gave cloud cover for the current hour. |
+| `sensor.pierpressure_<pier>_cloud_cover_max` | % | The highest total cloud any provider gave. Unknown unless two or more providers gave cloud cover for the current hour. |
 
 Every timeline sensor works the same way:
 
@@ -99,12 +102,13 @@ the **Refresh** button to recompute now.
 ## Why the Verdict sensor leaves the timeline out
 
 Home Assistant does not store state attributes larger than 16 KiB. A timeline of
-around 120 hours with sixteen values each would push the Verdict sensor past that
+around 120 hours with eighteen values each would push the Verdict sensor past that
 limit. So the Verdict sensor's attributes hold every field of the verdict
 document except `timeline`. Each timeline value reaches Home Assistant on its own
 sensor instead: Cloud cover, Cloud low, Cloud mid, Cloud high, Wind gust,
 Seeing, Transparency, Sun altitude, Moon altitude, Temperature, Dew point,
-Humidity, Wind speed, Wind direction and Precipitation probability.
+Humidity, Wind speed, Wind direction, Precipitation probability,
+Cloud cover min and Cloud cover max.
 
 ## Chart the forecast
 
@@ -166,9 +170,11 @@ recorder:
       - sensor.pierpressure_backyard_wind_speed
       - sensor.pierpressure_backyard_wind_direction
       - sensor.pierpressure_backyard_precipitation_probability
+      - sensor.pierpressure_backyard_cloud_cover_min
+      - sensor.pierpressure_backyard_cloud_cover_max
 ```
 
-Each pier has its own fifteen sensors. For a second pier, add its fifteen entity
+Each pier has its own seventeen sensors. For a second pier, add its seventeen entity
 ids too.
 
 The card above reads the live attributes, so it keeps working.

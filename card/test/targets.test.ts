@@ -325,17 +325,17 @@ describe("the strip with target lanes", () => {
     const card = await threeTargets();
 
     expect(card.shadowRoot?.querySelector(".strip")?.getAttribute("style")).toContain(
-      "grid-template-rows: repeat(21, auto)",
+      "grid-template-rows: repeat(22, auto)",
     );
   });
 
-  // Rows 2 to 16 hold the fifteen rows, 17 the Moon up lane and 18 to 20 the
-  // three target lanes, so the lines run from grid line 2 to line 21.
+  // Rows 2 to 17 hold the sixteen rows, 18 the Moon up lane and 19 to 21 the
+  // three target lanes, so the lines run from grid line 2 to line 22.
   it("runs the lines down to the bottom of the last lane", async () => {
     const card = await threeTargets();
 
     expect(card.shadowRoot?.querySelector(".strip .lines")?.getAttribute("style")).toContain(
-      "grid-row: 2 / 21",
+      "grid-row: 2 / 22",
     );
   });
 });

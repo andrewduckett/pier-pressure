@@ -110,6 +110,9 @@ TIMELINE_SENSORS = (
     TimelineSensor(
         "precipitation_probability", "Precipitation probability", "%", "mdi:weather-rainy"
     ),
+    # Last, so every sensor before them keeps its place in a publish (cloud-range-band DD1).
+    TimelineSensor("cloud_cover_min", "Cloud cover min", "%", "mdi:weather-cloudy"),
+    TimelineSensor("cloud_cover_max", "Cloud cover max", "%", "mdi:weather-cloudy"),
 )
 _CLOUD_COVER = TIMELINE_SENSORS[0]
 

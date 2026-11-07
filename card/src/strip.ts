@@ -110,8 +110,22 @@ export interface Cell {
 
 // Why a row has no cell to draw, in the words the row shows.
 export interface Missing {
-  message: "Not found" | "Unavailable" | "No forecast";
-  // What hovering over the message shows: the sensor's id, so the user can find it.
+  message: "Not found" | "Unavailable" | "No forecast" | "Needs two forecasts";
+  // What hovering over the message shows: the sensor's id, so the user can find
+  // it, or for the Cloud range row, what the row needs.
+  text: string;
+}
+
+// One hour of the Cloud range row: a column across the hour, holding a bar from
+// the lowest to the highest cloud any forecast gave.
+export interface Band {
+  hour: number;
+  from: number;
+  to: number;
+  // In percent, clamped to 0–100 for drawing.
+  low: number;
+  high: number;
+  // What hovering over the column shows, with the values unclamped.
   text: string;
 }
 
@@ -119,6 +133,8 @@ export interface Row {
   key: string;
   label: string;
   cells: Cell[];
+  // Only on the Cloud range row, which draws bands instead of cells.
+  bands?: Band[];
   // Only on a row with no cell.
   missing?: Missing;
 }
@@ -200,6 +216,9 @@ export function buildStrip(
     if (cells.length > 0) return { key, label, cells };
     return { key, label, cells, missing: missing(entityId, entity) };
   });
+  // Under Cloud cover, the row it explains.
+  const cloudCover = rows.findIndex((row) => row.key === "cloud_cover");
+  rows.splice(cloudCover + 1, 0, cloudRange(states, pier, axis, time));
   const moonMissing = rows.find((row) => row.key === "moon_altitude")?.missing;
   return {
     axis,
@@ -269,6 +288,56 @@ function rowCells(
       },
     ];
   });
+}
+
+// An hour has a band only when both sensors give it a number: the core sends
+// both or neither, and a gap in one forecast is not a range. A min above the
+// max is skipped, not swapped: Home Assistant applies the two sensors' updates
+// one at a time, and a new min against an old max is no forecast's range.
+function cloudRange(states: States, pier: string, axis: Axis, time: (at: number) => string): Row {
+  const lows = hourlyValues(forecastOf(states[pierEntityId(pier, "cloud_cover_min")]));
+  const highs = hourlyValues(forecastOf(states[pierEntityId(pier, "cloud_cover_max")]));
+  const bands = [...lows].flatMap(([hour, low]): Band[] => {
+    const high = highs.get(hour);
+    if (!isNumber(low) || !isNumber(high) || low > high) return [];
+    if (hour + HOUR <= axis.start || hour >= axis.end) return [];
+    return [
+      {
+        hour,
+        from: Math.max(hour, axis.start),
+        to: Math.min(hour + HOUR, axis.end),
+        low: percent(low),
+        high: percent(high),
+        text: `Cloud range, the hour from ${time(hour)}: ${low}% to ${high}%`,
+      },
+    ];
+  });
+  const row = { key: "cloud_range", label: "Cloud range", cells: [], bands };
+  if (bands.length > 0) return row;
+  return { ...row, missing: cloudRangeMissing(states, pier) };
+}
+
+// A missing sensor comes before an unavailable one, whichever of the two it is.
+// With both there, an empty row usually means one cloud provider, which is the
+// default, so the message says what the row needs rather than that no forecast came.
+function cloudRangeMissing(states: States, pier: string): Missing {
+  const ids = [pierEntityId(pier, "cloud_cover_min"), pierEntityId(pier, "cloud_cover_max")];
+  const absent = ids.find((id) => states[id] === undefined);
+  if (absent) return { message: "Not found", text: `${absent} is not in Home Assistant` };
+  const down = ids.find((id) => states[id]?.state === "unavailable");
+  if (down) return { message: "Unavailable", text: `${down} is unavailable` };
+  return {
+    message: "Needs two forecasts",
+    text: "No hour on the strip has cloud cover from two or more forecasts",
+  };
+}
+
+function percent(value: number): number {
+  return Math.min(100, Math.max(0, value));
+}
+
+function isNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
 }
 
 function moonUpBars(forecast: unknown, axis: Axis, time: (at: number) => string): Bar[] {

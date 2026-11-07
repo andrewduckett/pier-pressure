@@ -200,6 +200,7 @@ _ROWS = (
     "Sun altitude",
     "Moon altitude",
     "Cloud cover",
+    "Cloud range",
     "Cloud low",
     "Cloud mid",
     "Cloud high",
@@ -289,6 +290,32 @@ def test_docs_missing_strip_section_names_the_message(message: str) -> None:
     assert message in _before_troubleshooting()
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "sensor.pierpressure_<pier>_cloud_cover_min",
+        "sensor.pierpressure_<pier>_cloud_cover_max",
+        "Needs two forecasts",
+        "No hour on the strip has cloud cover from two or more forecasts",
+        "Cloud range, the hour from 21:00: 40% to 70%",
+    ],
+)
+def test_docs_strip_section_covers_the_cloud_range_row(text: str) -> None:
+    assert text in _before_troubleshooting()
+
+
+@pytest.mark.parametrize("term", ["lowest", "highest", "disagree", "0% at the bottom"])
+def test_docs_cloud_range_explains_what_it_shows(term: str) -> None:
+    assert term in " ".join(_before_troubleshooting().split())
+
+
+def test_docs_first_verdict_note_names_the_cloud_range_message() -> None:
+    paragraphs = _page().split("\n\n")
+    note = next(p for p in paragraphs if "Before PierPressure's first verdict" in p)
+
+    assert "Needs two forecasts" in " ".join(note.split())
+
+
 def test_docs_missing_paragraph_names_hover_and_the_moon_up_lane() -> None:
     paragraphs = _before_troubleshooting().split("\n\n")
     paragraph = " ".join(next(p for p in paragraphs if "No forecast" in p).split())
@@ -324,3 +351,14 @@ def test_docs_wrong_section_says_what_to_do_for(shown: str) -> None:
 @pytest.mark.parametrize("where", ["health", "`providers`"])
 def test_docs_wrong_section_says_where_to_look_for_a_missing_forecast(where: str) -> None:
     assert where in _troubleshooting()
+
+
+def _troubleshooting_item(shown: str) -> str:
+    """The list item of the troubleshooting section that starts with ``shown`` in bold."""
+    items = re.split(r"\n(?=- \*\*)", _troubleshooting())
+    return " ".join(next(item for item in items if item.startswith(f"- **{shown}")).split())
+
+
+@pytest.mark.parametrize("term", ["`conditions`", "`providers`", "Open-Meteo", "health", "add-on"])
+def test_docs_wrong_section_says_how_to_fill_the_cloud_range_row(term: str) -> None:
+    assert term in _troubleshooting_item('The Cloud range row says "Needs two forecasts"')

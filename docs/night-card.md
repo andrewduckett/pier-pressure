@@ -36,6 +36,7 @@ condition, from top to bottom:
 | **Sun altitude** | `sensor.pierpressure_<pier>_sun_altitude` | ° |
 | **Moon altitude** | `sensor.pierpressure_<pier>_moon_altitude` | ° |
 | **Cloud cover** | `sensor.pierpressure_<pier>_cloud_cover` | % |
+| **Cloud range** | `sensor.pierpressure_<pier>_cloud_cover_min` and `sensor.pierpressure_<pier>_cloud_cover_max` | % |
 | **Cloud low** | `sensor.pierpressure_<pier>_cloud_low` | % |
 | **Cloud mid** | `sensor.pierpressure_<pier>_cloud_mid` | % |
 | **Cloud high** | `sensor.pierpressure_<pier>_cloud_high` | % |
@@ -105,6 +106,15 @@ A **Rain chance** value is the chance of rain or snow in the hour before its
 time. So its cell fills the hour before that time: the chance at 22:00 fills
 the cell from 21:00 to 22:00.
 
+The **Cloud range** row shows how far the weather forecasts agree on cloud
+cover. Each hour has a light blue column. Its height runs from 0% at the bottom
+to 100% at the top. A dark blue bar in the column runs from the lowest to the
+highest cloud cover any forecast gives for the hour. A tall bar means the
+forecasts disagree; a short bar means they agree, and where it sits says how
+cloudy they expect it to be. When the forecasts give the same value, the bar is
+a thin line. An hour with fewer than two forecasts is blank. The row is twice as
+tall as the others, so you can read the bar's ends.
+
 A blank hour in a row means the weather source has no value for that hour.
 
 A row with no cells at all says why, with **Not found**, **Unavailable** or
@@ -113,11 +123,21 @@ A row with no cells at all says why, with **Not found**, **Unavailable** or
 reads the Moon altitude sensor, so it shows the same message as the Moon
 altitude row. A lane with no bar and no message means the moon stays down.
 
+The **Cloud range** row reads two sensors. It says **Not found** or
+**Unavailable** for the first of the two that is missing or unavailable. When
+both are there, it says **Needs two forecasts** instead of **No forecast**.
+Hover over that message to see
+"No hour on the strip has cloud cover from two or more forecasts". With the
+default providers, only Open-Meteo gives cloud cover, so the row shows this
+message. See
+[If something looks wrong](#if-something-looks-wrong) for how to fill it.
+
 | Message | What it means |
 |---|---|
 | **Not found** | Home Assistant has no entity with the sensor's id. |
 | **Unavailable** | The sensor is unavailable. Its forecast is hidden or out of date. |
 | **No forecast** | The sensor has no value for any hour on the strip. |
+| **Needs two forecasts** | Cloud range only. No hour on the strip has cloud cover from two or more weather forecasts. |
 
 The other rows draw as usual. See [If something looks wrong](#if-something-looks-wrong)
 for what to do.
@@ -127,7 +147,9 @@ unit, such as "Cloud cover, the hour from 21:00: 40%",
 "Wind gust, the hour from 21:00: 12.5 km/h" or
 "Sun altitude, the hour from 21:00: -14.235°". Seeing and Transparency have no
 unit. A Wind direction cell also names the compass point the wind blows from,
-such as "Wind direction, the hour from 21:00: 225° from SW".
+such as "Wind direction, the hour from 21:00: 225° from SW". A Cloud range
+hour shows both ends of its bar, such as
+"Cloud range, the hour from 21:00: 40% to 70%".
 
 The **Moon up** lane has a grey bar for each run of hours
 when the moon is above the horizon. Like the sun's, each moon altitude is for
@@ -287,8 +309,20 @@ find your **Verdict** sensor under **Settings** > **Entities**. Then use, as
     source health sensors, such as **Open-Meteo health**. See
     [Watching provider health](../README.md#watching-provider-health).
 
-  Before PierPressure's first verdict, every row says "No forecast" too. The
-  rows fill in when it publishes.
+  Before PierPressure's first verdict, every row says "No forecast" too, except
+  Cloud range, which says "Needs two forecasts". The rows fill in when it
+  publishes.
+- **The Cloud range row says "Needs two forecasts".** Fewer than two weather
+  forecasts gave cloud cover for the hours on the strip. There are two causes:
+  - Only one provider in the `providers` list under `conditions` gives cloud
+    cover. With the default list, only Open-Meteo does. Add a second provider
+    that gives cloud cover, such as an Open-Meteo model like `open_meteo_icon`,
+    in the [configuration](../README.md#%EF%B8%8F-configuration). The add-on's
+    Configuration tab has no `conditions` setting, so for the add-on, set it in
+    the `config.yaml` in the add-on's config folder.
+  - A listed cloud provider failed. Check that provider's health sensor, such as
+    **Open-Meteo ICON health**. See
+    [Watching provider health](../README.md#watching-provider-health).
 - **"No astronomical darkness tonight".** The sun stays less than 18° below
   the horizon all night, as in summer far from the equator. Nothing is wrong.
   The strip shows the day around now, with no dusk or dawn line.

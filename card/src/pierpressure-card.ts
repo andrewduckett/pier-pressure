@@ -2,6 +2,7 @@ import { LitElement, css, html, nothing } from "lit";
 import { pierSlug, verdictEntityId } from "./entity";
 import {
   type Axis,
+  type Band,
   type Bar,
   type Cell,
   HOUR,
@@ -127,6 +128,26 @@ export class PierPressureCard extends LitElement {
       width: 100%;
       height: 100%;
       color: var(--secondary-text-color);
+    }
+    /* Twice a shaded row, so a 15% step of cloud is about 5 px, with its label
+       and message in the middle as in the other rows. */
+    .row[data-row="cloud_range"] .track {
+      height: 32px;
+    }
+    .row[data-row="cloud_range"] .label,
+    .row[data-row="cloud_range"] .missing {
+      line-height: 32px;
+    }
+    /* The hour's 0 to 100% column; its bar keeps to the rounded corners. */
+    .column {
+      background-color: #cde2fb;
+      overflow: hidden;
+    }
+    .range {
+      position: absolute;
+      left: 0;
+      right: 0;
+      background-color: #256abf;
     }
     .marks {
       color: #898781;
@@ -297,6 +318,7 @@ function renderStrip(strip: Strip | undefined) {
           <span class="label">${row.label}</span>
           <div class="track">
             ${row.cells.map((cell) => renderCell(cell, strip.axis))}
+            ${(row.bands ?? []).map((band) => renderBand(band, strip.axis))}
             ${row.missing === undefined ? nothing : renderMissing(row.missing)}
           </div>
         </div>`,
@@ -362,14 +384,19 @@ function renderTimeLabel(label: TimeLabel, axis: Axis) {
 
 // Neighbouring hours keep a 2 px gap, as in the YAML strip; an edge cut off by
 // the axis stays flush with the axis end instead.
-function renderCell(cell: Cell, axis: Axis) {
-  const left = offset(cell.from, axis);
-  const width = share(cell.to - cell.from, axis);
-  const insetStart = cell.from === cell.hour ? 1 : 0;
-  const insetEnd = cell.to === cell.hour + HOUR ? 1 : 0;
-  const place =
+function hourPlace(hour: { hour: number; from: number; to: number }, axis: Axis): string {
+  const left = offset(hour.from, axis);
+  const width = share(hour.to - hour.from, axis);
+  const insetStart = hour.from === hour.hour ? 1 : 0;
+  const insetEnd = hour.to === hour.hour + HOUR ? 1 : 0;
+  return (
     `left: calc(${left}% + ${insetStart}px); ` +
-    `width: calc(${width}% - ${insetStart + insetEnd}px)`;
+    `width: calc(${width}% - ${insetStart + insetEnd}px)`
+  );
+}
+
+function renderCell(cell: Cell, axis: Axis) {
+  const place = hourPlace(cell, axis);
   const style = cell.shade === undefined ? place : `${place}; background-color: ${cell.shade}`;
   // `nothing` leaves an attribute out; `undefined` would leave it empty.
   return html`<div
@@ -384,6 +411,26 @@ function renderCell(cell: Cell, axis: Axis) {
     aria-label=${cell.text}
   >
     ${cell.arrow === undefined ? nothing : renderArrow(cell.arrow)}
+  </div>`;
+}
+
+// Two forecasts that agree still show, as a 2 px line, and one at 100% is
+// pulled down to stay inside the column.
+function renderBand(band: Band, axis: Axis) {
+  const range =
+    `bottom: min(${band.low}%, calc(100% - 2px)); ` + `height: max(2px, ${band.high - band.low}%)`;
+  return html`<div
+    class="cell column"
+    style=${hourPlace(band, axis)}
+    data-hour=${iso(band.hour)}
+    data-from=${iso(band.from)}
+    data-to=${iso(band.to)}
+    data-low=${band.low}
+    data-high=${band.high}
+    title=${band.text}
+    aria-label=${band.text}
+  >
+    <div class="range" style=${range}></div>
   </div>`;
 }
 

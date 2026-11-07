@@ -45,6 +45,8 @@ export const HUMIDITY = "sensor.pierpressure_backyard_humidity";
 export const WIND_SPEED = "sensor.pierpressure_backyard_wind_speed";
 export const WIND_DIRECTION = "sensor.pierpressure_backyard_wind_direction";
 export const PRECIPITATION_PROBABILITY = "sensor.pierpressure_backyard_precipitation_probability";
+export const CLOUD_COVER_MIN = "sensor.pierpressure_backyard_cloud_cover_min";
+export const CLOUD_COVER_MAX = "sensor.pierpressure_backyard_cloud_cover_max";
 
 // Any timeline sensor as PierPressure publishes it: the current hour's value as its
 // state, and every hour in `forecast`.
