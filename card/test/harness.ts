@@ -76,3 +76,29 @@ export function line(card: PierPressureCard, kind: string): HTMLElement | null {
 export function mark(card: PierPressureCard, kind: string): HTMLElement | null {
   return card.shadowRoot?.querySelector<HTMLElement>(`.strip [data-mark="${kind}"]`) ?? null;
 }
+
+export function target(rank: number): string {
+  return `sensor.pierpressure_backyard_target_${rank}`;
+}
+
+// A rank sensor as PierPressure publishes it: the target's name as its state,
+// and the target's fields, `window` among them, as attributes.
+export function targetEntity(
+  name: string,
+  window: Record<string, unknown> | undefined,
+  state = name,
+): HassEntity {
+  return { state, attributes: { available: true, name, window } };
+}
+
+export function targetLanes(card: PierPressureCard): HTMLElement[] {
+  return [
+    ...(card.shadowRoot?.querySelectorAll<HTMLElement>('.strip [data-lane^="target_"]') ?? []),
+  ];
+}
+
+export function targetBar(card: PierPressureCard, rank: number): HTMLElement | null {
+  return (
+    card.shadowRoot?.querySelector<HTMLElement>(`.strip [data-lane="target_${rank}"] .bar`) ?? null
+  );
+}

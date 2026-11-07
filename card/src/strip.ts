@@ -125,6 +125,15 @@ export interface Bar {
   text: string;
 }
 
+// One rank of the target list, drawn as a lane under the Moon up lane.
+export interface TargetLane {
+  rank: number;
+  label: string;
+  // The Target sensor's state: the target's name.
+  name: string;
+  bar: Bar;
+}
+
 export interface Line {
   kind: "dusk" | "dawn" | "now";
   at: number;
@@ -141,6 +150,7 @@ export interface Strip {
   axis: Axis;
   rows: Row[];
   moonUp: Bar[];
+  targets: TargetLane[];
   lines: Line[];
   labels: TimeLabel[];
 }
@@ -177,6 +187,7 @@ export function buildStrip(
       };
     }),
     moonUp: moonUpBars(forecastOf(states[pierEntityId(pier, "moon_altitude")]), axis, time),
+    targets: targetLanes(states, pier),
     lines: [...(night === undefined ? [] : nightLines(night, time)), ...nowLine(now, axis, time)],
   };
 }
@@ -266,6 +277,23 @@ function moonUpText(
   if (rise) return `Moon up from ${time(run.start)}`;
   if (set) return `Moon up until ${time(run.end)}`;
   return "Moon up";
+}
+
+// The rank sensors PierPressure publishes, Target 1 to Target 10.
+const TARGET_RANKS = 10;
+
+function targetLanes(states: States, pier: string): TargetLane[] {
+  return Array.from({ length: TARGET_RANKS }, (_, index) => index + 1).flatMap((rank) => {
+    const entity = states[pierEntityId(pier, `target_${rank}`)];
+    const window = asRecord(entity?.attributes["window"]);
+    const start = readTime(window?.["start"]);
+    const end = readTime(window?.["end"]);
+    if (entity === undefined || start === undefined || end === undefined) return [];
+    const name = entity.state;
+    return [
+      { rank, label: `Target ${rank}`, name, bar: { start, end, from: start, to: end, text: name } },
+    ];
+  });
 }
 
 // Hour by hour in time order, so a run never depends on the forecast's order.
