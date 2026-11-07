@@ -25,3 +25,6 @@
 ## Deviations Ledger
 
 <!-- Dated notes on small departures from the plan, written during apply. Stop and ask the user about a large one. -->
+
+- 2026-11-07: `card-install` lists `package.json` as well as `package-lock.json` in its mise `sources` (design DD7 named only the lockfile), so a hand edit to `package.json` also triggers a reinstall.
+- 2026-11-07: task 3.3 had no red step. The Renovate validator already passes on the old config, so the task's evidence is the validator passing on the new group.
