@@ -389,3 +389,22 @@ def test_docs_moon_section_says_what_a_dash_means() -> None:
     sentences = _before_the_strip().split(". ")
 
     assert any("dash" in s and "rise or set" in s for s in sentences)
+
+
+def _moon_drawing_paragraphs() -> str:
+    page = _page()
+    section = page[page.index("### The Moon section") : page.index("### The night strip")]
+    return " ".join(" ".join(p for p in section.split("\n\n") if "drawing" in p).split())
+
+
+@pytest.mark.parametrize(
+    "term",
+    ["share", "waxing", "waning", "right", "left", "south", "Home Assistant", "other hemisphere"],
+)
+def test_docs_moon_section_says_how_to_read_the_drawing(term: str) -> None:
+    assert term in _moon_drawing_paragraphs()
+
+
+@pytest.mark.parametrize("phase", ["new moon", "full moon"])
+def test_docs_moon_section_says_how_a_moon_with_no_side_is_drawn(phase: str) -> None:
+    assert phase in _moon_drawing_paragraphs().lower()

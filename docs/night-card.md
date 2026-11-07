@@ -2,9 +2,9 @@
 
 The PierPressure card is a Home Assistant dashboard card. It shows tonight's
 verdict, score and confidence for one pier, and tonight's moon beside them.
-Under them, a night strip shows
-every forecast condition hour by hour, and when each of the ranked targets can
-be seen. Lines for dusk, dawn and now cross the strip.
+Under them, a night strip shows every forecast condition hour by hour, and when
+each of the ranked targets can be seen. Lines for dusk, dawn and now cross the
+strip.
 
 The card only shows what PierPressure already publishes. It never computes a
 verdict and never fetches data. If you would rather not install a card, the
@@ -46,6 +46,26 @@ during the dark window. It may be up all night, down all night, or rise or set
 in daylight or twilight. The **Moon up** lane on the strip shows when it is up.
 A dash in every Moon line means PierPressure has not published its first
 verdict yet.
+
+#### How to read the moon drawing
+
+The drawing shows the moon's face, with the lit part in pale grey. The lit
+part's share of the disc is the illumination: at 25%, a quarter of the disc's
+width is lit. A waxing moon, growing towards full, is lit on the right. A
+waning moon, shrinking towards new, is lit on the left. That is how the moon
+looks from the northern hemisphere. When Home Assistant's location is south of
+the equator, the drawing mirrors both, as the moon looks from there.
+
+The card takes the hemisphere from Home Assistant's location, not the pier's,
+because the verdict carries no location. So the drawing for a pier in the other
+hemisphere from Home Assistant is mirrored. The phase and the illumination are
+still right.
+
+A new moon is drawn unlit and a full moon fully lit, even when the illumination
+is a few percent off. The phase does not say which side such a sliver is on.
+Hover over the drawing to see its phase and illumination, such as
+"Moon: waxing gibbous, 78% lit". The drawing is left out when the phase or the
+illumination is missing.
 
 ### The night strip
 
