@@ -256,7 +256,9 @@ function renderStrip(hass: HomeAssistant, pier: string) {
       (lane) =>
         html`<div class="row" data-lane=${`target_${lane.rank}`}>
           <span class="label">${lane.label}</span>
-          <div class="track">${renderBar(lane.bar, strip.axis)}</div>
+          <div class="track">
+            ${lane.bar === undefined ? nothing : renderBar(lane.bar, strip.axis)}
+          </div>
         </div>`,
     )}
     <span></span>

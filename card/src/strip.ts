@@ -131,7 +131,9 @@ export interface TargetLane {
   label: string;
   // The Target sensor's state: the target's name.
   name: string;
-  bar: Bar;
+  // Absent when the window is wholly off the axis; the lane stays, so the
+  // number of lanes never moves with the clock.
+  bar?: Bar;
 }
 
 export interface Line {
@@ -187,7 +189,7 @@ export function buildStrip(
       };
     }),
     moonUp: moonUpBars(forecastOf(states[pierEntityId(pier, "moon_altitude")]), axis, time),
-    targets: targetLanes(states, pier),
+    targets: targetLanes(states, pier, axis),
     lines: [...(night === undefined ? [] : nightLines(night, time)), ...nowLine(now, axis, time)],
   };
 }
@@ -287,7 +289,7 @@ const TARGET_RANKS = 10;
 // unknown state beside a window; such a rank waits for its name.
 const NO_NAME = new Set(["", "unknown", "unavailable"]);
 
-function targetLanes(states: States, pier: string): TargetLane[] {
+function targetLanes(states: States, pier: string, axis: Axis): TargetLane[] {
   return Array.from({ length: TARGET_RANKS }, (_, index) => index + 1).flatMap((rank) => {
     const entity = states[pierEntityId(pier, `target_${rank}`)];
     if (entity === undefined || NO_NAME.has(entity.state)) return [];
@@ -296,9 +298,11 @@ function targetLanes(states: States, pier: string): TargetLane[] {
     const end = readTime(window?.["end"]);
     if (start === undefined || end === undefined || end <= start) return [];
     const name = entity.state;
-    return [
-      { rank, label: `Target ${rank}`, name, bar: { start, end, from: start, to: end, text: name } },
-    ];
+    const lane: TargetLane = { rank, label: `Target ${rank}`, name };
+    if (end <= axis.start || start >= axis.end) return [lane];
+    const from = Math.max(start, axis.start);
+    const to = Math.min(end, axis.end);
+    return [{ ...lane, bar: { start, end, from, to, text: name } }];
   });
 }
 

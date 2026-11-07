@@ -128,3 +128,50 @@ describe("a rank with no target tonight", () => {
     ]);
   });
 });
+
+describe("a target bar at the axis ends", () => {
+  it("is cut off at the axis end", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [target(1)]: targetEntity("Orion Nebula", {
+        start: "2026-11-01T06:00:00Z",
+        end: "2026-11-01T10:00:00Z",
+      }),
+    });
+
+    const data = targetBar(card, 1)?.dataset;
+    expect([data?.["from"], data?.["to"]]).toEqual([
+      "2026-11-01T06:00:00.000Z",
+      "2026-11-01T08:25:00.000Z",
+    ]);
+  });
+
+  it("is cut off at the axis start", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [target(1)]: targetEntity("Orion Nebula", {
+        start: "2026-10-31T15:00:00Z",
+        end: "2026-10-31T18:00:00Z",
+      }),
+    });
+
+    const data = targetBar(card, 1)?.dataset;
+    expect([data?.["from"], data?.["to"]]).toEqual([
+      "2026-10-31T16:30:00.000Z",
+      "2026-10-31T18:00:00.000Z",
+    ]);
+  });
+
+  it.each([
+    ["wholly after the axis", { start: "2026-11-02T21:00:00Z", end: "2026-11-03T02:00:00Z" }],
+    ["ending at the axis start", { start: "2026-10-31T14:00:00Z", end: "2026-10-31T16:30:00Z" }],
+    ["starting at the axis end", { start: "2026-11-01T08:25:00Z", end: "2026-11-01T10:00:00Z" }],
+  ])("keeps its lane with no bar for a window %s", async (_, window) => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [target(1)]: targetEntity("Orion Nebula", window),
+    });
+
+    expect([labels(card), targetBar(card, 1)]).toEqual([["Target 1"], null]);
+  });
+});
