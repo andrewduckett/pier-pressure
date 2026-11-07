@@ -38,11 +38,15 @@ is the altitude at the start of its hour (`docs/night-timeline.md`).
 - **Primary test seam:** the card harness, `card/test/harness.ts`: mount the
   real `pierpressure-card` with a fake `hass`, then read the strip from the
   shadow DOM. Vitest's fake timers pin the browser's clock and advance the
-  card's minute timer.
-- **Existing seams reused:** `card/test/harness.ts` (gains helpers for the sun
-  and moon sensors, and readers for bars and lines), `card/test/strip.test.ts`
-  and `card/test/register.test.ts` (the card's size), and
-  `tests/test_night_card_doc.py` for the docs scenario.
+  card's minute timer. The timer tests fake `Date`, `setInterval` and
+  `clearInterval` together. The existing `pinClock` fakes only `Date`, so its
+  intervals stay real and `vi.getTimerCount()` cannot see them.
+- **Existing seams reused:**
+  - `card/test/harness.ts` gains helpers for the sun and moon sensors, and
+    readers for bars and lines.
+  - `card/test/strip.test.ts` takes the new tests.
+  - `card/test/register.test.ts` checks the card's size.
+  - `tests/test_night_card_doc.py` takes the docs scenario.
 
 ## Scrutiny Tier & Blast Radius
 
@@ -89,6 +93,14 @@ A run wholly outside the axis gives no bar. Sorting the map's hours makes the
 rule hold even if a forecast arrives out of order. A missing or unavailable
 sensor, or a `forecast` that is not a list, gives no bars.
 
+Each run also records whether its rise and set are known. The rise is known
+when the map holds a finite value of 0 or below for the hour just before the
+run, and the set when it holds one for the hour just after. The timeline has
+no hours beyond what a weather source returned (`docs/night-timeline.md`), so
+a run at either end of the forecast has an unknown rise or set. The hover text
+follows the spec's four forms. A run of 24 hours or more shows `Moon up`,
+because `HH:MM` cannot tell one day from the next.
+
 ### DD4. The dark window is read once
 
 `stripAxis` splits into `darkWindow(attribute)`, which returns
@@ -105,11 +117,14 @@ The model returns `lines`: up to three of `{kind, at, text}`, where `kind` is
 The strip grid gains explicit rows, `grid-template-rows`, generated from the
 model's counts: a marks row, the rows, the Moon up lane, and the time labels.
 The `.strip` element is `position: relative`. The lines sit in one element,
-`.lines`, that is `position: absolute` with `grid-column: 2` and a
+`.lines`, with `position: absolute`, `inset: 0`, `grid-column: 2` and a
 `grid-row` from the Sun altitude row to the Moon up lane. An absolutely
-positioned child of a grid takes its grid area as its containing block, and
+positioned child of a grid takes its grid area as its containing block. It
 takes no part in auto-placement, so the other items stay where they are.
-Inside it, each line is placed with `left` in percent of the axis.
+`inset: 0` stretches it over that area; without it, the box would shrink to
+nothing. `.lines` is the strip's last child and carries `z-index: 1`, so it
+paints above the cells and bars. Inside it, the card places each line with
+`left` in percent of the axis.
 
 Each line is a transparent box 8 px wide, centred on its instant, with a
 2 px stroke drawn down its middle: dashed `#898781` for dusk and dawn, solid
@@ -118,8 +133,9 @@ has `pointer-events: auto`, so a line shows its `title` and the cells around
 it keep theirs. Each line's `title` and `aria-label` read `Dusk, 20:30`,
 `Dawn, 03:25` or `Now, 22:00`.
 
-The labels `dusk`, `dawn` and `now` sit in the marks row, above the Sun
-altitude row, placed and centred like the time labels, in the line's colour.
+Each line's label, `dusk`, `dawn` or `now`, sits in the marks row above the
+Sun altitude row. The card places and centres it like a time label, in the
+line's colour.
 
 - Alternative: one line segment inside each track. Rejected: the 2 px gaps
   between rows break the stroke, and a test would count one line many times.
@@ -138,8 +154,10 @@ never touch. A bar carries `data-start`, `data-end`, `data-from` and
 
 ### DD7. A minute timer owned by the card
 
-`connectedCallback` starts `setInterval(() => this.requestUpdate(), 60_000)`
-and `disconnectedCallback` clears it. Render already reads `Date.now()`, so
+`connectedCallback` calls `super.connectedCallback()`, clears any timer it
+already holds, and starts `setInterval(() => this.requestUpdate(), 60_000)`.
+`disconnectedCallback` calls `super.disconnectedCallback()` and clears the
+timer. Render already reads `Date.now()`, so
 each tick moves the now line and, on the fallback axis, the axis itself. The
 timer does not align to whole minutes: the line is at most a minute behind,
 under a pixel on a typical card.
@@ -151,8 +169,10 @@ under a pixel on a typical card.
 ### DD8. Test surface
 
 Lines carry `data-line` with their kind and `data-at` with their instant as
-an ISO string. The marks row's labels carry the same `data-line`. Bars carry
-the data attributes in DD6. Rows keep `data-row`, now including
+an ISO string. The marks row's labels carry `data-mark` with the same kind,
+so each selector finds one element per line. `.lines` carries its grid
+placement, `inset` and `z-index` in its style, and the tests assert them.
+Bars carry the data attributes in DD6. Rows keep `data-row`, now including
 `sun_altitude`.
 
 ### DD9. The card grows by one row
@@ -169,14 +189,17 @@ source, behind the published entities.
   → Accepted, as in the YAML strip. Hovering over each line still names it.
 - [An 8 px line box hides the hover of the cells beneath it] → Only across
   8 px; the rest of each cell keeps its hover.
-- [A Moon up bar can start or end up to an hour before the moon really rises
-  or sets] → It follows the hourly altitudes, as the YAML strip does; the
-  docs say each altitude is for the start of the hour.
+- [A Moon up bar can start up to an hour before the moon really rises, and
+  end up to an hour after it sets] → It follows the hourly altitudes, as the
+  YAML strip does. The docs say each altitude is for the start of the hour.
+- [The forecast starts after moonrise, or ends before moonset, so the bar's
+  end looks like a rise or set] → The hover names only a rise or set the
+  forecast shows (DD3), and the docs say so.
 - [The timer keeps running while the browser tab is hidden] → Browsers slow
   hidden-tab timers; one redraw a minute is cheap either way.
 - [happy-dom does not lay out the grid, so tests cannot prove the lines span
-  the rows] → The tests assert the overlay's grid placement in its style;
-  `mise run dashboard-check` checks the drawing by eye.
+  the rows] → The tests assert the overlay's style (DD8). `mise run
+  dashboard-check` checks the drawing by eye.
 
 ## Migration & Rollback
 

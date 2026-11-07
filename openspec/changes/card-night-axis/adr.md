@@ -6,12 +6,10 @@
 ## Review Summary
 
 ADR review completed for this change. None of design.md's decisions passes the
-test. Each sits inside the card's own source, behind the published entities: the
-row table (DD1), the twilight shade rule (DD2), the Moon up runs (DD3), reading
-the dark window once (DD4), the line overlay (DD5), the Moon up lane (DD6), the
-minute timer (DD7), the data attributes (DD8) and the card size (DD9) can each
-be changed from code at little cost. The card's architecture is already recorded
-in ADR-0034, which this change builds on without changing.
+test. Each sits inside the card's own source, behind the published entities. A
+later change can replace any of DD1 to DD9 inside `card/src/` at little cost.
+ADR-0034 already records the card's architecture, and this change builds on it
+without changing it.
 
 ## In-Force ADRs Reviewed
 

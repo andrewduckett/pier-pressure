@@ -8,6 +8,29 @@ Below the verdict, score and confidence, the card SHALL draw a night strip. Unde
 - **THEN** the strip shows the rows Sun altitude, Cloud cover, Cloud low, Cloud mid and Cloud high, in that order
 - **AND** the four cloud rows read `sensor.pierpressure_back_yard_cloud_cover`, `sensor.pierpressure_back_yard_cloud_low`, `sensor.pierpressure_back_yard_cloud_mid` and `sensor.pierpressure_back_yard_cloud_high`
 
+### Requirement: More cloud is darker
+The card SHALL shade each cell in a cloud row in one of seven blues, the YAML night strip's shades. From lightest to darkest they are `#cde2fb`, `#9ec5f4`, `#6da7ec`, `#3987e5`, `#256abf`, `#184f95` and `#0d366b`. A value `v` in percent SHALL take shade step `min(6, floor(v / 15))`, where step 0 is the lightest.
+
+#### Scenario: Clear and overcast
+- **WHEN** the Cloud cover forecast holds 0 at one hour, 44 at another and 100 at a third
+- **THEN** the cells are shaded `#cde2fb`, `#6da7ec` and `#0d366b`
+
+### Requirement: A missing cloud sensor leaves an empty row
+The card SHALL draw a cloud sensor's row with its label and no cells when that sensor is missing from Home Assistant or unavailable. It SHALL do the same when the sensor has no `forecast` attribute, or its `forecast` is not a list. The card SHALL skip a point in `forecast` without a readable `datetime`. The card SHALL NOT throw, and SHALL draw the other rows as usual.
+
+#### Scenario: Cloud high is unavailable
+- **WHEN** `sensor.pierpressure_backyard_cloud_high` has the state `unavailable` and no attributes, and the other three cloud sensors have forecasts inside the axis
+- **THEN** the strip shows the Cloud high row with its label and no cells
+- **AND** the other three cloud rows show their cells
+
+#### Scenario: An unavailable sensor that kept its forecast
+- **WHEN** `sensor.pierpressure_backyard_cloud_high` has the state `unavailable` and a `forecast` attribute with values inside the axis
+- **THEN** the strip shows the Cloud high row with its label and no cells
+
+#### Scenario: No cloud sensors at all
+- **WHEN** the Verdict sensor has the state `GO` and Home Assistant has none of the four cloud sensors
+- **THEN** the card renders without an error and shows the four labelled cloud rows with no cells
+
 ### Requirement: Hovering over a cell shows its value
 Hovering over a cell in a cloud row SHALL show the row's name, the start of the cell's hour, and the value with `%`, as `<row>, the hour from <HH:MM>: <value>%`. The card SHALL show the value as the forecast holds it.
 
@@ -76,7 +99,8 @@ Under the four cloud rows, the strip SHALL have a lane labelled Moon up. The lan
 The card SHALL draw one grey `#898781` bar for each run of consecutive hours whose moon altitude is above 0. A bar SHALL run from the start of the run's first hour to the end of its last hour. A value of 0 or below, a null value, a value that is not a number, or an hour with no point SHALL end a run. The card SHALL cut a bar off at an axis end, and draw no bar for a run wholly outside the axis.
 
 #### Scenario: Three runs
-- **WHEN** the axis runs from 2026-10-31T16:30:00Z to 2026-11-01T08:25:00Z, and the moon altitude forecast holds 4 at 16:00, 6 at 17:00, −1 at 18:00, 2 at 19:00, 8 at 20:00, null at 21:00, 12 at 22:00 and 0 at 23:00 UTC on 2026-10-31
+- **WHEN** the axis runs from 2026-10-31T16:30:00Z to 2026-11-01T08:25:00Z
+- **AND** the moon altitude forecast for 2026-10-31 holds 4 at 16:00, 6 at 17:00, −1 at 18:00, 2 at 19:00, 8 at 20:00, null at 21:00, 12 at 22:00 and 0 at 23:00 UTC
 - **THEN** the Moon up lane has three bars: from 16:30 to 18:00, from 19:00 to 21:00, and from 22:00 to 23:00 UTC
 
 #### Scenario: A missing hour
@@ -95,11 +119,27 @@ When the moon altitude sensor is missing from Home Assistant or unavailable, or 
 - **THEN** the card renders without an error and shows the Moon up lane with no bars
 
 ### Requirement: Hovering over a Moon up bar shows its hours
-Hovering over a Moon up bar SHALL show `Moon up from <HH:MM> to <HH:MM>`: the start of the run's first hour and the end of its last hour, even where the axis cuts the bar off.
+Hovering over a Moon up bar SHALL show `Moon up from <HH:MM> to <HH:MM>`: the start of the run's first hour and the end of its last hour. The card SHALL show the run's own hours, even where the axis cuts the bar off. This form applies when the forecast shows both the rise and the set, and the run is shorter than 24 hours.
 
 #### Scenario: A bar cut off at the axis start
-- **WHEN** Home Assistant's time zone is `UTC`, the axis starts at 2026-10-31T16:30:00Z, and the moon altitude forecast holds 4 at 16:00 and 6 at 17:00 UTC, then −1 at 18:00
+- **WHEN** Home Assistant's time zone is `UTC` and the axis starts at 2026-10-31T16:30:00Z
+- **AND** the moon altitude forecast holds −2 at 15:00, 4 at 16:00, 6 at 17:00 and −1 at 18:00 UTC
 - **THEN** hovering over the bar shows `Moon up from 16:00 to 18:00`
+
+### Requirement: A Moon up bar names only a rise or set the forecast shows
+The forecast shows a run's rise when it holds a value of 0 or below for the hour just before the run. It shows the set when it holds one for the hour just after. When the forecast shows only the rise, the hover SHALL read `Moon up from <HH:MM>`. When it shows only the set, the hover SHALL read `Moon up until <HH:MM>`. When it shows neither, or the run lasts 24 hours or more, the hover SHALL read `Moon up`.
+
+#### Scenario: The forecast starts with the moon up
+- **WHEN** Home Assistant's time zone is `UTC`, and the moon altitude forecast starts with 4 at 2026-11-01T00:00:00Z and 6 at 01:00, then holds −1 at 02:00
+- **THEN** hovering over the bar shows `Moon up until 02:00`
+
+#### Scenario: The forecast ends with the moon up
+- **WHEN** Home Assistant's time zone is `UTC`, and the moon altitude forecast holds −1 at 2026-11-01T06:00:00Z, then ends with 3 at 07:00 and 5 at 08:00
+- **THEN** hovering over the bar shows `Moon up from 07:00`
+
+#### Scenario: The moon never sets
+- **WHEN** the moon altitude forecast holds −1 at 2026-12-20T06:00:00Z, values above 0 for each of the 30 hours from 07:00, and −1 at 2026-12-21T13:00:00Z
+- **THEN** hovering over the bar shows `Moon up`
 
 ### Requirement: Dusk and dawn lines mark the dark window
 When the axis comes from the Verdict sensor's `dark_window`, the card SHALL draw a dashed grey `#898781` line at `dark_window.start`, labelled `dusk`, and another at `dark_window.end`, labelled `dawn`. Each line SHALL cross the Sun altitude row, the cloud rows and the Moon up lane. When the axis falls back to the browser's current time, the card SHALL draw no dusk or dawn line.
@@ -146,7 +186,7 @@ Hovering over the dusk, dawn or now line SHALL show its name and time, in Home A
 
 - the Sun altitude row, its sensor, and its steps through civil, nautical and astronomical twilight;
 - that each altitude is for the start of its hour;
-- the Moon up lane and its sensor;
+- the Moon up lane and its sensor, and that a bar's hover names only a rise or set inside the forecast;
 - the dusk and dawn lines, and that they are missing on a night with no astronomical darkness;
 - the now line, and that it moves every minute.
 
