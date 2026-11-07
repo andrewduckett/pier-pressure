@@ -59,10 +59,13 @@ export class PierPressureCard extends LitElement {
   };
 
   static override styles = css`
+    /* Not stretched: a stretched grid spreads the verdict lines to the Moon
+       section's height. */
     .summary {
       display: flex;
       flex-wrap: wrap;
       gap: 16px;
+      align-items: flex-start;
     }
     .moon {
       display: flex;

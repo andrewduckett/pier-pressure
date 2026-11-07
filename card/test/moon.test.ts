@@ -94,6 +94,12 @@ describe("the Moon section", () => {
     );
   });
 
+  it("leaves the verdict lines at their own height", () => {
+    expect(cardStyles().replace(/\s+/g, " ")).toMatch(
+      /\.summary \{ display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; \}/,
+    );
+  });
+
   it("puts its texts beside the drawing", () => {
     expect(cardStyles().replace(/\s+/g, " ")).toMatch(
       /\.moon \{ display: flex; align-items: center; gap: 12px;/,
