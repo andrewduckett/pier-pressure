@@ -14,7 +14,7 @@
 ## 3. Docs and the whole path [depends-on: 2]
 
 - [x] 3.1 [easy] `docs/night-card.md` describes the target lanes: the sensors `sensor.pierpressure_<pier>_target_1` to `sensor.pierpressure_<pier>_target_10`, the label `Target 1`, the bar over the observable window with the target's name, the hover text, that a rank with no target tonight leaves no lane, and that the lines cross the lanes; its opening paragraph names the ranked targets (test: `tests/test_night_card_doc.py`) (verify: uv run pytest tests/test_night_card_doc.py -k targets) (✓ pytest tests/test_night_card_doc.py -k targets passed)
-- [ ] 3.2 [complex] The whole path works: `mise run check` is green, and `mise run dashboard-check` shows the target lanes beside the YAML strip's in a real Home Assistant, with the name on each bar and the window on hover, checked by eye (verify: mise run check)
+- [x] 3.2 [complex] The whole path works: `mise run check` is green, and `mise run dashboard-check` shows the target lanes beside the YAML strip's in a real Home Assistant, with the name on each bar and the window on hover, checked by eye (verify: mise run check) (✓ mise run check passed; dashboard-check showed ten target lanes under Moon up with violet named bars from dusk to dawn, matching the YAML strip's lanes, the lines reaching the last lane, the bars ending on the dawn line, the window on hover and a card size of 14, by eye)
 
 ## Deviations Ledger
 
