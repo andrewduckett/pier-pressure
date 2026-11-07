@@ -12,7 +12,7 @@
 
 ## 3. The card's docs [depends-on: 2]
 
-- [ ] 3.1 [easy] `docs/night-card.md` says the strip opens on the judged night, 4 hours before dusk to 5 hours after dawn; that a mouse drag, a touch swipe, a trackpad's sideways swipe and the Left and Right arrow keys pan it, and an up or down swipe scrolls the page; that it stops at the first and last forecast hour; that other nights have no dusk line, dawn line or target bar; the `Back to tonight` button; and, under "A row says No forecast", a later night past a weather source's last hour as a cause (spec "The docs describe panning the strip"; test: `tests/test_night_card_doc.py`) (verify: uv run pytest tests/test_night_card_doc.py -k pan)
+- [x] 3.1 [easy] `docs/night-card.md` says the strip opens on the judged night, 4 hours before dusk to 5 hours after dawn; that a mouse drag, a touch swipe, a trackpad's sideways swipe and the Left and Right arrow keys pan it, and an up or down swipe scrolls the page; that it stops at the first and last forecast hour; that other nights have no dusk line, dawn line or target bar; the `Back to tonight` button; and, under "A row says No forecast", a later night past a weather source's last hour as a cause (spec "The docs describe panning the strip"; test: `tests/test_night_card_doc.py`) (verify: uv run pytest tests/test_night_card_doc.py -k pan) (✓ uv run pytest tests/test_night_card_doc.py -k pan passed, 10 tests; whole file 131 passed)
 
 ## 4. The whole path [depends-on: 1, 2, 3]
 
