@@ -143,3 +143,23 @@ def test_docs_readme_links_the_page() -> None:
     readme = (_ROOT / "README.md").read_text(encoding="utf-8")
 
     assert "(docs/night-card.md)" in readme
+
+
+def test_docs_strip_names_the_cloud_rows() -> None:
+    page = _page()
+
+    for row in ("Cloud cover", "Cloud low", "Cloud mid", "Cloud high"):
+        assert f"**{row}**" in page
+    assert "sensor.pierpressure_<pier>_cloud_cover" in page
+
+
+def test_docs_strip_gives_the_axis_span() -> None:
+    page = _page()
+
+    assert "4 hours before dusk to 5 hours after dawn" in page
+    assert "6 hours before now to 18 hours after" in page
+
+
+@pytest.mark.parametrize("term", ["clear", "overcast", "blank", "hover", "time zone"])
+def test_docs_strip_explains_what_it_shows(term: str) -> None:
+    assert term in _page().lower()

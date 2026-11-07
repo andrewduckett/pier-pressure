@@ -9,12 +9,13 @@ export function verdictEntity(state: string, attributes: Record<string, unknown>
 export async function mountCard(
   states?: Record<string, HassEntity>,
   pier = "backyard",
+  timeZone = "UTC",
 ): Promise<PierPressureCard> {
   const card = document.createElement("pierpressure-card") as PierPressureCard;
   card.setConfig({ type: "custom:pierpressure-card", pier });
   document.body.append(card);
   if (states !== undefined) {
-    const hass: HomeAssistant = { states };
+    const hass: HomeAssistant = { states, config: { time_zone: timeZone } };
     card.hass = hass;
   }
   await card.updateComplete;
@@ -27,4 +28,24 @@ export function field(card: PierPressureCard, name: string): string | undefined 
 
 export function cardText(card: PierPressureCard): string {
   return card.shadowRoot?.textContent?.replace(/\s+/g, " ").trim() ?? "";
+}
+
+export const CLOUD_COVER = "sensor.pierpressure_backyard_cloud_cover";
+export const CLOUD_LOW = "sensor.pierpressure_backyard_cloud_low";
+export const CLOUD_MID = "sensor.pierpressure_backyard_cloud_mid";
+export const CLOUD_HIGH = "sensor.pierpressure_backyard_cloud_high";
+
+// A timeline sensor as PierPressure publishes it: the current hour's value as its
+// state, and every hour in `forecast`.
+export function cloudEntity(points: Array<[string, unknown]>, state = "40"): HassEntity {
+  return {
+    state,
+    attributes: { forecast: points.map(([datetime, value]) => ({ datetime, value })) },
+  };
+}
+
+export function cells(card: PierPressureCard, row: string): HTMLElement[] {
+  return [
+    ...(card.shadowRoot?.querySelectorAll<HTMLElement>(`.strip [data-row="${row}"] .cell`) ?? []),
+  ];
 }

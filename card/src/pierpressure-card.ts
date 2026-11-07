@@ -1,5 +1,6 @@
 import { LitElement, css, html, nothing } from "lit";
 import { pierSlug, verdictEntityId } from "./entity";
+import { type Axis, type Cell, HOUR, type TimeLabel, asRecord, buildStrip } from "./strip";
 
 declare const __CARD_VERSION__: string;
 
@@ -27,6 +28,7 @@ export interface HassEntity {
 
 export interface HomeAssistant {
   states: Record<string, HassEntity | undefined>;
+  config?: { time_zone?: string };
 }
 
 export interface CardConfig {
@@ -53,6 +55,38 @@ export class PierPressureCard extends LitElement {
     dd {
       margin: 0;
     }
+    .strip {
+      display: grid;
+      grid-template-columns: max-content 1fr;
+      gap: 2px 8px;
+      margin-top: 16px;
+    }
+    .row {
+      display: contents;
+    }
+    .label {
+      color: var(--secondary-text-color);
+      font-size: 0.85em;
+      line-height: 16px;
+    }
+    .track {
+      position: relative;
+      height: 16px;
+    }
+    .times {
+      color: var(--secondary-text-color);
+      font-size: 0.75em;
+    }
+    .time {
+      position: absolute;
+      transform: translateX(-50%);
+    }
+    .cell {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      border-radius: 2px;
+    }
   `;
 
   // Home Assistant sets hass after setConfig and after the card is attached.
@@ -69,7 +103,13 @@ export class PierPressureCard extends LitElement {
   }
 
   getCardSize(): number {
-    return 2;
+    return 5;
+  }
+
+  // A sections view gives a card half its section's width by default, too
+  // narrow for the strip's time labels.
+  getGridOptions(): { columns: "full" } {
+    return { columns: "full" };
   }
 
   override render() {
@@ -100,14 +140,71 @@ export class PierPressureCard extends LitElement {
           <span data-field="confidence-value">${shownNumber(confidence?.["value"])}</span>
         </dd>
       </dl>
+      ${renderStrip(this.hass, this.config.pier)}
     </div>`;
   }
 }
 
 const DASH = "—";
 
-function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : undefined;
+function renderStrip(hass: HomeAssistant, pier: string) {
+  const strip = buildStrip(hass.states, pier, Date.now(), hass.config?.time_zone);
+  return html`<div
+    class="strip"
+    data-axis-start=${iso(strip.axis.start)}
+    data-axis-end=${iso(strip.axis.end)}
+  >
+    ${strip.rows.map(
+      (row) => html`<div class="row" data-row=${row.key}>
+        <span class="label">${row.label}</span>
+        <div class="track">${row.cells.map((cell) => renderCell(cell, strip.axis))}</div>
+      </div>`,
+    )}
+    <span></span>
+    <div class="track times">
+      ${strip.labels.map((label) => renderTimeLabel(label, strip.axis))}
+    </div>
+  </div>`;
+}
+
+function renderTimeLabel(label: TimeLabel, axis: Axis) {
+  const style = `left: ${offset(label.at, axis)}%`;
+  return html`<span class="time" style=${style} data-at=${iso(label.at)}>${label.text}</span>`;
+}
+
+// Neighbouring hours keep a 2 px gap, as in the YAML strip; an edge cut off by
+// the axis stays flush with the axis end instead.
+function renderCell(cell: Cell, axis: Axis) {
+  const left = offset(cell.from, axis);
+  const width = share(cell.to - cell.from, axis);
+  const insetStart = cell.from === cell.hour ? 1 : 0;
+  const insetEnd = cell.to === cell.hour + HOUR ? 1 : 0;
+  const style =
+    `left: calc(${left}% + ${insetStart}px); width: calc(${width}% - ${insetStart + insetEnd}px); ` +
+    `background-color: ${cell.shade}`;
+  return html`<div
+    class="cell"
+    style=${style}
+    data-hour=${iso(cell.hour)}
+    data-from=${iso(cell.from)}
+    data-to=${iso(cell.to)}
+    data-shade=${cell.shade}
+    title=${cell.text}
+    aria-label=${cell.text}
+  ></div>`;
+}
+
+// Percent of the axis, so the strip reflows with the card's width.
+function share(duration: number, axis: Axis): string {
+  return ((duration / (axis.end - axis.start)) * 100).toFixed(4);
+}
+
+function offset(at: number, axis: Axis): string {
+  return share(at - axis.start, axis);
+}
+
+function iso(time: number): string {
+  return new Date(time).toISOString();
 }
 
 // A type check, not a truthiness check: a score or confidence of 0 is a value.
@@ -129,7 +226,7 @@ if (!window.customCards.some((card) => card.type === CARD_TYPE)) {
   window.customCards.push({
     type: CARD_TYPE,
     name: "PierPressure",
-    description: "Tonight's verdict, score and confidence for one pier.",
+    description: "Tonight's verdict and night strip for one pier.",
   });
 }
 console.info(`PIERPRESSURE-CARD ${CARD_VERSION}`);

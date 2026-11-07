@@ -1,8 +1,9 @@
 # The PierPressure card: tonight's verdict on your dashboard
 
 The PierPressure card is a Home Assistant dashboard card. It shows tonight's
-verdict, score and confidence for one pier. Later releases add the night
-strip to it.
+verdict, score and confidence for one pier, and a night strip with the cloud
+forecast hour by hour. Later releases add dusk, dawn, the moon and the other
+conditions to the strip.
 
 The card only shows what PierPressure already publishes. It never computes a
 verdict and never fetches data. If you would rather not install a card, the
@@ -24,6 +25,37 @@ The card shows a message instead when:
 
 A dash in every line means PierPressure has not published its first verdict
 since it started. The lines fill in when it does.
+
+### The night strip
+
+Under the verdict, the strip shows the cloud forecast across the night, one
+row per cloud sensor:
+
+| Row | Sensor |
+|---|---|
+| **Cloud cover** | `sensor.pierpressure_<pier>_cloud_cover` |
+| **Cloud low** | `sensor.pierpressure_<pier>_cloud_low` |
+| **Cloud mid** | `sensor.pierpressure_<pier>_cloud_mid` |
+| **Cloud high** | `sensor.pierpressure_<pier>_cloud_high` |
+
+The strip runs from 4 hours before dusk to 5 hours after dawn, the dark window
+on the Verdict sensor. Some nights have no astronomical darkness, such as a
+summer night far from the equator. Then the strip runs from
+6 hours before now to 18 hours after.
+
+Each cell is one hour. Its blue runs from light for a clear sky to dark for
+overcast, in seven steps of 15%: the same shades as the
+[night dashboard](night-dashboard.md#how-to-read-the-night-strip).
+
+A blank hour in a row means the weather source has no value for that hour. A
+row with no cells at all means its sensor is unavailable or has no forecast.
+
+Hover over a cell to see its row, the hour it starts and its value, such as
+"Cloud cover, the hour from 21:00: 40%".
+
+All times are in your Home Assistant time zone, on a 24-hour clock, whatever
+time zone your browser or user profile uses. The axis has a time label every 3
+hours, or every 6 hours on a night longer than 15 hours.
 
 ## Before you start
 
@@ -77,6 +109,9 @@ reload the page.
 3. Replace `backyard` with your pier's id: the `id` in PierPressure's `piers`
    setting.
 4. Select **Save**.
+
+In a sections view, the card takes the full width of its section. For more room
+for the strip, make the section wider.
 
 ```yaml
 type: custom:pierpressure-card
