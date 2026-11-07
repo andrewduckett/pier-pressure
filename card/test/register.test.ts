@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PierPressureCard } from "../src/pierpressure-card";
+import { verdictEntity } from "./harness";
 
 async function loadCard(): Promise<string> {
   vi.resetModules();
@@ -47,6 +48,12 @@ describe("loading the card file", () => {
     expect(console.info).toHaveBeenCalledWith(`PIERPRESSURE-CARD ${version}`);
   });
 
+  it("asks the card picker for a preview", async () => {
+    await loadCard();
+
+    expect(window.customCards?.[0]?.preview).toBe(true);
+  });
+
   it("keeps one picker entry when the file loads twice", async () => {
     await loadCard();
     await loadCard();
@@ -70,5 +77,30 @@ describe("the card's size", () => {
   // The strip's time labels need the room, as the YAML strip's grid options give it.
   it("takes the full width of a sections view", async () => {
     expect((await card()).getGridOptions()).toEqual({ columns: "full" });
+  });
+});
+
+describe("the starting configuration", () => {
+  async function cardClass(): Promise<typeof PierPressureCard> {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    return (await import("../src/pierpressure-card")).PierPressureCard;
+  }
+
+  it("picks the first listed pier", async () => {
+    const states = {
+      "sensor.pierpressure_frontyard_verdict": verdictEntity("GO", { pier: "frontyard" }),
+      "sensor.pierpressure_backyard_verdict": verdictEntity("GO", { pier: "backyard" }),
+    };
+
+    expect((await cardClass()).getStubConfig({ states })).toEqual({
+      type: "custom:pierpressure-card",
+      pier: "backyard",
+    });
+  });
+
+  it("has no pier when Home Assistant has no PierPressure verdict", async () => {
+    expect((await cardClass()).getStubConfig({ states: {} })).toEqual({
+      type: "custom:pierpressure-card",
+    });
   });
 });

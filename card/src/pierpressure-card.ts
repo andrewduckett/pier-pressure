@@ -1,5 +1,6 @@
 import { LitElement, css, html, nothing, svg } from "lit";
-import { pierSlug, verdictEntityId } from "./entity";
+import { EDITOR_TYPE } from "./editor";
+import { listPiers, pierSlug, verdictEntityId } from "./entity";
 import { type MoonDrawing, type MoonView, litPath, readMoon } from "./moon";
 import {
   type Axis,
@@ -28,6 +29,7 @@ interface CustomCardEntry {
   type: string;
   name: string;
   description?: string;
+  preview?: boolean;
 }
 
 declare global {
@@ -237,6 +239,16 @@ export class PierPressureCard extends LitElement {
     super.disconnectedCallback();
     clearInterval(this.timer);
     this.timer = undefined;
+  }
+
+  static getConfigElement(): HTMLElement {
+    return document.createElement(EDITOR_TYPE);
+  }
+
+  // The card picker draws its preview from this, so it starts on a real pier.
+  static getStubConfig(hass: HomeAssistant): Record<string, unknown> {
+    const first = listPiers(hass.states)[0];
+    return { type: `custom:${CARD_TYPE}`, ...(first !== undefined && { pier: first.value }) };
   }
 
   // Home Assistant shows a thrown error in place of the card.
@@ -563,6 +575,7 @@ if (!window.customCards.some((card) => card.type === CARD_TYPE)) {
     type: CARD_TYPE,
     name: "PierPressure",
     description: "Tonight's verdict and night strip for one pier.",
+    preview: true,
   });
 }
 console.info(`PIERPRESSURE-CARD ${CARD_VERSION}`);

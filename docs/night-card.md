@@ -294,14 +294,29 @@ reload the page.
 ## Add the card to a dashboard
 
 1. Open a dashboard, select the pencil to edit it, then select **Add card**.
-2. Search for **PierPressure** and select it, or choose **Manual** and paste the
-   YAML below.
-3. Replace `backyard` with your pier's id: the `id` in PierPressure's `piers`
-   setting.
+2. In the card picker, search for **PierPressure** and select it. The picker
+   shows a preview of the card for the first pier it finds.
+3. In the card's editor, pick your pier from the **Pier** list. The list holds
+   each pier whose Verdict sensor Home Assistant has. If your pier is not in
+   the list, type its id: the `id` in PierPressure's `piers` setting.
 4. Select **Save**.
+
+If the editor says "No PierPressure piers found", Home Assistant has no
+PierPressure Verdict sensor yet. Check that PierPressure is running, or type
+your pier's id.
+
+The list shows each pier by its id. Once you pick a pier, the field shows the
+value the card stores. For most piers that is the id. For a pier id the card
+cannot turn into an entity id, such as one in another alphabet, it is the part
+of the entity id between `pierpressure_` and `_verdict`.
 
 In a sections view, the card takes the full width of its section. For more room
 for the strip, make the section wider.
+
+### With YAML
+
+Instead of the editor, you can choose **Manual** in the card picker and paste
+this YAML. Replace `backyard` with your pier's id.
 
 ```yaml
 type: custom:pierpressure-card
@@ -312,6 +327,9 @@ The card needs `pier`. Without it, Home Assistant shows the error
 "pier is required" in place of the card.
 
 ## Find your pier's entity id
+
+The **Pier** list in the card's editor already uses the real entity id. You
+need this section only when you write the card's YAML yourself.
 
 The card reads `sensor.pierpressure_<pier>_verdict`. It writes your pier's id
 the way Home Assistant writes an entity id: in lower case, without accents,
