@@ -205,3 +205,52 @@ describe("a row's message", () => {
     expect(rule.split(";").map((part) => part.trim())).toContain(declaration);
   });
 });
+
+function darknessNote(card: PierPressureCard): HTMLElement | null {
+  return card.shadowRoot?.querySelector<HTMLElement>('[data-note="no-darkness"]') ?? null;
+}
+
+describe("a night with no astronomical darkness", () => {
+  const SUMMER = verdictEntity("NO-GO", { dark_window: { start: null, end: null } });
+
+  it("is noted", async () => {
+    const card = await mountCard({ [VERDICT]: SUMMER });
+
+    expect(darknessNote(card)?.textContent?.trim()).toBe("No astronomical darkness tonight");
+  });
+
+  it("is noted between the confidence and the strip", async () => {
+    const card = await mountCard({ [VERDICT]: SUMMER });
+
+    const note = darknessNote(card);
+    expect([note?.previousElementSibling?.tagName, note?.nextElementSibling?.className]).toEqual([
+      "DL",
+      "strip",
+    ]);
+  });
+
+  it("still draws the strip with no dusk line", async () => {
+    const card = await mountCard({ [VERDICT]: SUMMER });
+
+    const strip = card.shadowRoot?.querySelector(".strip");
+    expect([strip === null, strip?.querySelector('[data-line="dusk"]')]).toEqual([false, null]);
+  });
+
+  it.each<[string, HassEntity]>([
+    ["a normal night", NIGHT],
+    ["no dark window", verdictEntity("unknown")],
+    ["an unreadable window", verdictEntity("GO", { dark_window: { start: "soon", end: null } })],
+    [
+      "one null end",
+      verdictEntity("GO", { dark_window: { start: null, end: "2026-11-01T03:25:00Z" } }),
+    ],
+    [
+      "an offline Verdict sensor",
+      verdictEntity("unavailable", { dark_window: { start: null, end: null } }),
+    ],
+  ])("is not noted for %s", async (_, verdict) => {
+    const card = await mountCard({ [VERDICT]: verdict });
+
+    expect(darknessNote(card)).toBeNull();
+  });
+});

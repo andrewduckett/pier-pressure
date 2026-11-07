@@ -159,6 +159,9 @@ export interface TimeLabel {
 
 export interface Strip {
   axis: Axis;
+  // The core sends a dark window with two null ends when the sun never gets 18°
+  // below the horizon; a missing or unreadable window is not that.
+  noDarkness: boolean;
   rows: Row[];
   moonUp: Bar[];
   // The Moon altitude row's, since the lane reads the same sensor.
@@ -177,7 +180,8 @@ export function buildStrip(
   timeZone: string | undefined,
 ): Strip {
   const verdict = states[pierEntityId(pier, "verdict")];
-  const night = darkWindow(verdict?.attributes["dark_window"]);
+  const window = asRecord(verdict?.attributes["dark_window"]);
+  const night = darkWindow(window);
   const axis = stripAxis(night, now);
   const time = clock(timeZone);
   const rows = ROWS.map(({ key, label, unit, hourBefore, reading, ...mark }): Row => {
@@ -199,6 +203,7 @@ export function buildStrip(
   const moonMissing = rows.find((row) => row.key === "moon_altitude")?.missing;
   return {
     axis,
+    noDarkness: window?.["start"] === null && window["end"] === null,
     labels: timeLabels(axis, time),
     rows,
     moonUp: moonUpBars(forecastOf(states[pierEntityId(pier, "moon_altitude")]), axis, time),

@@ -68,6 +68,10 @@ export class PierPressureCard extends LitElement {
     dd {
       margin: 0;
     }
+    .note {
+      margin: 16px 0 0;
+      color: var(--secondary-text-color);
+    }
     .strip {
       position: relative;
       display: grid;
@@ -239,6 +243,7 @@ export class PierPressureCard extends LitElement {
       return html`<div class="card-content message">PierPressure is offline</div>`;
     }
     const confidence = asRecord(entity.attributes["confidence"]);
+    const strip = this.shownStrip();
     return html`<div class="card-content">
       <dl>
         <dt>Verdict</dt>
@@ -251,7 +256,7 @@ export class PierPressureCard extends LitElement {
           <span data-field="confidence-value">${shownNumber(confidence?.["value"])}</span>
         </dd>
       </dl>
-      ${renderStrip(this.shownStrip())}
+      ${renderNote(strip)} ${renderStrip(strip)}
     </div>`;
   }
 
@@ -265,6 +270,11 @@ export class PierPressureCard extends LitElement {
 }
 
 const DASH = "—";
+
+function renderNote(strip: Strip | undefined) {
+  if (strip?.noDarkness !== true) return nothing;
+  return html`<p class="note" data-note="no-darkness">No astronomical darkness tonight</p>`;
+}
 
 function renderStrip(strip: Strip | undefined) {
   if (strip === undefined) return nothing;
