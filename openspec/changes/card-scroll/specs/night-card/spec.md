@@ -44,6 +44,17 @@ When the opening axis comes from the Verdict sensor's `dark_window`, the card SH
 - **WHEN** the Verdict sensor's `dark_window` is `{start: 2026-10-31T20:30:00Z, end: 2026-11-01T03:25:00Z}`, and the user has panned the axis to run from 2026-10-31T22:30:00Z to 2026-11-01T14:25:00Z
 - **THEN** the strip has a line labelled `dawn` at 2026-11-01T03:25:00Z, and no line labelled `dusk`
 
+### Requirement: The docs name the causes of No forecast
+For a row that says `No forecast`, the "If something looks wrong" section of `docs/night-card.md` SHALL name three causes. Either no weather source in the pier's `providers` gave that condition a value for these hours, or the strip is panned past the last hour that condition's weather source forecasts, or every weather source failed. It SHALL point to the pier's weather source health sensors.
+
+#### Scenario: The causes and where to look
+- **WHEN** the "If something looks wrong" section of `docs/night-card.md` is read
+- **THEN** it names the word health and the `providers` setting
+
+#### Scenario: A later night
+- **WHEN** the "If something looks wrong" section of `docs/night-card.md` is read
+- **THEN** its `No forecast` help names a later night, past a weather source's last hour, as a cause
+
 ## ADDED Requirements
 
 ### Requirement: The strip pans as far as the forecast reaches
