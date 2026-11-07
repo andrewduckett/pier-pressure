@@ -20,7 +20,7 @@
 
 ## 4. The whole path [depends-on: 1, 3]
 
-- [ ] 4.1 [complex] The whole path works: `mise run check` is green, and in `mise run dashboard-check`'s Home Assistant the locally built card shows, by eye, both new sensors under the pier's device, the Cloud range row under Cloud cover saying `Needs two forecasts` with the default single cloud provider, and real bars after setting both sensors' states with forecasts through Home Assistant's state API (verify: mise run check)
+- [x] 4.1 [complex] The whole path works: `mise run check` is green, and in `mise run dashboard-check`'s Home Assistant the locally built card shows, by eye, both new sensors under the pier's device, the Cloud range row under Cloud cover saying `Needs two forecasts` with the default single cloud provider, and real bars after setting both sensors' states with forecasts through Home Assistant's state API (verify: mise run check) (✓ mise run check passed: 2097 Python tests, 306 card tests, lint, type check and build; dashboard-check showed, by eye, Cloud cover min and Cloud cover max on the pier's device as `unknown` with all-null forecasts under the default single cloud provider, the Cloud range row under Cloud cover saying `Needs two forecasts` centred in its 32 px row, and, after setting both sensors' forecasts through Home Assistant's state API, 18 light columns with dark bars of varying height, thin lines where the values were equal, and hover text such as `Cloud range, the hour from 18:00: 0% to 27%`)
 
 ## Deviations Ledger
 
@@ -30,3 +30,4 @@
 - 2026-11-07: in task 2.1, the Only-the-sun-and-cloud-sensors test in `rows.test.ts` leaves the Cloud range row out of its check until task 2.5 gives the row its `Not found` message; the four-empty-cloud-rows test in `strip.test.ts` names the four cloud rows, since the new row's key also starts with `cloud_`.
 - 2026-11-07: in task 2.3, the null, missing-point and non-number tests passed on their first run, since task 2.1 already drew a column only where both values are numbers. The min-above-max test failed first. All four stay.
 - 2026-11-07: in task 2.6, each column also carries the class `column`, so the stylesheet can shade it apart from a shaded row's `.cell`.
+- 2026-11-07: in task 4.1, the states were set through Home Assistant's REST state API (`POST /api/states/<entity>`), as the card-unavailable-states change did, rather than through **Developer Tools** > **States** by hand.
