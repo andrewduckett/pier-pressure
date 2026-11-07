@@ -18,7 +18,7 @@ Each row SHALL read the `forecast` attribute of `sensor.pierpressure_<slug>_<key
 - **WHEN** the card is configured with `pier: Back-Yard` and `sensor.pierpressure_back_yard_precipitation_probability` has a forecast inside the axis
 - **THEN** the Rain chance row shows cells from that forecast
 
-### Requirement: A value fills its hour in the added rows
+### Requirement: A Moon altitude or weather value fills its hour
 In the Moon altitude, Wind gust, Seeing, Transparency, Temperature, Dew point, Humidity, Wind speed and Wind direction rows, each point in the sensor's `forecast` SHALL fill the hour that starts at its `datetime`, as one cell. The card SHALL draw a cell for every hour that overlaps the axis, and no cell for an hour wholly outside it. The card SHALL cut a cell off at an axis end, and that cell SHALL reach the axis end with no gap.
 
 #### Scenario: Hours at the axis ends
@@ -38,28 +38,18 @@ Each point in the precipitation probability sensor's `forecast` SHALL fill the h
 - **THEN** the Rain chance row has cells for the hours from 16:00 and from 08:00 UTC, and none for the hours from 15:00 or 09:00 UTC
 - **AND** the cell for the hour from 16:00 starts at the axis start, and the cell for the hour from 08:00 ends at the axis end
 
-### Requirement: An added row leaves a null hour blank
-The added rows are Moon altitude, Wind gust, Seeing, Transparency, Temperature, Dew point, Humidity, Wind speed, Wind direction and Rain chance. In each, the card SHALL draw no cell for an hour whose value is null or not a number, or for an hour the forecast has no point for. The card SHALL skip a point without a readable `datetime`.
-
-#### Scenario: Seeing missing for an hour
-- **WHEN** the Seeing forecast holds `{"datetime": "2026-10-31T22:00:00Z", "value": null}` inside the axis
-- **THEN** the Seeing row has no cell for 22:00 UTC
-
-#### Scenario: Temperature at zero
-- **WHEN** the Temperature forecast holds `{"datetime": "2026-10-31T22:00:00Z", "value": 0}` inside the axis
-- **THEN** the Temperature row has a 22:00 UTC cell
-
-### Requirement: A missing sensor leaves an added row empty
-When an added row's sensor is missing from Home Assistant or unavailable, or has no `forecast` list, the card SHALL draw the row with its label and no cells. The card SHALL NOT throw, and SHALL draw the other rows as usual.
+### Requirement: A missing sensor leaves its row empty
+When the sensor of the Moon altitude, Wind gust, Seeing, Transparency, Temperature, Dew point, Humidity, Wind speed, Wind direction or Rain chance row is missing from Home Assistant or unavailable, the card SHALL draw that row with its label and no cells. It SHALL do the same when the sensor has no `forecast` list. The card SHALL skip a point without a readable `datetime`. The card SHALL NOT throw, and SHALL draw the other rows as usual.
 
 #### Scenario: Humidity is unavailable
 - **WHEN** `sensor.pierpressure_backyard_humidity` has the state `unavailable` and a `forecast` attribute with values inside the axis, and the cloud sensors have forecasts inside the axis
 - **THEN** the strip shows the Humidity row with its label and no cells
 - **AND** the cloud rows show their cells
 
-#### Scenario: None of the added sensors
-- **WHEN** the Verdict sensor has the state `GO` and Home Assistant has none of the ten added rows' sensors
-- **THEN** the card renders without an error and shows the ten added rows, labelled, with no cells
+#### Scenario: Only the sun and cloud sensors
+- **WHEN** the Verdict sensor has the state `GO` and Home Assistant has no timeline sensor but Sun altitude and the four cloud sensors
+- **THEN** the card renders without an error
+- **AND** every row but Sun altitude and the four cloud rows shows its label and no cells
 
 ### Requirement: The Moon altitude row darkens as the moon climbs
 The card SHALL shade each Moon altitude cell in the strip's seven blues, `#cde2fb`, `#9ec5f4`, `#6da7ec`, `#3987e5`, `#256abf`, `#184f95` and `#0d366b`, step 0 the lightest. An altitude `v` of 0° or below SHALL take step 0. An altitude above 0° SHALL take step `min(6, 1 + floor(v / 6))`.
@@ -113,7 +103,7 @@ The card SHALL shade each Humidity and Rain chance cell in the strip's seven blu
 - **THEN** its Rain chance cell is shaded `#0d366b`
 
 ### Requirement: A Wind direction arrow points downwind
-Each Wind direction cell SHALL hold an arrow and no shade. The value is the direction the wind blows from, in degrees clockwise from north. The arrow SHALL point the way the wind blows to: rotated `(v + 180) mod 360` degrees clockwise from pointing up, written between 0 and 360.
+Each Wind direction cell SHALL hold an arrow and no shade. The value is the direction the wind blows from, in degrees clockwise from north. The arrow SHALL point the way the wind blows to: rotated `(v + 180) mod 360` degrees clockwise from pointing up, at least 0 and below 360.
 
 #### Scenario: A south-westerly
 - **WHEN** the Wind direction forecast holds 225 at an hour inside the axis
@@ -123,8 +113,8 @@ Each Wind direction cell SHALL hold an arrow and no shade. The value is the dire
 - **WHEN** the Wind direction forecast holds 0 at an hour inside the axis
 - **THEN** that cell's arrow is rotated 180 degrees, pointing down
 
-### Requirement: Hovering over a cell in an added row shows its value and unit
-Hovering over a cell in an added row other than Wind direction SHALL show `<row>, the hour from <HH:MM>: <value><unit>`. The hour SHALL be the start of the hour the cell fills, and the value SHALL be as the forecast holds it. The unit SHALL be `°` for Moon altitude, ` km/h` for Wind gust and Wind speed, ` °C` for Temperature and Dew point, and `%` for Humidity and Rain chance. Seeing and Transparency SHALL show no unit.
+### Requirement: Hovering over a cell shows its unit
+Hovering over a cell in the Moon altitude, Wind gust, Seeing, Transparency, Temperature, Dew point, Humidity, Wind speed or Rain chance row SHALL show `<row>, the hour from <HH:MM>: <value><unit>`. The hour SHALL be the start of the hour the cell fills, and the value SHALL be as the forecast holds it. The unit SHALL be `°` for Moon altitude, ` km/h` for Wind gust and Wind speed, ` °C` for Temperature and Dew point, and `%` for Humidity and Rain chance. Seeing and Transparency SHALL show no unit.
 
 #### Scenario: A gusty hour
 - **WHEN** Home Assistant's time zone is `UTC` and the Wind gust forecast holds 12.5 at 2026-10-31T21:00:00Z
@@ -161,7 +151,7 @@ Hovering over a Wind direction cell SHALL show `Wind direction, the hour from <H
 `docs/night-card.md` SHALL describe each of the fifteen rows:
 
 - its name and the sensor it reads;
-- what its lightest and darkest shades mean, and that darker means worse for Seeing and Transparency;
+- for each shaded row, what its lightest and darkest shades mean, and that darker means worse for Seeing and Transparency;
 - that Temperature and Dew point share one scale;
 - that a Rain chance cell fills the hour before its time;
 - that a Wind direction arrow points the way the wind blows to;
@@ -174,6 +164,29 @@ Hovering over a Wind direction cell SHALL show `Wind direction, the hour from <H
 - **AND** it no longer says that a later release adds the other conditions
 
 ## MODIFIED Requirements
+
+### Requirement: A null hour is blank
+The card SHALL draw no cell for an hour whose `forecast` value is null or not a number, or for an hour the forecast has no point for. That hour SHALL be blank in its row, distinct from every shade or arrow a value can take.
+
+#### Scenario: Cloud low missing for an hour
+- **WHEN** the Cloud low forecast holds `{"datetime": "2026-10-31T22:00:00Z", "value": null}` inside the axis
+- **THEN** the Cloud low row has no cell for 22:00 UTC
+
+#### Scenario: Cloud mid at zero
+- **WHEN** the Cloud mid forecast holds `{"datetime": "2026-10-31T22:00:00Z", "value": 0}` inside the axis
+- **THEN** the Cloud mid row has a 22:00 UTC cell shaded `#cde2fb`
+
+#### Scenario: Seeing missing for an hour
+- **WHEN** the Seeing forecast holds `{"datetime": "2026-10-31T22:00:00Z", "value": null}` inside the axis
+- **THEN** the Seeing row has no cell for 22:00 UTC
+
+#### Scenario: Temperature at zero
+- **WHEN** the Temperature forecast holds `{"datetime": "2026-10-31T22:00:00Z", "value": 0}` inside the axis
+- **THEN** the Temperature row has a 22:00 UTC cell
+
+#### Scenario: Wind direction missing for an hour
+- **WHEN** the Wind direction forecast holds `{"datetime": "2026-10-31T22:00:00Z", "value": null}` inside the axis
+- **THEN** the Wind direction row has no cell and no arrow for 22:00 UTC
 
 ### Requirement: The card draws the four cloud rows
 Below the verdict, score and confidence, the card SHALL draw a night strip. Under the strip's Moon altitude row, the card SHALL draw four cloud rows. From top to bottom they SHALL be Cloud cover, Cloud low, Cloud mid and Cloud high, each labelled with that name. Each row SHALL read the `forecast` attribute of one sensor, named from the same slug as the Verdict sensor: `sensor.pierpressure_<slug>_cloud_cover`, `sensor.pierpressure_<slug>_cloud_low`, `sensor.pierpressure_<slug>_cloud_mid` and `sensor.pierpressure_<slug>_cloud_high`.

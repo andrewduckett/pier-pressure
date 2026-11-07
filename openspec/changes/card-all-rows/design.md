@@ -13,10 +13,11 @@ row count, and the span of the dusk, dawn and now lines, already come from
 `strip.rows.length`, so more rows need no change there. Each cell is a
 `.cell` with its shade as `background-color` and `data-shade`.
 
-All fifteen timeline sensors carry `forecast` lists of the same shape
-(`docs/night-timeline.md`). Every value is for the hour that starts at its
+All fifteen timeline sensors carry `forecast` lists of the same shape.
+`docs/night-timeline.md` says every value is for the hour that starts at its
 `datetime`, except `precipitation_probability`, which is for the hour that
-ends there.
+ends there. Open-Meteo follows that rule. The card cannot tell which provider
+filled a value, so it follows the documented rule.
 
 ## Goals / Non-Goals
 
@@ -41,7 +42,9 @@ ends there.
   - `card/test/harness.ts` gains a constant for each new sensor.
   - `card/test/rows.test.ts` is a new file in the same style as
     `strip.test.ts`, which is over 1000 lines. It holds the added rows' tests.
-    Tests in `strip.test.ts` that list the row order change in place.
+    Tests in `strip.test.ts` that depend on the row count change in place:
+    the row order, the row above the Moon up lane, the lines' grid rows and
+    the strip's `grid-template-rows`.
   - `card/test/register.test.ts` checks the card's size.
   - `tests/test_night_card_doc.py` takes the docs scenario.
 
@@ -103,12 +106,16 @@ rounds up to the next one clockwise.
 ### DD3. The arrow is an inline SVG
 
 A Wind direction cell is a `.cell` with no background, carrying `data-arrow`
-with its rotation and no `data-shade`. Inside is a small SVG drawn with Lit's
-`svg` template: a `viewBox` of `0 0 12 12`, one arrow path pointing up, and
-`transform="rotate(<deg> 6 6)"` on its group. The SVG fills the cell, so the
-default `preserveAspectRatio` keeps the arrow centred and as large as the
-cell's shorter side allows. Its colour is `var(--secondary-text-color)`, so
-it reads in light and dark themes.
+with its rotation and no `data-shade`. The card omits the attribute a cell
+does not use by binding Lit's `nothing`, since `undefined` would leave an
+empty attribute. Inside the cell is an `<svg>` element written in Lit's
+`html` template; Lit's `svg` template is only for content inside an `<svg>`.
+It has a `viewBox` of `0 0 12 12`, one arrow path pointing up, and
+`transform="rotate(<deg> 6 6)"` on its group. CSS gives the SVG
+`display: block; width: 100%; height: 100%`, so it fills the 16 px cell
+with no inline baseline overflow. The default `preserveAspectRatio` keeps the
+arrow centred and as large as the cell's shorter side allows. Its colour is
+`var(--secondary-text-color)`, so it reads in light and dark themes.
 
 - Alternative: the `↑` character rotated with CSS. Rejected: its size and
   baseline vary by font, and some platforms draw arrows as emoji.
@@ -134,9 +141,16 @@ source, behind the published entities.
 - [Fifteen rows make the card tall on a phone] → Accepted for this story; a
   row picker is left to the visual editor (#188).
 - [A fixed temperature scale shows little change on a night that stays
-  within one 5 °C step] → The hover shows each value, and one shared fixed
-  scale lets Temperature and Dew point be compared by eye, which a scale
-  fitted to each night would not.
+  within one 5 °C step, and every hour below −5 °C takes the lightest shade]
+  → The hover shows each value, and one shared fixed scale lets Temperature
+  and Dew point be compared by eye, which a scale fitted to each night would
+  not. Matching shades only mean the two values share a 5 °C step, so the
+  docs do not call them a dew warning.
+- [The NWS provider fills `precipitation_probability` by the hour each value
+  starts, not the hour it ends (`pierpressure/conditions/nws.py`, `_hours`),
+  against `docs/night-timeline.md`] → On a pier where NWS supplies rain
+  chance, the card draws it an hour early. The card follows the documented
+  rule; aligning NWS is a core fix outside this change.
 - [An arrow in a narrow cell is small] → It scales with the cell; at the
   card's typical width each hour is about 15 px wide.
 - [happy-dom does not draw the SVG, so tests cannot prove the arrow looks

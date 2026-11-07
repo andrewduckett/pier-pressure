@@ -16,8 +16,8 @@ seeing and transparency rows, so the card cannot yet replace the YAML strip
   (D4).
 - Moon altitude, Wind gust, Seeing and Transparency take the YAML strip's
   shades. For Seeing and Transparency, darker means worse (D7).
-- Temperature and Dew point share one scale in 5 °C steps, so matching shades
-  show an hour near the dew point. Humidity and Rain chance step like cloud,
+- Temperature and Dew point share one scale in 5 °C steps, so the two rows
+  can be compared by eye. Humidity and Rain chance step like cloud,
   and Wind speed like Wind gust (D8, D9).
 - A Rain chance value fills the hour before its time, because that is the
   hour its chance is for (D6).
@@ -40,10 +40,11 @@ None.
 
 ### Modified Capabilities
 
-- `night-card`: the strip's row requirements widen from the cloud rows to every
-  row, the cloud rows move below a new Moon altitude row, and new requirements
-  give the added rows their shades, the Rain chance hour, the wind arrows and
-  their hover text. The docs requirement grows to cover every row.
+- `night-card`: new requirements give the ten rows their sensors, hours,
+  shades, arrows and hover text, and the docs a section on every row. The
+  cloud rows move below the new Moon altitude row. The Moon up lane moves
+  below Rain chance, and the lines cross every row. A null hour stays blank
+  in every row, with no shade and no arrow.
 
 ## Impact
 
