@@ -1,8 +1,9 @@
 # The PierPressure card: tonight's verdict on your dashboard
 
 The PierPressure card is a Home Assistant dashboard card. It shows tonight's
-verdict, score and confidence for one pier, and a night strip with every
-forecast condition hour by hour, crossed by dusk, dawn and now.
+verdict, score and confidence for one pier. Under them, a night strip shows
+every forecast condition hour by hour, and when each of the ranked targets can
+be seen. Lines for dusk, dawn and now cross the strip.
 
 The card only shows what PierPressure already publishes. It never computes a
 verdict and never fetches data. If you would rather not install a card, the
@@ -49,7 +50,8 @@ condition, from top to bottom:
 | **Rain chance** | `sensor.pierpressure_<pier>_precipitation_probability` | % |
 
 Under the rows is the **Moon up** lane, which also reads
-`sensor.pierpressure_<pier>_moon_altitude`.
+`sensor.pierpressure_<pier>_moon_altitude`. Under that is one lane for each
+[ranked target](target-ranking.md) tonight.
 
 The strip runs from 4 hours before dusk to 5 hours after dawn, the dark window
 on the Verdict sensor. Some nights have no astronomical darkness, such as a
@@ -121,7 +123,30 @@ when the forecast holds the hour before or after it. A bar at the start of the
 forecast reads "Moon up until 03:00", one at its end "Moon up from 21:00", and
 a run of a day or more just "Moon up".
 
-Three lines cross the strip:
+#### The target lanes
+
+Under the Moon up lane, each ranked target tonight has a lane, in rank order.
+The lane **Target 1** reads `sensor.pierpressure_<pier>_target_1`, and so on to
+**Target 10**, which reads `sensor.pierpressure_<pier>_target_10`.
+
+Each lane has a violet bar over the target's observable window: the time when
+the target is above your horizon mask and the sky is astronomically dark. The
+bar holds the target's name. A name too long for its bar
+ends in "…".
+
+Hover over a bar to see the target's name and its window, such as
+"Andromeda Galaxy from 21:00 to 02:00". The times are the window's own, even
+where the strip cuts the bar off. A window of 24 hours or more, as on a polar
+night, shows only the name.
+
+A rank with no target tonight leaves no lane, so the lanes that are there
+follow each other with no gap. On a night with no targets at all, the strip
+ends at the Moon up lane.
+
+#### The lines
+
+Three lines cross the strip, through every row, the Moon up lane and the target
+lanes:
 
 - A dashed grey line labelled **dusk** at the start of the dark window, and
   one labelled **dawn** at its end. On a night with no astronomical darkness,
@@ -130,6 +155,8 @@ Three lines cross the strip:
   every minute, and shows only while now is on the strip.
 
 Hover over a line to see its time, such as "Dusk, 20:30".
+
+#### Times
 
 All times are in your Home Assistant time zone, on a 24-hour clock, whatever
 time zone your browser or user profile uses. The axis has a time label every 3

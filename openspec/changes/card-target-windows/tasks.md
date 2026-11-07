@@ -13,7 +13,7 @@
 
 ## 3. Docs and the whole path [depends-on: 2]
 
-- [ ] 3.1 [easy] `docs/night-card.md` describes the target lanes: the sensors `sensor.pierpressure_<pier>_target_1` to `sensor.pierpressure_<pier>_target_10`, the label `Target 1`, the bar over the observable window with the target's name, the hover text, that a rank with no target tonight leaves no lane, and that the lines cross the lanes; its opening paragraph names the ranked targets (test: `tests/test_night_card_doc.py`) (verify: uv run pytest tests/test_night_card_doc.py -k targets)
+- [x] 3.1 [easy] `docs/night-card.md` describes the target lanes: the sensors `sensor.pierpressure_<pier>_target_1` to `sensor.pierpressure_<pier>_target_10`, the label `Target 1`, the bar over the observable window with the target's name, the hover text, that a rank with no target tonight leaves no lane, and that the lines cross the lanes; its opening paragraph names the ranked targets (test: `tests/test_night_card_doc.py`) (verify: uv run pytest tests/test_night_card_doc.py -k targets) (✓ pytest tests/test_night_card_doc.py -k targets passed)
 - [ ] 3.2 [complex] The whole path works: `mise run check` is green, and `mise run dashboard-check` shows the target lanes beside the YAML strip's in a real Home Assistant, with the name on each bar and the window on hover, checked by eye (verify: mise run check)
 
 ## Deviations Ledger
@@ -25,3 +25,4 @@
 - 2026-11-07: in task 1.4, the test that a Moon up bar carries no mark and no text passed on its first run, since no bar carried either yet. It stays as a guard. `cardStyles` moved from `strip.test.ts` into the harness, in its own `refactor:` commit, so both test files read the stylesheet one way.
 - 2026-11-07: in task 1.5, the three name-alone hover tests passed on their first run, because the bar's text was still the bare name. The `from … to …` text went in first, which turned them red, and the 24-hour and same-time rule then turned them green.
 - 2026-11-07: in task 2.2, the size tests for no lanes, a missing or offline Verdict sensor and no state yet passed on their first run, because the size was a fixed 10. They stay as guards on the new method that both the size and the drawing read.
+- 2026-11-07: in task 3.1, the strip's docs gained the headings "The target lanes", "The lines" and "Times", so the lines and the time zone no longer sit under "How to read the rows".
