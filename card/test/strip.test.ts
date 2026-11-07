@@ -67,3 +67,48 @@ describe("the strip's axis", () => {
     expect(axis(card)).toEqual(["2026-11-01T06:00:00.000Z", "2026-11-02T06:00:00.000Z"]);
   });
 });
+
+function rows(card: PierPressureCard): HTMLElement[] {
+  return [...(card.shadowRoot?.querySelectorAll<HTMLElement>(".strip [data-row]") ?? [])];
+}
+
+describe("the cloud rows", () => {
+  it("are Cloud cover, Cloud low, Cloud mid and Cloud high, top to bottom", async () => {
+    const card = await mountCard({ [VERDICT]: verdictEntity("GO") });
+
+    expect(rows(card).map((row) => row.querySelector(".label")?.textContent?.trim())).toEqual([
+      "Cloud cover",
+      "Cloud low",
+      "Cloud mid",
+      "Cloud high",
+    ]);
+  });
+
+  it("are drawn under the verdict lines", async () => {
+    const card = await mountCard({ [VERDICT]: verdictEntity("GO") });
+
+    const lines = card.shadowRoot?.querySelector("dl");
+    const position = lines?.compareDocumentPosition(strip(card) as Node) ?? 0;
+    expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
+describe("no strip", () => {
+  it("when PierPressure is offline", async () => {
+    const card = await mountCard({ [VERDICT]: verdictEntity("unavailable") });
+
+    expect(strip(card)).toBeNull();
+  });
+
+  it("when the Verdict sensor is missing", async () => {
+    const card = await mountCard({}, "frontyard");
+
+    expect(strip(card)).toBeNull();
+  });
+
+  it("before Home Assistant gives the card its state", async () => {
+    const card = await mountCard();
+
+    expect(strip(card)).toBeNull();
+  });
+});

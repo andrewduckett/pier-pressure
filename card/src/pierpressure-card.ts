@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing } from "lit";
 import { pierSlug, verdictEntityId } from "./entity";
-import { asRecord, stripAxis } from "./strip";
+import { asRecord, buildStrip } from "./strip";
 
 declare const __CARD_VERSION__: string;
 
@@ -55,6 +55,24 @@ export class PierPressureCard extends LitElement {
     dd {
       margin: 0;
     }
+    .strip {
+      display: grid;
+      grid-template-columns: max-content 1fr;
+      gap: 2px 8px;
+      margin-top: 16px;
+    }
+    .row {
+      display: contents;
+    }
+    .label {
+      color: var(--secondary-text-color);
+      font-size: 0.85em;
+      line-height: 16px;
+    }
+    .track {
+      position: relative;
+      height: 16px;
+    }
   `;
 
   // Home Assistant sets hass after setConfig and after the card is attached.
@@ -107,12 +125,19 @@ export class PierPressureCard extends LitElement {
   }
 
   private renderStrip(verdict: HassEntity) {
-    const axis = stripAxis(verdict.attributes["dark_window"], Date.now());
+    const strip = buildStrip(verdict.attributes["dark_window"], Date.now());
     return html`<div
       class="strip"
-      data-axis-start=${new Date(axis.start).toISOString()}
-      data-axis-end=${new Date(axis.end).toISOString()}
-    ></div>`;
+      data-axis-start=${new Date(strip.axis.start).toISOString()}
+      data-axis-end=${new Date(strip.axis.end).toISOString()}
+    >
+      ${strip.rows.map(
+        (row) => html`<div class="row" data-row=${row.key}>
+          <span class="label">${row.label}</span>
+          <div class="track"></div>
+        </div>`,
+      )}
+    </div>`;
   }
 }
 

@@ -5,7 +5,7 @@
 
 ## 2. The cloud rows [depends-on: 1]
 
-- [ ] 2.1 [medium] Below the verdict lines, the card draws the rows Cloud cover, Cloud low, Cloud mid and Cloud high, in that order, each with its label; it draws no strip when the Verdict sensor is missing or unavailable, or before `hass` is set (design DD2, DD3) (verify: mise exec -- npm --prefix card test -- strip)
+- [x] 2.1 [medium] Below the verdict lines, the card draws the rows Cloud cover, Cloud low, Cloud mid and Cloud high, in that order, each with its label; it draws no strip when the Verdict sensor is missing or unavailable, or before `hass` is set (design DD2, DD3) (verify: mise exec -- npm --prefix card test -- strip) (✓ npm test -- strip passed)
 - [ ] 2.2 [medium] Each forecast point fills the hour from its `datetime` as one cell, positioned in percent of the axis; hours wholly outside the axis get no cell, and a cell cut off at an axis end is flush with it, with `data-from` and `data-to` giving its drawn bounds (design DD2, DD3) (verify: mise exec -- npm --prefix card test -- strip)
 - [ ] 2.3 [easy] A cell is shaded in the seven blues by shade step `min(6, floor(v / 15))`, clamped at 0: 0 gives `#cde2fb`, 44 gives `#6da7ec`, 100 gives `#0d366b` (design DD7) (verify: mise exec -- npm --prefix card test -- strip)
 - [ ] 2.4 [medium] A null or non-number value, an hour with no point, a point without a readable `datetime`, a sensor that is missing or `unavailable` (even with a `forecast`), and a `forecast` that is missing or not a list each leave blank hours or an empty labelled row, and the card never throws (design DD7) (verify: mise exec -- npm --prefix card test -- strip)

@@ -33,3 +33,28 @@ function readTime(value: unknown): number | undefined {
 export function asRecord(value: unknown): Record<string, unknown> | undefined {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : undefined;
 }
+
+// Top to bottom, as in the YAML night strip.
+export const CLOUD_ROWS = [
+  { key: "cloud_cover", label: "Cloud cover" },
+  { key: "cloud_low", label: "Cloud low" },
+  { key: "cloud_mid", label: "Cloud mid" },
+  { key: "cloud_high", label: "Cloud high" },
+] as const;
+
+export interface Row {
+  key: string;
+  label: string;
+}
+
+export interface Strip {
+  axis: Axis;
+  rows: Row[];
+}
+
+export function buildStrip(darkWindow: unknown, now: number): Strip {
+  return {
+    axis: stripAxis(darkWindow, now),
+    rows: CLOUD_ROWS.map(({ key, label }) => ({ key, label })),
+  };
+}
