@@ -14,7 +14,7 @@
 ## 3. The time labels [depends-on: 2]
 
 - [x] 3.1 [medium] The axis carries a time label at each whole hour strictly inside it whose local hour is a multiple of 3, or of 6 on an axis over 24 hours, dropping a repeat of the previous label less than 3 hours after it: the UTC, Kolkata, polar-night and Athens scenarios from the spec (design DD6) (verify: mise exec -- npm --prefix card test -- strip) (✓ npm test -- strip passed)
-- [ ] 3.2 [easy] `getCardSize()` returns 5, `getGridOptions()` returns `columns: "full"`, and the card picker's description is "Tonight's verdict and night strip for one pier." (design DD9) (verify: mise exec -- npm --prefix card test -- register)
+- [x] 3.2 [easy] `getCardSize()` returns 5, `getGridOptions()` returns `columns: "full"`, and the card picker's description is "Tonight's verdict and night strip for one pier." (design DD9) (verify: mise exec -- npm --prefix card test -- register) (✓ npm test -- register passed)
 
 ## 4. Docs and the whole path [depends-on: 3]
 

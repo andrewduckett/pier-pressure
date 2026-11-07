@@ -103,7 +103,13 @@ export class PierPressureCard extends LitElement {
   }
 
   getCardSize(): number {
-    return 2;
+    return 5;
+  }
+
+  // A sections view gives a card half its section's width by default, too
+  // narrow for the strip's time labels.
+  getGridOptions(): { columns: "full" } {
+    return { columns: "full" };
   }
 
   override render() {
@@ -220,7 +226,7 @@ if (!window.customCards.some((card) => card.type === CARD_TYPE)) {
   window.customCards.push({
     type: CARD_TYPE,
     name: "PierPressure",
-    description: "Tonight's verdict, score and confidence for one pier.",
+    description: "Tonight's verdict and night strip for one pier.",
   });
 }
 console.info(`PIERPRESSURE-CARD ${CARD_VERSION}`);
