@@ -14,10 +14,11 @@
 
 ## 3. The whole path [depends-on: 1, 2]
 
-- [ ] 3.1 [complex] The whole path works: `mise run check` is green, and in `mise run dashboard-check`'s Home Assistant the locally built card shows, by eye, the Moon section beside the verdict lines; after setting the Verdict sensor's state with a few `moon` attributes through Home Assistant's state API (a waxing crescent, a first quarter, a waning gibbous, a full and a new moon), each phase is drawn on the expected side with its outline visible (verify: mise run check)
+- [x] 3.1 [complex] The whole path works: `mise run check` is green, and in `mise run dashboard-check`'s Home Assistant the locally built card shows, by eye, the Moon section beside the verdict lines; after setting the Verdict sensor's state with a few `moon` attributes through Home Assistant's state API (a waxing crescent, a first quarter, a waning gibbous, a full and a new moon), each phase is drawn on the expected side with its outline visible (verify: mise run check) (✓ mise run check passed: 2115 Python tests, 362 card tests, lint, type check and build; dashboard-check showed, by eye, the Moon section beside the verdict lines, first with the real verdict's new moon at 3%: an unlit disc with its grey outline, and dashes for Moonrise and Moonset. After setting the Verdict sensor's `moon` through Home Assistant's state API, a waxing crescent at 25% lit a narrow crescent on the right, a waning gibbous at 75% lit on the left with a dark sliver on the right, and a full moon at 98% a whole pale disc with its outline visible on the white card; a first quarter's lit path measured 22 px wide from the 48 px SVG's centre to its right edge. Times showed in Home Assistant's Denver time zone, such as Moonrise 09:10 for 16:10 UTC. The south was not checked by eye: the check's Home Assistant is at 39.74° N)
 
 ## Deviations Ledger
 
 <!-- Dated notes on small departures from the plan, written during apply. Stop and ask the user about a large one. -->
 
 - 2026-11-07: in task 1.2, every dash test passed on its first run, since task 1.1's reader already checked each field. With the phase-name and 0-to-1 checks removed, the unknown-phase, above-1 and below-0 tests fail. All stay as guards.
+- 2026-11-07: in task 3.1, Home Assistant showed the verdict lines stretched to the Moon section's height, since a flex row stretches its items and the stretched grid spread its rows. `.summary` now has `align-items: flex-start`, with a stylesheet test, in its own `fix:` commit. The `.summary` style test from task 1.1 still matches.
