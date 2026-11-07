@@ -34,10 +34,11 @@ export const CLOUD_COVER = "sensor.pierpressure_backyard_cloud_cover";
 export const CLOUD_LOW = "sensor.pierpressure_backyard_cloud_low";
 export const CLOUD_MID = "sensor.pierpressure_backyard_cloud_mid";
 export const CLOUD_HIGH = "sensor.pierpressure_backyard_cloud_high";
+export const SUN_ALTITUDE = "sensor.pierpressure_backyard_sun_altitude";
 
-// A timeline sensor as PierPressure publishes it: the current hour's value as its
+// Any timeline sensor as PierPressure publishes it: the current hour's value as its
 // state, and every hour in `forecast`.
-export function cloudEntity(points: Array<[string, unknown]>, state = "40"): HassEntity {
+export function forecastEntity(points: Array<[string, unknown]>, state = "40"): HassEntity {
   return {
     state,
     attributes: { forecast: points.map(([datetime, value]) => ({ datetime, value })) },

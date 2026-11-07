@@ -36,13 +36,20 @@ export function asRecord(value: unknown): Record<string, unknown> | undefined {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : undefined;
 }
 
+interface RowKind {
+  key: string;
+  label: string;
+  shade: (value: number) => string;
+}
+
 // Top to bottom, as in the YAML night strip.
-export const CLOUD_ROWS = [
-  { key: "cloud_cover", label: "Cloud cover" },
-  { key: "cloud_low", label: "Cloud low" },
-  { key: "cloud_mid", label: "Cloud mid" },
-  { key: "cloud_high", label: "Cloud high" },
-] as const;
+export const ROWS: readonly RowKind[] = [
+  { key: "sun_altitude", label: "Sun altitude", shade: cloudShade },
+  { key: "cloud_cover", label: "Cloud cover", shade: cloudShade },
+  { key: "cloud_low", label: "Cloud low", shade: cloudShade },
+  { key: "cloud_mid", label: "Cloud mid", shade: cloudShade },
+  { key: "cloud_high", label: "Cloud high", shade: cloudShade },
+];
 
 export interface Cell {
   hour: number;
@@ -86,10 +93,10 @@ export function buildStrip(
   return {
     axis,
     labels: timeLabels(axis, time),
-    rows: CLOUD_ROWS.map(({ key, label }) => ({
+    rows: ROWS.map(({ key, label, shade }) => ({
       key,
       label,
-      cells: rowCells(forecastOf(states[pierEntityId(pier, key)]), axis).map((cell) => ({
+      cells: rowCells(forecastOf(states[pierEntityId(pier, key)]), axis, shade).map((cell) => ({
         ...cell,
         text: `${label}, the hour from ${time(cell.hour)}: ${cell.value}%`,
       })),
@@ -104,14 +111,18 @@ function forecastOf(entity: States[string]): unknown {
   return entity.attributes["forecast"];
 }
 
-function rowCells(forecast: unknown, axis: Axis): Omit<Cell, "text">[] {
+function rowCells(
+  forecast: unknown,
+  axis: Axis,
+  shade: (value: number) => string,
+): Omit<Cell, "text">[] {
   if (!Array.isArray(forecast)) return [];
   return forecast.flatMap((point: unknown) => {
     const record = asRecord(point);
     const hour = readTime(record?.["datetime"]);
     const value = record?.["value"];
     if (hour === undefined || hour + HOUR <= axis.start || hour >= axis.end) return [];
-    // A type check, not a truthiness check: 0% cloud is a value, null is a gap.
+    // A type check, not a truthiness check: 0% cloud or 0° is a value, null is a gap.
     if (typeof value !== "number" || !Number.isFinite(value)) return [];
     return [
       {
@@ -119,7 +130,7 @@ function rowCells(forecast: unknown, axis: Axis): Omit<Cell, "text">[] {
         from: Math.max(hour, axis.start),
         to: Math.min(hour + HOUR, axis.end),
         value,
-        shade: cloudShade(value),
+        shade: shade(value),
       },
     ];
   });

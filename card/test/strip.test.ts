@@ -4,9 +4,10 @@ import {
   CLOUD_HIGH,
   CLOUD_LOW,
   CLOUD_MID,
+  SUN_ALTITUDE,
   VERDICT,
   cells,
-  cloudEntity,
+  forecastEntity,
   mountCard,
   verdictEntity,
 } from "./harness";
@@ -82,11 +83,12 @@ function rows(card: PierPressureCard): HTMLElement[] {
   return [...(card.shadowRoot?.querySelectorAll<HTMLElement>(".strip [data-row]") ?? [])];
 }
 
-describe("the cloud rows", () => {
-  it("are Cloud cover, Cloud low, Cloud mid and Cloud high, top to bottom", async () => {
+describe("the rows", () => {
+  it("are Sun altitude, then Cloud cover, Cloud low, Cloud mid and Cloud high, top to bottom", async () => {
     const card = await mountCard({ [VERDICT]: verdictEntity("GO") });
 
     expect(rows(card).map((row) => row.querySelector(".label")?.textContent?.trim())).toEqual([
+      "Sun altitude",
       "Cloud cover",
       "Cloud low",
       "Cloud mid",
@@ -132,7 +134,7 @@ describe("a value fills its hour", () => {
     const card = await mountCard(
       {
         "sensor.pierpressure_back_yard_verdict": NIGHT,
-        "sensor.pierpressure_back_yard_cloud_high": cloudEntity([["2026-10-31T21:00:00Z", 40]]),
+        "sensor.pierpressure_back_yard_cloud_high": forecastEntity([["2026-10-31T21:00:00Z", 40]]),
       },
       "Back-Yard",
     );
@@ -145,7 +147,7 @@ describe("a value fills its hour", () => {
   it("draws every hour that overlaps the axis, and none outside it", async () => {
     const card = await mountCard({
       [VERDICT]: NIGHT,
-      [CLOUD_COVER]: cloudEntity([
+      [CLOUD_COVER]: forecastEntity([
         ["2026-10-31T15:00:00Z", 10],
         ["2026-10-31T16:00:00Z", 20],
         ["2026-10-31T17:00:00Z", 30],
@@ -164,7 +166,7 @@ describe("a value fills its hour", () => {
   it("cuts a cell off at each axis end", async () => {
     const card = await mountCard({
       [VERDICT]: NIGHT,
-      [CLOUD_COVER]: cloudEntity([
+      [CLOUD_COVER]: forecastEntity([
         ["2026-10-31T16:00:00Z", 20],
         ["2026-11-01T08:00:00Z", 40],
       ]),
@@ -180,7 +182,7 @@ describe("a value fills its hour", () => {
   it("keeps a cell inside the axis whole", async () => {
     const card = await mountCard({
       [VERDICT]: NIGHT,
-      [CLOUD_COVER]: cloudEntity([["2026-10-31T17:00:00Z", 30]]),
+      [CLOUD_COVER]: forecastEntity([["2026-10-31T17:00:00Z", 30]]),
     });
 
     const [cell] = cells(card, "cloud_cover");
@@ -194,7 +196,7 @@ describe("a value fills its hour", () => {
   it("places a cell in percent of the axis", async () => {
     const card = await mountCard({
       [VERDICT]: NIGHT,
-      [CLOUD_COVER]: cloudEntity([["2026-10-31T17:00:00Z", 30]]),
+      [CLOUD_COVER]: forecastEntity([["2026-10-31T17:00:00Z", 30]]),
     });
 
     const [cell] = cells(card, "cloud_cover");
@@ -217,7 +219,7 @@ describe("more cloud is darker", () => {
   ])("shades %d%% as %s", async (value, colour) => {
     const card = await mountCard({
       [VERDICT]: NIGHT,
-      [CLOUD_COVER]: cloudEntity([["2026-10-31T21:00:00Z", value]]),
+      [CLOUD_COVER]: forecastEntity([["2026-10-31T21:00:00Z", value]]),
     });
 
     const [cell] = cells(card, "cloud_cover");
@@ -233,7 +235,7 @@ describe("a null hour is blank", () => {
   ])("draws no cell for a value that is %s", async (_, value) => {
     const card = await mountCard({
       [VERDICT]: NIGHT,
-      [CLOUD_LOW]: cloudEntity([
+      [CLOUD_LOW]: forecastEntity([
         ["2026-10-31T21:00:00Z", 30],
         ["2026-10-31T22:00:00Z", value],
       ]),
@@ -247,7 +249,7 @@ describe("a null hour is blank", () => {
   it("draws a cell for 0%", async () => {
     const card = await mountCard({
       [VERDICT]: NIGHT,
-      [CLOUD_MID]: cloudEntity([["2026-10-31T22:00:00Z", 0]]),
+      [CLOUD_MID]: forecastEntity([["2026-10-31T22:00:00Z", 0]]),
     });
 
     expect(cells(card, "cloud_mid").map((cell) => cell.dataset["shade"])).toEqual(["#cde2fb"]);
@@ -274,7 +276,7 @@ describe("a null hour is blank", () => {
 });
 
 describe("a missing cloud sensor leaves an empty row", () => {
-  const forecast = cloudEntity([["2026-10-31T21:00:00Z", 30]]);
+  const forecast = forecastEntity([["2026-10-31T21:00:00Z", 30]]);
 
   it.each([
     ["missing", undefined],
@@ -299,24 +301,93 @@ describe("a missing cloud sensor leaves an empty row", () => {
   it("still draws the other rows", async () => {
     const card = await mountCard({
       [VERDICT]: NIGHT,
-      [CLOUD_COVER]: cloudEntity([["2026-10-31T21:00:00Z", 30]]),
+      [CLOUD_COVER]: forecastEntity([["2026-10-31T21:00:00Z", 30]]),
       [CLOUD_HIGH]: { state: "unavailable", attributes: {} },
     });
 
     expect(cells(card, "cloud_cover")).toHaveLength(1);
   });
 
-  it("draws four empty rows when no cloud sensor exists", async () => {
+  it("draws four empty cloud rows when no cloud sensor exists", async () => {
     const card = await mountCard({ [VERDICT]: NIGHT });
 
-    expect([rows(card).length, card.shadowRoot?.querySelectorAll(".cell").length]).toEqual([4, 0]);
+    const cloudRows = rows(card).filter((row) => row.dataset["row"]?.startsWith("cloud_"));
+    expect([cloudRows.length, card.shadowRoot?.querySelectorAll(".cell").length]).toEqual([4, 0]);
+  });
+});
+
+describe("the Sun altitude row", () => {
+  it("reads the sun altitude sensor named from the pier", async () => {
+    const card = await mountCard(
+      {
+        "sensor.pierpressure_back_yard_verdict": NIGHT,
+        "sensor.pierpressure_back_yard_sun_altitude": forecastEntity([
+          ["2026-10-31T21:00:00Z", -20],
+        ]),
+      },
+      "Back-Yard",
+    );
+
+    expect(cells(card, "sun_altitude").map((cell) => cell.dataset["hour"])).toEqual([
+      "2026-10-31T21:00:00.000Z",
+    ]);
+  });
+
+  it("draws the hours that overlap the axis, cut off at its ends", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [SUN_ALTITUDE]: forecastEntity([
+        ["2026-10-31T15:00:00Z", 20],
+        ["2026-10-31T16:00:00Z", 10],
+        ["2026-10-31T17:00:00Z", 0],
+        ["2026-11-01T08:00:00Z", 5],
+        ["2026-11-01T09:00:00Z", 15],
+      ]),
+    });
+
+    expect(
+      cells(card, "sun_altitude").map((cell) => [cell.dataset["from"], cell.dataset["to"]]),
+    ).toEqual([
+      ["2026-10-31T16:30:00.000Z", "2026-10-31T17:00:00.000Z"],
+      ["2026-10-31T17:00:00.000Z", "2026-10-31T18:00:00.000Z"],
+      ["2026-11-01T08:00:00.000Z", "2026-11-01T08:25:00.000Z"],
+    ]);
+  });
+
+  it("leaves a null hour blank", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [SUN_ALTITUDE]: forecastEntity([
+        ["2026-10-31T21:00:00Z", -20],
+        ["2026-10-31T22:00:00Z", null],
+      ]),
+    });
+
+    expect(cells(card, "sun_altitude").map((cell) => cell.dataset["hour"])).toEqual([
+      "2026-10-31T21:00:00.000Z",
+    ]);
+  });
+
+  it("stays labelled and empty when its sensor is unavailable", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [SUN_ALTITUDE]: { ...forecastEntity([["2026-10-31T21:00:00Z", -20]]), state: "unavailable" },
+      [CLOUD_COVER]: forecastEntity([["2026-10-31T21:00:00Z", 30]]),
+    });
+
+    const row = rows(card).find((element) => element.dataset["row"] === "sun_altitude");
+    expect([row?.textContent?.trim(), cells(card, "sun_altitude").length]).toEqual([
+      "Sun altitude",
+      0,
+    ]);
+    expect(cells(card, "cloud_cover")).toHaveLength(1);
   });
 });
 
 describe("hovering over a cell", () => {
   async function hoverText(value: unknown, at: string, timeZone = "UTC"): Promise<string[]> {
     const card = await mountCard(
-      { [VERDICT]: NIGHT, [CLOUD_COVER]: cloudEntity([[at, value]]) },
+      { [VERDICT]: NIGHT, [CLOUD_COVER]: forecastEntity([[at, value]]) },
       "backyard",
       timeZone,
     );
@@ -378,7 +449,7 @@ describe("hovering over a cell", () => {
     card.setConfig({ type: "custom:pierpressure-card", pier: "backyard" });
     document.body.append(card);
     card.hass = {
-      states: { [VERDICT]: NIGHT, [CLOUD_COVER]: cloudEntity([["2026-10-31T21:00:00Z", 40]]) },
+      states: { [VERDICT]: NIGHT, [CLOUD_COVER]: forecastEntity([["2026-10-31T21:00:00Z", 40]]) },
     };
     await card.updateComplete;
 
