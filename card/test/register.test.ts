@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-async function loadCard(): Promise<void> {
+async function loadCard(): Promise<string> {
   vi.resetModules();
-  await import("../src/pierpressure-card");
+  const card = await import("../src/pierpressure-card");
+  return card.CARD_VERSION;
 }
 
 describe("loading the card file", () => {
@@ -29,10 +30,12 @@ describe("loading the card file", () => {
     ]);
   });
 
+  // The stamp itself is the build test's job; a release runs these tests with
+  // its own version set, so this one must not assume `dev`.
   it("logs the card's version", async () => {
-    await loadCard();
+    const version = await loadCard();
 
-    expect(console.info).toHaveBeenCalledWith("PIERPRESSURE-CARD dev");
+    expect(console.info).toHaveBeenCalledWith(`PIERPRESSURE-CARD ${version}`);
   });
 
   it("keeps one picker entry when the file loads twice", async () => {
