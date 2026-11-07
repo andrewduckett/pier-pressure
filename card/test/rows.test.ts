@@ -9,6 +9,7 @@ import {
   TEMPERATURE,
   TRANSPARENCY,
   VERDICT,
+  WIND_DIRECTION,
   WIND_GUST,
   WIND_SPEED,
   cells,
@@ -252,6 +253,40 @@ describe("more humidity and rain chance is darker", () => {
   });
 });
 
+describe("a Wind direction arrow points downwind", () => {
+  async function arrowCell(degrees: number): Promise<HTMLElement | undefined> {
+    const card = await mountCard({ [VERDICT]: NIGHT, [WIND_DIRECTION]: hourly([degrees]) });
+    return cells(card, "wind_direction")[0];
+  }
+
+  it.each([
+    [225, "45"],
+    [0, "180"],
+    [270, "90"],
+  ])("turns the arrow for a wind from %s° to %s°", async (degrees, rotation) => {
+    expect((await arrowCell(degrees))?.dataset["arrow"]).toBe(rotation);
+  });
+
+  it("rotates the drawn arrow by the same angle", async () => {
+    const group = (await arrowCell(225))?.querySelector("svg g");
+
+    expect(group?.getAttribute("transform")).toBe("rotate(45 6 6)");
+  });
+
+  it("gives the cell no shade", async () => {
+    const cell = await arrowCell(225);
+
+    expect([cell?.hasAttribute("data-shade"), cell?.style.backgroundColor]).toEqual([false, ""]);
+  });
+
+  it("gives a shaded cell no arrow", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT, [WIND_GUST]: hourly([12]) });
+
+    const [cell] = cells(card, "wind_gust");
+    expect([cell?.hasAttribute("data-arrow"), cell?.querySelector("svg")]).toEqual([false, null]);
+  });
+});
+
 describe("a null hour is blank", () => {
   it("draws no Seeing cell for a null value", async () => {
     const card = await mountCard({
@@ -271,6 +306,18 @@ describe("a null hour is blank", () => {
     expect(cells(card, "temperature").map((cell) => cell.dataset["hour"])).toEqual([
       "2026-10-31T22:00:00.000Z",
     ]);
+  });
+});
+
+describe("a null Wind direction hour", () => {
+  it("has no cell and no arrow", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [WIND_DIRECTION]: forecastEntity([["2026-10-31T22:00:00Z", null]]),
+    });
+
+    const row = card.shadowRoot?.querySelector('.strip [data-row="wind_direction"]');
+    expect([cells(card, "wind_direction"), row?.querySelector("svg")]).toEqual([[], null]);
   });
 });
 

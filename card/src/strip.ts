@@ -47,14 +47,18 @@ export function asRecord(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
-interface RowKind {
+// A row draws each hour as a shade, or, for a direction, as an arrow.
+type Mark =
+  | { shade: (value: number) => string; arrow?: never }
+  | { arrow: (value: number) => number; shade?: never };
+
+type RowKind = Mark & {
   key: string;
   label: string;
   unit: string;
-  shade: (value: number) => string;
   // The value is for the hour that ends at its datetime, not the one that starts there.
   hourBefore?: true;
-}
+};
 
 // Top to bottom: the YAML night strip's nine, then the rest in the order
 // PierPressure publishes them.
@@ -72,7 +76,7 @@ export const ROWS: readonly RowKind[] = [
   { key: "dew_point", label: "Dew point", unit: "", shade: temperatureShade },
   { key: "humidity", label: "Humidity", unit: "", shade: percentShade },
   { key: "wind_speed", label: "Wind speed", unit: "", shade: windShade },
-  { key: "wind_direction", label: "Wind direction", unit: "", shade: percentShade },
+  { key: "wind_direction", label: "Wind direction", unit: "", arrow: windArrow },
   {
     key: "precipitation_probability",
     label: "Rain chance",
@@ -88,7 +92,10 @@ export interface Cell {
   from: number;
   to: number;
   value: number;
-  shade: string;
+  // One of the two, as the row draws it: a blue, or an arrow's turn in degrees
+  // clockwise from pointing up.
+  shade?: string;
+  arrow?: number;
   // What hovering over the cell shows.
   text: string;
 }
@@ -145,13 +152,13 @@ export function buildStrip(
   return {
     axis,
     labels: timeLabels(axis, time),
-    rows: ROWS.map(({ key, label, unit, shade, hourBefore }) => ({
+    rows: ROWS.map(({ key, label, unit, hourBefore, ...mark }) => ({
       key,
       label,
       cells: rowCells(
         forecastOf(states[pierEntityId(pier, key)]),
         axis,
-        shade,
+        (value) => (mark.arrow ? { arrow: mark.arrow(value) } : { shade: mark.shade(value) }),
         hourBefore ? -HOUR : 0,
       ).map((cell) => ({
         ...cell,
@@ -185,7 +192,7 @@ function forecastOf(entity: States[string]): unknown {
 function rowCells(
   forecast: unknown,
   axis: Axis,
-  shade: (value: number) => string,
+  mark: (value: number) => Pick<Cell, "shade" | "arrow">,
   shift: number,
 ): Omit<Cell, "text">[] {
   if (!Array.isArray(forecast)) return [];
@@ -203,7 +210,7 @@ function rowCells(
         from: Math.max(hour, axis.start),
         to: Math.min(hour + HOUR, axis.end),
         value,
-        shade: shade(value),
+        ...mark(value),
       },
     ];
   });
@@ -302,6 +309,12 @@ function qualityShade(quality: number): string {
 // one step per 5 °C, from below −5 °C to 20 °C or more.
 function temperatureShade(celsius: number): string {
   return blue(Math.floor((celsius + 10) / 5));
+}
+
+// The sensor gives the direction the wind blows from; the arrow points the
+// way it blows to, as on a weather map.
+function windArrow(degrees: number): number {
+  return (((degrees + 180) % 360) + 360) % 360;
 }
 
 // One step per 7 km/h, so 42 km/h or more is the darkest, as in the YAML strip.
