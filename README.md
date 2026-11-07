@@ -791,13 +791,20 @@ Each rule there says why it exists.
   ecosystem.
 - **Each major update** arrives as its own pull request, so you can review it,
   and revert it if needed, on its own.
+- **The `uv.lock` refresh** arrives on Mondays as its own pull request. It moves
+  every package in `uv.lock` to the latest version `pyproject.toml` allows,
+  including the packages that only `uv.lock` holds. To get it sooner, tick it on
+  the Dependency Dashboard.
 - **Let's Spec** always arrives on its own. Renovate runs `lets sync` on that
   branch, so the pull request also holds the skills, schemas and `AGENTS.md`
   block the new version ships. `lets sync` is the only command Renovate may run.
-- **Security fixes** arrive at once, each in its own pull request whose title
-  ends with `[security]` and which is labelled `security`. Renovate opens them
-  from Dependabot alerts, which are on for this repository. Dependabot itself
-  opens no pull requests.
+- **Security fixes** for a package that `pyproject.toml` lists arrive at once,
+  each in its own pull request whose title ends with `[security]` and which is
+  labelled `security`. Renovate opens them from Dependabot alerts, which are on
+  for this repository. Dependabot itself opens no pull requests. A fix for a
+  transitive package, one that only `uv.lock` holds, arrives in the next
+  `uv.lock` refresh instead. For an urgent one, tick the refresh on the
+  Dependency Dashboard.
 - **The Dependency Dashboard** is an open issue that lists every dependency
   Renovate found and the updates it is holding back. Tick an update there to get
   its pull request at the next daily run.
