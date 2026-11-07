@@ -58,6 +58,8 @@ type RowKind = Mark & {
   unit: string;
   // The value is for the hour that ends at its datetime, not the one that starts there.
   hourBefore?: true;
+  // How hovering writes the value, when the unit alone is not enough.
+  reading?: (value: number) => string;
 };
 
 // Top to bottom: the YAML night strip's nine, then the rest in the order
@@ -76,7 +78,13 @@ export const ROWS: readonly RowKind[] = [
   { key: "dew_point", label: "Dew point", unit: " °C", shade: temperatureShade },
   { key: "humidity", label: "Humidity", unit: "%", shade: percentShade },
   { key: "wind_speed", label: "Wind speed", unit: " km/h", shade: windShade },
-  { key: "wind_direction", label: "Wind direction", unit: "", arrow: windArrow },
+  {
+    key: "wind_direction",
+    label: "Wind direction",
+    unit: "°",
+    arrow: windArrow,
+    reading: (degrees) => `${degrees}° from ${compassPoint(degrees)}`,
+  },
   {
     key: "precipitation_probability",
     label: "Rain chance",
@@ -152,19 +160,22 @@ export function buildStrip(
   return {
     axis,
     labels: timeLabels(axis, time),
-    rows: ROWS.map(({ key, label, unit, hourBefore, ...mark }) => ({
-      key,
-      label,
-      cells: rowCells(
-        forecastOf(states[pierEntityId(pier, key)]),
-        axis,
-        (value) => (mark.arrow ? { arrow: mark.arrow(value) } : { shade: mark.shade(value) }),
-        hourBefore ? -HOUR : 0,
-      ).map((cell) => ({
-        ...cell,
-        text: `${label}, the hour from ${time(cell.hour)}: ${cell.value}${unit}`,
-      })),
-    })),
+    rows: ROWS.map(({ key, label, unit, hourBefore, reading, ...mark }) => {
+      const write = reading ?? ((value: number) => `${value}${unit}`);
+      return {
+        key,
+        label,
+        cells: rowCells(
+          forecastOf(states[pierEntityId(pier, key)]),
+          axis,
+          (value) => (mark.arrow ? { arrow: mark.arrow(value) } : { shade: mark.shade(value) }),
+          hourBefore ? -HOUR : 0,
+        ).map((cell) => ({
+          ...cell,
+          text: `${label}, the hour from ${time(cell.hour)}: ${write(cell.value)}`,
+        })),
+      };
+    }),
     moonUp: moonUpBars(forecastOf(states[pierEntityId(pier, "moon_altitude")]), axis, time),
     lines: [...(night === undefined ? [] : nightLines(night, time)), ...nowLine(now, axis, time)],
   };
@@ -315,6 +326,14 @@ function temperatureShade(celsius: number): string {
 // way it blows to, as on a weather map.
 function windArrow(degrees: number): number {
   return (((degrees + 180) % 360) + 360) % 360;
+}
+
+const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"] as const;
+
+// The nearest of eight points; halfway between two rounds to the next clockwise.
+function compassPoint(degrees: number): string {
+  const turned = ((degrees % 360) + 360) % 360;
+  return COMPASS[Math.round(turned / 45) % COMPASS.length] ?? COMPASS[0];
 }
 
 // One step per 7 km/h, so 42 km/h or more is the darkest, as in the YAML strip.

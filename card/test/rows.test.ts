@@ -315,6 +315,21 @@ describe("hovering over a cell shows its unit", () => {
   });
 });
 
+describe("hovering over a Wind direction cell names the compass point", () => {
+  it.each([
+    [225, "225° from SW"],
+    [22.5, "22.5° from NE"],
+    [350, "350° from N"],
+    [-22.5, "-22.5° from N"],
+    [400, "400° from NE"],
+  ])("reads %s as %s", async (degrees, reading) => {
+    const card = await mountCard({ [VERDICT]: NIGHT, [WIND_DIRECTION]: hourly([degrees]) });
+
+    const [cell] = cells(card, "wind_direction");
+    expect(cell?.title).toBe(`Wind direction, the hour from 21:00: ${reading}`);
+  });
+});
+
 describe("a null hour is blank", () => {
   it("draws no Seeing cell for a null value", async () => {
     const card = await mountCard({

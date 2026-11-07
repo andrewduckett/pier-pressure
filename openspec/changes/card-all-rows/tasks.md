@@ -10,7 +10,7 @@
 ## 2. Hover and size [depends-on: 1]
 
 - [x] 2.1 [easy] Hovering shows each row's unit: `Wind gust, the hour from 21:00: 12.5 km/h`, `Temperature, the hour from 21:00: 4.2 °C`, `Seeing, the hour from 21:00: 0.62`, and `Rain chance, the hour from 21:00: 40%` for a value at 22:00 (design DD1) (verify: mise exec -- npm --prefix card test -- rows) (✓ npm test -- rows passed)
-- [ ] 2.2 [easy] Hovering over a Wind direction cell names the compass point: 225 reads `225° from SW`, 22.5 reads `22.5° from NE`, and 350 reads `350° from N` (design DD2) (verify: mise exec -- npm --prefix card test -- rows)
+- [x] 2.2 [easy] Hovering over a Wind direction cell names the compass point: 225 reads `225° from SW`, 22.5 reads `22.5° from NE`, and 350 reads `350° from N` (design DD2) (verify: mise exec -- npm --prefix card test -- rows) (✓ npm test -- rows passed)
 - [ ] 2.3 [easy] `getCardSize()` returns 10 (design DD4) (verify: mise exec -- npm --prefix card test -- register)
 
 ## 3. Docs and the whole path [depends-on: 2]
@@ -27,3 +27,4 @@
 - 2026-11-07: in task 1.5, the Humidity and Rain chance shade tests passed on their first run, because task 1.1 gave those rows the cloud shade they keep. They stay as guards.
 - 2026-11-07: in task 1.6, the tests that a shaded cell has no arrow and a null Wind direction hour has no cell passed on their first run, since no arrow existed yet. They stay as guards.
 - 2026-11-07: in task 2.1, the Seeing and Transparency hover tests passed on their first run, because those rows have no unit from the start.
+- 2026-11-07: the row table's hover writer, design DD1's `value(v)`, is named `reading`, so it does not read as the cell's own `value`.
