@@ -1,5 +1,6 @@
 import { LitElement, css, html, nothing } from "lit";
 import { pierSlug, verdictEntityId } from "./entity";
+import { asRecord, stripAxis } from "./strip";
 
 declare const __CARD_VERSION__: string;
 
@@ -27,6 +28,7 @@ export interface HassEntity {
 
 export interface HomeAssistant {
   states: Record<string, HassEntity | undefined>;
+  config?: { time_zone?: string };
 }
 
 export interface CardConfig {
@@ -100,15 +102,21 @@ export class PierPressureCard extends LitElement {
           <span data-field="confidence-value">${shownNumber(confidence?.["value"])}</span>
         </dd>
       </dl>
+      ${this.renderStrip(entity)}
     </div>`;
+  }
+
+  private renderStrip(verdict: HassEntity) {
+    const axis = stripAxis(verdict.attributes["dark_window"], Date.now());
+    return html`<div
+      class="strip"
+      data-axis-start=${new Date(axis.start).toISOString()}
+      data-axis-end=${new Date(axis.end).toISOString()}
+    ></div>`;
   }
 }
 
 const DASH = "—";
-
-function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : undefined;
-}
 
 // A type check, not a truthiness check: a score or confidence of 0 is a value.
 function shownNumber(value: unknown): string {

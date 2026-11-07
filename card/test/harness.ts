@@ -9,12 +9,13 @@ export function verdictEntity(state: string, attributes: Record<string, unknown>
 export async function mountCard(
   states?: Record<string, HassEntity>,
   pier = "backyard",
+  timeZone = "UTC",
 ): Promise<PierPressureCard> {
   const card = document.createElement("pierpressure-card") as PierPressureCard;
   card.setConfig({ type: "custom:pierpressure-card", pier });
   document.body.append(card);
   if (states !== undefined) {
-    const hass: HomeAssistant = { states };
+    const hass: HomeAssistant = { states, config: { time_zone: timeZone } };
     card.hass = hass;
   }
   await card.updateComplete;
