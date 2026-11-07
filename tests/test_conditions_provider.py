@@ -1315,6 +1315,56 @@ def test_nws_issue_time_is_none_without_an_update_time() -> None:
     assert parse_nws(payload).issued_at is None
 
 
+def test_nws_rain_chance_is_held_on_the_hours_that_end_within_its_period() -> None:
+    forecast = parse_nws(_nws(probabilityOfPrecipitation=[("2026-09-08T18:00:00+00:00/PT6H", 40)]))
+    expected = {_at(8, 19) + timedelta(hours=n): 40.0 for n in range(6)}
+    assert {time: r.precipitation_probability for time, r in forecast.readings.items()} == expected
+    assert _at(8, 18) not in forecast.readings
+
+
+def test_nws_rain_chance_moves_and_sky_cover_does_not() -> None:
+    forecast = parse_nws(
+        _nws(
+            skyCover=[("2026-09-08T21:00:00+00:00/PT1H", 45)],
+            probabilityOfPrecipitation=[("2026-09-08T21:00:00+00:00/PT1H", 20)],
+        )
+    )
+    assert forecast.readings[_hour(21)].cloud_cover == 45.0
+    assert forecast.readings[_hour(21)].precipitation_probability is None
+    assert forecast.readings[_hour(22)].precipitation_probability == 20.0
+    assert forecast.readings[_hour(22)].cloud_cover is None
+
+
+def test_nws_rain_chance_hour_at_the_horizon_is_cut() -> None:
+    forecast = parse_nws(
+        _nws(
+            temperature=[("2026-09-08T18:00:00+00:00/PT1H", 12.0)],
+            probabilityOfPrecipitation=[("2026-09-11T16:00:00+00:00/PT2H", 30)],
+        )
+    )
+    assert forecast.readings[_at(11, 17)].precipitation_probability == 30.0
+    assert _at(11, 18) not in forecast.readings
+
+
+def test_nws_rain_chance_in_the_recorded_gridpoint_starts_an_hour_after_its_period() -> None:
+    payload = _load("nws_gridpoints.json")
+    properties = payload["properties"]
+
+    def first_start(name: str) -> datetime:
+        start = properties[name]["values"][0]["validTime"].split("/")[0]
+        return datetime.fromisoformat(start).astimezone(UTC)
+
+    def first_hour(field: str) -> datetime:
+        return min(
+            t for t, r in parse_nws(payload).readings.items() if getattr(r, field) is not None
+        )
+
+    assert first_hour("precipitation_probability") == first_start(
+        "probabilityOfPrecipitation"
+    ) + timedelta(hours=1)
+    assert first_hour("cloud_cover") == first_start("skyCover")
+
+
 _MILWAUKEE = PierConfig(id="milwaukee", latitude=43.0389, longitude=-87.9065, elevation_m=180.0)
 _LUDINGTON = PierConfig(id="ludington", latitude=43.9553, longitude=-86.4526, elevation_m=180.0)
 

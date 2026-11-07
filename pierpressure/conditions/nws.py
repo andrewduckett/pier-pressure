@@ -4,6 +4,9 @@ NWS publishes its raw gridpoint forecast as variable-length periods, each an ISO
 8601 start and duration such as ``2026-11-03T18:00:00+00:00/PT3H``. This module
 **holds each value across every clock hour its period covers, here in the
 provider layer**, so the core only ever sees the hourly grid (design DD2).
+Rain chance is the exception: its value at an hour is the chance for the hour
+that ends there, so it is held one hour later, on the hours that end within its
+period (#201).
 Parsing is separated from fetching so it can be tested against a recorded
 fixture with no network.
 """
@@ -60,6 +63,7 @@ variable absent rather than converted (design DD4)."""
 
 # The same reach as 7Timer!, so listing NWS never lengthens the timeline (D2).
 _HORIZON = timedelta(hours=72)
+_AN_HOUR = timedelta(hours=1)
 
 # NWS emits durations in days, hours and minutes only, so this is all the
 # ISO 8601 a period needs. The standard library has no duration parser.
@@ -111,7 +115,9 @@ def parse_nws(payload: dict[str, Any]) -> SourceForecast:
     horizon = min(start for _, start, _, _ in periods) + _HORIZON
     columns: dict[datetime, dict[Variable, float | None]] = defaultdict(dict)
     for variable, start, duration, value in periods:
-        for hour in _hours(start, duration):
+        # Rain chance at an hour is for the hour ending there (D1).
+        shift = _AN_HOUR if variable == "precipitation_probability" else timedelta(0)
+        for hour in (covered + shift for covered in _hours(start, duration)):
             if hour < horizon:
                 columns[hour][variable] = None if value is None else float(value)
     return SourceForecast(

@@ -258,3 +258,30 @@ def test_page_tables_the_cloud_range_keys_in_the_timeline(page_text: str) -> Non
 def test_page_counts_the_sensors_per_pier(page_text: str) -> None:
     section = " ".join(_section(page_text, "## Keep the forecast out of the recorder").split())
     assert "its own seventeen sensors" in section
+
+
+# --------------------------------------------------------------------------- #
+# nws-rain-chance-hour 1.6: the variable table assumes no provider
+# --------------------------------------------------------------------------- #
+
+
+def _key_table_rows(page_text: str) -> list[str]:
+    section = _section(page_text, "## What the timeline is")
+    return [line for line in section.splitlines() if line.startswith("| `")]
+
+
+def test_page_key_table_names_no_source_provider(page_text: str) -> None:
+    for row in _key_table_rows(page_text):
+        for provider in ("Open-Meteo", "7Timer!", "NWS"):
+            assert f"from {provider}" not in row
+
+
+def test_page_says_each_value_comes_from_the_first_listed_provider(page_text: str) -> None:
+    section = " ".join(_section(page_text, "## What the timeline is").split())
+    assert "the first provider in the pier's `providers` list that gives it" in section
+
+
+def test_page_rain_chance_row_gives_each_sources_threshold(page_text: str) -> None:
+    [row] = [r for r in _key_table_rows(page_text) if "`precipitation_probability`" in r]
+    assert "more than 0.1 mm" in row and "Open-Meteo" in row
+    assert "at least 0.01 in" in row and "NWS" in row
