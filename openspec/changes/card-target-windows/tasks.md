@@ -8,7 +8,7 @@
 
 ## 2. The lines and the size [depends-on: 1]
 
-- [ ] 2.1 [easy] With three target lanes, the strip's `grid-template-rows` is `repeat(21, auto)` and the lines' overlay has `grid-row: 2 / 21`, so dusk, dawn and now reach the bottom of the lane labelled `Target 3`; with none the numbers stay 18 and `2 / 18` (design DD3) (verify: mise exec -- npm --prefix card test -- targets strip)
+- [x] 2.1 [easy] With three target lanes, the strip's `grid-template-rows` is `repeat(21, auto)` and the lines' overlay has `grid-row: 2 / 21`, so dusk, dawn and now reach the bottom of the lane labelled `Target 3`; with none the numbers stay 18 and `2 / 18` (design DD3) (verify: mise exec -- npm --prefix card test -- targets strip) (✓ npm test -- targets strip passed)
 - [ ] 2.2 [easy] `getCardSize()` returns 10 with no target lane, 12 with four and 14 with ten, and 10 before `setConfig`, before `hass`, and while the Verdict sensor is missing or unavailable (design DD4) (verify: mise exec -- npm --prefix card test -- targets register)
 
 ## 3. Docs and the whole path [depends-on: 2]

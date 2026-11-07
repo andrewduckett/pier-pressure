@@ -241,10 +241,11 @@ const DASH = "—";
 
 function renderStrip(hass: HomeAssistant, pier: string) {
   const strip = buildStrip(hass.states, pier, Date.now(), hass.config?.time_zone);
-  // Grid row 1 holds the line labels, then come the rows, the Moon up lane and
-  // the time labels. The lines' overlay spans from the first row to the lane.
-  const gridRows = strip.rows.length + 3;
-  const laneEnd = strip.rows.length + 3;
+  // Grid row 1 holds the line labels, then come the rows, the Moon up lane, the
+  // target lanes and the time labels. The lines' overlay spans from the first
+  // row to the last lane.
+  const gridRows = strip.rows.length + strip.targets.length + 3;
+  const laneEnd = strip.rows.length + strip.targets.length + 3;
   return html`<div
     class="strip"
     style=${`grid-template-rows: repeat(${gridRows}, auto)`}

@@ -310,3 +310,32 @@ describe("hovering over a target bar", () => {
     expect(hover(card)[0]).toBe("Orion Nebula");
   });
 });
+
+describe("the strip with target lanes", () => {
+  async function threeTargets(): Promise<PierPressureCard> {
+    return mountCard({
+      [VERDICT]: NIGHT,
+      [target(1)]: targetEntity("Andromeda Galaxy", EVENING),
+      [target(2)]: targetEntity("Orion Nebula", MORNING),
+      [target(3)]: targetEntity("Pleiades", EVENING),
+    });
+  }
+
+  it("gives each lane its own grid row", async () => {
+    const card = await threeTargets();
+
+    expect(card.shadowRoot?.querySelector(".strip")?.getAttribute("style")).toContain(
+      "grid-template-rows: repeat(21, auto)",
+    );
+  });
+
+  // Rows 2 to 16 hold the fifteen rows, 17 the Moon up lane and 18 to 20 the
+  // three target lanes, so the lines run from grid line 2 to line 21.
+  it("runs the lines down to the bottom of the last lane", async () => {
+    const card = await threeTargets();
+
+    expect(card.shadowRoot?.querySelector(".strip .lines")?.getAttribute("style")).toContain(
+      "grid-row: 2 / 21",
+    );
+  });
+});
