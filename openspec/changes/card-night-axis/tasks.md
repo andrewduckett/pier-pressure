@@ -14,7 +14,7 @@
 - [x] 3.1 [medium] When the axis comes from `dark_window`, dashed `#898781` lines with `data-line="dusk"` and `data-line="dawn"` sit at its start and end inside `.lines`, the strip's last child, whose style has its grid placement from the Sun altitude row to the Moon up lane, `inset: 0` and `z-index: 1`; labels `dusk` and `dawn` carry `data-mark` above the top row; hovering shows `Dusk, 20:30` and `Dawn, 03:25`; the fallback axis has neither line (design DD4, DD5, DD8) (verify: mise exec -- npm --prefix card test -- strip) (✓ npm test -- strip passed)
 - [x] 3.2 [medium] A solid red `#e66767` line with `data-line="now"` and label `now` sits at the browser's time while it is on the axis, with `Now, 22:00` on hover, and is missing when the time is before the axis start (design DD5) (verify: mise exec -- npm --prefix card test -- strip) (✓ npm test -- strip passed)
 - [x] 3.3 [medium] With `Date`, `setInterval` and `clearInterval` faked, the now line moves from 22:00 to 22:01 after 60 seconds with no new `hass`, and removing the card leaves `vi.getTimerCount()` at 0 (design DD7) (verify: mise exec -- npm --prefix card test -- strip) (✓ npm test -- strip passed)
-- [ ] 3.4 [easy] `getCardSize()` returns 6 (design DD9) (verify: mise exec -- npm --prefix card test -- register)
+- [x] 3.4 [easy] `getCardSize()` returns 6 (design DD9) (verify: mise exec -- npm --prefix card test -- register) (✓ npm test -- register passed)
 
 ## 4. Docs and the whole path [depends-on: 3]
 
