@@ -66,8 +66,8 @@ export const ROWS: readonly RowKind[] = [
   { key: "cloud_mid", label: "Cloud mid", unit: "%", shade: percentShade },
   { key: "cloud_high", label: "Cloud high", unit: "%", shade: percentShade },
   { key: "wind_gust", label: "Wind gust", unit: "", shade: windShade },
-  { key: "seeing", label: "Seeing", unit: "", shade: percentShade },
-  { key: "transparency", label: "Transparency", unit: "", shade: percentShade },
+  { key: "seeing", label: "Seeing", unit: "", shade: qualityShade },
+  { key: "transparency", label: "Transparency", unit: "", shade: qualityShade },
   { key: "temperature", label: "Temperature", unit: "", shade: percentShade },
   { key: "dew_point", label: "Dew point", unit: "", shade: percentShade },
   { key: "humidity", label: "Humidity", unit: "", shade: percentShade },
@@ -291,6 +291,11 @@ function sunShade(degrees: number): string {
 // The YAML strip's moon band: lightest while the moon is down, then one step per 6°.
 function moonShade(degrees: number): string {
   return blue(degrees <= 0 ? 0 : 1 + Math.floor(degrees / 6));
+}
+
+// A quality from 0 to 1, where 1 is best, so darker is worse, as in the YAML strip.
+function qualityShade(quality: number): string {
+  return blue(Math.round((1 - quality) * 7));
 }
 
 // One step per 7 km/h, so 42 km/h or more is the darkest, as in the YAML strip.

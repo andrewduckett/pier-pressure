@@ -6,6 +6,7 @@ import {
   PRECIPITATION_PROBABILITY,
   SEEING,
   TEMPERATURE,
+  TRANSPARENCY,
   VERDICT,
   WIND_GUST,
   WIND_SPEED,
@@ -192,6 +193,21 @@ describe("more wind is darker", () => {
 
   it("shades Wind speed on the same scale", async () => {
     expect(await shades(WIND_SPEED, "wind_speed", [21])).toEqual(["#3987e5"]);
+  });
+});
+
+describe("worse seeing and transparency are darker", () => {
+  it("steps Seeing from excellent to poor", async () => {
+    expect(await shades(SEEING, "seeing", [1, 0.8, 0.5, 0])).toEqual([
+      "#cde2fb",
+      "#9ec5f4",
+      "#256abf",
+      "#0d366b",
+    ]);
+  });
+
+  it("keeps a Transparency above 1 at the lightest", async () => {
+    expect(await shades(TRANSPARENCY, "transparency", [1.2])).toEqual(["#cde2fb"]);
   });
 });
 
