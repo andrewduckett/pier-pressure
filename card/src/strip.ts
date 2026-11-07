@@ -108,10 +108,17 @@ export interface Cell {
   text: string;
 }
 
+// Why a row has no cell to draw, in the words the row shows.
+export interface Missing {
+  message: "Not found" | "Unavailable" | "No forecast";
+}
+
 export interface Row {
   key: string;
   label: string;
   cells: Cell[];
+  // Only on a row with no cell.
+  missing?: Missing;
 }
 
 export interface Bar {
@@ -174,19 +181,18 @@ export function buildStrip(
     labels: timeLabels(axis, time),
     rows: ROWS.map(({ key, label, unit, hourBefore, reading, ...mark }) => {
       const write = reading ?? ((value: number) => `${value}${unit}`);
-      return {
-        key,
-        label,
-        cells: rowCells(
-          forecastOf(states[pierEntityId(pier, key)]),
-          axis,
-          (value) => (mark.arrow ? { arrow: mark.arrow(value) } : { shade: mark.shade(value) }),
-          hourBefore ? -HOUR : 0,
-        ).map((cell) => ({
-          ...cell,
-          text: `${label}, the hour from ${time(cell.hour)}: ${write(cell.value)}`,
-        })),
-      };
+      const entity = states[pierEntityId(pier, key)];
+      const cells = rowCells(
+        forecastOf(entity),
+        axis,
+        (value) => (mark.arrow ? { arrow: mark.arrow(value) } : { shade: mark.shade(value) }),
+        hourBefore ? -HOUR : 0,
+      ).map((cell) => ({
+        ...cell,
+        text: `${label}, the hour from ${time(cell.hour)}: ${write(cell.value)}`,
+      }));
+      if (cells.length > 0) return { key, label, cells };
+      return { key, label, cells, missing: missing(entity) };
     }),
     moonUp: moonUpBars(forecastOf(states[pierEntityId(pier, "moon_altitude")]), axis, time),
     targets: targetLanes(states, pier, axis, time),
@@ -204,6 +210,14 @@ function nightLines(night: Night, time: (at: number) => string): Line[] {
 function nowLine(now: number, axis: Axis, time: (at: number) => string): Line[] {
   if (now < axis.start || now > axis.end) return [];
   return [{ kind: "now", at: now, text: `Now, ${time(now)}` }];
+}
+
+// Decided after the cells, so every way a row can end up empty, from no list to
+// every point off the axis, gives a message.
+function missing(entity: States[string]): Missing {
+  if (entity === undefined) return { message: "Not found" };
+  if (entity.state === "unavailable") return { message: "Unavailable" };
+  return { message: "No forecast" };
 }
 
 // Home Assistant normally drops an unavailable entity's attributes; when it has

@@ -6,6 +6,7 @@ import {
   type Cell,
   HOUR,
   type Line,
+  type Missing,
   type Strip,
   type TimeLabel,
   asRecord,
@@ -268,7 +269,10 @@ function renderStrip(strip: Strip | undefined) {
       (row) =>
         html`<div class="row" data-row=${row.key}>
           <span class="label">${row.label}</span>
-          <div class="track">${row.cells.map((cell) => renderCell(cell, strip.axis))}</div>
+          <div class="track">
+            ${row.cells.map((cell) => renderCell(cell, strip.axis))}
+            ${row.missing === undefined ? nothing : renderMissing(row.missing)}
+          </div>
         </div>`,
     )}
     <div class="row" data-lane="moon_up">
@@ -292,6 +296,11 @@ function renderStrip(strip: Strip | undefined) {
       ${strip.lines.map((line) => renderLine(line, strip.axis))}
     </div>
   </div>`;
+}
+
+function renderMissing(missing: Missing) {
+  const kind = missing.message.toLowerCase().replace(/ /g, "-");
+  return html`<span class="missing" data-missing=${kind}>${missing.message}</span>`;
 }
 
 function renderMark(line: Line, axis: Axis) {
