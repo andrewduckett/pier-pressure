@@ -6,7 +6,7 @@
 
 ## 2. The Moon up lane [depends-on: 1]
 
-- [ ] 2.1 [medium] Under Cloud high, a lane labelled Moon up, with `data-lane="moon_up"`, draws one grey `#898781` bar per run of consecutive hours above 0° from `sensor.pierpressure_<slug>_moon_altitude`, cut off at the axis ends, with `data-start`, `data-end`, `data-from` and `data-to`: the "Three runs" and "A missing hour" scenarios; the lane keeps its label with no bars when the moon stays down, or when the sensor is missing, `unavailable` or has no forecast list (design DD3, DD6) (verify: mise exec -- npm --prefix card test -- strip)
+- [x] 2.1 [medium] Under Cloud high, a lane labelled Moon up, with `data-lane="moon_up"`, draws one grey `#898781` bar per run of consecutive hours above 0° from `sensor.pierpressure_<slug>_moon_altitude`, cut off at the axis ends, with `data-start`, `data-end`, `data-from` and `data-to`: the "Three runs" and "A missing hour" scenarios; the lane keeps its label with no bars when the moon stays down, or when the sensor is missing, `unavailable` or has no forecast list (design DD3, DD6) (verify: mise exec -- npm --prefix card test -- strip) (✓ npm test -- strip passed)
 - [ ] 2.2 [medium] A Moon up bar's `title` and `aria-label` read `Moon up from 16:00 to 18:00` when the forecast shows both rise and set, `Moon up until 02:00` or `Moon up from 07:00` when it shows only one, and `Moon up` when it shows neither or the run lasts 24 hours or more (design DD3) (verify: mise exec -- npm --prefix card test -- strip)
 
 ## 3. The lines [depends-on: 2]

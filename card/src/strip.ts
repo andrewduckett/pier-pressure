@@ -33,7 +33,9 @@ function readTime(value: unknown): number | undefined {
 }
 
 export function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : undefined;
+  return typeof value === "object" && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined;
 }
 
 interface RowKind {
@@ -69,6 +71,15 @@ export interface Row {
   cells: Cell[];
 }
 
+export interface Bar {
+  // The run's own hours, from the start of its first to the end of its last.
+  start: number;
+  end: number;
+  // The part of the run on the axis.
+  from: number;
+  to: number;
+}
+
 export interface TimeLabel {
   at: number;
   text: string;
@@ -77,6 +88,7 @@ export interface TimeLabel {
 export interface Strip {
   axis: Axis;
   rows: Row[];
+  moonUp: Bar[];
   labels: TimeLabel[];
 }
 
@@ -102,6 +114,7 @@ export function buildStrip(
         text: `${label}, the hour from ${time(cell.hour)}: ${cell.value}${unit}`,
       })),
     })),
+    moonUp: moonUpBars(forecastOf(states[pierEntityId(pier, "moon_altitude")]), axis),
   };
 }
 
@@ -137,8 +150,46 @@ function rowCells(
   });
 }
 
+function moonUpBars(forecast: unknown, axis: Axis): Bar[] {
+  const altitudes = hourlyValues(forecast);
+  const runs: Array<{ start: number; end: number }> = [];
+  for (const [hour, value] of altitudes) {
+    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) continue;
+    const last = runs.at(-1);
+    if (last?.end === hour) last.end = hour + HOUR;
+    else runs.push({ start: hour, end: hour + HOUR });
+  }
+  return runs
+    .filter((run) => run.end > axis.start && run.start < axis.end)
+    .map((run) => ({
+      ...run,
+      from: Math.max(run.start, axis.start),
+      to: Math.min(run.end, axis.end),
+    }));
+}
+
+// Hour by hour in time order, so a run never depends on the forecast's order.
+function hourlyValues(forecast: unknown): Map<number, unknown> {
+  if (!Array.isArray(forecast)) return new Map();
+  const values = new Map<number, unknown>();
+  for (const point of forecast) {
+    const record = asRecord(point);
+    const hour = readTime(record?.["datetime"]);
+    if (hour !== undefined) values.set(hour, record?.["value"]);
+  }
+  return new Map([...values].sort(([a], [b]) => a - b));
+}
+
 // The YAML strip's seven blues, lightest to darkest, one step per 15% of cloud.
-const BLUES = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"] as const;
+const BLUES = [
+  "#cde2fb",
+  "#9ec5f4",
+  "#6da7ec",
+  "#3987e5",
+  "#256abf",
+  "#184f95",
+  "#0d366b",
+] as const;
 
 function cloudShade(percent: number): string {
   const step = Math.min(BLUES.length - 1, Math.max(0, Math.floor(percent / 15)));

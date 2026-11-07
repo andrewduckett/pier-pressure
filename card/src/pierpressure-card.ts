@@ -1,6 +1,14 @@
 import { LitElement, css, html, nothing } from "lit";
 import { pierSlug, verdictEntityId } from "./entity";
-import { type Axis, type Cell, HOUR, type TimeLabel, asRecord, buildStrip } from "./strip";
+import {
+  type Axis,
+  type Bar,
+  type Cell,
+  HOUR,
+  type TimeLabel,
+  asRecord,
+  buildStrip,
+} from "./strip";
 
 declare const __CARD_VERSION__: string;
 
@@ -87,6 +95,13 @@ export class PierPressureCard extends LitElement {
       bottom: 0;
       border-radius: 2px;
     }
+    .bar {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      border-radius: 4px;
+      background-color: #898781;
+    }
   `;
 
   // Home Assistant sets hass after setConfig and after the card is attached.
@@ -114,7 +129,9 @@ export class PierPressureCard extends LitElement {
 
   override render() {
     if (this.config === undefined) return nothing;
-    return html`<ha-card header=${`PierPressure ${this.config.pier}`}>${this.renderBody()}</ha-card>`;
+    return html`<ha-card header=${`PierPressure ${this.config.pier}`}
+      >${this.renderBody()}</ha-card
+    >`;
   }
 
   private renderBody() {
@@ -122,7 +139,9 @@ export class PierPressureCard extends LitElement {
     const entityId = verdictEntityId(this.config.pier);
     const entity = this.hass.states[entityId];
     if (entity === undefined) {
-      return html`<div class="card-content message">No PierPressure verdict found: ${entityId}</div>`;
+      return html`<div class="card-content message">
+        No PierPressure verdict found: ${entityId}
+      </div>`;
     }
     if (entity.state === "unavailable") {
       return html`<div class="card-content message">PierPressure is offline</div>`;
@@ -155,11 +174,16 @@ function renderStrip(hass: HomeAssistant, pier: string) {
     data-axis-end=${iso(strip.axis.end)}
   >
     ${strip.rows.map(
-      (row) => html`<div class="row" data-row=${row.key}>
-        <span class="label">${row.label}</span>
-        <div class="track">${row.cells.map((cell) => renderCell(cell, strip.axis))}</div>
-      </div>`,
+      (row) =>
+        html`<div class="row" data-row=${row.key}>
+          <span class="label">${row.label}</span>
+          <div class="track">${row.cells.map((cell) => renderCell(cell, strip.axis))}</div>
+        </div>`,
     )}
+    <div class="row" data-lane="moon_up">
+      <span class="label">Moon up</span>
+      <div class="track">${strip.moonUp.map((bar) => renderBar(bar, strip.axis))}</div>
+    </div>
     <span></span>
     <div class="track times">
       ${strip.labels.map((label) => renderTimeLabel(label, strip.axis))}
@@ -191,6 +215,18 @@ function renderCell(cell: Cell, axis: Axis) {
     data-shade=${cell.shade}
     title=${cell.text}
     aria-label=${cell.text}
+  ></div>`;
+}
+
+function renderBar(bar: Bar, axis: Axis) {
+  const style = `left: ${offset(bar.from, axis)}%; width: ${share(bar.to - bar.from, axis)}%`;
+  return html`<div
+    class="bar"
+    style=${style}
+    data-start=${iso(bar.start)}
+    data-end=${iso(bar.end)}
+    data-from=${iso(bar.from)}
+    data-to=${iso(bar.to)}
   ></div>`;
 }
 

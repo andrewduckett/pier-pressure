@@ -35,6 +35,7 @@ export const CLOUD_LOW = "sensor.pierpressure_backyard_cloud_low";
 export const CLOUD_MID = "sensor.pierpressure_backyard_cloud_mid";
 export const CLOUD_HIGH = "sensor.pierpressure_backyard_cloud_high";
 export const SUN_ALTITUDE = "sensor.pierpressure_backyard_sun_altitude";
+export const MOON_ALTITUDE = "sensor.pierpressure_backyard_moon_altitude";
 
 // Any timeline sensor as PierPressure publishes it: the current hour's value as its
 // state, and every hour in `forecast`.
@@ -49,4 +50,12 @@ export function cells(card: PierPressureCard, row: string): HTMLElement[] {
   return [
     ...(card.shadowRoot?.querySelectorAll<HTMLElement>(`.strip [data-row="${row}"] .cell`) ?? []),
   ];
+}
+
+export function moonLane(card: PierPressureCard): HTMLElement | null {
+  return card.shadowRoot?.querySelector<HTMLElement>('.strip [data-lane="moon_up"]') ?? null;
+}
+
+export function bars(card: PierPressureCard): HTMLElement[] {
+  return [...(moonLane(card)?.querySelectorAll<HTMLElement>(".bar") ?? [])];
 }

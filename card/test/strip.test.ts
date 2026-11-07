@@ -4,10 +4,13 @@ import {
   CLOUD_HIGH,
   CLOUD_LOW,
   CLOUD_MID,
+  MOON_ALTITUDE,
   SUN_ALTITUDE,
   VERDICT,
+  bars,
   cells,
   forecastEntity,
+  moonLane,
   mountCard,
   verdictEntity,
 } from "./harness";
@@ -491,6 +494,149 @@ describe("hovering over a Sun altitude cell", () => {
       "Sun altitude, the hour from 21:00: -14.235°",
       "Sun altitude, the hour from 21:00: -14.235°",
     ]);
+  });
+});
+
+describe("the Moon up lane", () => {
+  function spans(card: PierPressureCard, start: string, end: string): Array<[string?, string?]> {
+    return bars(card).map((bar) => [bar.dataset[start], bar.dataset[end]]);
+  }
+
+  it("is labelled Moon up, under Cloud high", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    const lane = moonLane(card);
+    expect([
+      lane?.querySelector(".label")?.textContent?.trim(),
+      (lane?.previousElementSibling as HTMLElement | null)?.dataset["row"],
+    ]).toEqual(["Moon up", "cloud_high"]);
+  });
+
+  it("reads the moon altitude sensor named from the pier", async () => {
+    const card = await mountCard(
+      {
+        "sensor.pierpressure_back_yard_verdict": NIGHT,
+        "sensor.pierpressure_back_yard_moon_altitude": forecastEntity([
+          ["2026-10-31T21:00:00Z", 12],
+        ]),
+      },
+      "Back-Yard",
+    );
+
+    expect(bars(card)).toHaveLength(1);
+  });
+
+  it("draws one bar for each run of hours the moon is up", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [MOON_ALTITUDE]: forecastEntity([
+        ["2026-10-31T16:00:00Z", 4],
+        ["2026-10-31T17:00:00Z", 6],
+        ["2026-10-31T18:00:00Z", -1],
+        ["2026-10-31T19:00:00Z", 2],
+        ["2026-10-31T20:00:00Z", 8],
+        ["2026-10-31T21:00:00Z", null],
+        ["2026-10-31T22:00:00Z", 12],
+        ["2026-10-31T23:00:00Z", 0],
+      ]),
+    });
+
+    expect(spans(card, "from", "to")).toEqual([
+      ["2026-10-31T16:30:00.000Z", "2026-10-31T18:00:00.000Z"],
+      ["2026-10-31T19:00:00.000Z", "2026-10-31T21:00:00.000Z"],
+      ["2026-10-31T22:00:00.000Z", "2026-10-31T23:00:00.000Z"],
+    ]);
+  });
+
+  it("ends a run at an hour the forecast has no point for", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [MOON_ALTITUDE]: forecastEntity([
+        ["2026-11-01T01:00:00Z", 5],
+        ["2026-11-01T03:00:00Z", 5],
+      ]),
+    });
+
+    expect(spans(card, "start", "end")).toEqual([
+      ["2026-11-01T01:00:00.000Z", "2026-11-01T02:00:00.000Z"],
+      ["2026-11-01T03:00:00.000Z", "2026-11-01T04:00:00.000Z"],
+    ]);
+  });
+
+  it("keeps a bar's own hours where the axis cuts it off", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [MOON_ALTITUDE]: forecastEntity([
+        ["2026-11-01T07:00:00Z", 5],
+        ["2026-11-01T08:00:00Z", 5],
+        ["2026-11-01T09:00:00Z", 5],
+      ]),
+    });
+
+    expect([spans(card, "start", "end"), spans(card, "from", "to")]).toEqual([
+      [["2026-11-01T07:00:00.000Z", "2026-11-01T10:00:00.000Z"]],
+      [["2026-11-01T07:00:00.000Z", "2026-11-01T08:25:00.000Z"]],
+    ]);
+  });
+
+  it("draws no bar for a run wholly outside the axis", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [MOON_ALTITUDE]: forecastEntity([
+        ["2026-10-31T12:00:00Z", 5],
+        ["2026-10-31T13:00:00Z", 5],
+      ]),
+    });
+
+    expect(bars(card)).toEqual([]);
+  });
+
+  it("follows the hours in time order, whatever order the forecast holds them in", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [MOON_ALTITUDE]: forecastEntity([
+        ["2026-10-31T22:00:00Z", 5],
+        ["2026-10-31T21:00:00Z", 5],
+      ]),
+    });
+
+    expect(spans(card, "start", "end")).toEqual([
+      ["2026-10-31T21:00:00.000Z", "2026-10-31T23:00:00.000Z"],
+    ]);
+  });
+
+  it("draws its bars in grey", () => {
+    const element = customElements.get("pierpressure-card") as typeof PierPressureCard;
+    const styles = [element.styles]
+      .flat()
+      .map((style) => String(style))
+      .join("");
+
+    expect(styles).toMatch(/\.bar\s*\{[^}]*background-color:\s*#898781/);
+  });
+
+  it.each([
+    [
+      "the moon stays down",
+      forecastEntity([
+        ["2026-10-31T21:00:00Z", -5],
+        ["2026-10-31T22:00:00Z", 0],
+      ]),
+    ],
+    ["its sensor is missing", undefined],
+    [
+      "its sensor is unavailable but kept its forecast",
+      { ...forecastEntity([["2026-10-31T21:00:00Z", 12]]), state: "unavailable" },
+    ],
+    ["its sensor has no forecast", { state: "12", attributes: {} }],
+    ["its forecast is not a list", { state: "12", attributes: { forecast: "soon" } }],
+  ])("stays labelled with no bars when %s", async (_, moon) => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      ...(moon && { [MOON_ALTITUDE]: moon }),
+    });
+
+    expect([moonLane(card)?.textContent?.trim(), bars(card)]).toEqual(["Moon up", []]);
   });
 });
 
