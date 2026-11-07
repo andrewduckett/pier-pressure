@@ -223,8 +223,8 @@ describe("a night with no astronomical darkness", () => {
     const card = await mountCard({ [VERDICT]: SUMMER });
 
     const note = darknessNote(card);
-    expect([note?.previousElementSibling?.tagName, note?.nextElementSibling?.className]).toEqual([
-      "DL",
+    expect([note?.previousElementSibling?.className, note?.nextElementSibling?.className]).toEqual([
+      "summary",
       "strip",
     ]);
   });

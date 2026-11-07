@@ -1,5 +1,6 @@
 import { LitElement, css, html, nothing } from "lit";
 import { pierSlug, verdictEntityId } from "./entity";
+import { type MoonView, readMoon } from "./moon";
 import {
   type Axis,
   type Band,
@@ -12,6 +13,7 @@ import {
   type TimeLabel,
   asRecord,
   buildStrip,
+  clock,
 } from "./strip";
 
 declare const __CARD_VERSION__: string;
@@ -57,6 +59,16 @@ export class PierPressureCard extends LitElement {
   };
 
   static override styles = css`
+    .summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .moon {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
     dl {
       display: grid;
       grid-template-columns: max-content 1fr;
@@ -265,18 +277,22 @@ export class PierPressureCard extends LitElement {
     }
     const confidence = asRecord(entity.attributes["confidence"]);
     const strip = this.shownStrip();
+    const moon = readMoon(entity.attributes["moon"], clock(this.hass.config?.time_zone));
     return html`<div class="card-content">
-      <dl>
-        <dt>Verdict</dt>
-        <dd data-field="verdict">${entity.state === "unknown" ? DASH : entity.state}</dd>
-        <dt>Score</dt>
-        <dd data-field="score">${shownNumber(entity.attributes["score"])}</dd>
-        <dt>Confidence</dt>
-        <dd>
-          <span data-field="confidence-band">${shownText(confidence?.["band"])}</span> ·
-          <span data-field="confidence-value">${shownNumber(confidence?.["value"])}</span>
-        </dd>
-      </dl>
+      <div class="summary">
+        <dl>
+          <dt>Verdict</dt>
+          <dd data-field="verdict">${entity.state === "unknown" ? DASH : entity.state}</dd>
+          <dt>Score</dt>
+          <dd data-field="score">${shownNumber(entity.attributes["score"])}</dd>
+          <dt>Confidence</dt>
+          <dd>
+            <span data-field="confidence-band">${shownText(confidence?.["band"])}</span> ·
+            <span data-field="confidence-value">${shownNumber(confidence?.["value"])}</span>
+          </dd>
+        </dl>
+        ${renderMoon(moon)}
+      </div>
       ${renderNote(strip)} ${renderStrip(strip)}
     </div>`;
   }
@@ -291,6 +307,21 @@ export class PierPressureCard extends LitElement {
 }
 
 const DASH = "—";
+
+function renderMoon(moon: MoonView) {
+  return html`<section class="moon" aria-label="Moon">
+    <dl>
+      <dt>Phase</dt>
+      <dd data-field="moon-phase">${moon.phase}</dd>
+      <dt>Illumination</dt>
+      <dd data-field="moon-illumination">${moon.illumination}</dd>
+      <dt>Moonrise</dt>
+      <dd data-field="moon-rise">${moon.rise}</dd>
+      <dt>Moonset</dt>
+      <dd data-field="moon-set">${moon.set}</dd>
+    </dl>
+  </section>`;
+}
 
 function renderNote(strip: Strip | undefined) {
   if (strip?.noDarkness !== true) return nothing;
