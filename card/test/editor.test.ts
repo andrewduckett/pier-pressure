@@ -168,3 +168,21 @@ describe("a change in the editor", () => {
     expect(events).toHaveLength(1);
   });
 });
+
+describe("an editor with no pier to list", () => {
+  function note(editor: PierPressureCardEditor): string | undefined {
+    return editor.shadowRoot?.querySelector("[data-note]")?.textContent?.trim();
+  }
+
+  it("says no PierPressure pier was found", async () => {
+    expect(note(await mountEditor({}, {}))).toBe("No PierPressure piers found");
+  });
+
+  it("still takes a typed pier", async () => {
+    expect(form(await mountEditor({}, {})).schema[0]?.selector.select.custom_value).toBe(true);
+  });
+
+  it("says nothing when a pier is listed", async () => {
+    expect(note(await mountEditor({ pier: "backyard" }))).toBeUndefined();
+  });
+});
