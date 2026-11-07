@@ -18,7 +18,7 @@
 
 ## 4. Docs and the whole path [depends-on: 3]
 
-- [ ] 4.1 [easy] `docs/night-card.md` describes the cloud rows and `sensor.pierpressure_<pier>_cloud_cover`, the axis span and its fallback, clear to overcast shades, blank hours, what hovering shows, and Home Assistant's time zone (test: `tests/test_night_card_doc.py`) (verify: uv run pytest tests/test_night_card_doc.py -k strip)
+- [x] 4.1 [easy] `docs/night-card.md` describes the cloud rows and `sensor.pierpressure_<pier>_cloud_cover`, the axis span and its fallback, clear to overcast shades, blank hours, what hovering shows, and Home Assistant's time zone (test: `tests/test_night_card_doc.py`) (verify: uv run pytest tests/test_night_card_doc.py -k strip) (✓ pytest tests/test_night_card_doc.py -k strip passed)
 - [ ] 4.2 [complex] The whole path works: `mise run check` is green, and `mise run dashboard-check` shows the card's four cloud rows beside the YAML strip in a real Home Assistant, checked by eye (verify: mise run check)
 
 ## Deviations Ledger
