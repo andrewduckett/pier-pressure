@@ -238,3 +238,37 @@ def test_docs_rows_explain_what_they_show(term: str) -> None:
 
 def test_docs_rows_no_longer_promise_the_other_conditions_later() -> None:
     assert "Later releases add the other conditions" not in _page()
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "sensor.pierpressure_<pier>_target_1",
+        "sensor.pierpressure_<pier>_target_10",
+        "**Target 1**",
+    ],
+)
+def test_docs_targets_name_the_sensors_and_lanes(text: str) -> None:
+    assert text in _page()
+
+
+@pytest.mark.parametrize("term", ["observable window", "no target tonight", "leaves no lane"])
+def test_docs_targets_explain_what_they_show(term: str) -> None:
+    assert term in _page().lower()
+
+
+def test_docs_targets_give_the_hover_text() -> None:
+    assert "Andromeda Galaxy from 21:00 to 02:00" in _page()
+
+
+def test_docs_targets_say_the_lines_cross_them() -> None:
+    page = _page()
+    lines = page[page.index("Three lines cross the strip") : page.index("Hover over a line")]
+
+    assert "target lanes" in " ".join(lines.split())
+
+
+def test_docs_targets_named_in_the_opening() -> None:
+    opening = _page().split("\n\n")[1]
+
+    assert "ranked targets" in opening

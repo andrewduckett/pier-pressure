@@ -125,6 +125,17 @@ export interface Bar {
   text: string;
 }
 
+// One rank of the target list, drawn as a lane under the Moon up lane.
+export interface TargetLane {
+  rank: number;
+  label: string;
+  // The Target sensor's state: the target's name.
+  name: string;
+  // Absent when the window is wholly off the axis; the lane stays, so the
+  // number of lanes never moves with the clock.
+  bar?: Bar;
+}
+
 export interface Line {
   kind: "dusk" | "dawn" | "now";
   at: number;
@@ -141,6 +152,7 @@ export interface Strip {
   axis: Axis;
   rows: Row[];
   moonUp: Bar[];
+  targets: TargetLane[];
   lines: Line[];
   labels: TimeLabel[];
 }
@@ -177,6 +189,7 @@ export function buildStrip(
       };
     }),
     moonUp: moonUpBars(forecastOf(states[pierEntityId(pier, "moon_altitude")]), axis, time),
+    targets: targetLanes(states, pier, axis, time),
     lines: [...(night === undefined ? [] : nightLines(night, time)), ...nowLine(now, axis, time)],
   };
 }
@@ -266,6 +279,43 @@ function moonUpText(
   if (rise) return `Moon up from ${time(run.start)}`;
   if (set) return `Moon up until ${time(run.end)}`;
   return "Moon up";
+}
+
+// The rank sensors PierPressure publishes, Target 1 to Target 10.
+const TARGET_RANKS = 10;
+
+// A rank's state is the name its bar shows. PierPressure publishes the state and
+// the window as two messages, so for a moment Home Assistant can hold an empty or
+// unknown state beside a window; such a rank waits for its name.
+const NO_NAME = new Set(["", "unknown", "unavailable"]);
+
+function targetLanes(
+  states: States,
+  pier: string,
+  axis: Axis,
+  time: (at: number) => string,
+): TargetLane[] {
+  return Array.from({ length: TARGET_RANKS }, (_, index) => index + 1).flatMap((rank) => {
+    const entity = states[pierEntityId(pier, `target_${rank}`)];
+    if (entity === undefined || NO_NAME.has(entity.state)) return [];
+    const window = asRecord(entity.attributes["window"]);
+    const start = readTime(window?.["start"]);
+    const end = readTime(window?.["end"]);
+    if (start === undefined || end === undefined || end <= start) return [];
+    const name = entity.state;
+    const lane: TargetLane = { rank, label: `Target ${rank}`, name };
+    if (end <= axis.start || start >= axis.end) return [lane];
+    const from = Math.max(start, axis.start);
+    const to = Math.min(end, axis.end);
+    return [{ ...lane, bar: { start, end, from, to, text: targetText(name, start, end, time) } }];
+  });
+}
+
+// As for a Moon up run, HH:MM cannot tell one day from the next. A polar night's
+// window runs from solar noon to solar noon, and a target can be up for all of it.
+function targetText(name: string, start: number, end: number, time: (at: number) => string) {
+  if (end - start >= 24 * HOUR || time(start) === time(end)) return name;
+  return `${name} from ${time(start)} to ${time(end)}`;
 }
 
 // Hour by hour in time order, so a run never depends on the forecast's order.

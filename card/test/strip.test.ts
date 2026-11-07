@@ -8,6 +8,7 @@ import {
   SUN_ALTITUDE,
   VERDICT,
   bars,
+  cardStyles,
   cells,
   forecastEntity,
   line,
@@ -611,13 +612,7 @@ describe("the Moon up lane", () => {
   });
 
   it("draws its bars in grey", () => {
-    const element = customElements.get("pierpressure-card") as typeof PierPressureCard;
-    const styles = [element.styles]
-      .flat()
-      .map((style) => String(style))
-      .join("");
-
-    expect(styles).toMatch(/\.bar\s*\{[^}]*background-color:\s*#898781/);
+    expect(cardStyles()).toMatch(/\.bar\s*\{[^}]*background-color:\s*#898781/);
   });
 
   it.each([
@@ -758,14 +753,6 @@ describe("hovering over a Moon up bar", () => {
     expect(title).toBe("Moon up");
   });
 });
-
-function cardStyles(): string {
-  const element = customElements.get("pierpressure-card") as typeof PierPressureCard;
-  return [element.styles]
-    .flat()
-    .map((style) => String(style))
-    .join("");
-}
 
 describe("the dusk and dawn lines", () => {
   it("sit at the ends of the dark window", async () => {

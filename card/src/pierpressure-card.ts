@@ -6,6 +6,7 @@ import {
   type Cell,
   HOUR,
   type Line,
+  type Strip,
   type TimeLabel,
   asRecord,
   buildStrip,
@@ -148,6 +149,18 @@ export class PierPressureCard extends LitElement {
       border-radius: 4px;
       background-color: #898781;
     }
+    /* An indent, not padding: the bar's width is set inline, and padding would
+       widen it past the end of the target's window. */
+    .bar[data-target] {
+      background-color: #6250d6;
+      color: #ffffff;
+      font-size: 0.75em;
+      line-height: 16px;
+      text-indent: 4px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
   `;
 
   // Home Assistant sets hass after setConfig and after the card is attached.
@@ -178,8 +191,9 @@ export class PierPressureCard extends LitElement {
     this.config = { type: String(config["type"]), pier };
   }
 
+  // Three target lanes are about one of Home Assistant's 50 px size units.
   getCardSize(): number {
-    return 10;
+    return 10 + Math.ceil((this.shownStrip()?.targets.length ?? 0) / 3);
   }
 
   // A sections view gives a card half its section's width by default, too
@@ -220,19 +234,28 @@ export class PierPressureCard extends LitElement {
           <span data-field="confidence-value">${shownNumber(confidence?.["value"])}</span>
         </dd>
       </dl>
-      ${renderStrip(this.hass, this.config.pier)}
+      ${renderStrip(this.shownStrip())}
     </div>`;
+  }
+
+  // The strip draws only beside the verdict, never under a message.
+  private shownStrip(): Strip | undefined {
+    if (this.hass === undefined || this.config === undefined) return undefined;
+    const entity = this.hass.states[verdictEntityId(this.config.pier)];
+    if (entity === undefined || entity.state === "unavailable") return undefined;
+    return buildStrip(this.hass.states, this.config.pier, Date.now(), this.hass.config?.time_zone);
   }
 }
 
 const DASH = "—";
 
-function renderStrip(hass: HomeAssistant, pier: string) {
-  const strip = buildStrip(hass.states, pier, Date.now(), hass.config?.time_zone);
-  // Grid row 1 holds the line labels, then come the rows, the Moon up lane and
-  // the time labels. The lines' overlay spans from the first row to the lane.
-  const gridRows = strip.rows.length + 3;
-  const laneEnd = strip.rows.length + 3;
+function renderStrip(strip: Strip | undefined) {
+  if (strip === undefined) return nothing;
+  // Grid row 1 holds the line labels, then come the rows, the Moon up lane, the
+  // target lanes and the time labels. The lines' overlay spans from the first
+  // row to the last lane.
+  const gridRows = strip.rows.length + strip.targets.length + 3;
+  const laneEnd = strip.rows.length + strip.targets.length + 3;
   return html`<div
     class="strip"
     style=${`grid-template-rows: repeat(${gridRows}, auto)`}
@@ -252,6 +275,15 @@ function renderStrip(hass: HomeAssistant, pier: string) {
       <span class="label">Moon up</span>
       <div class="track">${strip.moonUp.map((bar) => renderBar(bar, strip.axis))}</div>
     </div>
+    ${strip.targets.map(
+      (lane) =>
+        html`<div class="row" data-lane=${`target_${lane.rank}`}>
+          <span class="label">${lane.label}</span>
+          <div class="track">
+            ${lane.bar === undefined ? nothing : renderBar(lane.bar, strip.axis, lane.name)}
+          </div>
+        </div>`,
+    )}
     <span></span>
     <div class="track times">
       ${strip.labels.map((label) => renderTimeLabel(label, strip.axis))}
@@ -320,18 +352,22 @@ function renderArrow(degrees: number) {
   </svg>`;
 }
 
-function renderBar(bar: Bar, axis: Axis) {
+// A target's bar carries its name; a Moon up bar has none.
+function renderBar(bar: Bar, axis: Axis, name?: string) {
   const style = `left: ${offset(bar.from, axis)}%; width: ${share(bar.to - bar.from, axis)}%`;
   return html`<div
     class="bar"
     style=${style}
+    ?data-target=${name !== undefined}
     data-start=${iso(bar.start)}
     data-end=${iso(bar.end)}
     data-from=${iso(bar.from)}
     data-to=${iso(bar.to)}
     title=${bar.text}
     aria-label=${bar.text}
-  ></div>`;
+  >
+    ${name ?? nothing}
+  </div>`;
 }
 
 // Percent of the axis, so the strip reflows with the card's width.
