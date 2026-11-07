@@ -52,7 +52,7 @@
 
 ## Journey Map
 
-Stage status checked against the code on 2026-11-01.
+Stage status checked against the code on 2026-11-06.
 
 ### People who use PierPressure
 
@@ -91,10 +91,13 @@ Stage status checked against the code on 2026-11-01.
 5. **See tonight's verdict** — verdict, score, confidence, and reasons; a refresh
    button; an optional plain-language narrative; an hourly timeline on one sensor
    per variable, with a documented night strip. Providers sit in an ordered list a
-   pier can change. Seeing and transparency come only from 7Timer!, which is coarse
-   over North America, and the verdict cannot say whether the forecasts agree with
-   one another — partial
-   ([#154](https://github.com/andrewduckett/pier-pressure/issues/154), [#158](https://github.com/andrewduckett/pier-pressure/issues/158), [#155](https://github.com/andrewduckett/pier-pressure/issues/155), [#156](https://github.com/andrewduckett/pier-pressure/issues/156), [#159](https://github.com/andrewduckett/pier-pressure/issues/159), [#160](https://github.com/andrewduckett/pier-pressure/issues/160), [#157](https://github.com/andrewduckett/pier-pressure/issues/157))
+   pier can change: Open-Meteo and its named models, the National Weather Service,
+   the air-quality forecast, 7Timer!, and seeing and transparency computed from
+   the others. The verdict says how well the forecasts agree on cloud, and the
+   reasons warn of dew or frost. The strip needs a community card from HACS, does
+   not show where the forecasts disagree, and loses the sun and moon for hours no
+   forecast returned — partial
+   ([#180](https://github.com/andrewduckett/pier-pressure/issues/180), [#186](https://github.com/andrewduckett/pier-pressure/issues/186), [#174](https://github.com/andrewduckett/pier-pressure/issues/174), [#173](https://github.com/andrewduckett/pier-pressure/issues/173))
 6. **Get told in time** — the README gives a Home Assistant automation that
    notifies at a chosen time — supported
 7. **Choose a target** — the Top target sensor and one sensor per rank, Target 1
