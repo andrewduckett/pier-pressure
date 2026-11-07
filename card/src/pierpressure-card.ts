@@ -308,6 +308,8 @@ export class PierPressureCard extends LitElement {
 
 const DASH = "—";
 
+const LIT = "#ece8dc";
+
 function renderMoon(moon: MoonView) {
   return html`<section class="moon" aria-label="Moon">
     ${moon.drawing === undefined ? nothing : renderDrawing(moon.drawing)}
@@ -331,9 +333,15 @@ function renderMoon(moon: MoonView) {
 function renderDrawing(drawing: MoonDrawing) {
   return html`<svg viewBox="-1.1 -1.1 2.2 2.2" width="48" height="48" data-lit=${drawing.lit}>
     <circle r="1" fill="#3b3a36"></circle>
-    ${svg`<path d=${litPath(drawing.lit)} fill="#ece8dc"></path>`}
+    ${renderLit(drawing.lit)}
     <circle r="1" fill="none" stroke="#898781" stroke-width="0.08"></circle>
   </svg>`;
+}
+
+function renderLit(lit: MoonDrawing["lit"]) {
+  if (lit === "none") return nothing;
+  if (lit === "all") return svg`<circle r="1" fill=${LIT}></circle>`;
+  return svg`<path d=${litPath(lit)} fill=${LIT}></path>`;
 }
 
 function renderNote(strip: Strip | undefined) {

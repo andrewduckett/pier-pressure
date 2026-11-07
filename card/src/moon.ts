@@ -24,8 +24,8 @@ export interface MoonView {
 }
 
 export interface MoonDrawing {
-  // The illumination, as the share of the disc that is lit.
-  lit: number;
+  // A number is the share of the disc that is lit, above 0 and below 1.
+  lit: "none" | "all" | number;
 }
 
 // Each text falls back to a dash on its own, as the verdict lines do.
@@ -38,8 +38,18 @@ export function readMoon(attribute: unknown, time: (at: number) => string): Moon
     illumination: illumination === undefined ? DASH : `${percent(illumination)}%`,
     rise: shownTime(moon?.["rise"], time),
     set: shownTime(moon?.["set"], time),
-    ...(phase !== undefined && illumination !== undefined && { drawing: { lit: illumination } }),
+    ...(phase !== undefined &&
+      illumination !== undefined && { drawing: drawn(phase, illumination) }),
   };
+}
+
+// The document does not say which side a new or full moon's sliver is on, so
+// those two phases draw no lit part and the whole disc. At 0 or 1 no phase has
+// a lit path to draw.
+function drawn(phase: string, illumination: number): MoonDrawing {
+  if (phase === "new" || illumination === 0) return { lit: "none" };
+  if (phase === "full" || illumination === 1) return { lit: "all" };
+  return { lit: illumination };
 }
 
 // The right half-disc's edge, then the terminator back to the top as a

@@ -263,3 +263,53 @@ describe("the moon drawing", () => {
     expect([field(card, "moon-phase"), field(card, "moon-illumination")]).toEqual(["Full", "—"]);
   });
 });
+
+const LIT = "#ece8dc";
+
+function litDisc(card: PierPressureCard): Element | null {
+  return drawing(card)?.querySelector(`circle[fill="${LIT}"]`) ?? null;
+}
+
+describe("a moon with no side to light", () => {
+  it("draws a new moon unlit, whatever its sliver", async () => {
+    const card = await mountCard(withMoon({ phase: "new", illumination: 0.03 }));
+
+    expect([drawing(card)?.dataset["lit"], litPath(card), litDisc(card)]).toEqual([
+      "none",
+      null,
+      null,
+    ]);
+  });
+
+  it("keeps a new moon's outline", async () => {
+    const card = await mountCard(withMoon({ phase: "new", illumination: 0.03 }));
+
+    expect(drawing(card)?.querySelector('circle[fill="none"]')).not.toBeNull();
+  });
+
+  it("draws a full moon fully lit, whatever its sliver", async () => {
+    const card = await mountCard(withMoon({ phase: "full", illumination: 0.96 }));
+
+    const lit = [drawing(card)?.dataset["lit"], litPath(card), litDisc(card)?.getAttribute("r")];
+    expect(lit).toEqual(["all", null, "1"]);
+  });
+
+  it("draws no lit part at an illumination of 0", async () => {
+    const card = await mountCard(withMoon({ phase: "waxing crescent", illumination: 0 }));
+
+    expect([drawing(card)?.dataset["lit"], litPath(card)]).toEqual(["none", null]);
+  });
+
+  it("lights the whole disc at an illumination of 1", async () => {
+    const card = await mountCard(withMoon({ phase: "waxing gibbous", illumination: 1 }));
+
+    const lit = [drawing(card)?.dataset["lit"], litPath(card), litDisc(card)?.getAttribute("r")];
+    expect(lit).toEqual(["all", null, "1"]);
+  });
+
+  it("names a lit share by its illumination", async () => {
+    const card = await mountCard(withMoon(WAXING_GIBBOUS));
+
+    expect(drawing(card)?.dataset["lit"]).toBe("0.78");
+  });
+});
