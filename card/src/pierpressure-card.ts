@@ -148,6 +148,18 @@ export class PierPressureCard extends LitElement {
       border-radius: 4px;
       background-color: #898781;
     }
+    /* An indent, not padding: the bar's width is set inline, and padding would
+       widen it past the end of the target's window. */
+    .bar[data-target] {
+      background-color: #6250d6;
+      color: #ffffff;
+      font-size: 0.75em;
+      line-height: 16px;
+      text-indent: 4px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
   `;
 
   // Home Assistant sets hass after setConfig and after the card is attached.
@@ -257,7 +269,7 @@ function renderStrip(hass: HomeAssistant, pier: string) {
         html`<div class="row" data-lane=${`target_${lane.rank}`}>
           <span class="label">${lane.label}</span>
           <div class="track">
-            ${lane.bar === undefined ? nothing : renderBar(lane.bar, strip.axis)}
+            ${lane.bar === undefined ? nothing : renderBar(lane.bar, strip.axis, lane.name)}
           </div>
         </div>`,
     )}
@@ -329,18 +341,22 @@ function renderArrow(degrees: number) {
   </svg>`;
 }
 
-function renderBar(bar: Bar, axis: Axis) {
+// A target's bar carries its name; a Moon up bar has none.
+function renderBar(bar: Bar, axis: Axis, name?: string) {
   const style = `left: ${offset(bar.from, axis)}%; width: ${share(bar.to - bar.from, axis)}%`;
   return html`<div
     class="bar"
     style=${style}
+    ?data-target=${name !== undefined}
     data-start=${iso(bar.start)}
     data-end=${iso(bar.end)}
     data-from=${iso(bar.from)}
     data-to=${iso(bar.to)}
     title=${bar.text}
     aria-label=${bar.text}
-  ></div>`;
+  >
+    ${name ?? nothing}
+  </div>`;
 }
 
 // Percent of the axis, so the strip reflows with the card's width.

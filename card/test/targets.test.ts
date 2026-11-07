@@ -1,6 +1,10 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
+  MOON_ALTITUDE,
   VERDICT,
+  bars,
+  cardStyles,
+  forecastEntity,
   moonLane,
   mountCard,
   target,
@@ -173,5 +177,58 @@ describe("a target bar at the axis ends", () => {
     });
 
     expect([labels(card), targetBar(card, 1)]).toEqual([["Target 1"], null]);
+  });
+});
+
+describe("a target bar's look", () => {
+  it("holds the target's name", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [target(1)]: targetEntity("Andromeda Galaxy", EVENING),
+    });
+
+    expect(targetBar(card, 1)?.textContent?.trim()).toBe("Andromeda Galaxy");
+  });
+
+  it("is marked as a target's bar", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [target(1)]: targetEntity("Andromeda Galaxy", EVENING),
+    });
+
+    expect(targetBar(card, 1)?.hasAttribute("data-target")).toBe(true);
+  });
+
+  it("leaves a Moon up bar unmarked and empty", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [MOON_ALTITUDE]: forecastEntity([["2026-10-31T21:00:00Z", 12]]),
+    });
+
+    const [bar] = bars(card);
+    expect([bar?.hasAttribute("data-target"), bar?.textContent?.trim()]).toEqual([false, ""]);
+  });
+
+  it("is violet with white text", () => {
+    expect(cardStyles()).toMatch(
+      /\.bar\[data-target\]\s*\{[^}]*background-color:\s*#6250d6;[^}]*color:\s*#ffffff/,
+    );
+  });
+
+  // Padding would widen the bar past its window's end, since its width is set inline.
+  it("indents its name without padding", () => {
+    const rule = /\.bar\[data-target\]\s*\{([^}]*)\}/.exec(cardStyles())?.[1] ?? "";
+
+    expect([/text-indent:\s*4px/.test(rule), /padding/.test(rule)]).toEqual([true, false]);
+  });
+
+  it("cuts a long name short with an ellipsis", () => {
+    const rule = /\.bar\[data-target\]\s*\{([^}]*)\}/.exec(cardStyles())?.[1] ?? "";
+
+    expect([
+      /overflow:\s*hidden/.test(rule),
+      /white-space:\s*nowrap/.test(rule),
+      /text-overflow:\s*ellipsis/.test(rule),
+    ]).toEqual([true, true, true]);
   });
 });
