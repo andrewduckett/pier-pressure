@@ -407,6 +407,8 @@ function renderBand(band: Band, axis: Axis) {
     data-to=${iso(band.to)}
     data-low=${band.low}
     data-high=${band.high}
+    title=${band.text}
+    aria-label=${band.text}
   >
     <div class="range" style=${range}></div>
   </div>`;

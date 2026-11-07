@@ -162,3 +162,21 @@ describe("an hour without a readable pair", () => {
     expect(columns(card)).toEqual([]);
   });
 });
+
+describe("hovering over a Cloud range column", () => {
+  it("shows the hour and both values as the forecasts hold them", async () => {
+    const card = await oneHour(40, 70.5);
+
+    const column = columns(card)[0];
+    expect([column?.title, column?.getAttribute("aria-label")]).toEqual([
+      "Cloud range, the hour from 21:00: 40% to 70.5%",
+      "Cloud range, the hour from 21:00: 40% to 70.5%",
+    ]);
+  });
+
+  it("shows a value outside 0 to 100 unclamped", async () => {
+    const card = await oneHour(-5, 120);
+
+    expect(columns(card)[0]?.title).toBe("Cloud range, the hour from 21:00: -5% to 120%");
+  });
+});

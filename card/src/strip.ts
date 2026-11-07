@@ -124,6 +124,8 @@ export interface Band {
   // In percent, clamped to 0–100 for drawing.
   low: number;
   high: number;
+  // What hovering over the column shows, with the values unclamped.
+  text: string;
 }
 
 export interface Row {
@@ -215,7 +217,7 @@ export function buildStrip(
   });
   // Under Cloud cover, the row it explains.
   const cloudCover = rows.findIndex((row) => row.key === "cloud_cover");
-  rows.splice(cloudCover + 1, 0, cloudRange(states, pier, axis));
+  rows.splice(cloudCover + 1, 0, cloudRange(states, pier, axis, time));
   const moonMissing = rows.find((row) => row.key === "moon_altitude")?.missing;
   return {
     axis,
@@ -291,7 +293,7 @@ function rowCells(
 // both or neither, and a gap in one forecast is not a range. A min above the
 // max is skipped, not swapped: Home Assistant applies the two sensors' updates
 // one at a time, and a new min against an old max is no forecast's range.
-function cloudRange(states: States, pier: string, axis: Axis): Row {
+function cloudRange(states: States, pier: string, axis: Axis, time: (at: number) => string): Row {
   const lows = hourlyValues(forecastOf(states[pierEntityId(pier, "cloud_cover_min")]));
   const highs = hourlyValues(forecastOf(states[pierEntityId(pier, "cloud_cover_max")]));
   const bands = [...lows].flatMap(([hour, low]): Band[] => {
@@ -305,6 +307,7 @@ function cloudRange(states: States, pier: string, axis: Axis): Row {
         to: Math.min(hour + HOUR, axis.end),
         low: percent(low),
         high: percent(high),
+        text: `Cloud range, the hour from ${time(hour)}: ${low}% to ${high}%`,
       },
     ];
   });
