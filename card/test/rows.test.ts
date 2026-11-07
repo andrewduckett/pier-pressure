@@ -287,6 +287,34 @@ describe("a Wind direction arrow points downwind", () => {
   });
 });
 
+describe("hovering over a cell shows its unit", () => {
+  it.each([
+    [WIND_GUST, "wind_gust", 12.5, "Wind gust, the hour from 21:00: 12.5 km/h"],
+    [WIND_SPEED, "wind_speed", 8, "Wind speed, the hour from 21:00: 8 km/h"],
+    [TEMPERATURE, "temperature", 4.2, "Temperature, the hour from 21:00: 4.2 °C"],
+    [DEW_POINT, "dew_point", -1.5, "Dew point, the hour from 21:00: -1.5 °C"],
+    [HUMIDITY, "humidity", 87, "Humidity, the hour from 21:00: 87%"],
+    [MOON_ALTITUDE, "moon_altitude", 23.456, "Moon altitude, the hour from 21:00: 23.456°"],
+    [SEEING, "seeing", 0.62, "Seeing, the hour from 21:00: 0.62"],
+    [TRANSPARENCY, "transparency", 0.4, "Transparency, the hour from 21:00: 0.4"],
+  ])("shows %s with its unit", async (entityId, key, value, text) => {
+    const card = await mountCard({ [VERDICT]: NIGHT, [entityId]: hourly([value]) });
+
+    const [cell] = cells(card, key);
+    expect([cell?.title, cell?.getAttribute("aria-label")]).toEqual([text, text]);
+  });
+
+  it("names the start of the hour a Rain chance cell fills", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [PRECIPITATION_PROBABILITY]: forecastEntity([["2026-10-31T22:00:00Z", 40]]),
+    });
+
+    const [cell] = cells(card, "precipitation_probability");
+    expect(cell?.title).toBe("Rain chance, the hour from 21:00: 40%");
+  });
+});
+
 describe("a null hour is blank", () => {
   it("draws no Seeing cell for a null value", async () => {
     const card = await mountCard({
