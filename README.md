@@ -791,6 +791,10 @@ Each rule there says why it exists.
   ecosystem.
 - **Each major update** arrives as its own pull request, so you can review it,
   and revert it if needed, on its own.
+- **The `uv.lock` refresh** arrives on Mondays as its own pull request. It moves
+  every package in `uv.lock` to the latest version `pyproject.toml` allows,
+  including the packages that only `uv.lock` holds. To get it sooner, tick it on
+  the Dependency Dashboard.
 - **Let's Spec** always arrives on its own. Renovate runs `lets sync` on that
   branch, so the pull request also holds the skills, schemas and `AGENTS.md`
   block the new version ships. `lets sync` is the only command Renovate may run.
