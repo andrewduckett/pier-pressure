@@ -179,7 +179,7 @@ export class PierPressureCard extends LitElement {
   }
 
   getCardSize(): number {
-    return 6;
+    return 10;
   }
 
   // A sections view gives a card half its section's width by default, too

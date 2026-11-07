@@ -11,7 +11,7 @@
 
 - [x] 2.1 [easy] Hovering shows each row's unit: `Wind gust, the hour from 21:00: 12.5 km/h`, `Temperature, the hour from 21:00: 4.2 °C`, `Seeing, the hour from 21:00: 0.62`, and `Rain chance, the hour from 21:00: 40%` for a value at 22:00 (design DD1) (verify: mise exec -- npm --prefix card test -- rows) (✓ npm test -- rows passed)
 - [x] 2.2 [easy] Hovering over a Wind direction cell names the compass point: 225 reads `225° from SW`, 22.5 reads `22.5° from NE`, and 350 reads `350° from N` (design DD2) (verify: mise exec -- npm --prefix card test -- rows) (✓ npm test -- rows passed)
-- [ ] 2.3 [easy] `getCardSize()` returns 10 (design DD4) (verify: mise exec -- npm --prefix card test -- register)
+- [x] 2.3 [easy] `getCardSize()` returns 10 (design DD4) (verify: mise exec -- npm --prefix card test -- register) (✓ npm test -- register passed)
 
 ## 3. Docs and the whole path [depends-on: 2]
 
