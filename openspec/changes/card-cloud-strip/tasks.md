@@ -1,6 +1,6 @@
 ## 1. The strip model and its entities
 
-- [ ] 1.1 [easy] `pierEntityId("Back-Yard", "cloud_cover")` gives `sensor.pierpressure_back_yard_cloud_cover`, and `verdictEntityId` gives the same ids as before through it (design DD8) (verify: mise exec -- npm --prefix card test -- entity)
+- [x] 1.1 [easy] `pierEntityId("Back-Yard", "cloud_cover")` gives `sensor.pierpressure_back_yard_cloud_cover`, and `verdictEntityId` gives the same ids as before through it (design DD8) (verify: mise exec -- npm --prefix card test -- entity) (✓ npm test -- entity passed)
 - [ ] 1.2 [medium] The strip's axis runs from 4 hours before `dark_window.start` to 5 hours after `dark_window.end`, and falls back to 6 hours before `Date.now()` to 18 hours after for a missing, null, unreadable, inverted or over-48-hour window, and for a Verdict sensor with no attributes (design DD1, DD7; test: the card harness with `vi.setSystemTime`, reading `data-axis-start` and `data-axis-end`) (verify: mise exec -- npm --prefix card test -- strip)
 
 ## 2. The cloud rows [depends-on: 1]

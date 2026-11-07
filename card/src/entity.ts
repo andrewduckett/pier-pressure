@@ -10,6 +10,12 @@ export function pierSlug(pier: string): string {
     .replace(/^_+|_+$/g, "");
 }
 
+// Every PierPressure sensor of a pier is named from the same device, so only
+// the entity's key differs.
+export function pierEntityId(pier: string, key: string): string {
+  return `sensor.pierpressure_${pierSlug(pier)}_${key}`;
+}
+
 export function verdictEntityId(pier: string): string {
-  return `sensor.pierpressure_${pierSlug(pier)}_verdict`;
+  return pierEntityId(pier, "verdict");
 }
