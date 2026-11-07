@@ -435,6 +435,9 @@ Each pier becomes one device, `PierPressure <pier>`, with these entities:
 For a ready-made dashboard that shows all of these together, with an hour-by-hour
 night strip, see [docs/night-dashboard.md](docs/night-dashboard.md).
 
+To show tonight's verdict, score and confidence on any dashboard, install the
+PierPressure card through HACS. See [docs/night-card.md](docs/night-card.md).
+
 If PierPressure stops, every entity shows as unavailable. A planned stop, such as
 `docker stop`, publishes `offline` before it disconnects. After a crash or a lost
 connection, the broker sends PierPressure's last-will message instead.
@@ -729,18 +732,21 @@ set in `.python-version`. The tasks are in `mise.toml`, and `mise tasks` lists
 them. Each line below shows the uv command the task runs:
 
 ```bash
-mise run install     # uv sync
+mise run install     # npm ci in card/, then uv sync
 mise run lint        # uv run ruff check .
 mise run format      # uv run ruff format .
 mise run typecheck   # uv run mypy
 mise run test        # uv run pytest (integration tests are skipped by default)
-mise run check       # lint + typecheck + test: the CI gate
+mise run card        # in card/: npm ci when the lockfile changed, then type-check, test and build
+mise run check       # lint + typecheck + test + card: the CI gate
 mise run test-integration   # integration tests against a throwaway Mosquitto
 mise run up          # PierPressure in its image against a local broker
 ```
 
 Without mise, install [uv](https://docs.astral.sh/uv/) and run the uv command
-shown for each task. For `check`, run lint, typecheck and test in turn.
+shown for each task. For the card, install Node, then in `card/` run
+`npm ci --ignore-scripts`, `npm run typecheck`, `npm test` and `npm run build`.
+For `check`, run lint, typecheck, test and the card in turn.
 
 CI runs these same commands with the tools in `mise.toml`, so it tests the tools
 you use.
@@ -778,6 +784,7 @@ Each rule there says why it exists.
 | GitHub Actions | The actions in `.github/workflows/`, and the Renovate and Node versions the Renovate workflow pins |
 | Docker | The uv stage in the `Dockerfile`, and the Mosquitto image in `compose.yaml` |
 | `mise.toml` | The development tools, such as gh and the OpenSpec CLI |
+| npm | The dashboard card's packages in `card/package.json` and `card/package-lock.json` |
 
 - **Minor and patch updates** arrive on Mondays, as one pull request per
   ecosystem.
@@ -850,8 +857,10 @@ Releases are for the maintainer. Each one publishes an image to
 `ghcr.io/andrewduckett/pier-pressure` and creates a GitHub release.
 
 1. On GitHub, open **Actions → Release → Run workflow**, choose `main`, and run
-   it. The workflow re-runs `mise run check`, builds and pushes the image for amd64
-   and arm64, and then tags the commit and creates the release.
+   it. The workflow re-runs `mise run check` and builds the dashboard card with
+   the new version. It builds and pushes the image for amd64 and arm64, and then
+   tags the commit and creates the release, with the card attached as
+   `pierpressure-card.js`.
 2. The version is monthly CalVer, `YYYY.M.N`: the UTC year and month, and a
    counter that starts at 0 each month. The first release in October 2026 is
    `2026.10.0`, the next is `2026.10.1`. The git tag is the only place the

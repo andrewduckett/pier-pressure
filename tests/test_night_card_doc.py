@@ -7,6 +7,7 @@ Test Seams). These tests read what HACS and the release workflow read.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -98,3 +99,47 @@ def test_release_and_ci_jobs_cache_the_npm_packages(workflow: str, job: str) -> 
     cache = steps[_index(steps, _caches("~/.npm"))]
 
     assert "hashFiles('card/package-lock.json')" in cache["with"]["key"]
+
+
+_PAGE = _ROOT / "docs" / "night-card.md"
+_YAML_FENCE = re.compile(r"^```yaml\n(.*?)^```", re.MULTILINE | re.DOTALL)
+
+
+def _page() -> str:
+    return _PAGE.read_text(encoding="utf-8")
+
+
+def test_docs_page_names_the_hacs_route() -> None:
+    page = _page()
+
+    assert "HACS" in page
+    assert "**Dashboard**" in page
+    assert "first release" in page
+
+
+def test_docs_page_names_the_www_route() -> None:
+    page = _page()
+
+    assert "/config/www" in page
+    assert "/local/pierpressure-card.js" in page
+    assert "JavaScript module" in page
+
+
+def test_docs_page_yaml_is_a_card_config() -> None:
+    blocks = _YAML_FENCE.findall(_page())
+    cards = [yaml.safe_load(block) for block in blocks]
+
+    assert {"type": "custom:pierpressure-card", "pier": "backyard"} in cards
+
+
+def test_docs_page_says_where_to_find_the_entity_id() -> None:
+    page = _page()
+
+    assert "sensor.pierpressure_<pier>_verdict" in page
+    assert "**Settings** > **Entities**" in page
+
+
+def test_docs_readme_links_the_page() -> None:
+    readme = (_ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert "(docs/night-card.md)" in readme

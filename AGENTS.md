@@ -46,11 +46,17 @@ This section adds what is specific to PierPressure.
 - **Toolchain:** `uv` (env/deps/lockfile), mise (tasks: `mise run <task>`,
   `mise tasks` lists them), `ruff` (lint AND format — no black), `mypy` (strict
   types), `pytest`. Python 3.14, pinned only in `.python-version`.
-- **`mise run check`** (`ruff check`, mypy, pytest) is the CI gate — it must be
-  green before a PR. Formatting is enforced by the pre-commit hooks
+- **Dashboard card:** `card/` is Lit with TypeScript, built by Vite into one
+  file and tested with Vitest, on the Node pinned in `mise.toml`.
+  `mise run card` type-checks, tests and builds it. It is outside the core and
+  only displays published entities.
+- **`mise run check`** (`ruff check`, mypy, pytest, `mise run card`) is the CI
+  gate — it must be green before a PR. Formatting is enforced by the pre-commit hooks
   (`uv run pre-commit install` once per clone), not by `mise run check`.
   Practice TDD: write the failing test first.
 - Add dependencies with `uv add` so `pyproject.toml` and `uv.lock` stay in step.
+  For the card, run `npm install <package>` in `card/` so `package-lock.json`
+  stays in step.
 - **Plain language:** apply the core standard (`iso-24495-1`) to all prose, and
   the science and technical sector standard (`iso-24495-3`) to architecture specs,
   design docs and software documentation.

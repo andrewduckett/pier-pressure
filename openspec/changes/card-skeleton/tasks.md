@@ -19,7 +19,7 @@
 
 ## 4. Docs and the whole path [depends-on: 2, 3]
 
-- [ ] 4.1 [medium] `docs/night-card.md` describes the HACS custom Dashboard route (from the first release that carries the card) and the `/config/www` route with `/local/pierpressure-card.js` as a JavaScript module, shows the card YAML, and says how to find the Verdict entity id; the README links it and its development, dependency update and releasing sections and `AGENTS.md` say what the card adds (verify: uv run pytest tests/test_night_card_doc.py -k docs)
+- [x] 4.1 [medium] `docs/night-card.md` describes the HACS custom Dashboard route (from the first release that carries the card) and the `/config/www` route with `/local/pierpressure-card.js` as a JavaScript module, shows the card YAML, and says how to find the Verdict entity id; the README links it and its development, dependency update and releasing sections and `AGENTS.md` say what the card adds (verify: uv run pytest tests/test_night_card_doc.py -k docs) (✓ pytest -k docs passed)
 - [ ] 4.2 [complex] The whole path works: `mise run check` is green, and `mise run dashboard-check` shows the card with tonight's verdict, score and confidence in a real Home Assistant, checked by eye (verify: mise run check)
 
 ## Deviations Ledger
