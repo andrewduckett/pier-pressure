@@ -1,4 +1,5 @@
 import { LitElement, css, html, nothing, svg } from "lit";
+import { EDITOR_TYPE } from "./editor";
 import { listPiers, pierSlug, verdictEntityId } from "./entity";
 import { type MoonDrawing, type MoonView, litPath, readMoon } from "./moon";
 import {
@@ -238,6 +239,10 @@ export class PierPressureCard extends LitElement {
     super.disconnectedCallback();
     clearInterval(this.timer);
     this.timer = undefined;
+  }
+
+  static getConfigElement(): HTMLElement {
+    return document.createElement(EDITOR_TYPE);
   }
 
   // The card picker draws its preview from this, so it starts on a real pier.
