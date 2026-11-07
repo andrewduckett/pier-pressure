@@ -45,6 +45,9 @@
     // this manager so card/package-lock.json is left alone.
     lockFileMaintenance: {
       enabled: true,
+      // The default, "before 4am on monday", never fires: the workflow runs
+      // at 04:17 UTC.
+      schedule: ["on monday"],
     },
   },
   // A later rule wins over an earlier one.
