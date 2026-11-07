@@ -362,3 +362,61 @@ def _troubleshooting_item(shown: str) -> str:
 @pytest.mark.parametrize("term", ["`conditions`", "`providers`", "Open-Meteo", "health", "add-on"])
 def test_docs_wrong_section_says_how_to_fill_the_cloud_range_row(term: str) -> None:
     assert term in _troubleshooting_item('The Cloud range row says "Needs two forecasts"')
+
+
+def _before_the_strip() -> str:
+    page = _page()
+    return " ".join(page[: page.index("### The night strip")].split())
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "**Moon**",
+        "the Verdict sensor's `moon` attribute",
+        "**Phase**",
+        "**Illumination**",
+        "**Moonrise**",
+        "**Moonset**",
+        "dark window",
+    ],
+)
+def test_docs_moon_section_names_its_texts(text: str) -> None:
+    assert text in _before_the_strip()
+
+
+def test_docs_moon_section_says_what_a_dash_means() -> None:
+    sentences = _before_the_strip().split(". ")
+
+    assert any("dash" in s and "rise or set" in s for s in sentences)
+
+
+def _moon_drawing_paragraphs() -> str:
+    page = _page()
+    section = page[page.index("### The Moon section") : page.index("### The night strip")]
+    return " ".join(" ".join(p for p in section.split("\n\n") if "drawing" in p).split())
+
+
+@pytest.mark.parametrize(
+    "term",
+    ["share", "waxing", "waning", "right", "left", "south", "Home Assistant", "other hemisphere"],
+)
+def test_docs_moon_section_says_how_to_read_the_drawing(term: str) -> None:
+    assert term in _moon_drawing_paragraphs()
+
+
+@pytest.mark.parametrize("phase", ["new moon", "full moon"])
+def test_docs_moon_section_says_how_a_moon_with_no_side_is_drawn(phase: str) -> None:
+    assert phase in _moon_drawing_paragraphs().lower()
+
+
+def test_docs_moon_section_says_when_the_phase_is_for() -> None:
+    sentences = _before_the_strip().split(". ")
+
+    assert any("Phase" in s and "computed the verdict" in s for s in sentences)
+
+
+def test_docs_moon_section_says_a_dash_on_a_night_with_no_darkness() -> None:
+    sentences = _before_the_strip().split(". ")
+
+    assert any("dash" in s and "No astronomical darkness tonight" in s for s in sentences)

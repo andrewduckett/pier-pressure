@@ -35,7 +35,7 @@ export function stripAxis(night: Night | undefined, now: number): Axis {
   return { start: now - FALLBACK_BEFORE, end: now + FALLBACK_AFTER };
 }
 
-function readTime(value: unknown): number | undefined {
+export function readTime(value: unknown): number | undefined {
   if (typeof value !== "string") return undefined;
   const time = Date.parse(value);
   return Number.isNaN(time) ? undefined : time;

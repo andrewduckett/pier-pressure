@@ -1,5 +1,6 @@
-import { LitElement, css, html, nothing } from "lit";
+import { LitElement, css, html, nothing, svg } from "lit";
 import { pierSlug, verdictEntityId } from "./entity";
+import { type MoonDrawing, type MoonView, litPath, readMoon } from "./moon";
 import {
   type Axis,
   type Band,
@@ -12,6 +13,7 @@ import {
   type TimeLabel,
   asRecord,
   buildStrip,
+  clock,
 } from "./strip";
 
 declare const __CARD_VERSION__: string;
@@ -42,7 +44,7 @@ export interface HassEntity {
 
 export interface HomeAssistant {
   states: Record<string, HassEntity | undefined>;
-  config?: { time_zone?: string };
+  config?: { time_zone?: string; latitude?: number };
 }
 
 export interface CardConfig {
@@ -57,6 +59,19 @@ export class PierPressureCard extends LitElement {
   };
 
   static override styles = css`
+    /* Not stretched: a stretched grid spreads the verdict lines to the Moon
+       section's height. */
+    .summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: flex-start;
+    }
+    .moon {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
     dl {
       display: grid;
       grid-template-columns: max-content 1fr;
@@ -265,18 +280,26 @@ export class PierPressureCard extends LitElement {
     }
     const confidence = asRecord(entity.attributes["confidence"]);
     const strip = this.shownStrip();
+    const moon = readMoon(
+      entity.attributes["moon"],
+      clock(this.hass.config?.time_zone),
+      this.hass.config?.latitude,
+    );
     return html`<div class="card-content">
-      <dl>
-        <dt>Verdict</dt>
-        <dd data-field="verdict">${entity.state === "unknown" ? DASH : entity.state}</dd>
-        <dt>Score</dt>
-        <dd data-field="score">${shownNumber(entity.attributes["score"])}</dd>
-        <dt>Confidence</dt>
-        <dd>
-          <span data-field="confidence-band">${shownText(confidence?.["band"])}</span> ·
-          <span data-field="confidence-value">${shownNumber(confidence?.["value"])}</span>
-        </dd>
-      </dl>
+      <div class="summary">
+        <dl>
+          <dt>Verdict</dt>
+          <dd data-field="verdict">${entity.state === "unknown" ? DASH : entity.state}</dd>
+          <dt>Score</dt>
+          <dd data-field="score">${shownNumber(entity.attributes["score"])}</dd>
+          <dt>Confidence</dt>
+          <dd>
+            <span data-field="confidence-band">${shownText(confidence?.["band"])}</span> ·
+            <span data-field="confidence-value">${shownNumber(confidence?.["value"])}</span>
+          </dd>
+        </dl>
+        ${renderMoon(moon)}
+      </div>
       ${renderNote(strip)} ${renderStrip(strip)}
     </div>`;
   }
@@ -291,6 +314,52 @@ export class PierPressureCard extends LitElement {
 }
 
 const DASH = "—";
+
+const LIT = "#ece8dc";
+
+function renderMoon(moon: MoonView) {
+  return html`<section class="moon" aria-label="Moon">
+    ${moon.drawing === undefined ? nothing : renderDrawing(moon.drawing)}
+    <dl>
+      <dt>Phase</dt>
+      <dd data-field="moon-phase">${moon.phase}</dd>
+      <dt>Illumination</dt>
+      <dd data-field="moon-illumination">${moon.illumination}</dd>
+      <dt>Moonrise</dt>
+      <dd data-field="moon-rise">${moon.rise}</dd>
+      <dt>Moonset</dt>
+      <dd data-field="moon-set">${moon.set}</dd>
+    </dl>
+  </section>`;
+}
+
+// The unlit disc, the lit part, then the outline on top, so the lit part never
+// covers the edge. The lit part is a fragment inside the <svg>, so it needs Lit's
+// svg tag: an html fragment there would make unknown HTML elements a browser does
+// not paint.
+function renderDrawing(drawing: MoonDrawing) {
+  return html`<svg
+    viewBox="-1.1 -1.1 2.2 2.2"
+    width="48"
+    height="48"
+    data-lit=${drawing.lit}
+    data-mirrored=${drawing.mirrored}
+    role="img"
+    aria-label=${drawing.text}
+  >
+    <title>${drawing.text}</title>
+    <circle r="1" fill="#3b3a36"></circle>
+    ${renderLit(drawing)}
+    <circle r="1" fill="none" stroke="#898781" stroke-width="0.08"></circle>
+  </svg>`;
+}
+
+function renderLit({ lit, mirrored }: MoonDrawing) {
+  if (lit === "none") return nothing;
+  if (lit === "all") return svg`<circle r="1" fill=${LIT}></circle>`;
+  const path = svg`<path d=${litPath(lit)} fill=${LIT}></path>`;
+  return mirrored ? svg`<g transform="scale(-1 1)">${path}</g>` : path;
+}
 
 function renderNote(strip: Strip | undefined) {
   if (strip?.noDarkness !== true) return nothing;

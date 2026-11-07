@@ -1,9 +1,10 @@
 # The PierPressure card: tonight's verdict on your dashboard
 
 The PierPressure card is a Home Assistant dashboard card. It shows tonight's
-verdict, score and confidence for one pier. Under them, a night strip shows
-every forecast condition hour by hour, and when each of the ranked targets can
-be seen. Lines for dusk, dawn and now cross the strip.
+verdict, score and confidence for one pier, and tonight's moon beside them.
+Under them, a night strip shows every forecast condition hour by hour, and when
+each of the ranked targets can be seen. Lines for dusk, dawn and now cross the
+strip.
 
 The card only shows what PierPressure already publishes. It never computes a
 verdict and never fetches data. If you would rather not install a card, the
@@ -25,6 +26,53 @@ The card shows a message instead when:
 
 A dash in every line means PierPressure has not published its first verdict
 since it started. The lines fill in when it does.
+
+### The Moon section
+
+Beside the verdict lines, the **Moon** section shows tonight's moon. It reads
+the Verdict sensor's `moon` attribute. On a narrow card, it moves under the
+verdict lines.
+
+| Line | What it shows |
+|---|---|
+| **Phase** | One of eight phases, from New through Waxing crescent, First quarter and Waxing gibbous to Full, then Waning gibbous, Last quarter and Waning crescent |
+| **Illumination** | How much of the moon's face is lit, as a whole percent, such as `78%` |
+| **Moonrise** | When the moon rises, if it rises during the dark window |
+| **Moonset** | When the moon sets, if it sets during the dark window |
+
+Phase and Illumination are for the time PierPressure last computed the verdict,
+not for a time during the night. Both change slowly, so they differ little from
+the moon you see after dusk. Near the boundary between two phases, the phase
+can change before the night starts.
+
+The dark window runs from dusk to dawn: the time the sun is at least 18° below
+the horizon. A dash for Moonrise or Moonset means the moon does not rise or set
+during the dark window. It may be up all night, down all night, or rise or set
+in daylight or twilight. The **Moon up** lane on the strip shows when it is up.
+On a night with no dark window, when the card says
+"No astronomical darkness tonight", Moonrise and Moonset always show a dash.
+A dash in every Moon line means PierPressure has not published its first
+verdict yet.
+
+#### How to read the moon drawing
+
+The drawing shows the moon's face, with the lit part in pale grey. The lit
+part's share of the disc is the illumination: at 25%, a quarter of the disc's
+width is lit. A waxing moon, growing towards full, is lit on the right. A
+waning moon, shrinking towards new, is lit on the left. That is how the moon
+looks from the northern hemisphere. When Home Assistant's location is south of
+the equator, the drawing mirrors both, as the moon looks from there.
+
+The card takes the hemisphere from Home Assistant's location, not the pier's,
+because the verdict carries no location. So the drawing for a pier in the other
+hemisphere from Home Assistant is mirrored. The phase and the illumination are
+still right.
+
+A new moon is drawn unlit and a full moon fully lit, even when the illumination
+is a few percent off. The phase does not say which side such a sliver is on.
+Hover over the drawing to see its phase and illumination, such as
+"Moon: waxing gibbous, 78% lit". The drawing is left out when the phase or the
+illumination is missing.
 
 ### The night strip
 
