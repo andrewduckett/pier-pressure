@@ -4,10 +4,14 @@ import {
   CLOUD_COVER_MAX,
   PRECIPITATION_PROBABILITY,
   SEEING,
+  VERDICT,
   forecastEntity,
+  target,
+  targetEntity,
+  verdictEntity,
 } from "./harness";
 import type { HassEntity } from "../src/pierpressure-card";
-import { HOUR, stripReach } from "../src/strip";
+import { HOUR, buildStrip, stripReach } from "../src/strip";
 
 // The judged night's opening axis: 4 hours before a 20:30 dusk to 5 hours after a 03:25 dawn.
 const OPENING = {
@@ -109,5 +113,90 @@ describe("the reach", () => {
 
   it("is the opening axis with no forecast", () => {
     expect(reach({})).toEqual(["2026-10-31T16:30:00.000Z", "2026-11-01T08:25:00.000Z"]);
+  });
+});
+
+const NIGHT = verdictEntity("GO", {
+  dark_window: { start: "2026-10-31T20:30:00Z", end: "2026-11-01T03:25:00Z" },
+});
+
+// Three days of cloud cover around the judged night, so the axis can pan either way.
+const THREE_DAYS = {
+  [VERDICT]: NIGHT,
+  [CLOUD_COVER]: forecastEntity(hourly("2026-10-31T12:00:00Z", 72)),
+};
+
+const NOW = Date.parse("2026-10-31T22:00:00Z");
+
+function held(states: Record<string, HassEntity>, start?: string) {
+  return buildStrip(
+    states,
+    "backyard",
+    NOW,
+    "UTC",
+    start === undefined ? undefined : Date.parse(start),
+  );
+}
+
+describe("a strip with a held start", () => {
+  it("is on the opening axis without one", () => {
+    expect(iso(held(THREE_DAYS).axis)).toEqual([
+      "2026-10-31T16:30:00.000Z",
+      "2026-11-01T08:25:00.000Z",
+    ]);
+  });
+
+  it("starts at the held start, as long as the opening axis", () => {
+    expect(iso(held(THREE_DAYS, "2026-11-01T16:30:00Z").axis)).toEqual([
+      "2026-11-01T16:30:00.000Z",
+      "2026-11-02T08:25:00.000Z",
+    ]);
+  });
+
+  it("stays inside the reach", () => {
+    expect(iso(held(THREE_DAYS, "2026-11-05T00:00:00Z").axis)).toEqual([
+      "2026-11-02T20:05:00.000Z",
+      "2026-11-03T12:00:00.000Z",
+    ]);
+  });
+
+  it("carries the opening axis", () => {
+    expect(iso(held(THREE_DAYS, "2026-11-01T16:30:00Z").opening)).toEqual([
+      "2026-10-31T16:30:00.000Z",
+      "2026-11-01T08:25:00.000Z",
+    ]);
+  });
+
+  it("carries the reach", () => {
+    expect(iso(held(THREE_DAYS).reach)).toEqual([
+      "2026-10-31T12:00:00.000Z",
+      "2026-11-03T12:00:00.000Z",
+    ]);
+  });
+
+  it("drops a dusk line panned off the axis", () => {
+    const kinds = held(THREE_DAYS, "2026-10-31T22:30:00Z").lines.map((line) => line.kind);
+
+    expect(kinds).toEqual(["dawn"]);
+  });
+
+  it("has no dusk or dawn line on the next night", () => {
+    const kinds = held(THREE_DAYS, "2026-11-01T16:30:00Z").lines.map((line) => line.kind);
+
+    expect(kinds).toEqual([]);
+  });
+
+  it("keeps a target lane with no bar on the next night", () => {
+    const states = {
+      ...THREE_DAYS,
+      [target(1)]: targetEntity("Andromeda Galaxy", {
+        start: "2026-10-31T21:00:00Z",
+        end: "2026-11-01T02:00:00Z",
+      }),
+    };
+
+    const lanes = held(states, "2026-11-01T16:30:00Z").targets;
+
+    expect(lanes.map((lane) => [lane.label, lane.bar])).toEqual([["Target 1", undefined]]);
   });
 });
