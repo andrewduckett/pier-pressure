@@ -122,6 +122,11 @@ export class PierPressureCard extends LitElement {
       grid-template-columns: max-content 1fr;
       gap: 2px 8px;
       margin-top: 16px;
+      /* The browser keeps up and down swipes for scrolling the page, and a drag
+         selects no label. */
+      touch-action: pan-y;
+      user-select: none;
+      -webkit-user-select: none;
     }
     .row {
       display: contents;
@@ -254,6 +259,7 @@ export class PierPressureCard extends LitElement {
   // Where the user panned the strip to; undefined keeps it on the opening axis.
   declare heldStart?: number;
   private timer?: ReturnType<typeof setInterval>;
+  private drag?: Drag;
 
   // The now line, and the fallback axis around it, follow the browser's clock
   // between Home Assistant's state updates.
@@ -341,7 +347,7 @@ export class PierPressureCard extends LitElement {
         </dl>
         ${renderMoon(moon)}
       </div>
-      ${renderNote(strip)} ${renderBack(strip, this.onBack)} ${renderStrip(strip, this.onKey)}
+      ${renderNote(strip)} ${renderBack(strip, this.onBack)} ${renderStrip(strip, this.input)}
     </div>`;
   }
 
@@ -375,14 +381,88 @@ export class PierPressureCard extends LitElement {
     this.renderRoot.querySelector<HTMLElement>(".strip")?.focus();
   };
 
-  private onKey = (event: KeyboardEvent): void => {
-    const by = PAN_KEYS[event.key];
-    if (by === undefined) return;
-    event.preventDefault();
-    const strip = this.shownStrip();
-    if (strip !== undefined) this.panTo(strip.axis.start + by);
+  private input: StripInput = {
+    keydown: (event) => {
+      const by = PAN_KEYS[event.key];
+      if (by === undefined) return;
+      event.preventDefault();
+      const strip = this.shownStrip();
+      if (strip !== undefined) this.panTo(strip.axis.start + by);
+    },
+    // The width is taken once, so a layout change mid-drag cannot change the scale.
+    pointerdown: (event) => {
+      if (this.drag !== undefined || !event.isPrimary || event.button !== 0) return;
+      const strip = this.shownStrip();
+      if (strip === undefined) return;
+      const width = this.renderRoot.querySelector(".times")?.getBoundingClientRect().width ?? 0;
+      this.drag = {
+        pointerId: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        start: strip.axis.start,
+        length: strip.axis.end - strip.axis.start,
+        width,
+        held: this.heldStart,
+        panning: false,
+      };
+    },
+    // A drag pans only once it is clearly sideways, so a tap that slips or the
+    // start of a vertical swipe moves nothing.
+    pointermove: (event) => {
+      const drag = this.drag;
+      if (drag === undefined || event.pointerId !== drag.pointerId || drag.width <= 0) return;
+      const sideways = event.clientX - drag.x;
+      if (!drag.panning) {
+        if (Math.abs(sideways) <= DRAG_SLOP) return;
+        if (Math.abs(sideways) <= Math.abs(event.clientY - drag.y)) return;
+        drag.panning = true;
+        (event.currentTarget as Element).setPointerCapture(event.pointerId);
+      }
+      this.panTo(drag.start - (sideways / drag.width) * drag.length);
+    },
+    pointerup: (event) => this.endDrag(event),
+    // The browser took the gesture, to scroll the page, so the moves it let
+    // through before that are undone.
+    pointercancel: (event) => {
+      const drag = this.endDrag(event);
+      if (drag !== undefined) this.heldStart = drag.held;
+    },
+    lostpointercapture: (event) => this.endDrag(event),
   };
+
+  private endDrag(event: PointerEvent): Drag | undefined {
+    const drag = this.drag;
+    if (drag === undefined || event.pointerId !== drag.pointerId) return undefined;
+    this.drag = undefined;
+    return drag;
+  }
 }
+
+// One pointer's drag across the strip, from where it was pressed.
+interface Drag {
+  pointerId: number;
+  x: number;
+  y: number;
+  // The axis on screen when the pointer was pressed, and the hours' width then.
+  start: number;
+  length: number;
+  width: number;
+  // What a cancelled drag puts back.
+  held: number | undefined;
+  panning: boolean;
+}
+
+interface StripInput {
+  keydown: (event: KeyboardEvent) => void;
+  pointerdown: (event: PointerEvent) => void;
+  pointermove: (event: PointerEvent) => void;
+  pointerup: (event: PointerEvent) => void;
+  pointercancel: (event: PointerEvent) => void;
+  lostpointercapture: (event: PointerEvent) => void;
+}
+
+// How far, in px, a pointer moves sideways before a drag starts to pan.
+const DRAG_SLOP = 8;
 
 const PAN_KEYS: Record<string, number | undefined> = { ArrowLeft: -HOUR, ArrowRight: HOUR };
 
@@ -448,7 +528,7 @@ function renderBack(strip: Strip | undefined, onBack: () => void) {
   </div>`;
 }
 
-function renderStrip(strip: Strip | undefined, onKey: (event: KeyboardEvent) => void) {
+function renderStrip(strip: Strip | undefined, input: StripInput) {
   if (strip === undefined) return nothing;
   // Grid row 1 holds the line labels, then come the rows, the Moon up lane, the
   // target lanes and the time labels. The lines' overlay spans from the first
@@ -463,7 +543,12 @@ function renderStrip(strip: Strip | undefined, onKey: (event: KeyboardEvent) => 
     tabindex="0"
     role="group"
     aria-label="Night strip. Use the Left and Right arrow keys to move through the forecast."
-    @keydown=${onKey}
+    @keydown=${input.keydown}
+    @pointerdown=${input.pointerdown}
+    @pointermove=${input.pointermove}
+    @pointerup=${input.pointerup}
+    @pointercancel=${input.pointercancel}
+    @lostpointercapture=${input.lostpointercapture}
   >
     <span></span>
     <div class="track marks">${strip.lines.map((line) => renderMark(line, strip.axis))}</div>

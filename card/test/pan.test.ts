@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   CLOUD_COVER,
   CLOUD_COVER_MAX,
@@ -470,12 +470,195 @@ describe("the Back to tonight button", () => {
   });
 });
 
+describe("dragging the strip", () => {
+  // The hours are drawn across 400 px; happy-dom lays nothing out.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-01T12:00:00Z"));
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 0, 400, 16),
+    );
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    document.body.replaceChildren();
+  });
+
+  // A 24-hour opening axis from 06:00 to 06:00, with forecast hours either side of it.
+  const DAY_AROUND_NOW = {
+    [VERDICT]: verdictEntity("GO", { dark_window: { start: null, end: null } }),
+    [CLOUD_COVER]: forecastEntity(hourly("2026-11-01T00:00:00Z", 60)),
+  };
+
+  function drag(card: PierPressureCard, moves: Array<[number, number]>, end = "pointerup") {
+    const strip = stripOf(card);
+    strip?.dispatchEvent(pointer("pointerdown", 200, 100));
+    for (const [x, y] of moves) strip?.dispatchEvent(pointer("pointermove", x, y));
+    const last = moves.at(-1) ?? [200, 100];
+    strip?.dispatchEvent(pointer(end, last[0], last[1]));
+    return card.updateComplete;
+  }
+
+  it("pans later when dragged to the left", async () => {
+    const card = await mountCard(DAY_AROUND_NOW);
+
+    await drag(card, [[100, 100]]);
+
+    expect(axisOf(card)).toEqual(["2026-11-01T12:00:00.000Z", "2026-11-02T12:00:00.000Z"]);
+  });
+
+  it("pans earlier when swiped to the right", async () => {
+    const card = await mountCard(DAY_AROUND_NOW);
+    const strip = stripOf(card);
+
+    strip?.dispatchEvent(pointer("pointerdown", 200, 100, 1, "touch"));
+    strip?.dispatchEvent(pointer("pointermove", 300, 100, 1, "touch"));
+    strip?.dispatchEvent(pointer("pointerup", 300, 100, 1, "touch"));
+    await card.updateComplete;
+
+    expect(axisOf(card)).toEqual(["2026-11-01T00:00:00.000Z", "2026-11-02T00:00:00.000Z"]);
+  });
+
+  it("follows the pointer from where it was pressed", async () => {
+    const card = await mountCard(DAY_AROUND_NOW);
+
+    await drag(card, [
+      [150, 100],
+      [100, 100],
+    ]);
+
+    expect(axisOf(card)[0]).toBe("2026-11-01T12:00:00.000Z");
+  });
+
+  it("does not pan for a tap that slips", async () => {
+    const card = await mountCard(DAY_AROUND_NOW);
+
+    await drag(card, [[195, 100]]);
+
+    expect([axisOf(card)[0], backButton(card)?.hidden]).toEqual(["2026-11-01T06:00:00.000Z", true]);
+  });
+
+  it("does not pan for a mostly vertical drag", async () => {
+    const card = await mountCard(DAY_AROUND_NOW);
+
+    await drag(card, [[190, 130]]);
+
+    expect(axisOf(card)[0]).toBe("2026-11-01T06:00:00.000Z");
+  });
+
+  it("puts the axis back when the browser cancels the gesture", async () => {
+    const card = await mountCard(DAY_AROUND_NOW);
+
+    await drag(card, [[188, 96]], "pointercancel");
+
+    expect([axisOf(card)[0], backButton(card)?.hidden]).toEqual(["2026-11-01T06:00:00.000Z", true]);
+  });
+
+  it("puts a panned axis back where the cancelled gesture began", async () => {
+    const card = await mountCard(DAY_AROUND_NOW);
+    await drag(card, [[100, 100]]);
+
+    await drag(card, [[0, 100]], "pointercancel");
+
+    expect(axisOf(card)[0]).toBe("2026-11-01T12:00:00.000Z");
+  });
+
+  it("ignores a second finger", async () => {
+    const card = await mountCard(DAY_AROUND_NOW);
+    const strip = stripOf(card);
+
+    strip?.dispatchEvent(pointer("pointerdown", 200, 100, 1, "touch"));
+    strip?.dispatchEvent(pointer("pointermove", 100, 100, 1, "touch"));
+    strip?.dispatchEvent(pointer("pointerdown", 300, 100, 2, "touch"));
+    strip?.dispatchEvent(pointer("pointermove", 50, 100, 2, "touch"));
+    await card.updateComplete;
+
+    expect(axisOf(card)[0]).toBe("2026-11-01T12:00:00.000Z");
+  });
+
+  it("ignores a mouse button other than the main one", async () => {
+    const card = await mountCard(DAY_AROUND_NOW);
+    const strip = stripOf(card);
+
+    strip?.dispatchEvent(pointer("pointerdown", 200, 100, 1, "mouse", 2));
+    strip?.dispatchEvent(pointer("pointermove", 100, 100));
+    await card.updateComplete;
+
+    expect(axisOf(card)[0]).toBe("2026-11-01T06:00:00.000Z");
+  });
+
+  it("stops panning once the pointer is released", async () => {
+    const card = await mountCard(DAY_AROUND_NOW);
+    await drag(card, [[100, 100]]);
+
+    stripOf(card)?.dispatchEvent(pointer("pointermove", 0, 100));
+    await card.updateComplete;
+
+    expect(axisOf(card)[0]).toBe("2026-11-01T12:00:00.000Z");
+  });
+
+  it("stops panning once the pointer capture is lost", async () => {
+    const card = await mountCard(DAY_AROUND_NOW);
+
+    await drag(card, [[100, 100]], "lostpointercapture");
+    stripOf(card)?.dispatchEvent(pointer("pointermove", 0, 100));
+    await card.updateComplete;
+
+    expect(axisOf(card)[0]).toBe("2026-11-01T12:00:00.000Z");
+  });
+
+  it("captures the pointer once the drag starts", async () => {
+    const capture = vi.spyOn(HTMLElement.prototype, "setPointerCapture");
+    const card = await mountCard(DAY_AROUND_NOW);
+
+    await drag(card, [[100, 100]]);
+
+    expect(capture).toHaveBeenCalledWith(1);
+  });
+
+  it("leaves the pointer free for a tap", async () => {
+    const capture = vi.spyOn(HTMLElement.prototype, "setPointerCapture");
+    const card = await mountCard(DAY_AROUND_NOW);
+
+    await drag(card, [[195, 100]]);
+
+    expect(capture).not.toHaveBeenCalled();
+  });
+
+  it("pans nothing before the strip is laid out", async () => {
+    vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockReturnValue(new DOMRect());
+    const card = await mountCard(DAY_AROUND_NOW);
+
+    await drag(card, [[100, 100]]);
+
+    expect(axisOf(card)[0]).toBe("2026-11-01T06:00:00.000Z");
+  });
+
+  it("leaves vertical swipes to the browser", () => {
+    expect(cardStyles()).toMatch(/\.strip\s*\{[^}]*touch-action:\s*pan-y/);
+  });
+
+  it("does not select the strip's text", () => {
+    expect(cardStyles()).toMatch(/\.strip\s*\{[^}]*user-select:\s*none/);
+  });
+});
+
 function backButton(card: PierPressureCard): HTMLButtonElement | null {
   return card.shadowRoot?.querySelector<HTMLButtonElement>(".back button") ?? null;
 }
 
-// A mouse pointer's event, as a browser sends it for the main button.
-function pointer(type: string, clientX: number, clientY = 0, pointerId = 1): PointerEvent {
+// A pointer's event as a browser sends it: pointer 1 is the primary one, and a
+// move carries no button.
+function pointer(
+  type: string,
+  clientX: number,
+  clientY = 0,
+  pointerId = 1,
+  pointerType = "mouse",
+  button = 0,
+): PointerEvent {
   return new PointerEvent(type, {
     bubbles: true,
     composed: true,
@@ -484,8 +667,8 @@ function pointer(type: string, clientX: number, clientY = 0, pointerId = 1): Poi
     clientY,
     pointerId,
     isPrimary: pointerId === 1,
-    button: type === "pointermove" ? -1 : 0,
-    pointerType: "mouse",
+    button: type === "pointermove" ? -1 : button,
+    pointerType,
   });
 }
 
