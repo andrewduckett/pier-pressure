@@ -15,6 +15,7 @@ import {
   asRecord,
   buildStrip,
   clock,
+  panned,
 } from "./strip";
 
 declare const __CARD_VERSION__: string;
@@ -58,6 +59,7 @@ export class PierPressureCard extends LitElement {
   static override properties = {
     hass: { attribute: false },
     config: { state: true },
+    heldStart: { state: true },
   };
 
   static override styles = css`
@@ -225,6 +227,8 @@ export class PierPressureCard extends LitElement {
   // Home Assistant sets hass after setConfig and after the card is attached.
   declare hass?: HomeAssistant;
   declare config?: CardConfig;
+  // Where the user panned the strip to; undefined keeps it on the opening axis.
+  declare heldStart?: number;
   private timer?: ReturnType<typeof setInterval>;
 
   // The now line, and the fallback axis around it, follow the browser's clock
@@ -257,6 +261,7 @@ export class PierPressureCard extends LitElement {
     if (typeof pier !== "string" || pierSlug(pier) === "") {
       throw new Error("pier is required");
     }
+    if (pier !== this.config?.pier) this.heldStart = undefined;
     this.config = { type: String(config["type"]), pier };
   }
 
@@ -312,7 +317,7 @@ export class PierPressureCard extends LitElement {
         </dl>
         ${renderMoon(moon)}
       </div>
-      ${renderNote(strip)} ${renderStrip(strip)}
+      ${renderNote(strip)} ${renderStrip(strip, this.onKey)}
     </div>`;
   }
 
@@ -321,9 +326,35 @@ export class PierPressureCard extends LitElement {
     if (this.hass === undefined || this.config === undefined) return undefined;
     const entity = this.hass.states[verdictEntityId(this.config.pier)];
     if (entity === undefined || entity.state === "unavailable") return undefined;
-    return buildStrip(this.hass.states, this.config.pier, Date.now(), this.hass.config?.time_zone);
+    return buildStrip(
+      this.hass.states,
+      this.config.pier,
+      Date.now(),
+      this.hass.config?.time_zone,
+      this.heldStart,
+    );
   }
+
+  // A pan the reach stops entirely changes nothing, and one that lands on the
+  // opening axis lets the strip follow it again, as Back to tonight does.
+  private panTo(start: number): void {
+    const strip = this.shownStrip();
+    if (strip === undefined) return;
+    const to = panned(strip.opening, strip.reach, start).start;
+    if (to === strip.axis.start) return;
+    this.heldStart = to === strip.opening.start ? undefined : to;
+  }
+
+  private onKey = (event: KeyboardEvent): void => {
+    const by = PAN_KEYS[event.key];
+    if (by === undefined) return;
+    event.preventDefault();
+    const strip = this.shownStrip();
+    if (strip !== undefined) this.panTo(strip.axis.start + by);
+  };
 }
+
+const PAN_KEYS: Record<string, number | undefined> = { ArrowLeft: -HOUR, ArrowRight: HOUR };
 
 const DASH = "—";
 
@@ -378,7 +409,7 @@ function renderNote(strip: Strip | undefined) {
   return html`<p class="note" data-note="no-darkness">No astronomical darkness tonight</p>`;
 }
 
-function renderStrip(strip: Strip | undefined) {
+function renderStrip(strip: Strip | undefined, onKey: (event: KeyboardEvent) => void) {
   if (strip === undefined) return nothing;
   // Grid row 1 holds the line labels, then come the rows, the Moon up lane, the
   // target lanes and the time labels. The lines' overlay spans from the first
@@ -390,6 +421,10 @@ function renderStrip(strip: Strip | undefined) {
     style=${`grid-template-rows: repeat(${gridRows}, auto)`}
     data-axis-start=${iso(strip.axis.start)}
     data-axis-end=${iso(strip.axis.end)}
+    tabindex="0"
+    role="group"
+    aria-label="Night strip. Use the Left and Right arrow keys to move through the forecast."
+    @keydown=${onKey}
   >
     <span></span>
     <div class="track marks">${strip.lines.map((line) => renderMark(line, strip.axis))}</div>

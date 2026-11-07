@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   CLOUD_COVER,
   CLOUD_COVER_MAX,
@@ -6,11 +6,12 @@ import {
   SEEING,
   VERDICT,
   forecastEntity,
+  mountCard,
   target,
   targetEntity,
   verdictEntity,
 } from "./harness";
-import type { HassEntity } from "../src/pierpressure-card";
+import type { HassEntity, PierPressureCard } from "../src/pierpressure-card";
 import { HOUR, buildStrip, stripReach } from "../src/strip";
 
 // The judged night's opening axis: 4 hours before a 20:30 dusk to 5 hours after a 03:25 dawn.
@@ -200,3 +201,221 @@ describe("a strip with a held start", () => {
     expect(lanes.map((lane) => [lane.label, lane.bar])).toEqual([["Target 1", undefined]]);
   });
 });
+
+describe("the card's arrow keys", () => {
+  beforeAll(async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    await import("../src/pierpressure-card");
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    document.body.replaceChildren();
+  });
+
+  it("pan the axis an hour later with Right", async () => {
+    const card = await mountCard(THREE_DAYS);
+
+    await press(card, "ArrowRight");
+
+    expect(axisOf(card)).toEqual(["2026-10-31T17:30:00.000Z", "2026-11-01T09:25:00.000Z"]);
+  });
+
+  it("pan the axis an hour earlier with Left", async () => {
+    const card = await mountCard(THREE_DAYS);
+
+    await press(card, "ArrowLeft");
+
+    expect(axisOf(card)).toEqual(["2026-10-31T15:30:00.000Z", "2026-11-01T07:25:00.000Z"]);
+  });
+
+  it("keep the page from scrolling sideways", async () => {
+    const card = await mountCard(THREE_DAYS);
+
+    const event = await press(card, "ArrowRight");
+
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it("leave other keys to the page", async () => {
+    const card = await mountCard(THREE_DAYS);
+
+    const event = await press(card, "ArrowDown");
+
+    expect([event.defaultPrevented, axisOf(card)[0]]).toEqual([false, "2026-10-31T16:30:00.000Z"]);
+  });
+
+  it("stop at the end of the reach", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [CLOUD_COVER]: forecastEntity(hourly("2026-10-31T12:00:00Z", 21)),
+    });
+
+    await press(card, "ArrowRight");
+    await press(card, "ArrowRight");
+
+    expect(axisOf(card)).toEqual(["2026-10-31T17:05:00.000Z", "2026-11-01T09:00:00.000Z"]);
+  });
+
+  it("reach a strip that takes focus from the Tab key", async () => {
+    const card = await mountCard(THREE_DAYS);
+
+    expect(stripOf(card)?.getAttribute("tabindex")).toBe("0");
+  });
+
+  it("are named in the strip's accessible name", async () => {
+    const card = await mountCard(THREE_DAYS);
+
+    expect([
+      stripOf(card)?.getAttribute("role"),
+      stripOf(card)?.getAttribute("aria-label"),
+    ]).toEqual([
+      "group",
+      "Night strip. Use the Left and Right arrow keys to move through the forecast.",
+    ]);
+  });
+});
+
+describe("a panned strip", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    document.body.replaceChildren();
+  });
+
+  // The card's minute redraw needs its interval faked as well as the clock.
+  function pinClockAndTimers(iso: string): void {
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+    vi.setSystemTime(new Date(iso));
+  }
+
+  const NO_DARKNESS = verdictEntity("GO", { dark_window: { start: null, end: null } });
+
+  it("keeps its axis when Home Assistant sends new state", async () => {
+    const card = await mountCard(THREE_DAYS);
+    await pressTimes(card, "ArrowRight", 24);
+
+    await sendStates(card, { ...THREE_DAYS });
+
+    expect(axisOf(card)).toEqual(["2026-11-01T16:30:00.000Z", "2026-11-02T08:25:00.000Z"]);
+  });
+
+  it("keeps its axis when a minute passes", async () => {
+    pinClockAndTimers("2026-11-01T12:00:00Z");
+    const card = await mountCard({
+      [VERDICT]: NO_DARKNESS,
+      [CLOUD_COVER]: forecastEntity(hourly("2026-11-01T00:00:00Z", 72)),
+    });
+    await pressTimes(card, "ArrowRight", 6);
+
+    vi.advanceTimersByTime(60_000);
+    await card.updateComplete;
+
+    expect(axisOf(card)).toEqual(["2026-11-01T12:00:00.000Z", "2026-11-02T12:00:00.000Z"]);
+  });
+
+  it("moves into the reach when the forecast moves on past it", async () => {
+    const card = await mountCard(THREE_DAYS);
+    await pressTimes(card, "ArrowLeft", 5);
+
+    await sendStates(card, {
+      [VERDICT]: NIGHT,
+      [CLOUD_COVER]: forecastEntity(hourly("2026-10-31T14:00:00Z", 72)),
+    });
+
+    expect(axisOf(card)).toEqual(["2026-10-31T14:00:00.000Z", "2026-11-01T05:55:00.000Z"]);
+  });
+
+  it("takes the length of a new night", async () => {
+    const card = await mountCard(THREE_DAYS);
+    await pressTimes(card, "ArrowRight", 24);
+
+    await sendStates(card, {
+      ...THREE_DAYS,
+      [VERDICT]: verdictEntity("GO", {
+        dark_window: { start: "2026-11-01T21:00:00Z", end: "2026-11-02T05:00:00Z" },
+      }),
+    });
+
+    expect(axisOf(card)).toEqual(["2026-11-01T16:30:00.000Z", "2026-11-02T09:30:00.000Z"]);
+  });
+
+  it("follows the clock again once panned back by hand", async () => {
+    pinClockAndTimers("2026-11-01T12:00:00Z");
+    const card = await mountCard({
+      [VERDICT]: NO_DARKNESS,
+      [CLOUD_COVER]: forecastEntity(hourly("2026-11-01T00:00:00Z", 72)),
+    });
+    await press(card, "ArrowRight");
+    await press(card, "ArrowLeft");
+
+    vi.advanceTimersByTime(60_000);
+    await card.updateComplete;
+
+    expect(axisOf(card)).toEqual(["2026-11-01T06:01:00.000Z", "2026-11-02T06:01:00.000Z"]);
+  });
+
+  it("follows the clock after a pan the reach stopped", async () => {
+    pinClockAndTimers("2026-11-01T12:00:00Z");
+    const card = await mountCard({
+      [VERDICT]: NO_DARKNESS,
+      [CLOUD_COVER]: forecastEntity(hourly("2026-11-01T06:00:00Z", 72)),
+    });
+    await press(card, "ArrowLeft");
+
+    vi.advanceTimersByTime(60_000);
+    await card.updateComplete;
+
+    expect(axisOf(card)).toEqual(["2026-11-01T06:01:00.000Z", "2026-11-02T06:01:00.000Z"]);
+  });
+
+  it("opens a new pier on its own opening axis", async () => {
+    const card = await mountCard(BOTH_PIERS);
+    await pressTimes(card, "ArrowRight", 24);
+
+    card.setConfig({ type: "custom:pierpressure-card", pier: "frontyard" });
+    await card.updateComplete;
+
+    expect(axisOf(card)).toEqual(["2026-10-31T16:30:00.000Z", "2026-11-01T08:25:00.000Z"]);
+  });
+
+  it("keeps its axis when the configuration changes but the pier does not", async () => {
+    const card = await mountCard(BOTH_PIERS);
+    await pressTimes(card, "ArrowRight", 24);
+
+    card.setConfig({ type: "custom:pierpressure-card", pier: "backyard" });
+    await card.updateComplete;
+
+    expect(axisOf(card)).toEqual(["2026-11-01T16:30:00.000Z", "2026-11-02T08:25:00.000Z"]);
+  });
+});
+
+const BOTH_PIERS = {
+  ...THREE_DAYS,
+  "sensor.pierpressure_frontyard_verdict": NIGHT,
+  "sensor.pierpressure_frontyard_cloud_cover": forecastEntity(hourly("2026-10-31T12:00:00Z", 72)),
+};
+
+function stripOf(card: PierPressureCard): HTMLElement | null {
+  return card.shadowRoot?.querySelector<HTMLElement>(".strip") ?? null;
+}
+
+function axisOf(card: PierPressureCard): [string | undefined, string | undefined] {
+  const element = stripOf(card);
+  return [element?.dataset["axisStart"], element?.dataset["axisEnd"]];
+}
+
+async function press(card: PierPressureCard, key: string): Promise<KeyboardEvent> {
+  const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+  stripOf(card)?.dispatchEvent(event);
+  await card.updateComplete;
+  return event;
+}
+
+async function pressTimes(card: PierPressureCard, key: string, times: number): Promise<void> {
+  for (let index = 0; index < times; index += 1) await press(card, key);
+}
+
+async function sendStates(card: PierPressureCard, states: Record<string, HassEntity>) {
+  card.hass = { states, config: { time_zone: "UTC" } };
+  await card.updateComplete;
+}
