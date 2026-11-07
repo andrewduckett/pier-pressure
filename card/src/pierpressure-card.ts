@@ -158,13 +158,16 @@ function renderCell(cell: Cell, axis: Axis) {
   const width = percent(cell.to - cell.from, span);
   const insetStart = cell.from === cell.hour ? 1 : 0;
   const insetEnd = cell.to === cell.hour + HOUR ? 1 : 0;
-  const style = `left: calc(${left}% + ${insetStart}px); width: calc(${width}% - ${insetStart + insetEnd}px)`;
+  const style =
+    `left: calc(${left}% + ${insetStart}px); width: calc(${width}% - ${insetStart + insetEnd}px); ` +
+    `background-color: ${cell.shade}`;
   return html`<div
     class="cell"
     style=${style}
     data-hour=${iso(cell.hour)}
     data-from=${iso(cell.from)}
     data-to=${iso(cell.to)}
+    data-shade=${cell.shade}
   ></div>`;
 }
 

@@ -49,6 +49,8 @@ export interface Cell {
   // The part of the hour on the axis: the hour itself, unless an axis end cuts it.
   from: number;
   to: number;
+  value: number;
+  shade: string;
 }
 
 export interface Row {
@@ -80,8 +82,28 @@ export function buildStrip(states: States, pier: string, now: number): Strip {
 function rowCells(forecast: unknown, axis: Axis): Cell[] {
   if (!Array.isArray(forecast)) return [];
   return forecast.flatMap((point: unknown) => {
-    const hour = readTime(asRecord(point)?.["datetime"]);
+    const record = asRecord(point);
+    const hour = readTime(record?.["datetime"]);
+    const value = record?.["value"];
     if (hour === undefined || hour + HOUR <= axis.start || hour >= axis.end) return [];
-    return [{ hour, from: Math.max(hour, axis.start), to: Math.min(hour + HOUR, axis.end) }];
+    // A type check, not a truthiness check: 0% cloud is a value, null is a gap.
+    if (typeof value !== "number" || !Number.isFinite(value)) return [];
+    return [
+      {
+        hour,
+        from: Math.max(hour, axis.start),
+        to: Math.min(hour + HOUR, axis.end),
+        value,
+        shade: cloudShade(value),
+      },
+    ];
   });
+}
+
+// The YAML strip's seven blues, lightest to darkest, one step per 15% of cloud.
+const BLUES = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"] as const;
+
+function cloudShade(percent: number): string {
+  const step = Math.min(BLUES.length - 1, Math.max(0, Math.floor(percent / 15)));
+  return BLUES[step] ?? BLUES[0];
 }

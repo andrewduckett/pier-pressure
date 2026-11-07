@@ -192,3 +192,25 @@ describe("a value fills its hour", () => {
     expect(cell?.style.width).toContain("6.2827%");
   });
 });
+
+describe("more cloud is darker", () => {
+  it.each([
+    [0, "#cde2fb"],
+    [14, "#cde2fb"],
+    [15, "#9ec5f4"],
+    [44, "#6da7ec"],
+    [89, "#184f95"],
+    [90, "#0d366b"],
+    [100, "#0d366b"],
+    [-5, "#cde2fb"],
+    [120, "#0d366b"],
+  ])("shades %d%% as %s", async (value, colour) => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [CLOUD_COVER]: cloudEntity([["2026-10-31T21:00:00Z", value]]),
+    });
+
+    const [cell] = cells(card, "cloud_cover");
+    expect(cell?.dataset["shade"]).toBe(colour);
+  });
+});
