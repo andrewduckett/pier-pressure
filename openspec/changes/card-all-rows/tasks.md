@@ -16,7 +16,7 @@
 ## 3. Docs and the whole path [depends-on: 2]
 
 - [x] 3.1 [easy] `docs/night-card.md` lists the fifteen rows and their sensors, gives each shaded row's lightest and darkest and says darker means worse for Seeing and Transparency, says Temperature and Dew point share the same scale, that a Rain chance cell fills the hour before its time, and that a Wind direction arrow points the way the wind blows to; its opening no longer says a later release adds the other conditions (test: `tests/test_night_card_doc.py`) (verify: uv run pytest tests/test_night_card_doc.py -k rows) (✓ pytest tests/test_night_card_doc.py -k rows passed)
-- [ ] 3.2 [complex] The whole path works: `mise run check` is green, and `mise run dashboard-check` shows the fifteen rows, their shades and the wind arrows beside the YAML strip in a real Home Assistant, checked by eye (verify: mise run check)
+- [x] 3.2 [complex] The whole path works: `mise run check` is green, and `mise run dashboard-check` shows the fifteen rows, their shades and the wind arrows beside the YAML strip in a real Home Assistant, checked by eye (verify: mise run check) (✓ mise run check passed; dashboard-check showed the fifteen rows, their shades, the wind arrows and the Moon up lane in a real Home Assistant, with unit, compass and Rain chance hours on hover, by eye)
 
 ## Deviations Ledger
 
