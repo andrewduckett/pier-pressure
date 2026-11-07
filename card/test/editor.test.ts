@@ -15,6 +15,10 @@ class StandInForm extends HTMLElement {
   data: Record<string, unknown> = {};
   computeLabel?: (entry: SchemaEntry) => string;
 
+  pick(value: Record<string, unknown>): void {
+    this.dispatchEvent(new CustomEvent("value-changed", { detail: { value } }));
+  }
+
   label(): string | undefined {
     const entry = this.schema[0];
     return entry === undefined ? undefined : this.computeLabel?.(entry);
@@ -92,5 +96,75 @@ describe("the card's editor", () => {
 
   it("shows an empty pier when the configured one is not text", async () => {
     expect(form(await mountEditor({ pier: 7 })).data).toEqual({ pier: "" });
+  });
+});
+
+describe("a change in the editor", () => {
+  function reported(editor: PierPressureCardEditor): Array<Record<string, unknown>> {
+    const configs: Array<Record<string, unknown>> = [];
+    editor.addEventListener("config-changed", (event) => {
+      configs.push((event as CustomEvent<{ config: Record<string, unknown> }>).detail.config);
+    });
+    return configs;
+  }
+
+  it("reports a picked pier", async () => {
+    const editor = await mountEditor({ pier: "backyard" });
+    const configs = reported(editor);
+
+    form(editor).pick({ pier: "frontyard" });
+
+    expect(configs).toEqual([{ type: "custom:pierpressure-card", pier: "frontyard" }]);
+  });
+
+  it("keeps the keys it does not edit", async () => {
+    const editor = await mountEditor({ pier: "backyard", title: "Garden" });
+    const configs = reported(editor);
+
+    form(editor).pick({ pier: "frontyard" });
+
+    expect(configs[0]).toEqual({
+      type: "custom:pierpressure-card",
+      pier: "frontyard",
+      title: "Garden",
+    });
+  });
+
+  it("reports a typed pier unchanged", async () => {
+    const editor = await mountEditor({ pier: "backyard" });
+    const configs = reported(editor);
+
+    form(editor).pick({ pier: "Garden Pier" });
+
+    expect(configs[0]?.["pier"]).toBe("Garden Pier");
+  });
+
+  it("reports a cleared field as an empty pier", async () => {
+    const editor = await mountEditor({ pier: "backyard" });
+    const configs = reported(editor);
+
+    form(editor).pick({ pier: undefined });
+
+    expect(configs[0]?.["pier"]).toBe("");
+  });
+
+  it("reports nothing when the pier is unchanged", async () => {
+    const editor = await mountEditor({ pier: "backyard" });
+    const configs = reported(editor);
+
+    form(editor).pick({ pier: "backyard" });
+
+    expect(configs).toEqual([]);
+  });
+
+  // Home Assistant listens for the change outside the editor's shadow root.
+  it("reports the change past the editor's shadow root", async () => {
+    const editor = await mountEditor({ pier: "backyard" });
+    const events: Event[] = [];
+    document.body.addEventListener("config-changed", (event) => events.push(event), { once: true });
+
+    form(editor).pick({ pier: "frontyard" });
+
+    expect(events).toHaveLength(1);
   });
 });

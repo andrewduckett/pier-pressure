@@ -37,7 +37,24 @@ export class PierPressureCardEditor extends LitElement {
       .data=${{ pier: typeof pier === "string" ? pier : "" }}
       .schema=${pierSchema(listPiers(this.hass.states))}
       .computeLabel=${label}
+      @value-changed=${this.changed}
     ></ha-form>`;
+  }
+
+  // Clearing the field gives no pier at all, which the card reads as an empty one.
+  private changed(event: CustomEvent<{ value: Record<string, unknown> }>): void {
+    if (this.config === undefined) return;
+    const picked = event.detail.value["pier"];
+    const pier = typeof picked === "string" ? picked : "";
+    if (pier === this.config["pier"]) return;
+    this.config = { ...this.config, pier };
+    this.dispatchEvent(
+      new CustomEvent("config-changed", {
+        detail: { config: this.config },
+        bubbles: true,
+        composed: true,
+      }),
+    );
   }
 }
 
