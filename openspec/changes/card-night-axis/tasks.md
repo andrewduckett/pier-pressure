@@ -2,7 +2,7 @@
 
 - [x] 1.1 [medium] The strip's top row is Sun altitude, read from `sensor.pierpressure_<slug>_sun_altitude`, above the four cloud rows; it uses the cloud rows' hour, clipping, blank-hour and empty-row rules, including an `unavailable` sensor that kept its forecast; the cloud-row tests now expect five rows, with four cloud rows when no cloud sensor exists (design DD1; test: the card harness) (verify: mise exec -- npm --prefix card test -- strip) (✓ npm test -- strip passed)
 - [x] 1.2 [easy] A Sun altitude cell is shaded `#cde2fb` above 0°, `#9ec5f4` above −6°, `#6da7ec` above −12°, `#3987e5` above −18°, and `#0d366b` at −18° or below: 10, 0, −6, −12, −18 and −30 from the spec (design DD2) (verify: mise exec -- npm --prefix card test -- strip) (✓ npm test -- strip passed)
-- [ ] 1.3 [easy] A Sun altitude cell's `title` and `aria-label` read `Sun altitude, the hour from 21:00: -14.235°`, while cloud cells keep `%` (design DD1) (verify: mise exec -- npm --prefix card test -- strip)
+- [x] 1.3 [easy] A Sun altitude cell's `title` and `aria-label` read `Sun altitude, the hour from 21:00: -14.235°`, while cloud cells keep `%` (design DD1) (verify: mise exec -- npm --prefix card test -- strip) (✓ npm test -- strip passed)
 
 ## 2. The Moon up lane [depends-on: 1]
 

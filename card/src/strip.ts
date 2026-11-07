@@ -39,16 +39,17 @@ export function asRecord(value: unknown): Record<string, unknown> | undefined {
 interface RowKind {
   key: string;
   label: string;
+  unit: string;
   shade: (value: number) => string;
 }
 
 // Top to bottom, as in the YAML night strip.
 export const ROWS: readonly RowKind[] = [
-  { key: "sun_altitude", label: "Sun altitude", shade: sunShade },
-  { key: "cloud_cover", label: "Cloud cover", shade: cloudShade },
-  { key: "cloud_low", label: "Cloud low", shade: cloudShade },
-  { key: "cloud_mid", label: "Cloud mid", shade: cloudShade },
-  { key: "cloud_high", label: "Cloud high", shade: cloudShade },
+  { key: "sun_altitude", label: "Sun altitude", unit: "°", shade: sunShade },
+  { key: "cloud_cover", label: "Cloud cover", unit: "%", shade: cloudShade },
+  { key: "cloud_low", label: "Cloud low", unit: "%", shade: cloudShade },
+  { key: "cloud_mid", label: "Cloud mid", unit: "%", shade: cloudShade },
+  { key: "cloud_high", label: "Cloud high", unit: "%", shade: cloudShade },
 ];
 
 export interface Cell {
@@ -93,12 +94,12 @@ export function buildStrip(
   return {
     axis,
     labels: timeLabels(axis, time),
-    rows: ROWS.map(({ key, label, shade }) => ({
+    rows: ROWS.map(({ key, label, unit, shade }) => ({
       key,
       label,
       cells: rowCells(forecastOf(states[pierEntityId(pier, key)]), axis, shade).map((cell) => ({
         ...cell,
-        text: `${label}, the hour from ${time(cell.hour)}: ${cell.value}%`,
+        text: `${label}, the hour from ${time(cell.hour)}: ${cell.value}${unit}`,
       })),
     })),
   };

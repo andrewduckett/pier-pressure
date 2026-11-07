@@ -479,6 +479,21 @@ describe("hovering over a cell", () => {
   });
 });
 
+describe("hovering over a Sun altitude cell", () => {
+  it("shows the altitude in degrees", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [SUN_ALTITUDE]: forecastEntity([["2026-10-31T21:00:00Z", -14.235]]),
+    });
+
+    const [cell] = cells(card, "sun_altitude");
+    expect([cell?.getAttribute("title"), cell?.getAttribute("aria-label")]).toEqual([
+      "Sun altitude, the hour from 21:00: -14.235°",
+      "Sun altitude, the hour from 21:00: -14.235°",
+    ]);
+  });
+});
+
 describe("the axis's time labels", () => {
   async function labels(start: string, end: string, timeZone: string) {
     // The night is 4 hours after the axis start to 5 hours before its end.
