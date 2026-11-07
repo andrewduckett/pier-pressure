@@ -414,3 +414,9 @@ def test_docs_moon_section_says_when_the_phase_is_for() -> None:
     sentences = _before_the_strip().split(". ")
 
     assert any("Phase" in s and "computed the verdict" in s for s in sentences)
+
+
+def test_docs_moon_section_says_a_dash_on_a_night_with_no_darkness() -> None:
+    sentences = _before_the_strip().split(". ")
+
+    assert any("dash" in s and "No astronomical darkness tonight" in s for s in sentences)

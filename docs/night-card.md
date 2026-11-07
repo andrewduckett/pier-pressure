@@ -49,6 +49,8 @@ The dark window runs from dusk to dawn: the time the sun is at least 18° below
 the horizon. A dash for Moonrise or Moonset means the moon does not rise or set
 during the dark window. It may be up all night, down all night, or rise or set
 in daylight or twilight. The **Moon up** lane on the strip shows when it is up.
+On a night with no dark window, when the card says
+"No astronomical darkness tonight", Moonrise and Moonset always show a dash.
 A dash in every Moon line means PierPressure has not published its first
 verdict yet.
 
