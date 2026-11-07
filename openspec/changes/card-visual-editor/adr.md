@@ -8,9 +8,9 @@
 ADR review completed for this change. None of design.md's decisions passes the
 test. D-1 to D-7 sit inside the card's own source, behind the published
 entities, and a later change can replace any of them inside `card/src/` at
-little cost. Using Home Assistant's `ha-form` for the editor's field (D-3, D-4)
-is the same kind of dependency on Home Assistant's frontend that ADR-0034
-already accepts for `ha-card`; dropping it later touches one element. The change
+little cost. The editor's field uses Home Assistant's `ha-form` (D-3, D-4). ADR-0034
+already accepts that kind of dependency for `ha-card`, and dropping it later
+touches one element. The change
 relies on ADR-0034: the editor lists piers only from published Verdict sensors
 and their `pier` attribute, and reads no registry. ADR-0001 is unaffected: the
 core and the verdict document do not change.

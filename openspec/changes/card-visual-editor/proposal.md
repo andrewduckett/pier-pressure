@@ -36,6 +36,6 @@ None.
 
 - Code: `card/src/` (a new editor element, the card's picker entry and its
   starting configuration) and `card/test/`.
-- Docs: `docs/night-card.md`.
+- Docs: `docs/night-card.md`, and its test, `tests/test_night_card_doc.py`.
 - No change to the core, the verdict document, MQTT delivery, the add-on or the
   YAML dashboard. No new dependency: the card already bundles Lit.

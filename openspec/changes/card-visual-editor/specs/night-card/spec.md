@@ -8,7 +8,7 @@ The card's entry in Home Assistant's list of custom cards SHALL ask for a previe
 - **THEN** the entry in `window.customCards` whose `type` is `pierpressure-card` has `preview` equal to `true`
 
 ### Requirement: The card offers a starting configuration
-When Home Assistant asks the card for a starting configuration, the card SHALL give `type: custom:pierpressure-card` with the `pier` value of the first pier the editor lists. When the editor lists no pier, the starting configuration SHALL have no `pier` key, and the card's preview shows the error "pier is required".
+When Home Assistant asks the card for a starting configuration, the card SHALL give `type: custom:pierpressure-card` with the `pier` value of the first pier the editor lists. When the editor lists no pier, the starting configuration SHALL have no `pier` key.
 
 #### Scenario: Two piers are known
 - **WHEN** Home Assistant has `sensor.pierpressure_frontyard_verdict` with the `pier` attribute `frontyard` and `sensor.pierpressure_backyard_verdict` with the `pier` attribute `backyard`, and asks for a starting configuration
@@ -19,7 +19,7 @@ When Home Assistant asks the card for a starting configuration, the card SHALL g
 - **THEN** the card gives `type: custom:pierpressure-card` and no `pier` key
 
 ### Requirement: The card has a visual editor
-The card SHALL give Home Assistant a configuration editor when Home Assistant asks for one, so the card can be set up without YAML. The editor SHALL have one field, labelled **Pier**, that sets the card's `pier` key. Each change SHALL be reported to Home Assistant as the card's whole new configuration.
+The card SHALL give Home Assistant a configuration editor when Home Assistant asks for one, so the card can be set up without YAML. The editor SHALL have one field, labelled **Pier**, that sets the card's `pier` key. The editor SHALL report each change to Home Assistant as the card's whole new configuration.
 
 #### Scenario: Home Assistant asks for the editor
 - **WHEN** Home Assistant asks the card for its configuration editor

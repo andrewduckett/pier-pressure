@@ -9,15 +9,18 @@
   value.
 - `setConfig` keeps only `type` and `pier`, and throws "pier is required" when
   `pier` slugs to nothing. The editor does not change that.
-- Home Assistant's card API, as the dashboard editor uses it (Home Assistant
-  2026.10, the version `compose.yaml` pins for `mise run dashboard-check`):
-  - a picker entry with `preview: true` makes the picker draw the card;
-  - `static getStubConfig(hass)` gives the starting configuration; the picker
-    sets `type` itself and merges what the card returns;
+- The design follows Home Assistant's card API as its dashboard editor uses it.
+  The version is 2026.10, which `compose.yaml` pins for
+  `mise run dashboard-check`.
+  - A picker entry with `preview: true` makes the picker draw the card. If the
+    card throws while the picker builds it, the picker shows the entry's
+    description instead.
+  - `static getStubConfig(hass)` gives the starting configuration. The picker
+    sets `type` itself and merges what the card returns.
   - `static getConfigElement()` returns the editor element. Home Assistant sets
-    its `hass` property and calls its `setConfig(config)`. The editor reports a
-    change by dispatching a `config-changed` event, with `detail.config`, that
-    bubbles and is composed.
+    its `hass` property and calls its `setConfig(config)`.
+  - The editor reports a change with a `config-changed` event that carries
+    `detail.config`, bubbles and is composed.
 - The Verdict sensor's attributes are the verdict document without `timeline`,
   so `attributes.pier` is the pier id (ledger D2).
 - Tests run in Vitest with happy-dom, through `card/test/harness.ts`. Home
@@ -42,19 +45,25 @@
 
 - **Primary test seam:** the card's Vitest suite under `card/test/`. A new
   `editor.test.ts` mounts `pierpressure-card-editor` with a stand-in `ha-form`
-  element that records the `schema` and `data` it is given and can fire
-  `value-changed`, like Home Assistant's. The pier list function and
-  `getStubConfig` are tested as plain functions.
+  element. Like Home Assistant's, it shows each field's label from its
+  `computeLabel` callback, records the `schema` and `data` it is given, and can
+  fire `value-changed`. The pier list function and `getStubConfig` are tested
+  as plain functions.
+- **Docs seam:** `tests/test_night_card_doc.py`, which already tests every
+  `docs/night-card.md` requirement, gains the visual editor scenario.
 - **Existing seams reused:** `card/test/harness.ts` (`verdictEntity`, the
   `HomeAssistant` shape), and `card/test/register.test.ts` for the picker entry.
   The real Home Assistant in `mise run dashboard-check` is the by-eye check
-  (ledger D14), not an automated seam.
+  (ledger D14), not an automated seam. Its two PierPressure dashboards are in
+  YAML mode and cannot be edited, so the check uses the Overview dashboard at
+  `/lovelace`, which Home Assistant keeps in storage mode.
 
 ## Scrutiny Tier & Blast Radius
 
 - **Tier:** medium. One package on established patterns, but it adopts a new
   part of Home Assistant's card API and one of Home Assistant's own elements.
-- **Blast radius:** `card/` only, and `docs/night-card.md`. The card's
+- **Blast radius:** `card/`, `docs/night-card.md` and its test,
+  `tests/test_night_card_doc.py`. The card's
   rendering is unchanged. The core, the verdict document and MQTT delivery are
   untouched.
 
@@ -63,8 +72,8 @@
 ### D-1. The pier list is a pure function in `entity.ts`
 
 `listPiers(states)` returns `{ value, label }[]`. It keeps each state id that
-matches `^sensor\.pierpressure_(.+)_verdict$` and takes `<slug>` from the
-match. `label` is `attributes.pier` when it is a non-empty string, else
+matches `^sensor\.pierpressure_(.+)_verdict$` and whose entity is not
+`undefined`, and takes `<slug>` from the match. `label` is `attributes.pier` when it is a non-empty string, else
 `<slug>`. `value` is `attributes.pier` when `pierSlug(attributes.pier)`
 equals `<slug>`, else `<slug>` (ledger D4). Sorting uses
 `label.localeCompare(other.label)`, then `value` for a tie, so the order is
@@ -91,19 +100,27 @@ The editor keeps the whole configuration it was given, not only `type` and
 
 ### D-3. The field is Home Assistant's `ha-form` with a select selector
 
-The editor renders `<ha-form>` with one schema entry: `name: "pier"`, label
-**Pier**, and `selector.select` with the listed piers as `options`,
-`custom_value: true` and `mode: "dropdown"`. Home Assistant draws that as its
-combo box: it lists every pier, shows the label of the current value, and takes
-typed text (ledger D7). When the configured pier is not among the options, the
-editor adds it as an option with itself as the label, so the field shows it
-(ledger D6).
+The editor renders `<ha-form>` with one schema entry: `name: "pier"` and
+`selector.select` with `custom_value: true`. Its `options` are exactly
+`listPiers(hass.states)`, and nothing else, so no other value joins the list.
+`ha-form` takes labels from a callback, not from the schema, so the editor
+passes `computeLabel` returning **Pier**.
 
-On `value-changed`, the editor reads `detail.value.pier`. If it is a string that
-differs from the current `pier`, the editor dispatches `config-changed` with
+Home Assistant draws that selector as its combo box. The open list shows each
+pier's label, and the field takes typed text (ledger D7). The closed field
+shows the stored `pier` value itself, such as `dong_jing` for `東京`, so the
+user sees exactly what the configuration holds. It shows a value that is not in
+the list just the same, so the editor passes
+`data = { pier: <config.pier when it is a string, else ""> }` and never adds
+options (ledger D6).
+
+On `value-changed`, the editor reads `detail.value.pier`. Clearing the field
+gives `undefined`, which the editor treats as `""`. If the result differs from
+the current `pier`, the editor dispatches `config-changed` with
 `{ ...config, pier }`. An unchanged value reports nothing, so opening the editor
 never rewrites the configuration (ledger D6). An emptied field reports
-`pier: ""`, and the preview then shows the card's "pier is required".
+`pier: ""`, and the edit dialog's preview then shows the card's
+"pier is required".
 
 *Alternatives:* a native `<input list>` with a `<datalist>`. Rejected:
 browsers filter a datalist by the text already in the field, so once a pier is
@@ -142,15 +159,16 @@ as well is harmless, since the picker sets the same value.
 the card picker, then pick the pier from the **Pier** list, or type it. YAML
 stays as the other route, unchanged. "Find your pier's entity id" adds that the
 **Pier** list already uses the real id, so the step is needed only for YAML.
-The "If something looks wrong" list gains "No PierPressure piers found".
+The "If something looks wrong" section does not change: it lists the card's
+messages, and "No PierPressure piers found" is the editor's.
 
 ## Risks / Trade-offs
 
 - [`ha-form` and its select selector are Home Assistant's internal elements,
-  not a published API, and can change] → The editor depends on two documented
-  shapes only: the selector schema and the `value-changed` event. The check in
-  `mise run dashboard-check` runs against the pinned Home Assistant, and the
-  card's YAML route keeps working if the editor ever breaks.
+  not a published API, and can change] → The editor depends on three shapes
+  only: the selector schema, `computeLabel` and the `value-changed` event. The
+  check in `mise run dashboard-check` runs against the pinned Home Assistant.
+  If the editor ever breaks, the card's YAML route keeps working.
 - [Forcing `ha-form` to load relies on `hui-entities-card` having a form editor]
   → It is a fallback only for when `ha-form` is not already defined. The
   by-eye check confirms the editor draws on a fresh page load.
