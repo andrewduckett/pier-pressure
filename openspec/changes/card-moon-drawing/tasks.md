@@ -9,7 +9,7 @@
 
 ## 2. The card's docs [depends-on: 1]
 
-- [ ] 2.1 [easy] `docs/night-card.md`, before "The night strip", describes the Moon section: it reads the Verdict sensor's `moon` attribute; Phase, Illumination, Moonrise and Moonset; moonrise and moonset are only those inside the dark window, and a dash means none then (design DD4; test: `tests/test_night_card_doc.py`) (verify: uv run pytest tests/test_night_card_doc.py -k moon)
+- [x] 2.1 [easy] `docs/night-card.md`, before "The night strip", describes the Moon section: it reads the Verdict sensor's `moon` attribute; Phase, Illumination, Moonrise and Moonset; moonrise and moonset are only those inside the dark window, and a dash means none then (design DD4; test: `tests/test_night_card_doc.py`) (verify: uv run pytest tests/test_night_card_doc.py -k moon) (✓ pytest tests/test_night_card_doc.py -k moon passed; whole file 102 passed)
 - [ ] 2.2 [easy] The same part says how to read the drawing: the lit part is the illumination's share of the disc; a waxing moon is lit on the right and a waning one on the left; the card mirrors both when Home Assistant's location is south of the equator; it takes the hemisphere from Home Assistant, not the pier, so a pier in the other hemisphere shows the moon mirrored; a new moon is drawn unlit and a full moon fully lit (design DD2, DD3; test: `tests/test_night_card_doc.py`) (verify: uv run pytest tests/test_night_card_doc.py -k moon)
 
 ## 3. The whole path [depends-on: 1, 2]

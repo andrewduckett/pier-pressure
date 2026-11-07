@@ -362,3 +362,30 @@ def _troubleshooting_item(shown: str) -> str:
 @pytest.mark.parametrize("term", ["`conditions`", "`providers`", "Open-Meteo", "health", "add-on"])
 def test_docs_wrong_section_says_how_to_fill_the_cloud_range_row(term: str) -> None:
     assert term in _troubleshooting_item('The Cloud range row says "Needs two forecasts"')
+
+
+def _before_the_strip() -> str:
+    page = _page()
+    return " ".join(page[: page.index("### The night strip")].split())
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "**Moon**",
+        "the Verdict sensor's `moon` attribute",
+        "**Phase**",
+        "**Illumination**",
+        "**Moonrise**",
+        "**Moonset**",
+        "dark window",
+    ],
+)
+def test_docs_moon_section_names_its_texts(text: str) -> None:
+    assert text in _before_the_strip()
+
+
+def test_docs_moon_section_says_what_a_dash_means() -> None:
+    sentences = _before_the_strip().split(". ")
+
+    assert any("dash" in s and "rise or set" in s for s in sentences)

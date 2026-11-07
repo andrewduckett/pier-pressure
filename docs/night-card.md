@@ -1,7 +1,8 @@
 # The PierPressure card: tonight's verdict on your dashboard
 
 The PierPressure card is a Home Assistant dashboard card. It shows tonight's
-verdict, score and confidence for one pier. Under them, a night strip shows
+verdict, score and confidence for one pier, and tonight's moon beside them.
+Under them, a night strip shows
 every forecast condition hour by hour, and when each of the ranked targets can
 be seen. Lines for dusk, dawn and now cross the strip.
 
@@ -25,6 +26,26 @@ The card shows a message instead when:
 
 A dash in every line means PierPressure has not published its first verdict
 since it started. The lines fill in when it does.
+
+### The Moon section
+
+Beside the verdict lines, the **Moon** section shows tonight's moon. It reads
+the Verdict sensor's `moon` attribute. On a narrow card, it moves under the
+verdict lines.
+
+| Line | What it shows |
+|---|---|
+| **Phase** | One of eight phases, from New through Waxing crescent, First quarter and Waxing gibbous to Full, then Waning gibbous, Last quarter and Waning crescent |
+| **Illumination** | How much of the moon's face is lit, as a whole percent, such as `78%` |
+| **Moonrise** | When the moon rises, if it rises during the dark window |
+| **Moonset** | When the moon sets, if it sets during the dark window |
+
+The dark window runs from dusk to dawn: the time the sun is at least 18° below
+the horizon. A dash for Moonrise or Moonset means the moon does not rise or set
+during the dark window. It may be up all night, down all night, or rise or set
+in daylight or twilight. The **Moon up** lane on the strip shows when it is up.
+A dash in every Moon line means PierPressure has not published its first
+verdict yet.
 
 ### The night strip
 
