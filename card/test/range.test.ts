@@ -72,3 +72,50 @@ describe("the Cloud range columns", () => {
     );
   });
 });
+
+function rangeBar(card: PierPressureCard): HTMLElement | null | undefined {
+  return columns(card)[0]?.querySelector<HTMLElement>(".range");
+}
+
+async function oneHour(min: number, max: number): Promise<PierPressureCard> {
+  return mountCard(range(forecastEntity([[HOUR_21, min]]), forecastEntity([[HOUR_21, max]])));
+}
+
+describe("a Cloud range bar", () => {
+  it("runs from the min to the max, measured up the column", async () => {
+    const card = await oneHour(40, 70);
+
+    expect(rangeBar(card)?.getAttribute("style")).toBe(
+      "bottom: min(40%, calc(100% - 2px)); height: max(2px, 30%)",
+    );
+  });
+
+  it("is at least 2 px tall when the forecasts agree", async () => {
+    const card = await oneHour(40, 40);
+
+    expect(rangeBar(card)?.getAttribute("style")).toBe(
+      "bottom: min(40%, calc(100% - 2px)); height: max(2px, 0%)",
+    );
+  });
+
+  it("stays inside the top of the column at 100%", async () => {
+    const card = await oneHour(100, 100);
+
+    expect(rangeBar(card)?.getAttribute("style")).toContain("bottom: min(100%, calc(100% - 2px))");
+  });
+
+  it("draws values outside 0 to 100 at the column's ends", async () => {
+    const card = await oneHour(-5, 120);
+
+    expect(rangeBar(card)?.getAttribute("style")).toBe(
+      "bottom: min(0%, calc(100% - 2px)); height: max(2px, 100%)",
+    );
+  });
+
+  it("gives the clamped values to the column", async () => {
+    const card = await oneHour(-5, 120);
+
+    const column = columns(card)[0];
+    expect([column?.dataset["low"], column?.dataset["high"]]).toEqual(["0", "100"]);
+  });
+});

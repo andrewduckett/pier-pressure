@@ -115,11 +115,15 @@ export interface Missing {
   text: string;
 }
 
-// One hour of the Cloud range row: a column across the hour.
+// One hour of the Cloud range row: a column across the hour, holding a bar from
+// the lowest to the highest cloud any forecast gave.
 export interface Band {
   hour: number;
   from: number;
   to: number;
+  // In percent, clamped to 0–100 for drawing.
+  low: number;
+  high: number;
 }
 
 export interface Row {
@@ -292,9 +296,21 @@ function cloudRange(states: States, pier: string, axis: Axis): Row {
     const high = highs.get(hour);
     if (!isNumber(low) || !isNumber(high)) return [];
     if (hour + HOUR <= axis.start || hour >= axis.end) return [];
-    return [{ hour, from: Math.max(hour, axis.start), to: Math.min(hour + HOUR, axis.end) }];
+    return [
+      {
+        hour,
+        from: Math.max(hour, axis.start),
+        to: Math.min(hour + HOUR, axis.end),
+        low: percent(low),
+        high: percent(high),
+      },
+    ];
   });
   return { key: "cloud_range", label: "Cloud range", cells: [], bands };
+}
+
+function percent(value: number): number {
+  return Math.min(100, Math.max(0, value));
 }
 
 function isNumber(value: unknown): value is number {

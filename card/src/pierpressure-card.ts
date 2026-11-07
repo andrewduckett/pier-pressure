@@ -394,14 +394,22 @@ function renderCell(cell: Cell, axis: Axis) {
   </div>`;
 }
 
+// Two forecasts that agree still show, as a 2 px line, and one at 100% is
+// pulled down to stay inside the column.
 function renderBand(band: Band, axis: Axis) {
+  const range =
+    `bottom: min(${band.low}%, calc(100% - 2px)); ` + `height: max(2px, ${band.high - band.low}%)`;
   return html`<div
     class="cell"
     style=${hourPlace(band, axis)}
     data-hour=${iso(band.hour)}
     data-from=${iso(band.from)}
     data-to=${iso(band.to)}
-  ></div>`;
+    data-low=${band.low}
+    data-high=${band.high}
+  >
+    <div class="range" style=${range}></div>
+  </div>`;
 }
 
 // An arrow pointing up, turned about the centre of its 12 by 12 box.
