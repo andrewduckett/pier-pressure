@@ -35,6 +35,31 @@ export function stripAxis(night: Night | undefined, now: number): Axis {
   return { start: now - FALLBACK_BEFORE, end: now + FALLBACK_AFTER };
 }
 
+// How far the axis can pan: every timeline hour a row's sensor holds, and never
+// less than the opening axis. PierPressure publishes every timeline hour in every
+// sensor, null where it has no value, so a null still marks a timeline hour. A
+// Rain chance point is the exception: it fills the hour before its time, so it
+// counts that hour, and only when there is a value to fill it with.
+export function stripReach(states: States, pier: string, opening: Axis): Axis {
+  const reach = { ...opening };
+  const keys = [...ROWS.map((row) => row.key), "cloud_cover_min", "cloud_cover_max"];
+  for (const key of keys) {
+    const forecast = forecastOf(states[pierEntityId(pier, key)]);
+    if (!Array.isArray(forecast)) continue;
+    const hourBefore = ROWS.find((row) => row.key === key)?.hourBefore === true;
+    for (const point of forecast) {
+      const record = asRecord(point);
+      const time = readTime(record?.["datetime"]);
+      if (time === undefined) continue;
+      if (hourBefore && !isNumber(record?.["value"])) continue;
+      const hour = hourBefore ? time - HOUR : time;
+      reach.start = Math.min(reach.start, hour);
+      reach.end = Math.max(reach.end, hour + HOUR);
+    }
+  }
+  return reach;
+}
+
 export function readTime(value: unknown): number | undefined {
   if (typeof value !== "string") return undefined;
   const time = Date.parse(value);
