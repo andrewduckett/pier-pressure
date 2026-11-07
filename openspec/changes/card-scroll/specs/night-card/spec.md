@@ -65,7 +65,7 @@ The user SHALL be able to pan the strip's axis earlier or later, inside the reac
 - **THEN** the strip's axis still runs from 2026-10-31T16:30:00Z to 2026-11-01T08:25:00Z
 
 ### Requirement: The reach counts every row's forecast
-A timeline hour SHALL be the hour that starts at the `datetime` of a point in the `forecast` of a row's sensor, the Cloud range row's two sensors included. Every point with a readable `datetime` SHALL count, whatever its value. A Rain chance point with a number SHALL also count the hour before its time, the hour its cell fills. The reach SHALL leave out the forecast of a sensor that is `unavailable`.
+A timeline hour SHALL be the hour that starts at the `datetime` of a point in the `forecast` of a row's sensor, the Cloud range row's two sensors included. Every such point with a readable `datetime` SHALL count, whatever its value. A Rain chance point SHALL count only when it holds a number, and then for the hour before its time, the hour its cell fills. The reach SHALL leave out the forecast of a sensor that is `unavailable`.
 
 #### Scenario: A Rain chance cell before the first hour
 - **WHEN** the opening axis runs from 2026-10-31T16:30:00Z to 2026-11-01T08:25:00Z, and the earliest point of any row sensor is a Rain chance point `{"datetime": "2026-10-31T12:00:00Z", "value": 20}`
@@ -153,7 +153,7 @@ When the axis pans, the card SHALL draw every row's cells, the Cloud range row's
 - **AND** the row labels read from `Sun altitude` to `Rain chance`, as before
 
 ### Requirement: The strip stays where the user panned it
-After the user pans, the axis SHALL keep its start when Home Assistant sends new state and when the card redraws each minute. When the reach no longer holds the axis, the card SHALL move the axis only as far as it needs to stay inside the reach. A pan that the reach stops entirely SHALL count as no pan.
+After the user pans, the axis SHALL keep its start when Home Assistant sends new state and when the card redraws each minute. When the reach no longer holds the axis, the card SHALL move the axis only as far as it needs to stay inside the reach. A pan that the reach stops entirely SHALL count as no pan. A pan that brings the axis back to the opening axis SHALL count as selecting `Back to tonight`.
 
 #### Scenario: New state after a pan
 - **WHEN** the user has panned the axis to run from 2026-11-01T16:30:00Z to 2026-11-02T08:25:00Z, and Home Assistant sends new state with the same `dark_window` and forecasts
@@ -170,6 +170,14 @@ After the user pans, the axis SHALL keep its start when Home Assistant sends new
 #### Scenario: A new night of another length
 - **WHEN** the user has panned the axis to start at 2026-11-01T16:30:00Z, and a new `dark_window` makes the opening axis 17 hours long
 - **THEN** the strip's axis starts at 2026-11-01T16:30:00Z and is 17 hours long
+
+#### Scenario: Panning back by hand
+- **WHEN** the Verdict sensor's `dark_window` is `{start: null, end: null}`, the browser's clock reads 2026-11-01T12:00:00Z, the reach runs further either way, the user presses the Right arrow key and then the Left arrow key with the strip focused, and the clock then moves on by 60 seconds
+- **THEN** the strip's axis runs from 2026-11-01T06:01:00Z to 2026-11-02T06:01:00Z, and the card shows no `Back to tonight` button
+
+#### Scenario: A new pier
+- **WHEN** the user has panned the axis 24 hours later, and the card's configuration changes to another pier
+- **THEN** the strip's axis is the new pier's opening axis, and the card shows no `Back to tonight` button
 
 #### Scenario: A pan against the reach's start
 - **WHEN** the Verdict sensor's `dark_window` is `{start: null, end: null}`, the browser's clock reads 2026-11-01T12:00:00Z, the reach starts at 2026-11-01T06:00:00Z, the user presses the Left arrow key with the strip focused, and the clock then moves on by 60 seconds
@@ -192,7 +200,7 @@ While the strip's axis is not the opening axis, the card SHALL show a button lab
 - **AND** the card shows no `Back to tonight` button, and the strip has keyboard focus
 
 #### Scenario: Pressing the button does not pan
-- **WHEN** the user has panned the axis 24 hours later, and presses `Back to tonight` with the mouse, moving 12 px to the left before releasing
+- **WHEN** the user has panned the axis 24 hours later, and presses `Back to tonight` with the mouse, moving 12 px to the left before releasing, so the browser clicks the button
 - **THEN** the strip's axis is the opening axis
 
 ### Requirement: The docs describe panning the strip

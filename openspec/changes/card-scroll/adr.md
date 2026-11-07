@@ -7,9 +7,9 @@
 
 ADR review completed for this change. None of design.md's decisions passes the
 test. D-1 to D-8 sit inside the card's own source, behind the published
-entities, and a later change can replace any of them inside `card/src/` at
-little cost: drawing a moved axis rather than native scrolling (D-1) is the
-weightiest, and swapping it touches only the strip's drawing and its input
+entities. A later change can replace any of them inside `card/src/` at little
+cost. The weightiest is D-1, drawing a moved axis rather than scrolling
+natively. Swapping it touches only the strip's drawing and its input
 handlers. The change relies on ADR-0034: the card pans only through hours the
 published timeline sensors already carry, and fetches nothing. ADR-0025 is
 unaffected: the timeline stays evidence beside the verdict, and the card draws

@@ -44,7 +44,8 @@
 - **Primary test seam:** the card's Vitest suite under `card/test/`. A new
   `pan.test.ts` mounts the card with `mountCard` and stubs the hours' width
   with a spy on `getBoundingClientRect`. It dispatches pointer, wheel and key
-  events on the strip, and clicks on the button. It reads `data-axis-start`
+  events on the strip. For the button it dispatches the pointer events, then
+  a `click`, since happy-dom does not turn pointer events into a click. It reads `data-axis-start`
   and `data-axis-end`, which the strip already carries, and the button's
   `hidden` property. The reach function is tested as a plain function, and the
   `touch-action` rule through the harness's `cardStyles`.
@@ -94,9 +95,12 @@ the button.
 The card holds one state property, `heldStart`, which is `undefined` until the
 user pans. A pan works out a new start from the axis on screen and clamps it
 into the reach. If the clamped start equals the start on screen, the pan
-changes nothing, so a pan against the reach's end never arms `heldStart`.
-Otherwise it sets `heldStart`. "Back to tonight" sets it back to `undefined`.
-A render clamps but never writes back to `heldStart`.
+changes nothing, so a pan against the reach's end never arms `heldStart`. If
+it equals the opening axis's start, the pan sets `heldStart` to `undefined`,
+as "Back to tonight" does, so an axis panned back by hand follows the opening
+axis again. Otherwise it sets `heldStart`. `setConfig` sets it to `undefined`
+when the pier changes, so a new pier opens on its own opening axis. A render
+clamps but never writes back to `heldStart`.
 
 - *Alternative: hold an offset from the opening axis.* On a night with no
   darkness the opening axis moves every minute, so the axis would creep under
@@ -110,9 +114,9 @@ A render clamps but never writes back to `heldStart`.
 `stripReach(states, pier, opening)` reads the `forecast` of every `ROWS`
 sensor and of the two Cloud range sensors. It skips an `unavailable` sensor,
 and a point without a readable `datetime`. Each point counts its own hour,
-whatever its value. A Rain chance point with a number also counts the hour
-before, as `rowCells` draws it; a null Rain chance point does not, so the reach
-gains no blank hour before the timeline. The function returns the earliest
+whatever its value, except a Rain chance point. That one counts only when it
+holds a number, and then for the hour before its time, as `rowCells` draws it.
+So the reach gains no blank hour at either end of the timeline. The function returns the earliest
 hour's start and the latest hour's end, widened to cover the opening axis. It
 shares `forecastOf` and `readTime` with the rows.
 
