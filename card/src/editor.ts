@@ -20,6 +20,12 @@ export class PierPressureCardEditor extends LitElement {
   declare hass?: HomeAssistant;
   declare config?: Record<string, unknown>;
 
+  override connectedCallback(): void {
+    super.connectedCallback();
+    loadForm();
+    void customElements.whenDefined("ha-form").then(() => this.requestUpdate());
+  }
+
   // Keeps every key, so a key the editor does not edit survives.
   setConfig(config: Record<string, unknown>): void {
     this.config = config;
@@ -70,6 +76,16 @@ function renderNote(piers: PierChoice[]) {
 // ha-form takes labels from this callback, not from the schema.
 function label(): string {
   return "Pier";
+}
+
+// Home Assistant defines ha-form only once one of its own card editors loads.
+// The entities card's editor uses it, and loading that editor defines it.
+function loadForm(): void {
+  if (customElements.get("ha-form") !== undefined) return;
+  const entitiesCard = customElements.get("hui-entities-card") as
+    | { getConfigElement?: () => Promise<unknown> }
+    | undefined;
+  void entitiesCard?.getConfigElement?.();
 }
 
 // HACS can load the file again when it updates the card in place.
