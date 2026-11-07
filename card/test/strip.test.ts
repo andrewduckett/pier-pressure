@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { VERDICT, mountCard, verdictEntity } from "./harness";
+import { CLOUD_COVER, VERDICT, cells, cloudEntity, mountCard, verdictEntity } from "./harness";
 import type { PierPressureCard } from "../src/pierpressure-card";
 
 beforeAll(async () => {
@@ -110,5 +110,85 @@ describe("no strip", () => {
     const card = await mountCard();
 
     expect(strip(card)).toBeNull();
+  });
+});
+
+const NIGHT = verdictEntity("GO", {
+  dark_window: { start: "2026-10-31T20:30:00Z", end: "2026-11-01T03:25:00Z" },
+});
+
+describe("a value fills its hour", () => {
+  it("reads the cloud sensors named from the pier", async () => {
+    const card = await mountCard(
+      {
+        "sensor.pierpressure_back_yard_verdict": NIGHT,
+        "sensor.pierpressure_back_yard_cloud_high": cloudEntity([["2026-10-31T21:00:00Z", 40]]),
+      },
+      "Back-Yard",
+    );
+
+    expect(cells(card, "cloud_high").map((cell) => cell.dataset["hour"])).toEqual([
+      "2026-10-31T21:00:00.000Z",
+    ]);
+  });
+
+  it("draws every hour that overlaps the axis, and none outside it", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [CLOUD_COVER]: cloudEntity([
+        ["2026-10-31T15:00:00Z", 10],
+        ["2026-10-31T16:00:00Z", 20],
+        ["2026-10-31T17:00:00Z", 30],
+        ["2026-11-01T08:00:00Z", 40],
+        ["2026-11-01T09:00:00Z", 50],
+      ]),
+    });
+
+    expect(cells(card, "cloud_cover").map((cell) => cell.dataset["hour"])).toEqual([
+      "2026-10-31T16:00:00.000Z",
+      "2026-10-31T17:00:00.000Z",
+      "2026-11-01T08:00:00.000Z",
+    ]);
+  });
+
+  it("cuts a cell off at each axis end", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [CLOUD_COVER]: cloudEntity([
+        ["2026-10-31T16:00:00Z", 20],
+        ["2026-11-01T08:00:00Z", 40],
+      ]),
+    });
+
+    const [first, last] = cells(card, "cloud_cover");
+    expect([first?.dataset["from"], last?.dataset["to"]]).toEqual([
+      "2026-10-31T16:30:00.000Z",
+      "2026-11-01T08:25:00.000Z",
+    ]);
+  });
+
+  it("keeps a cell inside the axis whole", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [CLOUD_COVER]: cloudEntity([["2026-10-31T17:00:00Z", 30]]),
+    });
+
+    const [cell] = cells(card, "cloud_cover");
+    expect([cell?.dataset["from"], cell?.dataset["to"]]).toEqual([
+      "2026-10-31T17:00:00.000Z",
+      "2026-10-31T18:00:00.000Z",
+    ]);
+  });
+
+  // 16:30 to 08:25 is 955 minutes; 17:00 is 30 minutes in, and an hour is 60.
+  it("places a cell in percent of the axis", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [CLOUD_COVER]: cloudEntity([["2026-10-31T17:00:00Z", 30]]),
+    });
+
+    const [cell] = cells(card, "cloud_cover");
+    expect(cell?.style.left).toContain("3.1414%");
+    expect(cell?.style.width).toContain("6.2827%");
   });
 });

@@ -1,4 +1,6 @@
-const HOUR = 60 * 60 * 1000;
+import { pierEntityId } from "./entity";
+
+export const HOUR = 60 * 60 * 1000;
 
 // The YAML night strip's span (docs/night-dashboard.md): the judged night with
 // its evening and morning around it, or a day around now when there is no night.
@@ -42,9 +44,17 @@ export const CLOUD_ROWS = [
   { key: "cloud_high", label: "Cloud high" },
 ] as const;
 
+export interface Cell {
+  hour: number;
+  // The part of the hour on the axis: the hour itself, unless an axis end cuts it.
+  from: number;
+  to: number;
+}
+
 export interface Row {
   key: string;
   label: string;
+  cells: Cell[];
 }
 
 export interface Strip {
@@ -52,9 +62,26 @@ export interface Strip {
   rows: Row[];
 }
 
-export function buildStrip(darkWindow: unknown, now: number): Strip {
+type States = Record<string, { state: string; attributes: Record<string, unknown> } | undefined>;
+
+export function buildStrip(states: States, pier: string, now: number): Strip {
+  const verdict = states[pierEntityId(pier, "verdict")];
+  const axis = stripAxis(verdict?.attributes["dark_window"], now);
   return {
-    axis: stripAxis(darkWindow, now),
-    rows: CLOUD_ROWS.map(({ key, label }) => ({ key, label })),
+    axis,
+    rows: CLOUD_ROWS.map(({ key, label }) => ({
+      key,
+      label,
+      cells: rowCells(states[pierEntityId(pier, key)]?.attributes["forecast"], axis),
+    })),
   };
+}
+
+function rowCells(forecast: unknown, axis: Axis): Cell[] {
+  if (!Array.isArray(forecast)) return [];
+  return forecast.flatMap((point: unknown) => {
+    const hour = readTime(asRecord(point)?.["datetime"]);
+    if (hour === undefined || hour + HOUR <= axis.start || hour >= axis.end) return [];
+    return [{ hour, from: Math.max(hour, axis.start), to: Math.min(hour + HOUR, axis.end) }];
+  });
 }

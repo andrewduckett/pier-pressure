@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing } from "lit";
 import { pierSlug, verdictEntityId } from "./entity";
-import { asRecord, buildStrip } from "./strip";
+import { type Axis, type Cell, HOUR, asRecord, buildStrip } from "./strip";
 
 declare const __CARD_VERSION__: string;
 
@@ -73,6 +73,12 @@ export class PierPressureCard extends LitElement {
       position: relative;
       height: 16px;
     }
+    .cell {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      border-radius: 2px;
+    }
   `;
 
   // Home Assistant sets hass after setConfig and after the card is attached.
@@ -120,21 +126,22 @@ export class PierPressureCard extends LitElement {
           <span data-field="confidence-value">${shownNumber(confidence?.["value"])}</span>
         </dd>
       </dl>
-      ${this.renderStrip(entity)}
+      ${this.renderStrip()}
     </div>`;
   }
 
-  private renderStrip(verdict: HassEntity) {
-    const strip = buildStrip(verdict.attributes["dark_window"], Date.now());
+  private renderStrip() {
+    if (this.hass === undefined || this.config === undefined) return nothing;
+    const strip = buildStrip(this.hass.states, this.config.pier, Date.now());
     return html`<div
       class="strip"
-      data-axis-start=${new Date(strip.axis.start).toISOString()}
-      data-axis-end=${new Date(strip.axis.end).toISOString()}
+      data-axis-start=${iso(strip.axis.start)}
+      data-axis-end=${iso(strip.axis.end)}
     >
       ${strip.rows.map(
         (row) => html`<div class="row" data-row=${row.key}>
           <span class="label">${row.label}</span>
-          <div class="track"></div>
+          <div class="track">${row.cells.map((cell) => renderCell(cell, strip.axis))}</div>
         </div>`,
       )}
     </div>`;
@@ -142,6 +149,32 @@ export class PierPressureCard extends LitElement {
 }
 
 const DASH = "—";
+
+// Neighbouring hours keep a 2 px gap, as in the YAML strip; an edge cut off by
+// the axis stays flush with the axis end instead.
+function renderCell(cell: Cell, axis: Axis) {
+  const span = axis.end - axis.start;
+  const left = percent(cell.from - axis.start, span);
+  const width = percent(cell.to - cell.from, span);
+  const insetStart = cell.from === cell.hour ? 1 : 0;
+  const insetEnd = cell.to === cell.hour + HOUR ? 1 : 0;
+  const style = `left: calc(${left}% + ${insetStart}px); width: calc(${width}% - ${insetStart + insetEnd}px)`;
+  return html`<div
+    class="cell"
+    style=${style}
+    data-hour=${iso(cell.hour)}
+    data-from=${iso(cell.from)}
+    data-to=${iso(cell.to)}
+  ></div>`;
+}
+
+function percent(part: number, whole: number): string {
+  return ((part / whole) * 100).toFixed(4);
+}
+
+function iso(time: number): string {
+  return new Date(time).toISOString();
+}
 
 // A type check, not a truthiness check: a score or confidence of 0 is a value.
 function shownNumber(value: unknown): string {
