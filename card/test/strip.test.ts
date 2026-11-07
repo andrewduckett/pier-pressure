@@ -1,5 +1,15 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { CLOUD_COVER, VERDICT, cells, cloudEntity, mountCard, verdictEntity } from "./harness";
+import {
+  CLOUD_COVER,
+  CLOUD_HIGH,
+  CLOUD_LOW,
+  CLOUD_MID,
+  VERDICT,
+  cells,
+  cloudEntity,
+  mountCard,
+  verdictEntity,
+} from "./harness";
 import type { PierPressureCard } from "../src/pierpressure-card";
 
 beforeAll(async () => {
@@ -212,5 +222,93 @@ describe("more cloud is darker", () => {
 
     const [cell] = cells(card, "cloud_cover");
     expect(cell?.dataset["shade"]).toBe(colour);
+  });
+});
+
+describe("a null hour is blank", () => {
+  it.each([
+    ["null", null],
+    ["a string", "40"],
+    ["not a number", Number.NaN],
+  ])("draws no cell for a value that is %s", async (_, value) => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [CLOUD_LOW]: cloudEntity([
+        ["2026-10-31T21:00:00Z", 30],
+        ["2026-10-31T22:00:00Z", value],
+      ]),
+    });
+
+    expect(cells(card, "cloud_low").map((cell) => cell.dataset["hour"])).toEqual([
+      "2026-10-31T21:00:00.000Z",
+    ]);
+  });
+
+  it("draws a cell for 0%", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [CLOUD_MID]: cloudEntity([["2026-10-31T22:00:00Z", 0]]),
+    });
+
+    expect(cells(card, "cloud_mid").map((cell) => cell.dataset["shade"])).toEqual(["#cde2fb"]);
+  });
+
+  it("skips a point without a readable datetime", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [CLOUD_LOW]: {
+        state: "30",
+        attributes: {
+          forecast: [
+            null,
+            { value: 30 },
+            { datetime: "soon", value: 30 },
+            { datetime: "2026-10-31T21:00:00Z", value: 30 },
+          ],
+        },
+      },
+    });
+
+    expect(cells(card, "cloud_low")).toHaveLength(1);
+  });
+});
+
+describe("a missing cloud sensor leaves an empty row", () => {
+  const forecast = cloudEntity([["2026-10-31T21:00:00Z", 30]]);
+
+  it.each([
+    ["missing", undefined],
+    ["unavailable", { state: "unavailable", attributes: {} }],
+    ["unavailable but still holding its forecast", { ...forecast, state: "unavailable" }],
+    ["without a forecast", { state: "30", attributes: {} }],
+    ["with a forecast that is not a list", { state: "30", attributes: { forecast: "soon" } }],
+  ])("keeps the row labelled and empty when the sensor is %s", async (_, cloudHigh) => {
+    const states = {
+      [VERDICT]: NIGHT,
+      [CLOUD_COVER]: forecast,
+      ...(cloudHigh && { [CLOUD_HIGH]: cloudHigh }),
+    };
+
+    const card = await mountCard(states);
+
+    const row = rows(card).find((element) => element.dataset["row"] === "cloud_high");
+    expect(row?.textContent?.trim()).toBe("Cloud high");
+    expect(cells(card, "cloud_high")).toEqual([]);
+  });
+
+  it("still draws the other rows", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [CLOUD_COVER]: cloudEntity([["2026-10-31T21:00:00Z", 30]]),
+      [CLOUD_HIGH]: { state: "unavailable", attributes: {} },
+    });
+
+    expect(cells(card, "cloud_cover")).toHaveLength(1);
+  });
+
+  it("draws four empty rows when no cloud sensor exists", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect([rows(card).length, card.shadowRoot?.querySelectorAll(".cell").length]).toEqual([4, 0]);
   });
 });

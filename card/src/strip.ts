@@ -74,9 +74,16 @@ export function buildStrip(states: States, pier: string, now: number): Strip {
     rows: CLOUD_ROWS.map(({ key, label }) => ({
       key,
       label,
-      cells: rowCells(states[pierEntityId(pier, key)]?.attributes["forecast"], axis),
+      cells: rowCells(forecastOf(states[pierEntityId(pier, key)]), axis),
     })),
   };
+}
+
+// Home Assistant normally drops an unavailable entity's attributes; when it has
+// not, they are stale, as they are for the Verdict sensor.
+function forecastOf(entity: States[string]): unknown {
+  if (entity === undefined || entity.state === "unavailable") return undefined;
+  return entity.attributes["forecast"];
 }
 
 function rowCells(forecast: unknown, axis: Axis): Cell[] {
