@@ -36,6 +36,15 @@ export const CLOUD_MID = "sensor.pierpressure_backyard_cloud_mid";
 export const CLOUD_HIGH = "sensor.pierpressure_backyard_cloud_high";
 export const SUN_ALTITUDE = "sensor.pierpressure_backyard_sun_altitude";
 export const MOON_ALTITUDE = "sensor.pierpressure_backyard_moon_altitude";
+export const WIND_GUST = "sensor.pierpressure_backyard_wind_gust";
+export const SEEING = "sensor.pierpressure_backyard_seeing";
+export const TRANSPARENCY = "sensor.pierpressure_backyard_transparency";
+export const TEMPERATURE = "sensor.pierpressure_backyard_temperature";
+export const DEW_POINT = "sensor.pierpressure_backyard_dew_point";
+export const HUMIDITY = "sensor.pierpressure_backyard_humidity";
+export const WIND_SPEED = "sensor.pierpressure_backyard_wind_speed";
+export const WIND_DIRECTION = "sensor.pierpressure_backyard_wind_direction";
+export const PRECIPITATION_PROBABILITY = "sensor.pierpressure_backyard_precipitation_probability";
 
 // Any timeline sensor as PierPressure publishes it: the current hour's value as its
 // state, and every hour in `forecast`.

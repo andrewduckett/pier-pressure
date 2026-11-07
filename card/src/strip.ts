@@ -54,13 +54,24 @@ interface RowKind {
   shade: (value: number) => string;
 }
 
-// Top to bottom, as in the YAML night strip.
+// Top to bottom: the YAML night strip's nine, then the rest in the order
+// PierPressure publishes them.
 export const ROWS: readonly RowKind[] = [
   { key: "sun_altitude", label: "Sun altitude", unit: "°", shade: sunShade },
+  { key: "moon_altitude", label: "Moon altitude", unit: "", shade: cloudShade },
   { key: "cloud_cover", label: "Cloud cover", unit: "%", shade: cloudShade },
   { key: "cloud_low", label: "Cloud low", unit: "%", shade: cloudShade },
   { key: "cloud_mid", label: "Cloud mid", unit: "%", shade: cloudShade },
   { key: "cloud_high", label: "Cloud high", unit: "%", shade: cloudShade },
+  { key: "wind_gust", label: "Wind gust", unit: "", shade: cloudShade },
+  { key: "seeing", label: "Seeing", unit: "", shade: cloudShade },
+  { key: "transparency", label: "Transparency", unit: "", shade: cloudShade },
+  { key: "temperature", label: "Temperature", unit: "", shade: cloudShade },
+  { key: "dew_point", label: "Dew point", unit: "", shade: cloudShade },
+  { key: "humidity", label: "Humidity", unit: "", shade: cloudShade },
+  { key: "wind_speed", label: "Wind speed", unit: "", shade: cloudShade },
+  { key: "wind_direction", label: "Wind direction", unit: "", shade: cloudShade },
+  { key: "precipitation_probability", label: "Rain chance", unit: "", shade: cloudShade },
 ];
 
 export interface Cell {

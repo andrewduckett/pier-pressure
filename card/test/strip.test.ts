@@ -90,11 +90,13 @@ function rows(card: PierPressureCard): HTMLElement[] {
 }
 
 describe("the rows", () => {
-  it("are Sun altitude, then Cloud cover, Cloud low, Cloud mid and Cloud high, top to bottom", async () => {
+  it("start with Sun altitude, Moon altitude, then the four cloud rows", async () => {
     const card = await mountCard({ [VERDICT]: verdictEntity("GO") });
 
-    expect(rows(card).map((row) => row.querySelector(".label")?.textContent?.trim())).toEqual([
+    const labels = rows(card).map((row) => row.querySelector(".label")?.textContent?.trim());
+    expect(labels.slice(0, 6)).toEqual([
       "Sun altitude",
+      "Moon altitude",
       "Cloud cover",
       "Cloud low",
       "Cloud mid",
@@ -505,14 +507,14 @@ describe("the Moon up lane", () => {
     return bars(card).map((bar) => [bar.dataset[start], bar.dataset[end]]);
   }
 
-  it("is labelled Moon up, under Cloud high", async () => {
+  it("is labelled Moon up, under Rain chance", async () => {
     const card = await mountCard({ [VERDICT]: NIGHT });
 
     const lane = moonLane(card);
     expect([
       lane?.querySelector(".label")?.textContent?.trim(),
       (lane?.previousElementSibling as HTMLElement | null)?.dataset["row"],
-    ]).toEqual(["Moon up", "cloud_high"]);
+    ]).toEqual(["Moon up", "precipitation_probability"]);
   });
 
   it("reads the moon altitude sensor named from the pier", async () => {
@@ -936,13 +938,13 @@ describe("the lines' overlay", () => {
     return card.shadowRoot?.querySelector<HTMLElement>(".strip .lines");
   }
 
-  // Grid row 1 holds the line labels, rows 2 to 6 the five rows, and row 7 the
-  // Moon up lane, so the overlay runs from line 2 to line 8.
+  // Grid row 1 holds the line labels, rows 2 to 16 the fifteen rows, and row 17
+  // the Moon up lane, so the overlay runs from line 2 to line 18.
   it("covers the rows and the Moon up lane", async () => {
     const card = await mountCard({ [VERDICT]: NIGHT });
 
     const style = overlay(card)?.getAttribute("style") ?? "";
-    expect([style.includes("grid-column: 2"), style.includes("grid-row: 2 / 8")]).toEqual([
+    expect([style.includes("grid-column: 2"), style.includes("grid-row: 2 / 18")]).toEqual([
       true,
       true,
     ]);
@@ -967,7 +969,7 @@ describe("the lines' overlay", () => {
   it("gives the strip one explicit grid row for each of its rows", async () => {
     const card = await mountCard({ [VERDICT]: NIGHT });
 
-    expect(strip(card)?.getAttribute("style")).toContain("grid-template-rows: repeat(8, auto)");
+    expect(strip(card)?.getAttribute("style")).toContain("grid-template-rows: repeat(18, auto)");
   });
 });
 

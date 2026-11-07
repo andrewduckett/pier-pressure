@@ -1,6 +1,6 @@
 ## 1. The rows
 
-- [ ] 1.1 [medium] The strip has fifteen labelled rows in the spec's order, each reading `sensor.pierpressure_<slug>_<key>` (Rain chance reads `precipitation_probability`), with `data-row` set to the key; a value fills the hour that starts at its `datetime`, cut off at the axis ends; a missing, `unavailable` or forecast-less sensor leaves its row labelled and empty; the `strip.test.ts` assertions that depend on the row count (row order, the row above the Moon up lane, the lines' `grid-row`, `grid-template-rows`) now expect fifteen rows (design DD1, DD5; test: the card harness, `card/test/rows.test.ts`) (verify: mise exec -- npm --prefix card test -- rows strip)
+- [x] 1.1 [medium] The strip has fifteen labelled rows in the spec's order, each reading `sensor.pierpressure_<slug>_<key>` (Rain chance reads `precipitation_probability`), with `data-row` set to the key; a value fills the hour that starts at its `datetime`, cut off at the axis ends; a missing, `unavailable` or forecast-less sensor leaves its row labelled and empty; the `strip.test.ts` assertions that depend on the row count (row order, the row above the Moon up lane, the lines' `grid-row`, `grid-template-rows`) now expect fifteen rows (design DD1, DD5; test: the card harness, `card/test/rows.test.ts`) (verify: mise exec -- npm --prefix card test -- rows strip) (✓ npm test -- rows strip passed)
 - [ ] 1.2 [easy] A Rain chance value fills the hour that ends at its `datetime`: a value at 22:00 UTC fills 21:00 to 22:00, and the spec's axis-end scenario holds (design DD1) (verify: mise exec -- npm --prefix card test -- rows)
 - [ ] 1.3 [easy] Moon altitude, Wind gust and Wind speed cells take the spec's shades: −10, 0, 3, 6, 12, 18, 24, 30 and 60 for the moon; 0, 6.9, 7, 41 and 42 for gusts; 21 for wind speed (design DD2) (verify: mise exec -- npm --prefix card test -- rows)
 - [ ] 1.4 [easy] Seeing and Transparency cells are darker when worse: 1, 0.8, 0.5 and 0 give `#cde2fb`, `#9ec5f4`, `#256abf` and `#0d366b`, and 1.2 gives `#cde2fb` (design DD2) (verify: mise exec -- npm --prefix card test -- rows)
@@ -21,3 +21,5 @@
 ## Deviations Ledger
 
 <!-- Dated notes on small departures from the plan, written during apply. Stop and ask the user about a large one. -->
+
+- 2026-11-07: in task 1.1, the ten new rows start with the cloud shade and no unit, so each later task's test goes red first. The Seeing null-hour test passed on its first run, because a missing row has no cells either; it stays as a guard.
