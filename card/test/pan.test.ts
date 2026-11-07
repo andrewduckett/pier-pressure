@@ -612,6 +612,23 @@ describe("dragging the strip", () => {
     expect(axisOf(card)[0]).toBe("2026-11-01T12:00:00.000Z");
   });
 
+  it("keeps panning when a cell loses the pointer to the strip", async () => {
+    const card = await mountCard(DAY_AROUND_NOW);
+    const strip = stripOf(card);
+    const cell = strip?.querySelector('[data-row="cloud_cover"] .cell');
+
+    // A touch pointer starts captured by the element under the finger; capturing
+    // it on the strip makes that element lose it.
+    cell?.dispatchEvent(pointer("pointerdown", 200, 100, 1, "touch"));
+    cell?.dispatchEvent(pointer("pointermove", 180, 100, 1, "touch"));
+    cell?.dispatchEvent(pointer("lostpointercapture", 180, 100, 1, "touch"));
+    strip?.dispatchEvent(pointer("pointermove", 100, 100, 1, "touch"));
+    strip?.dispatchEvent(pointer("pointerup", 100, 100, 1, "touch"));
+    await card.updateComplete;
+
+    expect(axisOf(card)[0]).toBe("2026-11-01T12:00:00.000Z");
+  });
+
   it("captures the pointer once the drag starts", async () => {
     const capture = vi.spyOn(HTMLElement.prototype, "setPointerCapture");
     const card = await mountCard(DAY_AROUND_NOW);

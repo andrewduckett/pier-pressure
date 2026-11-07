@@ -427,7 +427,11 @@ export class PierPressureCard extends LitElement {
       const drag = this.endDrag(event);
       if (drag !== undefined) this.heldStart = drag.held;
     },
-    lostpointercapture: (event) => this.endDrag(event),
+    // Only the strip's own loss ends the drag. A touch pointer starts captured by
+    // the element under the finger, which loses it when the strip captures it.
+    lostpointercapture: (event) => {
+      if (event.target === event.currentTarget) this.endDrag(event);
+    },
     // Not passive, so a sideways swipe can be kept from the browser, which would
     // otherwise take it for going back a page. An up or down one scrolls the page.
     wheel: {

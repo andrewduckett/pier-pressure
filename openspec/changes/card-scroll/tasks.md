@@ -23,3 +23,4 @@
 <!-- Dated notes on small departures from the plan, written during apply. Stop and ask the user about a large one. -->
 
 - 2026-11-07: task 2.2's button line sits between the darkness note and the strip. `card/test/messages.test.ts` checked that the strip was the note's next sibling, which is stricter than the spec's "between the confidence and the strip". The test now checks the order: summary, note, strip.
+- 2026-11-07: task 4.1's touch check in a real browser found that a swipe stopped after its first move. A touch pointer starts captured by the cell under the finger. When the strip captures it, the cell's `lostpointercapture` bubbled up to the strip and ended the drag. The strip now ends a drag only on its own `lostpointercapture`, with a test in `card/test/pan.test.ts`. A mouse has no such capture, so task 2.3's mouse tests could not show it.
