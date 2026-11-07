@@ -35,6 +35,38 @@ export function stripAxis(night: Night | undefined, now: number): Axis {
   return { start: now - FALLBACK_BEFORE, end: now + FALLBACK_AFTER };
 }
 
+// The opening axis's length, moved to `start` and held inside the reach.
+export function panned(opening: Axis, reach: Axis, start: number): Axis {
+  const length = opening.end - opening.start;
+  const from = Math.min(Math.max(start, reach.start), reach.end - length);
+  return { start: from, end: from + length };
+}
+
+// How far the axis can pan: every timeline hour a row's sensor holds, and never
+// less than the opening axis. PierPressure publishes every timeline hour in every
+// sensor, null where it has no value, so a null still marks a timeline hour. A
+// Rain chance point is the exception: it fills the hour before its time, so it
+// counts that hour, and only when there is a value to fill it with.
+export function stripReach(states: States, pier: string, opening: Axis): Axis {
+  const reach = { ...opening };
+  const keys = [...ROWS.map((row) => row.key), "cloud_cover_min", "cloud_cover_max"];
+  for (const key of keys) {
+    const forecast = forecastOf(states[pierEntityId(pier, key)]);
+    if (!Array.isArray(forecast)) continue;
+    const hourBefore = ROWS.find((row) => row.key === key)?.hourBefore === true;
+    for (const point of forecast) {
+      const record = asRecord(point);
+      const time = readTime(record?.["datetime"]);
+      if (time === undefined) continue;
+      if (hourBefore && !isNumber(record?.["value"])) continue;
+      const hour = hourBefore ? time - HOUR : time;
+      reach.start = Math.min(reach.start, hour);
+      reach.end = Math.max(reach.end, hour + HOUR);
+    }
+  }
+  return reach;
+}
+
 export function readTime(value: unknown): number | undefined {
   if (typeof value !== "string") return undefined;
   const time = Date.parse(value);
@@ -175,6 +207,9 @@ export interface TimeLabel {
 
 export interface Strip {
   axis: Axis;
+  // The axis the strip opens on, and how far it can pan from there.
+  opening: Axis;
+  reach: Axis;
   // The core sends a dark window with two null ends when the sun never gets 18°
   // below the horizon; a missing or unreadable window is not that.
   noDarkness: boolean;
@@ -189,16 +224,21 @@ export interface Strip {
 
 type States = Record<string, { state: string; attributes: Record<string, unknown> } | undefined>;
 
+// Without a start, the strip is on the opening axis. With one, it is panned
+// there, as far as the reach allows.
 export function buildStrip(
   states: States,
   pier: string,
   now: number,
   timeZone: string | undefined,
+  start?: number,
 ): Strip {
   const verdict = states[pierEntityId(pier, "verdict")];
   const window = asRecord(verdict?.attributes["dark_window"]);
   const night = darkWindow(window);
-  const axis = stripAxis(night, now);
+  const opening = stripAxis(night, now);
+  const reach = stripReach(states, pier, opening);
+  const axis = start === undefined ? opening : panned(opening, reach, start);
   const time = clock(timeZone);
   const rows = ROWS.map(({ key, label, unit, hourBefore, reading, ...mark }): Row => {
     const write = reading ?? ((value: number) => `${value}${unit}`);
@@ -222,21 +262,28 @@ export function buildStrip(
   const moonMissing = rows.find((row) => row.key === "moon_altitude")?.missing;
   return {
     axis,
+    opening,
+    reach,
     noDarkness: window?.["start"] === null && window["end"] === null,
     labels: timeLabels(axis, time),
     rows,
     moonUp: moonUpBars(forecastOf(states[pierEntityId(pier, "moon_altitude")]), axis, time),
     ...(moonMissing && { moonUpMissing: moonMissing }),
     targets: targetLanes(states, pier, axis, time),
-    lines: [...(night === undefined ? [] : nightLines(night, time)), ...nowLine(now, axis, time)],
+    lines: [
+      ...(night === undefined ? [] : nightLines(night, axis, time)),
+      ...nowLine(now, axis, time),
+    ],
   };
 }
 
-function nightLines(night: Night, time: (at: number) => string): Line[] {
-  return [
+// The opening axis always holds both; a panned one may hold either or neither.
+function nightLines(night: Night, axis: Axis, time: (at: number) => string): Line[] {
+  const lines: Line[] = [
     { kind: "dusk", at: night.dusk, text: `Dusk, ${time(night.dusk)}` },
     { kind: "dawn", at: night.dawn, text: `Dawn, ${time(night.dawn)}` },
   ];
+  return lines.filter((line) => line.at >= axis.start && line.at <= axis.end);
 }
 
 function nowLine(now: number, axis: Axis, time: (at: number) => string): Line[] {

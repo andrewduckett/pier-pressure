@@ -222,11 +222,11 @@ describe("a night with no astronomical darkness", () => {
   it("is noted between the confidence and the strip", async () => {
     const card = await mountCard({ [VERDICT]: SUMMER });
 
+    // The Back to tonight line may sit between the note and the strip.
     const note = darknessNote(card);
-    expect([note?.previousElementSibling?.className, note?.nextElementSibling?.className]).toEqual([
-      "summary",
-      "strip",
-    ]);
+    const inOrder = [...(card.shadowRoot?.querySelectorAll(".summary, .note, .strip") ?? [])];
+    expect(inOrder.map((element) => element.className)).toEqual(["summary", "note", "strip"]);
+    expect(note?.previousElementSibling?.className).toBe("summary");
   });
 
   it("still draws the strip with no dusk line", async () => {

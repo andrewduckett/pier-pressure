@@ -440,3 +440,29 @@ def test_docs_editor_keeps_the_yaml_route() -> None:
 @pytest.mark.parametrize("term", ["**Pier**", "YAML"])
 def test_docs_editor_says_the_list_already_uses_the_real_id(term: str) -> None:
     assert term in _section("## Find your pier's entity id")
+
+
+@pytest.mark.parametrize(
+    "term", ["drag", "swipe", "trackpad", "arrow keys", "**Back to tonight**", "scrolls the page"]
+)
+def test_docs_pan_names_the_inputs(term: str) -> None:
+    assert term in _section("#### Panning the strip")
+
+
+def test_docs_pan_says_the_strip_opens_on_the_judged_night() -> None:
+    assert "opens on the judged night" in _section("#### Panning the strip")
+
+
+def test_docs_pan_says_where_it_stops() -> None:
+    assert "first and last forecast hour" in _section("#### Panning the strip")
+
+
+def test_docs_pan_says_other_nights_have_no_dusk_or_dawn() -> None:
+    assert "no dusk line, dawn line or target bar" in _section("#### Panning the strip")
+
+
+def test_docs_pan_no_forecast_names_a_later_night_as_a_cause() -> None:
+    help_text = _section("## If something looks wrong")
+    no_forecast = help_text[help_text.index('**A row says "No forecast".**') :]
+
+    assert "later night" in no_forecast.split("\n- **", 1)[0]

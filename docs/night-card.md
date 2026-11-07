@@ -102,11 +102,12 @@ Under the rows is the **Moon up** lane, which also reads
 `sensor.pierpressure_<pier>_moon_altitude`. Under that is one lane for each
 [ranked target](target-ranking.md) tonight.
 
-The strip runs from 4 hours before dusk to 5 hours after dawn, the dark window
+The strip opens from 4 hours before dusk to 5 hours after dawn, the dark window
 on the Verdict sensor. Some nights have no astronomical darkness, such as a
 summer night far from the equator. Then the card shows
-"No astronomical darkness tonight" under the confidence, and the strip runs
-from 6 hours before now to 18 hours after.
+"No astronomical darkness tonight" under the confidence, and the strip opens
+from 6 hours before now to 18 hours after. You can pan the strip to the other
+hours of the forecast. See [Panning the strip](#panning-the-strip).
 
 #### How to read the rows
 
@@ -241,6 +242,36 @@ lanes:
 
 Hover over a line to see its time, such as "Dusk, 20:30".
 
+#### Panning the strip
+
+The strip opens on the judged night. To see the hours before or after it, pan
+the strip sideways:
+
+- With a mouse, drag the strip left or right.
+- On a phone or tablet, swipe the strip left or right with one finger. An up
+  or down swipe scrolls the page, as it does elsewhere.
+- On a laptop, swipe sideways with two fingers on the trackpad.
+- With a keyboard, press Tab until the strip has focus, then use the Left and
+  Right arrow keys. Each press moves the strip one hour.
+
+Drag to the left to see later hours, as if you were moving the strip itself.
+Every row and lane moves together, and so do the lines and the time labels.
+The row labels stay where they are. The strip keeps its length: it shows as
+many hours as when it opened.
+
+The strip stops at the first and last forecast hour. How far ahead that is
+depends on your weather sources. Each forecasts its own distance ahead:
+Open-Meteo, for example, about two days.
+
+PierPressure judges one night, so only that night has a dusk line, a dawn line
+and target bars. Another night has no dusk line, dawn line or target bar. Its
+**Sun altitude** row still shows when it is dark.
+
+Once you have panned, the strip stays on the same hours when PierPressure
+publishes a new verdict. While the strip is off the judged night, a
+**Back to tonight** button shows above it. Select it to go back. Reloading the
+page also opens the strip on the judged night.
+
 #### Times
 
 All times are in your Home Assistant time zone, on a 24-hour clock, whatever
@@ -365,11 +396,14 @@ find your **Verdict** sensor under **Settings** > **Entities**. Then use, as
   catches up. If it stays, restart PierPressure, so it publishes every sensor
   again.
 - **A row says "No forecast".** No weather source gave that condition a value
-  for the hours on the strip. There are two causes:
+  for the hours on the strip. There are three causes:
   - None of the providers in your pier's `providers` setting supplies that
     condition, or a short-range model does not reach tonight. Add a provider
     that does, under `conditions` in the
     [configuration](../README.md#%EF%B8%8F-configuration).
+  - You panned the strip to a later night, past the last hour that condition's
+    weather source forecasts. Weather sources forecast different distances
+    ahead, so some rows stop before others. Select **Back to tonight**.
   - Every weather source failed, so every row says "No forecast", Sun altitude
     and Moon altitude too. The verdict still shows. Check the pier's weather
     source health sensors, such as **Open-Meteo health**. See
