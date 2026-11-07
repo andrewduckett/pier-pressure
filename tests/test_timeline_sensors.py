@@ -269,6 +269,17 @@ def test_a_null_value_renders_unknown_for_that_sensor_only(key: str) -> None:
         assert timeline_attributes(doc, other)["hour"] == "2026-09-07T23:00:00Z"
 
 
+def test_an_hour_with_one_cloud_forecast_renders_the_cloud_cover_min_and_max_unknown() -> None:
+    entry = _entry(_CURRENT_HOUR, cloud_cover=40.0, cloud_cover_min=None, cloud_cover_max=None)
+    delivery, client = _connected()
+    delivery.publish_verdict(make_document(generated_at=_GENERATED, timeline=[entry]))
+
+    [low] = client.publishes_to(_topics("cloud_cover_min")[1])
+    [high] = client.publishes_to(_topics("cloud_cover_max")[1])
+    [cloud_cover] = client.publishes_to(timeline_state_topic(BASE, "backyard", "cloud_cover"))
+    assert (low.payload, high.payload, cloud_cover.payload) == ("None", "None", "40.0")
+
+
 def test_a_null_cloud_cover_leaves_the_other_sensors_known() -> None:
     doc = make_document(generated_at=_GENERATED, timeline=[_entry(_CURRENT_HOUR, cloud_cover=None)])
     assert timeline_state(doc, "cloud_low") == "5.0"
@@ -312,6 +323,27 @@ def test_the_forecast_mirrors_the_variable_with_nulls_kept() -> None:
     assert timeline_attributes(doc, "seeing")["forecast"] == [
         {"datetime": "2026-09-07T20:00:00Z", "value": 0.62},
         {"datetime": "2026-09-07T21:00:00Z", "value": None},
+    ]
+
+
+def test_the_cloud_cover_min_and_max_forecasts_mirror_their_keys_with_nulls_kept() -> None:
+    timeline = [
+        _entry(datetime(2026, 9, 7, 20, tzinfo=UTC), cloud_cover_min=40.0, cloud_cover_max=70.0),
+        _entry(datetime(2026, 9, 7, 21, tzinfo=UTC), cloud_cover_min=None, cloud_cover_max=None),
+    ]
+    doc = make_document(generated_at=_GENERATED, timeline=timeline)
+
+    assert [
+        timeline_attributes(doc, k)["forecast"] for k in ("cloud_cover_min", "cloud_cover_max")
+    ] == [
+        [
+            {"datetime": "2026-09-07T20:00:00Z", "value": 40.0},
+            {"datetime": "2026-09-07T21:00:00Z", "value": None},
+        ],
+        [
+            {"datetime": "2026-09-07T20:00:00Z", "value": 70.0},
+            {"datetime": "2026-09-07T21:00:00Z", "value": None},
+        ],
     ]
 
 

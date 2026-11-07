@@ -1,7 +1,7 @@
 ## 1. The two sensors
 
 - [x] 1.1 [easy] Publishing for a pier sends Cloud cover min and Cloud cover max as the last two timeline sensors, after Precipitation probability: keys `cloud_cover_min` and `cloud_cover_max`, unit `%`, icon `mdi:weather-cloudy`, no device class, unique ids `pierpressure_<pier>_<key>`, and each name slugs to its key; the fourteen sensors before them keep their topics, payloads and places in the publish; `make_timeline` in `tests/conftest.py` fills both keys with numbers, and the table, name and per-key tests in `tests/test_timeline_sensors.py` take the two keys (design DD1; test: `tests/test_timeline_sensors.py`) (verify: uv run pytest tests/test_timeline_sensors.py) (✓ pytest tests/test_timeline_sensors.py passed; full suite 2073 passed)
-- [ ] 1.2 [easy] A document whose current hour has cloud cover `40.0` and a null min and max publishes the Cloud cover min and Cloud cover max states `None` and Cloud cover `40.0`; each sensor's `forecast` mirrors its key, `{datetime, value}` per timeline entry, null where the entry is null (design DD1; test: `tests/test_timeline_sensors.py`) (verify: uv run pytest tests/test_timeline_sensors.py -k cloud_cover_m)
+- [x] 1.2 [easy] A document whose current hour has cloud cover `40.0` and a null min and max publishes the Cloud cover min and Cloud cover max states `None` and Cloud cover `40.0`; each sensor's `forecast` mirrors its key, `{datetime, value}` per timeline entry, null where the entry is null (design DD1; test: `tests/test_timeline_sensors.py`) (verify: uv run pytest tests/test_timeline_sensors.py -k cloud_cover_m) (✓ pytest -k cloud_cover_m passed, 40 tests)
 - [ ] 1.3 [easy] `docs/night-timeline.md` lists `cloud_cover_min` and `cloud_cover_max` in "What the timeline is", tables both sensors, names Cloud cover min and Cloud cover max and eighteen values in "Why the Verdict sensor leaves the timeline out", adds both to the recorder exclusions, and says seventeen sensors; `README.md` adds both to the entity table, the timeline topic row, the discovery pattern and the removal loop; the doc tests' key and name lists take both (design DD6; test: `tests/test_timeline_docs.py`) (verify: uv run pytest tests/test_timeline_docs.py)
 
 ## 2. The Cloud range row
@@ -25,3 +25,5 @@
 ## Deviations Ledger
 
 <!-- Dated notes on small departures from the plan, written during apply. Stop and ask the user about a large one. -->
+
+- 2026-11-07: in task 1.2, both tests passed on their first run, since task 1.1's table rows already publish the two sensors. With the rows removed, the unknown-state test fails; the forecast-mirror test still passes, because `timeline_attributes` reads any key of the entry. Both stay as guards.
