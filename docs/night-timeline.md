@@ -19,17 +19,19 @@ Each entry has the same keys, always present:
 |---|---|
 | `time` | The start of the hour, in UTC, ending in `Z`. |
 | `sun_altitude`, `moon_altitude` | The height of the sun's and the moon's centre above the horizon, in degrees, to three decimal places. Negative means below the horizon. Computed offline by PierPressure. |
-| `cloud_cover`, `cloud_low`, `cloud_mid`, `cloud_high` | Total cloud and its low, middle and high layers, in percent, from Open-Meteo. |
-| `wind_gust` | The forecast gust in km/h, from Open-Meteo. |
-| `seeing`, `transparency` | Quality from 0 to 1, where 1 is best, from 7Timer!. Two decimal places. |
-| `temperature`, `dew_point` | Air temperature and dew point 2 m above the ground, in °C, from Open-Meteo. |
-| `humidity` | Relative humidity 2 m above the ground, in percent, from Open-Meteo. |
-| `wind_speed`, `wind_direction` | The forecast wind 10 m above the ground: speed in km/h, and the direction it blows from in degrees, from Open-Meteo. |
-| `precipitation_probability` | The chance of more than 0.1 mm of rain or snow in the hour that ends at `time`, in percent, from Open-Meteo. Unlike the other values, it is for the hour before `time`, not the hour that starts at it. |
+| `cloud_cover`, `cloud_low`, `cloud_mid`, `cloud_high` | Total cloud and its low, middle and high layers, in percent. |
+| `wind_gust` | The forecast gust in km/h. |
+| `seeing`, `transparency` | Quality from 0 to 1, where 1 is best. Two decimal places. |
+| `temperature`, `dew_point` | Air temperature and dew point 2 m above the ground, in °C. |
+| `humidity` | Relative humidity 2 m above the ground, in percent. |
+| `wind_speed`, `wind_direction` | The forecast wind 10 m above the ground: speed in km/h, and the direction it blows from in degrees. |
+| `precipitation_probability` | The chance of rain or snow in the hour that ends at `time`, in percent. Open-Meteo counts more than 0.1 mm; NWS counts at least 0.01 in (about 0.25 mm). Unlike the other values, it is for the hour before `time`, not the hour that starts at it. |
 | `cloud_cover_min`, `cloud_cover_max` | The lowest and highest total cloud any provider gave for the hour, in percent. Both are `null` unless two or more providers gave cloud cover for that hour. |
 
-A weather value is `null` when its source has no data for that hour. The sun and
-moon altitudes are always present.
+Each weather value comes from the first provider in the pier's `providers` list
+that gives it, so different values can come from different providers. A weather
+value is `null` when its source has no data for that hour. The sun and moon
+altitudes are always present.
 
 The timeline is evidence, not a decision. The verdict still judges one night,
 the one `dark_window` names. Clear hours on a later night do not change
