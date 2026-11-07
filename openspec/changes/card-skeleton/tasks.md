@@ -1,6 +1,6 @@
 ## 1. The card's toolchain
 
-- [ ] 1.1 [medium] `mise run card` installs the card's packages only when `card/package-lock.json` changed, then type-checks, tests and builds `card/` into one self-contained `card/dist/pierpressure-card.js` stamped with `PIERPRESSURE_VERSION`, or `dev` when it is unset or blank; `mise run check` and `mise run install` run the card tasks, and `.gitignore` ignores `node_modules/` (design DD1, DD2, DD6, DD7; test: a Vitest build test asserts one file, no `import`, and the version stamp) (verify: mise run card)
+- [x] 1.1 [medium] `mise run card` installs the card's packages only when `card/package-lock.json` changed, then type-checks, tests and builds `card/` into one self-contained `card/dist/pierpressure-card.js` stamped with `PIERPRESSURE_VERSION`, or `dev` when it is unset or blank; `mise run check` and `mise run install` run the card tasks, and `.gitignore` ignores `node_modules/` (design DD1, DD2, DD6, DD7; test: a Vitest build test asserts one file, no `import`, and the version stamp) (verify: mise run card) (✓ mise run card and mise run check passed)
 
 ## 2. The card [depends-on: 1]
 

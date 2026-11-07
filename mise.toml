@@ -26,7 +26,7 @@ enter = "lets sync"
 # Thin wrappers over uv (design D10). `mise tasks` lists them.
 [tasks.install]
 description = "Sync the environment, dependencies, and lockfile."
-run = "uv sync"
+run = [{ task = "card-install" }, "uv sync"]
 
 [tasks.lint]
 description = "Lint with ruff."
@@ -48,10 +48,25 @@ run = "uv run pytest"
 description = "Run the service."
 run = "uv run python -m pierpressure"
 
+[tasks.card-install]
+description = "Install the dashboard card's npm packages from the lockfile."
+dir = "{{config_root}}/card"
+# npm ci empties node_modules first, so it runs only when the lockfile has
+# changed since the last install. Install scripts are refused; none is needed.
+sources = ["package.json", "package-lock.json"]
+outputs = ["node_modules/.package-lock.json"]
+run = "npm ci --ignore-scripts --no-audit --no-fund"
+
+[tasks.card]
+description = "Type-check, test and build the dashboard card into card/dist/."
+depends = ["card-install"]
+dir = "{{config_root}}/card"
+run = ["npm run typecheck", "npm test", "npm run build"]
+
 [tasks.check]
-description = "The full gate CI runs: lint + typecheck + test."
+description = "The full gate CI runs: lint + typecheck + test + the card."
 # Task references run in order and stop at the first failure.
-run = [{ task = "lint" }, { task = "typecheck" }, { task = "test" }]
+run = [{ task = "lint" }, { task = "typecheck" }, { task = "test" }, { task = "card" }]
 
 [tasks.broker-up]
 description = "Start a local Mosquitto broker (dev only, anonymous on 1883)."

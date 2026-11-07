@@ -1,5 +1,6 @@
 # Build outputs
 dist/
+node_modules/
 build/
 *.egg-info/
 
