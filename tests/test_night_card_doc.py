@@ -351,3 +351,14 @@ def test_docs_wrong_section_says_what_to_do_for(shown: str) -> None:
 @pytest.mark.parametrize("where", ["health", "`providers`"])
 def test_docs_wrong_section_says_where_to_look_for_a_missing_forecast(where: str) -> None:
     assert where in _troubleshooting()
+
+
+def _troubleshooting_item(shown: str) -> str:
+    """The list item of the troubleshooting section that starts with ``shown`` in bold."""
+    items = re.split(r"\n(?=- \*\*)", _troubleshooting())
+    return " ".join(next(item for item in items if item.startswith(f"- **{shown}")).split())
+
+
+@pytest.mark.parametrize("term", ["`conditions`", "`providers`", "Open-Meteo", "health", "add-on"])
+def test_docs_wrong_section_says_how_to_fill_the_cloud_range_row(term: str) -> None:
+    assert term in _troubleshooting_item('The Cloud range row says "Needs two forecasts"')

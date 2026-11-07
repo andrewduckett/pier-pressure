@@ -312,6 +312,17 @@ find your **Verdict** sensor under **Settings** > **Entities**. Then use, as
   Before PierPressure's first verdict, every row says "No forecast" too, except
   Cloud range, which says "Needs two forecasts". The rows fill in when it
   publishes.
+- **The Cloud range row says "Needs two forecasts".** Fewer than two weather
+  forecasts gave cloud cover for the hours on the strip. There are two causes:
+  - Only one provider in the `providers` list under `conditions` gives cloud
+    cover. With the default list, only Open-Meteo does. Add a second provider
+    that gives cloud cover, such as an Open-Meteo model like `open_meteo_icon`,
+    in the [configuration](../README.md#%EF%B8%8F-configuration). The add-on's
+    Configuration tab has no `conditions` setting, so for the add-on, set it in
+    the `config.yaml` in the add-on's config folder.
+  - A listed cloud provider failed. Check that provider's health sensor, such as
+    **Open-Meteo ICON health**. See
+    [Watching provider health](../README.md#watching-provider-health).
 - **"No astronomical darkness tonight".** The sun stays less than 18° below
   the horizon all night, as in summer far from the equator. Nothing is wrong.
   The strip shows the day around now, with no dusk or dawn line.
