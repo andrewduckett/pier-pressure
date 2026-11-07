@@ -161,6 +161,8 @@ export interface Strip {
   axis: Axis;
   rows: Row[];
   moonUp: Bar[];
+  // The Moon altitude row's, since the lane reads the same sensor.
+  moonUpMissing?: Missing;
   targets: TargetLane[];
   lines: Line[];
   labels: TimeLabel[];
@@ -178,26 +180,29 @@ export function buildStrip(
   const night = darkWindow(verdict?.attributes["dark_window"]);
   const axis = stripAxis(night, now);
   const time = clock(timeZone);
+  const rows = ROWS.map(({ key, label, unit, hourBefore, reading, ...mark }): Row => {
+    const write = reading ?? ((value: number) => `${value}${unit}`);
+    const entityId = pierEntityId(pier, key);
+    const entity = states[entityId];
+    const cells = rowCells(
+      forecastOf(entity),
+      axis,
+      (value) => (mark.arrow ? { arrow: mark.arrow(value) } : { shade: mark.shade(value) }),
+      hourBefore ? -HOUR : 0,
+    ).map((cell) => ({
+      ...cell,
+      text: `${label}, the hour from ${time(cell.hour)}: ${write(cell.value)}`,
+    }));
+    if (cells.length > 0) return { key, label, cells };
+    return { key, label, cells, missing: missing(entityId, entity) };
+  });
+  const moonMissing = rows.find((row) => row.key === "moon_altitude")?.missing;
   return {
     axis,
     labels: timeLabels(axis, time),
-    rows: ROWS.map(({ key, label, unit, hourBefore, reading, ...mark }) => {
-      const write = reading ?? ((value: number) => `${value}${unit}`);
-      const entityId = pierEntityId(pier, key);
-      const entity = states[entityId];
-      const cells = rowCells(
-        forecastOf(entity),
-        axis,
-        (value) => (mark.arrow ? { arrow: mark.arrow(value) } : { shade: mark.shade(value) }),
-        hourBefore ? -HOUR : 0,
-      ).map((cell) => ({
-        ...cell,
-        text: `${label}, the hour from ${time(cell.hour)}: ${write(cell.value)}`,
-      }));
-      if (cells.length > 0) return { key, label, cells };
-      return { key, label, cells, missing: missing(entityId, entity) };
-    }),
+    rows,
     moonUp: moonUpBars(forecastOf(states[pierEntityId(pier, "moon_altitude")]), axis, time),
+    ...(moonMissing && { moonUpMissing: moonMissing }),
     targets: targetLanes(states, pier, axis, time),
     lines: [...(night === undefined ? [] : nightLines(night, time)), ...nowLine(now, axis, time)],
   };

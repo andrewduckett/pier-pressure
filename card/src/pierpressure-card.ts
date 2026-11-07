@@ -277,7 +277,10 @@ function renderStrip(strip: Strip | undefined) {
     )}
     <div class="row" data-lane="moon_up">
       <span class="label">Moon up</span>
-      <div class="track">${strip.moonUp.map((bar) => renderBar(bar, strip.axis))}</div>
+      <div class="track">
+        ${strip.moonUp.map((bar) => renderBar(bar, strip.axis))}
+        ${strip.moonUpMissing === undefined ? nothing : renderMissing(strip.moonUpMissing)}
+      </div>
     </div>
     ${strip.targets.map(
       (lane) =>

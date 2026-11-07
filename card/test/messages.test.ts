@@ -1,9 +1,11 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   CLOUD_MID,
+  MOON_ALTITUDE,
   SEEING,
   VERDICT,
   WIND_GUST,
+  bars,
   cardText,
   cells,
   field,
@@ -151,5 +153,33 @@ describe("hovering over a row's message", () => {
     expect(rowMessage(card, "humidity")?.title).toBe(
       "sensor.pierpressure_back_yard_humidity is not in Home Assistant",
     );
+  });
+});
+
+describe("the Moon up lane", () => {
+  it("repeats the Moon altitude row's message", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect([message(card, "moon_altitude"), message(card, "moon_up")]).toEqual([
+      "Not found",
+      "Not found",
+    ]);
+  });
+
+  it("repeats the Moon altitude row's hover text", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect(rowMessage(card, "moon_up")?.title).toBe(
+      "sensor.pierpressure_backyard_moon_altitude is not in Home Assistant",
+    );
+  });
+
+  it("shows no message while the moon stays down", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [MOON_ALTITUDE]: forecastEntity([["2026-10-31T22:00:00Z", -12]]),
+    });
+
+    expect([bars(card), rowMessage(card, "moon_up")]).toEqual([[], null]);
   });
 });

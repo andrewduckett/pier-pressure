@@ -635,21 +635,31 @@ describe("the Moon up lane", () => {
         ["2026-10-31T21:00:00Z", -5],
         ["2026-10-31T22:00:00Z", 0],
       ]),
+      undefined,
     ],
-    ["its sensor is missing", undefined],
+    ["its sensor is missing", undefined, "Not found"],
     [
       "its sensor is unavailable but kept its forecast",
       { ...forecastEntity([["2026-10-31T21:00:00Z", 12]]), state: "unavailable" },
+      "Unavailable",
     ],
-    ["its sensor has no forecast", { state: "12", attributes: {} }],
-    ["its forecast is not a list", { state: "12", attributes: { forecast: "soon" } }],
-  ])("stays labelled with no bars when %s", async (_, moon) => {
+    ["its sensor has no forecast", { state: "12", attributes: {} }, "No forecast"],
+    [
+      "its forecast is not a list",
+      { state: "12", attributes: { forecast: "soon" } },
+      "No forecast",
+    ],
+  ])("stays labelled with no bars when %s", async (_, moon, message) => {
     const card = await mountCard({
       [VERDICT]: NIGHT,
       ...(moon && { [MOON_ALTITUDE]: moon }),
     });
 
-    expect([moonLane(card)?.textContent?.trim(), bars(card)]).toEqual(["Moon up", []]);
+    expect([
+      moonLane(card)?.querySelector(".label")?.textContent?.trim(),
+      bars(card),
+      rowMessage(card, "moon_up")?.textContent,
+    ]).toEqual(["Moon up", [], message]);
   });
 });
 
