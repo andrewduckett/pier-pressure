@@ -227,6 +227,27 @@ describe("more cloud is darker", () => {
   });
 });
 
+describe("the Sun altitude row steps through twilight", () => {
+  it.each([
+    [10, "#cde2fb"],
+    [0, "#9ec5f4"],
+    [-5.9, "#9ec5f4"],
+    [-6, "#6da7ec"],
+    [-12, "#3987e5"],
+    [-17.9, "#3987e5"],
+    [-18, "#0d366b"],
+    [-30, "#0d366b"],
+  ])("shades %d° as %s", async (value, colour) => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [SUN_ALTITUDE]: forecastEntity([["2026-10-31T21:00:00Z", value]]),
+    });
+
+    const [cell] = cells(card, "sun_altitude");
+    expect(cell?.dataset["shade"]).toBe(colour);
+  });
+});
+
 describe("a null hour is blank", () => {
   it.each([
     ["null", null],

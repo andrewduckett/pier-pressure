@@ -44,7 +44,7 @@ interface RowKind {
 
 // Top to bottom, as in the YAML night strip.
 export const ROWS: readonly RowKind[] = [
-  { key: "sun_altitude", label: "Sun altitude", shade: cloudShade },
+  { key: "sun_altitude", label: "Sun altitude", shade: sunShade },
   { key: "cloud_cover", label: "Cloud cover", shade: cloudShade },
   { key: "cloud_low", label: "Cloud low", shade: cloudShade },
   { key: "cloud_mid", label: "Cloud mid", shade: cloudShade },
@@ -141,6 +141,13 @@ const BLUES = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95",
 
 function cloudShade(percent: number): string {
   const step = Math.min(BLUES.length - 1, Math.max(0, Math.floor(percent / 15)));
+  return BLUES[step] ?? BLUES[0];
+}
+
+// The YAML strip's twilight band: sun up, civil, nautical and astronomical
+// twilight, then the darkest blue for astronomical night from −18°.
+function sunShade(degrees: number): string {
+  const step = degrees > 0 ? 0 : degrees > -6 ? 1 : degrees > -12 ? 2 : degrees > -18 ? 3 : 6;
   return BLUES[step] ?? BLUES[0];
 }
 
