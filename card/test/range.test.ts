@@ -77,7 +77,7 @@ function rangeBar(card: PierPressureCard): HTMLElement | null | undefined {
   return columns(card)[0]?.querySelector<HTMLElement>(".range");
 }
 
-async function oneHour(min: number, max: number): Promise<PierPressureCard> {
+async function oneHour(min: unknown, max: unknown): Promise<PierPressureCard> {
   return mountCard(range(forecastEntity([[HOUR_21, min]]), forecastEntity([[HOUR_21, max]])));
 }
 
@@ -117,5 +117,48 @@ describe("a Cloud range bar", () => {
 
     const column = columns(card)[0];
     expect([column?.dataset["low"], column?.dataset["high"]]).toEqual(["0", "100"]);
+  });
+});
+
+describe("an hour without a readable pair", () => {
+  it("has no column when both forecasts are null", async () => {
+    const card = await mountCard(
+      range(
+        forecastEntity([
+          [HOUR_21, 40],
+          ["2026-10-31T22:00:00Z", null],
+        ]),
+        forecastEntity([
+          [HOUR_21, 70],
+          ["2026-10-31T22:00:00Z", null],
+        ]),
+      ),
+    );
+
+    expect(columns(card).map((column) => column.dataset["hour"])).toEqual([
+      "2026-10-31T21:00:00.000Z",
+    ]);
+  });
+
+  it("has no column when the max forecast has no point for the hour", async () => {
+    const card = await mountCard(
+      range(forecastEntity([[HOUR_21, 40]]), forecastEntity([["2026-10-31T22:00:00Z", 70]])),
+    );
+
+    expect(columns(card)).toEqual([]);
+  });
+
+  it("has no column when a value is not a number", async () => {
+    const card = await oneHour(40, "70");
+
+    expect(columns(card)).toEqual([]);
+  });
+
+  // Home Assistant applies the two sensors' updates one at a time, so for a
+  // moment a new min can meet an old max.
+  it("has no column when the min is above the max", async () => {
+    const card = await oneHour(70, 20);
+
+    expect(columns(card)).toEqual([]);
   });
 });

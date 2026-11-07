@@ -288,13 +288,15 @@ function rowCells(
 }
 
 // An hour has a band only when both sensors give it a number: the core sends
-// both or neither, and a gap in one forecast is not a range.
+// both or neither, and a gap in one forecast is not a range. A min above the
+// max is skipped, not swapped: Home Assistant applies the two sensors' updates
+// one at a time, and a new min against an old max is no forecast's range.
 function cloudRange(states: States, pier: string, axis: Axis): Row {
   const lows = hourlyValues(forecastOf(states[pierEntityId(pier, "cloud_cover_min")]));
   const highs = hourlyValues(forecastOf(states[pierEntityId(pier, "cloud_cover_max")]));
   const bands = [...lows].flatMap(([hour, low]): Band[] => {
     const high = highs.get(hour);
-    if (!isNumber(low) || !isNumber(high)) return [];
+    if (!isNumber(low) || !isNumber(high) || low > high) return [];
     if (hour + HOUR <= axis.start || hour >= axis.end) return [];
     return [
       {
