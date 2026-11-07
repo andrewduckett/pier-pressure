@@ -102,3 +102,12 @@ export function targetBar(card: PierPressureCard, rank: number): HTMLElement | n
     card.shadowRoot?.querySelector<HTMLElement>(`.strip [data-lane="target_${rank}"] .bar`) ?? null
   );
 }
+
+// The card's stylesheet as text, for checking a rule the test DOM does not lay out.
+export function cardStyles(): string {
+  const element = customElements.get("pierpressure-card") as typeof PierPressureCard;
+  return [element.styles]
+    .flat()
+    .map((style) => String(style))
+    .join("");
+}
