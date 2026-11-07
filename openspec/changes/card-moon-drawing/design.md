@@ -1,7 +1,7 @@
 ## Context
 
-- The Verdict sensor's attributes are the whole verdict document. Its `moon`
-  attribute holds `illumination` (0 to 1, two decimals), `phase` (one of eight
+- The Verdict sensor's attributes hold every key of the verdict document
+  except `timeline`. Its `moon` attribute holds `illumination` (0 to 1, two decimals), `phase` (one of eight
   names, from 45° octants of the sun-moon elongation), and `rise` and `set`
   (ISO times inside the dark window, or null) (`pierpressure/core/model.py`
   `Moon`; `pierpressure/core/sky.py` `moon_info`).
@@ -39,8 +39,13 @@
   Assistant states. `mountCard` gains an optional latitude, passed as
   `hass.config.latitude`.
 - **Existing seams reused:** `tests/test_night_card_doc.py` for the docs
-  requirements; `card/test/render.test.ts`'s offline and not-found cases stay
-  as they are, and the moon tests add their own.
+  requirements; `cardStyles()` in the harness for the layout rules, which the
+  test DOM does not lay out. `card/test/render.test.ts`'s offline and
+  not-found cases stay as they are, and the moon tests add their own.
+- **Existing test to update:** `card/test/messages.test.ts`'s "is noted
+  between the confidence and the strip" checks that the darkness note follows
+  a `DL`. After DD4 the note follows the `.summary` row, so the test checks
+  that instead.
 
 ## Scrutiny Tier & Blast Radius
 
@@ -63,7 +68,7 @@ interface MoonView {
   drawing?: MoonDrawing; // only when phase and illumination are both valid
 }
 interface MoonDrawing {
-  lit: "none" | "all" | number; // number: the illumination, 0 to 1
+  lit: "none" | "all" | number; // number: the illumination, above 0 and below 1
   mirrored: boolean;             // true: lit on the left
   text: string;                  // "Moon: waxing gibbous, 78% lit"
 }
@@ -81,29 +86,40 @@ Waxing phases set `mirrored` to `false` (lit on the right), waning to `true`.
 When `latitude` is a number below 0, `mirrored` flips. Any other latitude,
 including a missing one, keeps the northern view. `new` gives `lit: "none"`
 and `full` gives `lit: "all"`, whatever the illumination (D8); they have no
-side, so `mirrored` is `false`.
+side, so `mirrored` is `false`. For the other phases, an illumination of 0
+also gives `lit: "none"` and 1 gives `lit: "all"`, so the card never draws a
+lit path of zero width.
 
 ### DD3. The SVG
 
 A 48 px SVG with `viewBox="-1.1 -1.1 2.2 2.2"`, so the outline's stroke is not
-clipped:
+clipped. It draws three layers, bottom to top:
 
-1. The unlit disc: `<circle r="1">` filled `#3b3a36` with a `#898781` stroke,
-   the strip's grey. It always draws, so a new moon shows its outline.
-2. The lit part, filled `#ece8dc`:
+1. The unlit disc: `<circle r="1">` filled `#3b3a36`, with no stroke.
+2. The lit part, filled `#ece8dc`, with no stroke:
    - `lit: "all"`: a second `<circle r="1">`.
-   - a number `k`: one `<path>` lit on the right, inside
-     `<g transform="scale(-1 1)">` when `mirrored`:
-     `M 0 -1 A 1 1 0 0 1 0 1 A <rx> 1 0 0 <sweep> 0 -1 Z`, where
-     `rx = |1 − 2k|`, and `sweep` is `0` for `k < 0.5` (the terminator bulges
-     right, a crescent) and `1` otherwise (it bulges left, a gibbous).
    - `lit: "none"`: nothing.
+   - a number `k`: one `<path>` lit on the right. When `mirrored`, the path
+     sits inside `<g transform="scale(-1 1)">`. Its `d` is
+     `M 0 -1 A 1 1 0 0 1 0 1 A <rx> 1 0 0 <sweep> 0 -1 Z`, with
+     `rx = |1 − 2k|`. `sweep` is `0` when `k < 0.5`: the terminator bulges
+     right, a crescent. It is `1` otherwise: the terminator bulges left, a
+     gibbous.
+3. The outline: `<circle r="1" fill="none">` with a `#898781` stroke, the
+   strip's grey, and `stroke-width="0.08"`, about 2 px. It always draws, on
+   top, so a new moon shows its edge and the lit part never covers it.
 
 The path is the right half-disc's edge, then the terminator as a half-ellipse
 back to the top. The terminator crosses the middle at `x = 1 − 2k`, so the lit
 part spans `2k` of the width 2, which is the share the spec asks for. That is
 the sphere's terminator seen face on, so the lit area is also `k`. At
 `k = 0.5`, `rx = 0` draws a straight line, which SVG allows.
+
+The SVG's child layers are built with Lit's `svg` template tag, not `html`.
+A conditional `html` fragment inside an `<svg>` is parsed as HTML, so its
+`<circle>` and `<path>` become unknown HTML elements that a browser does not
+paint. The test DOM does not paint either, so the tests check that each layer's
+`namespaceURI` is `http://www.w3.org/2000/svg`.
 
 The SVG has `role="img"`, `aria-label` and a `<title>`, all the drawing's
 `text`, so hovering shows it too. The `<svg>` carries `data-lit` (`none`,
@@ -116,11 +132,13 @@ Rejected: they ignore the illumination, and add assets to the one-file build.
 
 ### DD4. Layout
 
-The `<dl>` and a new `<section class="moon">` sit in a `.summary` flex row
-that wraps, with a 16 px gap, so on a narrow card the moon moves under the
-verdict lines rather than squeezing them. The section holds the SVG, then its
-own `<dl>` with **Phase**, **Illumination**, **Moonrise** and **Moonset**,
-styled like the verdict lines. The texts carry `data-field="moon-phase"`,
+The verdict `<dl>` and a new `<section class="moon" aria-label="Moon">` sit
+in a `.summary` flex row. The row wraps, with a 16 px gap. So on a narrow card
+the moon moves under the verdict lines rather than squeezing them. The section
+is a flex row too, with its items centred and a 12 px gap. It holds the SVG,
+then beside it its own `<dl>` with **Phase**, **Illumination**, **Moonrise**
+and **Moonset**, styled like the verdict lines. The tests check both flex
+rules through `cardStyles()`. The texts carry `data-field="moon-phase"`,
 `moon-illumination`, `moon-rise` and `moon-set`, as the verdict lines carry
 theirs.
 
@@ -138,9 +156,11 @@ than the verdict lines, well under one 50 px unit.
 
 ## Risks / Trade-offs
 
-- [Home Assistant's latitude is the home's, not the pier's] → A pier is almost
-  always in the same hemisphere as its Home Assistant. The docs say which
-  location the card uses.
+- [Home Assistant's latitude is the home's, not the pier's. A remote pier in
+  the other hemisphere shows the moon mirrored] → The verdict document carries
+  no pier location, and adding one is out of scope. Most piers share their
+  Home Assistant's hemisphere. The docs say which location the card uses and
+  what a pier in the other hemisphere shows, and a doc test checks it.
 - [A phase near the equator is tilted, not left or right] → Out of scope (D6);
   the drawing is a reading aid, and the phase name and percent carry the facts.
 - [Fixed colours on an unusual theme] → The same choice as the strip; the disc

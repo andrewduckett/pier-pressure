@@ -8,7 +8,11 @@ The card SHALL show a Moon section beside its Verdict, Score and Confidence line
 - **THEN** the card shows a moon drawing, the phase `Waxing gibbous`, the illumination `78%`, the moonrise `21:14` and the moonset `—`
 
 ### Requirement: The Moon section shows only with the verdict
-The card SHALL show no Moon section when it shows a message in place of the verdict.
+The card SHALL show no Moon section when it shows no verdict: before Home Assistant gives it a state, and when it shows a message in place of the verdict.
+
+#### Scenario: Before Home Assistant gives the card its state
+- **WHEN** the card is configured and Home Assistant has not yet given it a state
+- **THEN** the card shows no moon drawing and no moon text
 
 #### Scenario: PierPressure is offline
 - **WHEN** `sensor.pierpressure_backyard_verdict` has the state `unavailable` and a `moon` attribute
@@ -19,7 +23,7 @@ The card SHALL show no Moon section when it shows a message in place of the verd
 - **THEN** the card shows no moon drawing and no moon text
 
 ### Requirement: The card shows the moon's phase
-The card SHALL show the `moon.phase` field with its first letter in capitals. When the field is missing, or is not one of `new`, `waxing crescent`, `first quarter`, `waxing gibbous`, `full`, `waning gibbous`, `last quarter` or `waning crescent`, the card SHALL show a dash, `—`, as the phase.
+The card SHALL show the `moon.phase` field with its first letter in capitals. The valid phases are `new`, `waxing crescent`, `first quarter`, `waxing gibbous`, `full`, `waning gibbous`, `last quarter` and `waning crescent`. When the field is missing or holds any other value, the card SHALL show a dash, `—`, as the phase.
 
 #### Scenario: Last quarter
 - **WHEN** `moon.phase` is `last quarter`
@@ -45,7 +49,7 @@ The card SHALL show the `moon.illumination` field as a whole percent, rounded to
 - **THEN** the card shows `—` as the illumination
 
 ### Requirement: The card shows moonrise and moonset
-The card SHALL show `moon.rise` as the moonrise and `moon.set` as the moonset, each as a time in Home Assistant's time zone on a 24-hour clock, as the strip shows times. When a field is null, missing or not a readable time, the card SHALL show a dash, `—`, for it.
+The card SHALL show `moon.rise` as the moonrise and `moon.set` as the moonset. It SHALL show each as a time in Home Assistant's time zone on a 24-hour clock, as the strip shows times. When a field is null, missing or not a readable time, the card SHALL show a dash, `—`, for it.
 
 #### Scenario: Moonrise in Tokyo
 - **WHEN** Home Assistant's time zone is `Asia/Tokyo` and `moon.rise` is `2026-10-31T12:14:00Z`
@@ -56,7 +60,7 @@ The card SHALL show `moon.rise` as the moonrise and `moon.set` as the moonset, e
 - **THEN** the card shows `—` as the moonset
 
 ### Requirement: Before the first verdict the Moon section shows dashes
-When the Verdict sensor has no `moon` attribute, or the attribute is not an object, the card SHALL show a dash, `—`, as the phase, the illumination, the moonrise and the moonset.
+When the Verdict sensor has no `moon` attribute, or the attribute is not an object, the card SHALL show a dash, `—`, for each of the four moon texts.
 
 #### Scenario: Before the first verdict
 - **WHEN** `sensor.pierpressure_backyard_verdict` has the state `unknown` and no attributes
@@ -72,7 +76,15 @@ The card SHALL draw the moon only when both the phase and the illumination are v
 - **AND** it shows the phase `Full` and `—` as the illumination
 
 ### Requirement: The moon drawing lights the illumination's share of the disc
-The drawing SHALL be a disc whose lit part is bounded by the disc's edge on one side and by a curved terminator. Across the disc's middle, from edge to edge, the lit part SHALL span the illumination's share of the disc's width. The drawing SHALL show no position angle, libration or earthshine.
+For a phase other than `new` and `full`, the drawing SHALL be a disc whose lit part lies between one edge of the disc and a terminator. Across the disc's middle, from edge to edge, the lit part SHALL span the illumination's share of the disc's width. The terminator SHALL be a straight line at an illumination of 0.5, and curved otherwise. An illumination of 0 SHALL draw no lit part, and 1 the whole disc lit. The drawing SHALL show no position angle, libration or earthshine.
+
+#### Scenario: A first quarter
+- **WHEN** `moon.phase` is `first quarter` and `moon.illumination` is `0.5`
+- **THEN** half the disc is lit, and the terminator is a straight line through its middle
+
+#### Scenario: Illumination at the ends of its range
+- **WHEN** `moon.phase` is `waxing crescent` and `moon.illumination` is `0`, or `moon.phase` is `waxing gibbous` and `moon.illumination` is `1`
+- **THEN** the first draws the disc's outline and no lit part, and the second the whole disc lit
 
 #### Scenario: A waxing crescent
 - **WHEN** `moon.phase` is `waxing crescent` and `moon.illumination` is `0.25`
@@ -123,8 +135,14 @@ Where `docs/night-card.md` says what the card shows, it SHALL say that the Moon 
 - **THEN** it names Moon, Phase, Illumination, Moonrise, Moonset and dark window
 
 ### Requirement: The docs say how to read the moon drawing
-Where `docs/night-card.md` describes the Moon section, it SHALL say that the drawing's lit part is the illumination's share of the disc, that waxing is lit on the right and waning on the left, that both are mirrored when Home Assistant's location is south of the equator, and that a new moon is drawn unlit and a full moon fully lit.
+Where `docs/night-card.md` describes the Moon section, it SHALL say:
+
+- the drawing's lit part is the illumination's share of the disc;
+- a waxing moon is lit on the right and a waning moon on the left;
+- the card mirrors both when Home Assistant's location is south of the equator;
+- the card takes the hemisphere from Home Assistant's location, not the pier's, so a pier in the other hemisphere shows the moon mirrored;
+- the card draws a new moon unlit and a full moon fully lit.
 
 #### Scenario: The page says how to read the drawing
 - **WHEN** the part of `docs/night-card.md` before its "The night strip" section is read
-- **THEN** it names waxing, waning, south, new and full
+- **THEN** it names waxing, waning, right, left, south, Home Assistant, new and full
