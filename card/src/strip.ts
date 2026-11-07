@@ -282,13 +282,19 @@ function moonUpText(
 // The rank sensors PierPressure publishes, Target 1 to Target 10.
 const TARGET_RANKS = 10;
 
+// A rank's state is the name its bar shows. PierPressure publishes the state and
+// the window as two messages, so for a moment Home Assistant can hold an empty or
+// unknown state beside a window; such a rank waits for its name.
+const NO_NAME = new Set(["", "unknown", "unavailable"]);
+
 function targetLanes(states: States, pier: string): TargetLane[] {
   return Array.from({ length: TARGET_RANKS }, (_, index) => index + 1).flatMap((rank) => {
     const entity = states[pierEntityId(pier, `target_${rank}`)];
-    const window = asRecord(entity?.attributes["window"]);
+    if (entity === undefined || NO_NAME.has(entity.state)) return [];
+    const window = asRecord(entity.attributes["window"]);
     const start = readTime(window?.["start"]);
     const end = readTime(window?.["end"]);
-    if (entity === undefined || start === undefined || end === undefined) return [];
+    if (start === undefined || end === undefined || end <= start) return [];
     const name = entity.state;
     return [
       { rank, label: `Target ${rank}`, name, bar: { start, end, from: start, to: end, text: name } },

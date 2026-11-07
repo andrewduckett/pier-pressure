@@ -90,3 +90,41 @@ describe("the target lanes", () => {
     ]);
   });
 });
+
+describe("a rank with no target tonight", () => {
+  it.each([
+    [
+      "is unavailable, with a stale window",
+      { state: "unavailable", attributes: { window: EVENING } },
+    ],
+    ["has an unknown state", targetEntity("Andromeda Galaxy", EVENING, "unknown")],
+    ["has an empty state", targetEntity("", EVENING)],
+    [
+      "has a window that ends before it starts",
+      targetEntity("Andromeda Galaxy", { start: EVENING.end, end: EVENING.start }),
+    ],
+    [
+      "has a window that ends as it starts",
+      targetEntity("Andromeda Galaxy", { start: EVENING.start, end: EVENING.start }),
+    ],
+    ["has a window with no end", targetEntity("Andromeda Galaxy", { start: EVENING.start })],
+    [
+      "has a window whose start is not a time",
+      targetEntity("Andromeda Galaxy", { start: "soon", end: EVENING.end }),
+    ],
+    ["has no window", targetEntity("Andromeda Galaxy", undefined)],
+  ])("leaves no lane when it %s", async (_, entity) => {
+    const card = await mountCard({ [VERDICT]: NIGHT, [target(1)]: entity });
+
+    expect(targetLanes(card)).toEqual([]);
+  });
+
+  it("leaves no lane when Home Assistant has no Target sensors", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect([targetLanes(card), moonLane(card)?.querySelector(".label")?.textContent]).toEqual([
+      [],
+      "Moon up",
+    ]);
+  });
+});
