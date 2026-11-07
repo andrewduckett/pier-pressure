@@ -68,17 +68,20 @@ When the Moon altitude row shows a message, the Moon up lane SHALL show the same
 #### Scenario: The moon sensor is not there
 - **WHEN** the Verdict sensor has the state `GO` and Home Assistant has no `sensor.pierpressure_backyard_moon_altitude`
 - **THEN** the Moon altitude row and the Moon up lane each show the message `Not found`
+- **AND** hovering over the Moon up lane's message shows `sensor.pierpressure_backyard_moon_altitude is not in Home Assistant`
 
 #### Scenario: The moon stays down
-- **WHEN** every value in the moon altitude forecast inside the axis is 0 or below
+- **WHEN** the moon altitude forecast holds at least one value inside the axis, and every value inside the axis is 0 or below
 - **THEN** the Moon up lane shows no bars and no message
 
-### Requirement: A night with no astronomical darkness is noted
-When the Verdict sensor's `dark_window` has a `start` of null and an `end` of null, the card SHALL show the note `No astronomical darkness tonight` between the confidence and the strip, and SHALL still draw the strip on its fallback axis. The card SHALL show no such note in any other case: when `dark_window` is missing, when only one of its ends is null, or when an end is not a readable time.
+### Requirement: The card notes a night with no astronomical darkness
+The card SHALL show the note `No astronomical darkness tonight` when the Verdict sensor's `dark_window` has a `start` of null and an `end` of null. The note SHALL sit between the confidence and the strip. The card SHALL still draw the strip on its fallback axis.
+
+The card SHALL show no such note in any other case: a missing `dark_window`, only one null end, or an end that is not a readable time.
 
 #### Scenario: A summer night far north
 - **WHEN** the Verdict sensor has the state `NO-GO` and its `dark_window` is `{start: null, end: null}`
-- **THEN** the card shows `No astronomical darkness tonight` above the strip
+- **THEN** the card shows `No astronomical darkness tonight` after the confidence and before the strip
 - **AND** it still draws the strip, with no dusk or dawn line
 
 #### Scenario: A normal night
@@ -93,23 +96,42 @@ When the Verdict sensor's `dark_window` has a `start` of null and an `end` of nu
 - **WHEN** the Verdict sensor's `dark_window` is `{start: "soon", end: null}`
 - **THEN** the card shows no note about darkness and draws the strip on its fallback axis
 
-### Requirement: The docs say what each missing case looks like
-`docs/night-card.md` SHALL describe the row messages `Not found`, `Unavailable` and `No forecast`, what each means, and that the Moon up lane repeats the Moon altitude row's message. It SHALL describe the note `No astronomical darkness tonight`. Its "If something looks wrong" section SHALL say what to do when the card shows:
+### Requirement: The docs describe the row messages and the darkness note
+Where `docs/night-card.md` describes the strip, it SHALL describe:
+
+- the row messages `Not found`, `Unavailable` and `No forecast`, and what each means;
+- that hovering over a message names the sensor;
+- that the Moon up lane repeats the Moon altitude row's message;
+- the note `No astronomical darkness tonight`.
+
+#### Scenario: The strip section covers the messages
+- **WHEN** the part of `docs/night-card.md` before its "If something looks wrong" section is read
+- **THEN** it names `Not found`, `Unavailable`, `No forecast` and `No astronomical darkness tonight`
+- **AND** it names the words hover and Moon up in the same paragraph as `No forecast`
+
+### Requirement: The docs say what to do when something is missing
+The "If something looks wrong" section of `docs/night-card.md` SHALL say what to do when the card shows each of these:
 
 - `PierPressure is offline`;
 - `No PierPressure verdict found`;
 - a row that says `Not found`, `Unavailable` or `No forecast`;
 - `No astronomical darkness tonight`.
 
-#### Scenario: The page covers the missing cases
-- **WHEN** `docs/night-card.md` is read
-- **THEN** it names the messages `Not found`, `Unavailable`, `No forecast` and `No astronomical darkness tonight`
-- **AND** its "If something looks wrong" section names `PierPressure is offline`, `No PierPressure verdict found`, `Not found`, `Unavailable`, `No forecast` and `No astronomical darkness tonight`
+#### Scenario: The troubleshooting section covers the missing cases
+- **WHEN** the "If something looks wrong" section of `docs/night-card.md` is read
+- **THEN** it names `PierPressure is offline`, `No PierPressure verdict found`, `Not found`, `Unavailable`, `No forecast` and `No astronomical darkness tonight`
+
+### Requirement: The docs name the causes of No forecast
+For a row that says `No forecast`, the "If something looks wrong" section of `docs/night-card.md` SHALL name two causes. Either no weather source in the pier's `providers` gave that condition a value for these hours, or every weather source failed. It SHALL point to the pier's weather source health sensors.
+
+#### Scenario: The causes and where to look
+- **WHEN** the "If something looks wrong" section of `docs/night-card.md` is read
+- **THEN** it names the word health and the `providers` setting
 
 ## MODIFIED Requirements
 
 ### Requirement: A missing cloud sensor leaves an empty row
-The card SHALL draw a cloud sensor's row with its label, no cells and the message that says why, when that sensor is missing from Home Assistant or unavailable. It SHALL do the same when the sensor has no `forecast` attribute, or its `forecast` is not a list. The card SHALL skip a point in `forecast` without a readable `datetime`. The card SHALL NOT throw, and SHALL draw the other rows as usual.
+When a cloud sensor is missing from Home Assistant or unavailable, the card SHALL draw its row with its label and no cells. The row SHALL show the message that says why. The card SHALL do the same when the sensor has no `forecast` attribute, or its `forecast` is not a list. The card SHALL skip a point in `forecast` without a readable `datetime`. The card SHALL NOT throw, and SHALL draw the other rows as usual.
 
 #### Scenario: Cloud high is unavailable
 - **WHEN** `sensor.pierpressure_backyard_cloud_high` has the state `unavailable` and no attributes, and the other three cloud sensors have forecasts inside the axis
@@ -125,7 +147,7 @@ The card SHALL draw a cloud sensor's row with its label, no cells and the messag
 - **THEN** the card renders without an error and shows the four labelled cloud rows with no cells, each with the message `Not found`
 
 ### Requirement: A missing sun altitude leaves a blank hour
-The card SHALL draw no Sun altitude cell for an hour whose value is null or not a number, or for an hour the forecast has no point for. When the sun altitude sensor is missing or unavailable, or has no `forecast` list, the card SHALL draw the Sun altitude row with its label, no cells and the message that says why. The card SHALL NOT throw, and SHALL draw the other rows as usual.
+The card SHALL draw no Sun altitude cell for an hour whose value is null or not a number, or for an hour the forecast has no point for. When the sun altitude sensor is missing or unavailable, or has no `forecast` list, the card SHALL draw the Sun altitude row with its label and no cells. The row SHALL show the message that says why. The card SHALL NOT throw, and SHALL draw the other rows as usual.
 
 #### Scenario: A null hour
 - **WHEN** the Sun altitude forecast holds `{"datetime": "2026-10-31T22:00:00Z", "value": null}` inside the axis
@@ -148,7 +170,7 @@ When the moon altitude sensor is missing from Home Assistant or unavailable, or 
 - **THEN** the card renders without an error and shows the Moon up lane with no bars and the message `Not found`
 
 ### Requirement: A missing sensor leaves its row empty
-When the sensor of the Moon altitude, Wind gust, Seeing, Transparency, Temperature, Dew point, Humidity, Wind speed, Wind direction or Rain chance row is missing from Home Assistant or unavailable, the card SHALL draw that row with its label, no cells and the message that says why. It SHALL do the same when the sensor has no `forecast` list. The card SHALL skip a point without a readable `datetime`. The card SHALL NOT throw, and SHALL draw the other rows as usual.
+This requirement covers the Moon altitude, Wind gust, Seeing, Transparency, Temperature, Dew point, Humidity, Wind speed, Wind direction and Rain chance rows. When a row's sensor is missing from Home Assistant or unavailable, the card SHALL draw that row with its label and no cells. The row SHALL show the message that says why. The card SHALL do the same when the sensor has no `forecast` list. The card SHALL skip a point without a readable `datetime`. The card SHALL NOT throw, and SHALL draw the other rows as usual.
 
 #### Scenario: Humidity is unavailable
 - **WHEN** `sensor.pierpressure_backyard_humidity` has the state `unavailable` and a `forecast` attribute with values inside the axis, and the cloud sensors have forecasts inside the axis

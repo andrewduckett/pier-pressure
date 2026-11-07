@@ -17,14 +17,14 @@ a defined look.
 - The Moon up lane says the same as the Moon altitude row when that row has no
   cell (D8). The target lanes do not change (D9).
 - When the Verdict sensor's `dark_window` has a null `start` and `end`, the card
-  shows the note "No astronomical darkness tonight" above the strip. The strip
-  still draws on its fallback axis (D10). A missing or unreadable `dark_window`
+  shows the note "No astronomical darkness tonight" between the confidence and
+  the strip. The strip still draws on its fallback axis (D10). A missing or unreadable `dark_window`
   shows no note (D11).
 - `docs/night-card.md` describes the row messages and the darkness note, and
   its "If something looks wrong" section covers each missing case (D13).
 
-Nothing in the core, the verdict document or the MQTT delivery changes, and no
-version attribute is added (D14).
+Nothing in the core, the verdict document or the MQTT delivery changes, and the
+change adds no version attribute (D14).
 
 ## Capabilities
 

@@ -44,6 +44,9 @@ The offline and "No PierPressure verdict found" messages already exist in
   - `card/test/harness.ts` gains a `rowMessage(card, key)` reader that returns
     the message element of a `.row[data-row=<key>]` or of
     `.row[data-lane="moon_up"]`, and a `note(card)` reader.
+  - The "a null hour is blank" tests in `rows.test.ts` mount a single null
+    point, so their row now also shows `No forecast`. They assert only that
+    the hour has no cell, which still holds; they need no change.
   - The existing tests that assert an empty row's text is its label alone
     (`strip.test.ts`, the Cloud high, Sun altitude and Moon up lane cases;
     `rows.test.ts`, the Humidity case) change with the modified requirements,
@@ -107,9 +110,31 @@ In a row's or the lane's `.track`, when `missing` is set, the card draws
 ```
 
 `data-missing` is the message in lower case with `-` for a space
-(`not-found`, `unavailable`, `no-forecast`), for tests and styling. CSS gives
-`.missing` the secondary text colour, `0.75em`, a 16 px line height, so the
-row keeps its height, and a 4 px indent. The lines' overlay sits above the
+(`not-found`, `unavailable`, `no-forecast`), for tests and styling.
+
+The track holds only absolutely placed children today, and has no font size or
+line height of its own. An inline span would sit on a line box with Home
+Assistant's taller line height, and `text-indent` does nothing on an inline
+box. So CSS makes `.missing` a block sized to its text:
+
+```css
+.missing {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding-left: 4px;
+  color: var(--secondary-text-color);
+  font-size: 0.75em;
+  line-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+```
+
+The block keeps the row 16 px high, the hover target covers only the text, and
+a narrow card cuts the message off with `…`. The lines' overlay sits above the
 track with `pointer-events: none`, so hovering reaches the message.
 
 ### DD4. The darkness note comes from the strip model
@@ -120,7 +145,7 @@ track with `pointer-events: none`, so hovering reaches the message.
 `false`. `darkWindow` and `stripAxis` do not change.
 
 `renderBody` draws `<p class="note" data-note="no-darkness">No astronomical
-darkness tonight</p>` between the `<dl>` and the strip when
+darkness tonight</p>` after the confidence's `<dl>` and before the strip when
 `strip.noDarkness` is true. The note uses the secondary text colour. Because
 the strip draws only beside the verdict, the note never shows under the
 offline or no-verdict message.
@@ -138,16 +163,26 @@ text is not part of the verdict document or the delivery surface.
 
 ## Risks / Trade-offs
 
-- [Before the first verdict every row says "No forecast", which is busy] →
-  It is true, and the verdict's dashes already say PierPressure has not
-  published yet. The docs say so.
+- [Every row, Sun and Moon altitude too, says "No forecast" beside a live
+  verdict when every weather source fails] → The core still computes the
+  verdict, the dark window and the targets offline, but the timeline is empty
+  (`pierpressure/core/producer.py`, `_timeline`). That is true and worth
+  showing. The docs name this cause and point to the health sensors.
+- [A row says "No forecast" because no source in the pier's `providers` gives
+  that condition for these hours, such as a provider with no cloud layers or a
+  short-range model run] → The docs name this cause and point to the
+  `providers` setting. The verdict is unaffected.
+- [Before the first verdict, a restored entity reads `unknown` and every row
+  says "No forecast"] → The verdict's dashes already say PierPressure has not
+  published yet. On a first install there is no entity yet, and the card says
+  "No PierPressure verdict found" instead.
 - [A sensor the user disabled reads "Not found", though it exists] → Home
   Assistant drops a disabled entity from its states, so the card cannot tell
   the two apart. The hover text names the entity id, and the docs say to check
   it under **Settings** > **Entities**.
 - [A forecast whose hours all lie off the axis reads "No forecast", though it
-  has values] → Only a stale or hand-edited state does this. The hover says
-  "for these hours".
+  has values] → This happens with a stale state, or when a short-range source
+  covers only other hours. The hover says "for these hours".
 
 ## Migration & Rollback
 
