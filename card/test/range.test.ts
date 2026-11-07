@@ -1,14 +1,17 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
+  CLOUD_COVER,
   CLOUD_COVER_MAX,
   CLOUD_COVER_MIN,
   VERDICT,
   cells,
   forecastEntity,
   mountCard,
+  rowMessage,
   verdictEntity,
 } from "./harness";
 import type { HassEntity, PierPressureCard } from "../src/pierpressure-card";
+import { ROWS } from "../src/strip";
 
 beforeAll(async () => {
   vi.spyOn(console, "info").mockImplementation(() => {});
@@ -178,5 +181,88 @@ describe("hovering over a Cloud range column", () => {
     const card = await oneHour(-5, 120);
 
     expect(columns(card)[0]?.title).toBe("Cloud range, the hour from 21:00: -5% to 120%");
+  });
+});
+
+const NULLS = forecastEntity([
+  [HOUR_21, null],
+  ["2026-10-31T22:00:00Z", null],
+]);
+const ON_AXIS = forecastEntity([[HOUR_21, 40]]);
+
+function message(card: PierPressureCard): [string | undefined, string | undefined] {
+  const element = rowMessage(card, "cloud_range");
+  return [element?.textContent?.trim(), element?.title];
+}
+
+describe("a Cloud range row with no column", () => {
+  it("says it needs two forecasts when both forecasts are null", async () => {
+    const card = await mountCard(range(NULLS, NULLS));
+
+    expect(message(card)).toEqual([
+      "Needs two forecasts",
+      "No hour on the strip has cloud cover from two or more forecasts",
+    ]);
+  });
+
+  it("marks the message for styling", async () => {
+    const card = await mountCard(range(NULLS, NULLS));
+
+    expect(rowMessage(card, "cloud_range")?.dataset["missing"]).toBe("needs-two-forecasts");
+  });
+
+  it("leaves the Cloud cover row drawing as usual", async () => {
+    const card = await mountCard({ ...range(NULLS, NULLS), [CLOUD_COVER]: ON_AXIS });
+
+    expect([cells(card, "cloud_cover").length, rowMessage(card, "cloud_cover")]).toEqual([1, null]);
+  });
+
+  it("names the max sensor when it is not in Home Assistant", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT, [CLOUD_COVER_MIN]: ON_AXIS });
+
+    expect(message(card)).toEqual([
+      "Not found",
+      "sensor.pierpressure_backyard_cloud_cover_max is not in Home Assistant",
+    ]);
+  });
+
+  it("names the min sensor when it is unavailable", async () => {
+    const card = await mountCard(
+      range({ ...ON_AXIS, state: "unavailable" }, forecastEntity([[HOUR_21, 70]])),
+    );
+
+    expect(message(card)).toEqual([
+      "Unavailable",
+      "sensor.pierpressure_backyard_cloud_cover_min is unavailable",
+    ]);
+  });
+
+  it("says a missing sensor before an unavailable one", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [CLOUD_COVER_MIN]: { ...ON_AXIS, state: "unavailable" },
+    });
+
+    expect(message(card)[0]).toBe("Not found");
+  });
+
+  it("says it needs two forecasts before the first verdict", async () => {
+    const unknown = Object.fromEntries(
+      [...ROWS.map(({ key }) => key), "cloud_cover_min", "cloud_cover_max"].map((key) => [
+        `sensor.pierpressure_backyard_${key}`,
+        verdictEntity("unknown"),
+      ]),
+    );
+    const card = await mountCard({ [VERDICT]: verdictEntity("unknown"), ...unknown });
+
+    expect(message(card)[0]).toBe("Needs two forecasts");
+  });
+});
+
+describe("a Cloud range row with a column", () => {
+  it("shows no message", async () => {
+    const card = await oneHour(40, 70);
+
+    expect(rowMessage(card, "cloud_range")).toBeNull();
   });
 });

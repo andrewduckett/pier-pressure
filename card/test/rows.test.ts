@@ -393,10 +393,10 @@ describe("a missing sensor leaves its row empty", () => {
     });
 
     const others = rows(card).filter(
-      (element) => ![...SUN_AND_CLOUD, "cloud_range"].includes(element.dataset["row"] ?? ""),
+      (element) => !SUN_AND_CLOUD.includes(element.dataset["row"] ?? ""),
     );
     const drawn = others.flatMap((element) => [...element.querySelectorAll(".cell")]);
     const messages = others.map((element) => element.querySelector(".missing")?.textContent);
-    expect([others.length, drawn, new Set(messages)]).toEqual([10, [], new Set(["Not found"])]);
+    expect([others.length, drawn, new Set(messages)]).toEqual([11, [], new Set(["Not found"])]);
   });
 });

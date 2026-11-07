@@ -110,8 +110,9 @@ export interface Cell {
 
 // Why a row has no cell to draw, in the words the row shows.
 export interface Missing {
-  message: "Not found" | "Unavailable" | "No forecast";
-  // What hovering over the message shows: the sensor's id, so the user can find it.
+  message: "Not found" | "Unavailable" | "No forecast" | "Needs two forecasts";
+  // What hovering over the message shows: the sensor's id, so the user can find
+  // it, or for the Cloud range row, what the row needs.
   text: string;
 }
 
@@ -311,7 +312,24 @@ function cloudRange(states: States, pier: string, axis: Axis, time: (at: number)
       },
     ];
   });
-  return { key: "cloud_range", label: "Cloud range", cells: [], bands };
+  const row = { key: "cloud_range", label: "Cloud range", cells: [], bands };
+  if (bands.length > 0) return row;
+  return { ...row, missing: cloudRangeMissing(states, pier) };
+}
+
+// A missing sensor comes before an unavailable one, whichever of the two it is.
+// With both there, an empty row usually means one cloud provider, which is the
+// default, so the message says what the row needs rather than that no forecast came.
+function cloudRangeMissing(states: States, pier: string): Missing {
+  const ids = [pierEntityId(pier, "cloud_cover_min"), pierEntityId(pier, "cloud_cover_max")];
+  const absent = ids.find((id) => states[id] === undefined);
+  if (absent) return { message: "Not found", text: `${absent} is not in Home Assistant` };
+  const down = ids.find((id) => states[id]?.state === "unavailable");
+  if (down) return { message: "Unavailable", text: `${down} is unavailable` };
+  return {
+    message: "Needs two forecasts",
+    text: "No hour on the strip has cloud cover from two or more forecasts",
+  };
 }
 
 function percent(value: number): number {
