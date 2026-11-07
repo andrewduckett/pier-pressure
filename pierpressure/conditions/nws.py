@@ -4,6 +4,9 @@ NWS publishes its raw gridpoint forecast as variable-length periods, each an ISO
 8601 start and duration such as ``2026-11-03T18:00:00+00:00/PT3H``. This module
 **holds each value across every clock hour its period covers, here in the
 provider layer**, so the core only ever sees the hourly grid (design DD2).
+Rain chance is the exception: its value at an hour is the chance for the hour
+that ends there, so it is held one hour later, on the hours that end within its
+period (#201).
 Parsing is separated from fetching so it can be tested against a recorded
 fixture with no network.
 """
