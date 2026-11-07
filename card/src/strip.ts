@@ -78,6 +78,8 @@ export interface Bar {
   // The part of the run on the axis.
   from: number;
   to: number;
+  // What hovering over the bar shows.
+  text: string;
 }
 
 export interface TimeLabel {
@@ -114,7 +116,7 @@ export function buildStrip(
         text: `${label}, the hour from ${time(cell.hour)}: ${cell.value}${unit}`,
       })),
     })),
-    moonUp: moonUpBars(forecastOf(states[pierEntityId(pier, "moon_altitude")]), axis),
+    moonUp: moonUpBars(forecastOf(states[pierEntityId(pier, "moon_altitude")]), axis, time),
   };
 }
 
@@ -150,7 +152,7 @@ function rowCells(
   });
 }
 
-function moonUpBars(forecast: unknown, axis: Axis): Bar[] {
+function moonUpBars(forecast: unknown, axis: Axis, time: (at: number) => string): Bar[] {
   const altitudes = hourlyValues(forecast);
   const runs: Array<{ start: number; end: number }> = [];
   for (const [hour, value] of altitudes) {
@@ -165,7 +167,29 @@ function moonUpBars(forecast: unknown, axis: Axis): Bar[] {
       ...run,
       from: Math.max(run.start, axis.start),
       to: Math.min(run.end, axis.end),
+      text: moonUpText(run, altitudes, time),
     }));
+}
+
+// A run at either end of the forecast may have begun before it or go on after
+// it, so the text names a rise or set only where the forecast shows the moon down.
+function moonUpText(
+  run: { start: number; end: number },
+  altitudes: Map<number, unknown>,
+  time: (at: number) => string,
+): string {
+  // HH:MM cannot tell one day from the next.
+  if (run.end - run.start >= 24 * HOUR) return "Moon up";
+  const down = (hour: number) => {
+    const value = altitudes.get(hour);
+    return typeof value === "number" && Number.isFinite(value) && value <= 0;
+  };
+  const rise = down(run.start - HOUR);
+  const set = down(run.end);
+  if (rise && set) return `Moon up from ${time(run.start)} to ${time(run.end)}`;
+  if (rise) return `Moon up from ${time(run.start)}`;
+  if (set) return `Moon up until ${time(run.end)}`;
+  return "Moon up";
 }
 
 // Hour by hour in time order, so a run never depends on the forecast's order.

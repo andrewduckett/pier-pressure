@@ -227,6 +227,8 @@ function renderBar(bar: Bar, axis: Axis) {
     data-end=${iso(bar.end)}
     data-from=${iso(bar.from)}
     data-to=${iso(bar.to)}
+    title=${bar.text}
+    aria-label=${bar.text}
   ></div>`;
 }
 

@@ -640,6 +640,104 @@ describe("the Moon up lane", () => {
   });
 });
 
+describe("hovering over a Moon up bar", () => {
+  async function hoverText(
+    points: Array<[string, unknown]>,
+    verdict = NIGHT,
+    timeZone = "UTC",
+  ): Promise<string[]> {
+    const card = await mountCard(
+      { [VERDICT]: verdict, [MOON_ALTITUDE]: forecastEntity(points) },
+      "backyard",
+      timeZone,
+    );
+    const [bar] = bars(card);
+    return [bar?.getAttribute("title") ?? "", bar?.getAttribute("aria-label") ?? ""];
+  }
+
+  const RISE_AND_SET: Array<[string, unknown]> = [
+    ["2026-10-31T15:00:00Z", -2],
+    ["2026-10-31T16:00:00Z", 4],
+    ["2026-10-31T17:00:00Z", 6],
+    ["2026-10-31T18:00:00Z", -1],
+  ];
+
+  it("shows the hours the moon rises and sets", async () => {
+    expect(await hoverText(RISE_AND_SET)).toEqual([
+      "Moon up from 16:00 to 18:00",
+      "Moon up from 16:00 to 18:00",
+    ]);
+  });
+
+  it("shows the hours in Home Assistant's time zone", async () => {
+    const [title] = await hoverText(RISE_AND_SET, NIGHT, "Asia/Tokyo");
+
+    expect(title).toBe("Moon up from 01:00 to 03:00");
+  });
+
+  it("leaves out a rise before the forecast starts", async () => {
+    const [title] = await hoverText([
+      ["2026-11-01T00:00:00Z", 4],
+      ["2026-11-01T01:00:00Z", 6],
+      ["2026-11-01T02:00:00Z", -1],
+    ]);
+
+    expect(title).toBe("Moon up until 02:00");
+  });
+
+  it("leaves out a rise after a null hour", async () => {
+    const [title] = await hoverText([
+      ["2026-10-31T21:00:00Z", null],
+      ["2026-10-31T22:00:00Z", 4],
+      ["2026-10-31T23:00:00Z", -1],
+    ]);
+
+    expect(title).toBe("Moon up until 23:00");
+  });
+
+  it("leaves out a set after the forecast ends", async () => {
+    const [title] = await hoverText([
+      ["2026-11-01T06:00:00Z", -1],
+      ["2026-11-01T07:00:00Z", 3],
+      ["2026-11-01T08:00:00Z", 5],
+    ]);
+
+    expect(title).toBe("Moon up from 07:00");
+  });
+
+  it("shows neither when the forecast holds no rise or set", async () => {
+    const [title] = await hoverText([["2026-10-31T22:00:00Z", 5]]);
+
+    expect(title).toBe("Moon up");
+  });
+
+  const POLAR = verdictEntity("GO", {
+    dark_window: { start: "2026-12-20T12:00:00Z", end: "2026-12-21T06:00:00Z" },
+  });
+
+  function runOf(hours: number): Array<[string, unknown]> {
+    const start = Date.parse("2026-12-20T07:00:00Z");
+    const at = (n: number) => new Date(start + n * 60 * 60 * 1000).toISOString();
+    return [
+      [at(-1), -1],
+      ...Array.from({ length: hours }, (_, n): [string, unknown] => [at(n), 5]),
+      [at(hours), -1],
+    ];
+  }
+
+  it("shows the hours of a run shorter than a day", async () => {
+    const [title] = await hoverText(runOf(23), POLAR);
+
+    expect(title).toBe("Moon up from 07:00 to 06:00");
+  });
+
+  it.each([24, 30])("shows no hours for a run of %d hours", async (hours) => {
+    const [title] = await hoverText(runOf(hours), POLAR);
+
+    expect(title).toBe("Moon up");
+  });
+});
+
 describe("the axis's time labels", () => {
   async function labels(start: string, end: string, timeZone: string) {
     // The night is 4 hours after the axis start to 5 hours before its end.
