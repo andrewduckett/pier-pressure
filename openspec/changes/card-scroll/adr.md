@@ -6,7 +6,7 @@
 ## Review Summary
 
 ADR review completed for this change. None of design.md's decisions passes the
-test. D-1 to D-7 sit inside the card's own source, behind the published
+test. D-1 to D-8 sit inside the card's own source, behind the published
 entities, and a later change can replace any of them inside `card/src/` at
 little cost: drawing a moved axis rather than native scrolling (D-1) is the
 weightiest, and swapping it touches only the strip's drawing and its input
