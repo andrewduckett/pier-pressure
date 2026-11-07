@@ -115,10 +115,19 @@ export interface Missing {
   text: string;
 }
 
+// One hour of the Cloud range row: a column across the hour.
+export interface Band {
+  hour: number;
+  from: number;
+  to: number;
+}
+
 export interface Row {
   key: string;
   label: string;
   cells: Cell[];
+  // Only on the Cloud range row, which draws bands instead of cells.
+  bands?: Band[];
   // Only on a row with no cell.
   missing?: Missing;
 }
@@ -200,6 +209,9 @@ export function buildStrip(
     if (cells.length > 0) return { key, label, cells };
     return { key, label, cells, missing: missing(entityId, entity) };
   });
+  // Under Cloud cover, the row it explains.
+  const cloudCover = rows.findIndex((row) => row.key === "cloud_cover");
+  rows.splice(cloudCover + 1, 0, cloudRange(states, pier, axis));
   const moonMissing = rows.find((row) => row.key === "moon_altitude")?.missing;
   return {
     axis,
@@ -269,6 +281,24 @@ function rowCells(
       },
     ];
   });
+}
+
+// An hour has a band only when both sensors give it a number: the core sends
+// both or neither, and a gap in one forecast is not a range.
+function cloudRange(states: States, pier: string, axis: Axis): Row {
+  const lows = hourlyValues(forecastOf(states[pierEntityId(pier, "cloud_cover_min")]));
+  const highs = hourlyValues(forecastOf(states[pierEntityId(pier, "cloud_cover_max")]));
+  const bands = [...lows].flatMap(([hour, low]): Band[] => {
+    const high = highs.get(hour);
+    if (!isNumber(low) || !isNumber(high)) return [];
+    if (hour + HOUR <= axis.start || hour >= axis.end) return [];
+    return [{ hour, from: Math.max(hour, axis.start), to: Math.min(hour + HOUR, axis.end) }];
+  });
+  return { key: "cloud_range", label: "Cloud range", cells: [], bands };
+}
+
+function isNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
 }
 
 function moonUpBars(forecast: unknown, axis: Axis, time: (at: number) => string): Bar[] {

@@ -64,6 +64,7 @@ describe("every timeline row", () => {
       "Sun altitude",
       "Moon altitude",
       "Cloud cover",
+      "Cloud range",
       "Cloud low",
       "Cloud mid",
       "Cloud high",
@@ -392,7 +393,7 @@ describe("a missing sensor leaves its row empty", () => {
     });
 
     const others = rows(card).filter(
-      (element) => !SUN_AND_CLOUD.includes(element.dataset["row"] ?? ""),
+      (element) => ![...SUN_AND_CLOUD, "cloud_range"].includes(element.dataset["row"] ?? ""),
     );
     const drawn = others.flatMap((element) => [...element.querySelectorAll(".cell")]);
     const messages = others.map((element) => element.querySelector(".missing")?.textContent);
