@@ -1346,6 +1346,25 @@ def test_nws_rain_chance_hour_at_the_horizon_is_cut() -> None:
     assert _at(11, 18) not in forecast.readings
 
 
+def test_nws_rain_chance_in_the_recorded_gridpoint_starts_an_hour_after_its_period() -> None:
+    payload = _load("nws_gridpoints.json")
+    properties = payload["properties"]
+
+    def first_start(name: str) -> datetime:
+        start = properties[name]["values"][0]["validTime"].split("/")[0]
+        return datetime.fromisoformat(start).astimezone(UTC)
+
+    def first_hour(field: str) -> datetime:
+        return min(
+            t for t, r in parse_nws(payload).readings.items() if getattr(r, field) is not None
+        )
+
+    assert first_hour("precipitation_probability") == first_start(
+        "probabilityOfPrecipitation"
+    ) + timedelta(hours=1)
+    assert first_hour("cloud_cover") == first_start("skyCover")
+
+
 _MILWAUKEE = PierConfig(id="milwaukee", latitude=43.0389, longitude=-87.9065, elevation_m=180.0)
 _LUDINGTON = PierConfig(id="ludington", latitude=43.9553, longitude=-86.4526, elevation_m=180.0)
 
