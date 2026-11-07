@@ -61,9 +61,15 @@ export interface Row {
   cells: Cell[];
 }
 
+export interface TimeLabel {
+  at: number;
+  text: string;
+}
+
 export interface Strip {
   axis: Axis;
   rows: Row[];
+  labels: TimeLabel[];
 }
 
 type States = Record<string, { state: string; attributes: Record<string, unknown> } | undefined>;
@@ -79,6 +85,7 @@ export function buildStrip(
   const time = clock(timeZone);
   return {
     axis,
+    labels: timeLabels(axis, time),
     rows: CLOUD_ROWS.map(({ key, label }) => ({
       key,
       label,
@@ -124,6 +131,27 @@ const BLUES = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95",
 function cloudShade(percent: number): string {
   const step = Math.min(BLUES.length - 1, Math.max(0, Math.floor(percent / 15)));
   return BLUES[step] ?? BLUES[0];
+}
+
+const QUARTER = 15 * 60 * 1000;
+
+// Stepping by quarter hours finds local whole hours in every time zone in use,
+// including +05:30 and +05:45 and across a clock change, with no offset arithmetic.
+function timeLabels(axis: Axis, time: (at: number) => string): TimeLabel[] {
+  const every = axis.end - axis.start > 24 * HOUR ? 6 : 3;
+  const labels: TimeLabel[] = [];
+  const first = Math.floor(axis.start / QUARTER) * QUARTER + QUARTER;
+  for (let at = first; at < axis.end; at += QUARTER) {
+    const text = time(at);
+    const [hour, minute] = text.split(":").map(Number);
+    if (minute !== 0 || hour === undefined || hour % every !== 0) continue;
+    // When clocks go back, the same hour comes round twice; a polar night's two
+    // noons a day apart are both real.
+    const previous = labels.at(-1);
+    if (previous?.text === text && at - previous.at < 3 * HOUR) continue;
+    labels.push({ at, text });
+  }
+  return labels;
 }
 
 // Every viewer reads the same `HH:MM`: a pinned locale and Latin digits, so a

@@ -386,3 +386,60 @@ describe("hovering over a cell", () => {
     expect(cell?.getAttribute("title")).toMatch(/^Cloud cover, the hour from \d\d:\d\d: 40%$/);
   });
 });
+
+describe("the axis's time labels", () => {
+  async function labels(start: string, end: string, timeZone: string) {
+    // The night is 4 hours after the axis start to 5 hours before its end.
+    const dusk = new Date(Date.parse(start) + 4 * 3600_000).toISOString();
+    const dawn = new Date(Date.parse(end) - 5 * 3600_000).toISOString();
+    const card = await mountCard(
+      { [VERDICT]: verdictEntity("GO", { dark_window: { start: dusk, end: dawn } }) },
+      "backyard",
+      timeZone,
+    );
+    return [...(card.shadowRoot?.querySelectorAll<HTMLElement>(".strip .time") ?? [])].map(
+      (label) => [label.textContent?.trim(), label.dataset["at"]],
+    );
+  }
+
+  it("marks every third hour", async () => {
+    const shown = await labels("2026-10-31T16:30:00Z", "2026-11-01T08:25:00Z", "UTC");
+
+    expect(shown.map(([text]) => text)).toEqual(["18:00", "21:00", "00:00", "03:00", "06:00"]);
+  });
+
+  it("follows a half-hour time zone", async () => {
+    const shown = await labels("2026-10-31T16:30:00Z", "2026-11-01T08:25:00Z", "Asia/Kolkata");
+
+    expect(shown.map(([text]) => text)).toEqual(["00:00", "03:00", "06:00", "09:00", "12:00"]);
+    expect(shown[0]?.[1]).toBe("2026-10-31T18:30:00.000Z");
+  });
+
+  it("marks only every sixth hour on a polar-night axis", async () => {
+    const shown = await labels("2026-12-20T07:00:00Z", "2026-12-21T16:00:00Z", "UTC");
+
+    expect(shown.map(([text]) => text)).toEqual(["12:00", "18:00", "00:00", "06:00", "12:00"]);
+  });
+
+  it("shows a repeated hour once when clocks go back", async () => {
+    const shown = await labels("2026-10-24T18:00:00Z", "2026-10-25T09:00:00Z", "Europe/Athens");
+
+    expect(shown.filter(([text]) => text === "03:00")).toEqual([
+      ["03:00", "2026-10-25T00:00:00.000Z"],
+    ]);
+  });
+
+  it("leaves out an hour at either end of the axis", async () => {
+    const shown = await labels("2026-10-31T18:00:00Z", "2026-11-01T09:00:00Z", "UTC");
+
+    expect(shown.map(([text]) => text)).toEqual(["21:00", "00:00", "03:00", "06:00"]);
+  });
+
+  // 16:30 to 08:25 is 955 minutes, and 18:00 is 90 minutes in.
+  it("places a label in percent of the axis", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    const label = card.shadowRoot?.querySelector<HTMLElement>(".strip .time");
+    expect(label?.style.left).toBe("9.4241%");
+  });
+});

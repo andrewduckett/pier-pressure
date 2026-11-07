@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing } from "lit";
 import { pierSlug, verdictEntityId } from "./entity";
-import { type Axis, type Cell, HOUR, asRecord, buildStrip } from "./strip";
+import { type Axis, type Cell, HOUR, type TimeLabel, asRecord, buildStrip } from "./strip";
 
 declare const __CARD_VERSION__: string;
 
@@ -73,6 +73,14 @@ export class PierPressureCard extends LitElement {
       position: relative;
       height: 16px;
     }
+    .times {
+      color: var(--secondary-text-color);
+      font-size: 0.75em;
+    }
+    .time {
+      position: absolute;
+      transform: translateX(-50%);
+    }
     .cell {
       position: absolute;
       top: 0;
@@ -126,41 +134,43 @@ export class PierPressureCard extends LitElement {
           <span data-field="confidence-value">${shownNumber(confidence?.["value"])}</span>
         </dd>
       </dl>
-      ${this.renderStrip()}
-    </div>`;
-  }
-
-  private renderStrip() {
-    if (this.hass === undefined || this.config === undefined) return nothing;
-    const strip = buildStrip(
-      this.hass.states,
-      this.config.pier,
-      Date.now(),
-      this.hass.config?.time_zone,
-    );
-    return html`<div
-      class="strip"
-      data-axis-start=${iso(strip.axis.start)}
-      data-axis-end=${iso(strip.axis.end)}
-    >
-      ${strip.rows.map(
-        (row) => html`<div class="row" data-row=${row.key}>
-          <span class="label">${row.label}</span>
-          <div class="track">${row.cells.map((cell) => renderCell(cell, strip.axis))}</div>
-        </div>`,
-      )}
+      ${renderStrip(this.hass, this.config.pier)}
     </div>`;
   }
 }
 
 const DASH = "—";
 
+function renderStrip(hass: HomeAssistant, pier: string) {
+  const strip = buildStrip(hass.states, pier, Date.now(), hass.config?.time_zone);
+  return html`<div
+    class="strip"
+    data-axis-start=${iso(strip.axis.start)}
+    data-axis-end=${iso(strip.axis.end)}
+  >
+    ${strip.rows.map(
+      (row) => html`<div class="row" data-row=${row.key}>
+        <span class="label">${row.label}</span>
+        <div class="track">${row.cells.map((cell) => renderCell(cell, strip.axis))}</div>
+      </div>`,
+    )}
+    <span></span>
+    <div class="track times">
+      ${strip.labels.map((label) => renderTimeLabel(label, strip.axis))}
+    </div>
+  </div>`;
+}
+
+function renderTimeLabel(label: TimeLabel, axis: Axis) {
+  const style = `left: ${offset(label.at, axis)}%`;
+  return html`<span class="time" style=${style} data-at=${iso(label.at)}>${label.text}</span>`;
+}
+
 // Neighbouring hours keep a 2 px gap, as in the YAML strip; an edge cut off by
 // the axis stays flush with the axis end instead.
 function renderCell(cell: Cell, axis: Axis) {
-  const span = axis.end - axis.start;
-  const left = percent(cell.from - axis.start, span);
-  const width = percent(cell.to - cell.from, span);
+  const left = offset(cell.from, axis);
+  const width = share(cell.to - cell.from, axis);
   const insetStart = cell.from === cell.hour ? 1 : 0;
   const insetEnd = cell.to === cell.hour + HOUR ? 1 : 0;
   const style =
@@ -178,8 +188,13 @@ function renderCell(cell: Cell, axis: Axis) {
   ></div>`;
 }
 
-function percent(part: number, whole: number): string {
-  return ((part / whole) * 100).toFixed(4);
+// Percent of the axis, so the strip reflows with the card's width.
+function share(duration: number, axis: Axis): string {
+  return ((duration / (axis.end - axis.start)) * 100).toFixed(4);
+}
+
+function offset(at: number, axis: Axis): string {
+  return share(at - axis.start, axis);
 }
 
 function iso(time: number): string {
