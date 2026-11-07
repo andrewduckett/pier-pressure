@@ -300,7 +300,13 @@ function renderStrip(strip: Strip | undefined) {
 
 function renderMissing(missing: Missing) {
   const kind = missing.message.toLowerCase().replace(/ /g, "-");
-  return html`<span class="missing" data-missing=${kind}>${missing.message}</span>`;
+  return html`<span
+    class="missing"
+    data-missing=${kind}
+    title=${missing.text}
+    aria-label=${missing.text}
+    >${missing.message}</span
+  >`;
 }
 
 function renderMark(line: Line, axis: Axis) {

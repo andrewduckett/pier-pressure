@@ -124,3 +124,32 @@ describe("a row with a cell", () => {
     expect([cells(card, "cloud_mid").length, rowMessage(card, "cloud_mid")]).toEqual([1, null]);
   });
 });
+
+describe("hovering over a row's message", () => {
+  it.each<[string, HassEntity | undefined, string]>([
+    ["Not found", undefined, "sensor.pierpressure_backyard_seeing is not in Home Assistant"],
+    [
+      "Unavailable",
+      { ...ON_AXIS, state: "unavailable" },
+      "sensor.pierpressure_backyard_seeing is unavailable",
+    ],
+    [
+      "No forecast",
+      forecastEntity([], "unknown"),
+      "sensor.pierpressure_backyard_seeing has no forecast for these hours",
+    ],
+  ])("names the sensor for %s", async (_, seeing, text) => {
+    const card = await mountCard({ [VERDICT]: NIGHT, ...(seeing && { [SEEING]: seeing }) });
+
+    const shown = rowMessage(card, "seeing");
+    expect([shown?.title, shown?.getAttribute("aria-label")]).toEqual([text, text]);
+  });
+
+  it("names the sensor from the pier", async () => {
+    const card = await mountCard({ "sensor.pierpressure_back_yard_verdict": NIGHT }, "Back-Yard");
+
+    expect(rowMessage(card, "humidity")?.title).toBe(
+      "sensor.pierpressure_back_yard_humidity is not in Home Assistant",
+    );
+  });
+});

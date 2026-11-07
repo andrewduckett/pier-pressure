@@ -111,6 +111,8 @@ export interface Cell {
 // Why a row has no cell to draw, in the words the row shows.
 export interface Missing {
   message: "Not found" | "Unavailable" | "No forecast";
+  // What hovering over the message shows: the sensor's id, so the user can find it.
+  text: string;
 }
 
 export interface Row {
@@ -181,7 +183,8 @@ export function buildStrip(
     labels: timeLabels(axis, time),
     rows: ROWS.map(({ key, label, unit, hourBefore, reading, ...mark }) => {
       const write = reading ?? ((value: number) => `${value}${unit}`);
-      const entity = states[pierEntityId(pier, key)];
+      const entityId = pierEntityId(pier, key);
+      const entity = states[entityId];
       const cells = rowCells(
         forecastOf(entity),
         axis,
@@ -192,7 +195,7 @@ export function buildStrip(
         text: `${label}, the hour from ${time(cell.hour)}: ${write(cell.value)}`,
       }));
       if (cells.length > 0) return { key, label, cells };
-      return { key, label, cells, missing: missing(entity) };
+      return { key, label, cells, missing: missing(entityId, entity) };
     }),
     moonUp: moonUpBars(forecastOf(states[pierEntityId(pier, "moon_altitude")]), axis, time),
     targets: targetLanes(states, pier, axis, time),
@@ -214,10 +217,14 @@ function nowLine(now: number, axis: Axis, time: (at: number) => string): Line[] 
 
 // Decided after the cells, so every way a row can end up empty, from no list to
 // every point off the axis, gives a message.
-function missing(entity: States[string]): Missing {
-  if (entity === undefined) return { message: "Not found" };
-  if (entity.state === "unavailable") return { message: "Unavailable" };
-  return { message: "No forecast" };
+function missing(entityId: string, entity: States[string]): Missing {
+  if (entity === undefined) {
+    return { message: "Not found", text: `${entityId} is not in Home Assistant` };
+  }
+  if (entity.state === "unavailable") {
+    return { message: "Unavailable", text: `${entityId} is unavailable` };
+  }
+  return { message: "No forecast", text: `${entityId} has no forecast for these hours` };
 }
 
 // Home Assistant normally drops an unavailable entity's attributes; when it has
