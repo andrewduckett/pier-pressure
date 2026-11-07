@@ -194,3 +194,47 @@ def test_docs_night_axis_explains_what_it_shows(term: str) -> None:
 
 def test_docs_night_axis_no_longer_promises_dusk_and_dawn_later() -> None:
     assert "Later releases add dusk, dawn" not in _page()
+
+
+_ROWS = (
+    "Sun altitude",
+    "Moon altitude",
+    "Cloud cover",
+    "Cloud low",
+    "Cloud mid",
+    "Cloud high",
+    "Wind gust",
+    "Seeing",
+    "Transparency",
+    "Temperature",
+    "Dew point",
+    "Humidity",
+    "Wind speed",
+    "Wind direction",
+    "Rain chance",
+)
+
+
+@pytest.mark.parametrize("row", _ROWS)
+def test_docs_rows_name_every_row(row: str) -> None:
+    assert f"**{row}**" in _page()
+
+
+@pytest.mark.parametrize(
+    "sensor",
+    [
+        "sensor.pierpressure_<pier>_wind_gust",
+        "sensor.pierpressure_<pier>_precipitation_probability",
+    ],
+)
+def test_docs_rows_name_the_new_sensors(sensor: str) -> None:
+    assert sensor in _page()
+
+
+@pytest.mark.parametrize("term", ["darker means worse", "same scale", "hour before", "blows to"])
+def test_docs_rows_explain_what_they_show(term: str) -> None:
+    assert term in _page().lower()
+
+
+def test_docs_rows_no_longer_promise_the_other_conditions_later() -> None:
+    assert "Later releases add the other conditions" not in _page()
