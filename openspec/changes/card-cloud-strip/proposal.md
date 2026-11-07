@@ -13,12 +13,12 @@ same time axis.
 - The axis runs from 4 hours before dusk to 5 hours after dawn, from the
   Verdict sensor's `dark_window`. On a night with no astronomical darkness it
   falls back to 6 hours before now to 18 hours after, as the YAML strip does
-  (D4). Labels every 3 hours, in Home Assistant's time zone, on a 24-hour clock
-  (D10, D11).
+  (D4). The axis has a time label every 3 hours, in Home Assistant's time zone,
+  on a 24-hour clock (D10, D11).
 - Each row reads its cloud sensor's `forecast` attribute. Each value is one
   hour's cell, shaded in the YAML strip's seven blues from clear to overcast
   (D6, D7).
-- A null or absent hour is a blank cell. A missing or unavailable cloud sensor
+- A null or absent hour is blank. A missing or unavailable cloud sensor
   leaves an empty, labelled row; the card never throws (D8).
 - Hovering over a cell shows the row, the hour and the value (D9).
 - `docs/night-card.md` describes the cloud rows (D14).
@@ -40,7 +40,8 @@ None.
 ## Impact
 
 - Changed: `card/src/` (the strip and the cloud entity ids), `card/test/`
-  (strip tests and harness helpers), `docs/night-card.md`.
+  (strip tests and harness helpers), `docs/night-card.md` and its test,
+  `tests/test_night_card_doc.py`.
 - No new dependencies.
 - No change to `mise.toml`, CI, the release or `scripts/dashboard_check.py`:
   the dashboard check already shows the locally built card (D15).
