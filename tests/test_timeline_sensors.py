@@ -59,6 +59,8 @@ NEW_KEYS = (
     "wind_speed",
     "wind_direction",
     "precipitation_probability",
+    "cloud_cover_min",
+    "cloud_cover_max",
 )
 
 # The keys a source can leave null; the core always computes the altitudes.
@@ -121,6 +123,8 @@ def test_names_units_and_icons_follow_the_design() -> None:
         ("wind_speed", "Wind speed", "km/h", "mdi:weather-windy"),
         ("wind_direction", "Wind direction", "°", "mdi:compass"),
         ("precipitation_probability", "Precipitation probability", "%", "mdi:weather-rainy"),
+        ("cloud_cover_min", "Cloud cover min", "%", "mdi:weather-cloudy"),
+        ("cloud_cover_max", "Cloud cover max", "%", "mdi:weather-cloudy"),
     ]
 
 
@@ -174,6 +178,8 @@ def test_a_timeline_discovery_carries_no_device_class(sensor: TimelineSensor) ->
         ("wind_speed", "km/h"),
         ("wind_direction", "°"),
         ("precipitation_probability", "%"),
+        ("cloud_cover_min", "%"),
+        ("cloud_cover_max", "%"),
     ],
 )
 def test_a_timeline_discovery_carries_its_unit(key: str, unit: str) -> None:
