@@ -6,6 +6,7 @@ import {
   type Cell,
   HOUR,
   type Line,
+  type Strip,
   type TimeLabel,
   asRecord,
   buildStrip,
@@ -190,8 +191,9 @@ export class PierPressureCard extends LitElement {
     this.config = { type: String(config["type"]), pier };
   }
 
+  // Three target lanes are about one of Home Assistant's 50 px size units.
   getCardSize(): number {
-    return 10;
+    return 10 + Math.ceil((this.shownStrip()?.targets.length ?? 0) / 3);
   }
 
   // A sections view gives a card half its section's width by default, too
@@ -232,15 +234,23 @@ export class PierPressureCard extends LitElement {
           <span data-field="confidence-value">${shownNumber(confidence?.["value"])}</span>
         </dd>
       </dl>
-      ${renderStrip(this.hass, this.config.pier)}
+      ${renderStrip(this.shownStrip())}
     </div>`;
+  }
+
+  // The strip draws only beside the verdict, never under a message.
+  private shownStrip(): Strip | undefined {
+    if (this.hass === undefined || this.config === undefined) return undefined;
+    const entity = this.hass.states[verdictEntityId(this.config.pier)];
+    if (entity === undefined || entity.state === "unavailable") return undefined;
+    return buildStrip(this.hass.states, this.config.pier, Date.now(), this.hass.config?.time_zone);
   }
 }
 
 const DASH = "—";
 
-function renderStrip(hass: HomeAssistant, pier: string) {
-  const strip = buildStrip(hass.states, pier, Date.now(), hass.config?.time_zone);
+function renderStrip(strip: Strip | undefined) {
+  if (strip === undefined) return nothing;
   // Grid row 1 holds the line labels, then come the rows, the Moon up lane, the
   // target lanes and the time labels. The lines' overlay spans from the first
   // row to the last lane.

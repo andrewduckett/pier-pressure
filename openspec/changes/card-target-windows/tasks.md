@@ -9,7 +9,7 @@
 ## 2. The lines and the size [depends-on: 1]
 
 - [x] 2.1 [easy] With three target lanes, the strip's `grid-template-rows` is `repeat(21, auto)` and the lines' overlay has `grid-row: 2 / 21`, so dusk, dawn and now reach the bottom of the lane labelled `Target 3`; with none the numbers stay 18 and `2 / 18` (design DD3) (verify: mise exec -- npm --prefix card test -- targets strip) (✓ npm test -- targets strip passed)
-- [ ] 2.2 [easy] `getCardSize()` returns 10 with no target lane, 12 with four and 14 with ten, and 10 before `setConfig`, before `hass`, and while the Verdict sensor is missing or unavailable (design DD4) (verify: mise exec -- npm --prefix card test -- targets register)
+- [x] 2.2 [easy] `getCardSize()` returns 10 with no target lane, 12 with four and 14 with ten, and 10 before `setConfig`, before `hass`, and while the Verdict sensor is missing or unavailable (design DD4) (verify: mise exec -- npm --prefix card test -- targets register) (✓ npm test -- targets register passed)
 
 ## 3. Docs and the whole path [depends-on: 2]
 
@@ -24,3 +24,4 @@
 - 2026-11-07: in task 1.2, the tests for a window with no end, a start that is not a time, no window and no Target sensors passed on their first run, because task 1.1 already needed both times. They stay as guards.
 - 2026-11-07: in task 1.4, the test that a Moon up bar carries no mark and no text passed on its first run, since no bar carried either yet. It stays as a guard. `cardStyles` moved from `strip.test.ts` into the harness, in its own `refactor:` commit, so both test files read the stylesheet one way.
 - 2026-11-07: in task 1.5, the three name-alone hover tests passed on their first run, because the bar's text was still the bare name. The `from … to …` text went in first, which turned them red, and the 24-hour and same-time rule then turned them green.
+- 2026-11-07: in task 2.2, the size tests for no lanes, a missing or offline Verdict sensor and no state yet passed on their first run, because the size was a fixed 10. They stay as guards on the new method that both the size and the drawing read.

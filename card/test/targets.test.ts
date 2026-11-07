@@ -13,7 +13,7 @@ import {
   targetLanes,
   verdictEntity,
 } from "./harness";
-import type { PierPressureCard } from "../src/pierpressure-card";
+import type { HassEntity, PierPressureCard } from "../src/pierpressure-card";
 
 beforeAll(async () => {
   vi.spyOn(console, "info").mockImplementation(() => {});
@@ -337,5 +337,49 @@ describe("the strip with target lanes", () => {
     expect(card.shadowRoot?.querySelector(".strip .lines")?.getAttribute("style")).toContain(
       "grid-row: 2 / 21",
     );
+  });
+});
+
+describe("the card's size with target lanes", () => {
+  function targets(count: number): Record<string, HassEntity> {
+    return Object.fromEntries(
+      Array.from({ length: count }, (_, index) => [
+        target(index + 1),
+        targetEntity(`NGC ${index + 1}`, EVENING),
+      ]),
+    );
+  }
+
+  it.each([
+    [0, 10],
+    [1, 11],
+    [3, 11],
+    [4, 12],
+    [10, 14],
+  ])("counts %i lanes as size %i", async (count, size) => {
+    const card = await mountCard({ [VERDICT]: NIGHT, ...targets(count) });
+
+    expect(card.getCardSize()).toBe(size);
+  });
+
+  it("is 10 while the Verdict sensor is missing", async () => {
+    const card = await mountCard(targets(10));
+
+    expect(card.getCardSize()).toBe(10);
+  });
+
+  it("is 10 while PierPressure is offline", async () => {
+    const card = await mountCard({
+      [VERDICT]: { state: "unavailable", attributes: {} },
+      ...targets(10),
+    });
+
+    expect(card.getCardSize()).toBe(10);
+  });
+
+  it("is 10 before Home Assistant gives the card its state", async () => {
+    const card = await mountCard();
+
+    expect(card.getCardSize()).toBe(10);
   });
 });
