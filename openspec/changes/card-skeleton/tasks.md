@@ -12,7 +12,7 @@
 
 ## 3. Shipping the card [depends-on: 1]
 
-- [ ] 3.1 [parallel] [easy] `hacs.json` at the root names `pierpressure-card.js`, beside `repository.yaml` (test: `tests/test_night_card_doc.py`) (design DD9) (verify: uv run pytest tests/test_night_card_doc.py -k hacs)
+- [x] 3.1 [parallel] [easy] `hacs.json` at the root names `pierpressure-card.js`, beside `repository.yaml` (test: `tests/test_night_card_doc.py`) (design DD9) (verify: uv run pytest tests/test_night_card_doc.py -k hacs) (✓ pytest -k hacs passed)
 - [ ] 3.2 [medium] The release job installs mise's tools, builds the card with the release version after computing it and before the image build, and passes `card/dist/pierpressure-card.js` to `gh release create`; CI's `check` job and both release jobs cache `~/.npm` keyed on `card/package-lock.json` (design DD7, DD8; test: parse `release.yml` as `tests/test_ha_addon.py` does) (verify: uv run pytest tests/test_night_card_doc.py -k release)
 - [ ] 3.3 [parallel] [easy] Renovate groups npm minor and patch updates into one pull request named "npm minor and patch" (design DD10) (verify: mise exec node@24 -- npx --yes --package renovate@44.201.1 -- renovate-config-validator --strict --no-global .github/renovate.json5)
 - [ ] 3.4 [medium] `dashboard-check` depends on `card`, copies the built card into `www/pierpressure-card/`, registers it with a `?v=<hash>` query, adds a `pierpressure-card` dashboard holding `type: custom:pierpressure-card` with `pier: backyard`, prints that dashboard's URL, and fails with a message naming `mise run card` when the file is missing (design DD11) (verify: uv run pytest tests/test_dashboard_check.py)
