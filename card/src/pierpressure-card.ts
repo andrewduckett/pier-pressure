@@ -79,8 +79,14 @@ export class PierPressureCard extends LitElement {
 
   private renderBody() {
     if (this.hass === undefined || this.config === undefined) return nothing;
-    const entity = this.hass.states[verdictEntityId(this.config.pier)];
-    if (entity === undefined) return nothing;
+    const entityId = verdictEntityId(this.config.pier);
+    const entity = this.hass.states[entityId];
+    if (entity === undefined) {
+      return html`<div class="card-content message">No PierPressure verdict found: ${entityId}</div>`;
+    }
+    if (entity.state === "unavailable") {
+      return html`<div class="card-content message">PierPressure is offline</div>`;
+    }
     const confidence = asRecord(entity.attributes["confidence"]);
     return html`<div class="card-content">
       <dl>

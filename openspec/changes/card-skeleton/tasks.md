@@ -8,7 +8,7 @@
 - [x] 2.2 [easy] Loading the card module defines `pierpressure-card`, adds one `window.customCards` entry, logs `PIERPRESSURE-CARD <version>`, and a second load neither throws nor adds a second entry (design DD5) (verify: mise exec -- npm --prefix card test -- register) (✓ npm test -- register passed)
 - [x] 2.3 [easy] `setConfig` throws "pier is required" for no `pier`, `""`, `"   "` and `"---"`, and accepts `backyard` (verify: mise exec -- npm --prefix card test -- config) (✓ npm test -- config passed)
 - [x] 2.4 [medium] The card renders its frame with nothing in it before `hass` is set, then shows the Verdict sensor's verdict, score and confidence, with `—` for `unknown`, a null or missing score, and a null or missing confidence part, and `0` for a zero score or confidence value (verify: mise exec -- npm --prefix card test -- render) (✓ npm test -- render passed)
-- [ ] 2.5 [easy] The card shows "No PierPressure verdict found: <entity id>" when the entity is missing, and "PierPressure is offline" when its state is `unavailable`, with no verdict, score or confidence (verify: mise exec -- npm --prefix card test -- messages)
+- [x] 2.5 [easy] The card shows "No PierPressure verdict found: <entity id>" when the entity is missing, and "PierPressure is offline" when its state is `unavailable`, with no verdict, score or confidence (verify: mise exec -- npm --prefix card test -- messages) (✓ npm test -- messages passed)
 
 ## 3. Shipping the card [depends-on: 1]
 
