@@ -209,8 +209,9 @@ function moonUpText(
   altitudes: Map<number, unknown>,
   time: (at: number) => string,
 ): string {
-  // HH:MM cannot tell one day from the next.
-  if (run.end - run.start >= 24 * HOUR) return "Moon up";
+  // HH:MM cannot tell one day from the next. A clock change can make a run
+  // under 24 hours start and end at the same time of day.
+  if (run.end - run.start >= 24 * HOUR || time(run.start) === time(run.end)) return "Moon up";
   const down = (hour: number) => {
     const value = altitudes.get(hour);
     return typeof value === "number" && Number.isFinite(value) && value <= 0;

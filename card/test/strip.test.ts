@@ -17,6 +17,7 @@ import {
   verdictEntity,
 } from "./harness";
 import type { PierPressureCard } from "../src/pierpressure-card";
+import { HOUR } from "../src/strip";
 
 beforeAll(async () => {
   vi.spyOn(console, "info").mockImplementation(() => {});
@@ -731,6 +732,22 @@ describe("hovering over a Moon up bar", () => {
     const [title] = await hoverText(runOf(23), POLAR);
 
     expect(title).toBe("Moon up from 07:00 to 06:00");
+  });
+
+  // Clocks in Athens go forward at 01:00 UTC on 2026-03-29, so 23 hours from
+  // 04:00 local ends at 04:00 local the next day.
+  it("shows no hours for a run that ends at the same time of day as it starts", async () => {
+    const points: Array<[string, unknown]> = [["2026-03-28T01:00:00Z", -1]];
+    const start = Date.parse("2026-03-28T02:00:00Z");
+    for (let n = 0; n < 23; n++) points.push([new Date(start + n * HOUR).toISOString(), 5]);
+    points.push(["2026-03-29T01:00:00Z", -1]);
+    const verdict = verdictEntity("GO", {
+      dark_window: { start: "2026-03-28T19:00:00Z", end: "2026-03-29T02:00:00Z" },
+    });
+
+    const [title] = await hoverText(points, verdict, "Europe/Athens");
+
+    expect(title).toBe("Moon up");
   });
 
   it.each([24, 30])("shows no hours for a run of %d hours", async (hours) => {
