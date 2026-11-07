@@ -1,13 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: The strip spans the judged night
-The strip SHALL open on the opening axis. The opening axis SHALL run from 4 hours before the Verdict sensor's `dark_window.start` to 5 hours after its `dark_window.end`. The card SHALL fall back to an opening axis from 6 hours before the browser's current time to 18 hours after it in each of these cases:
-
-- `dark_window`, its `start` or its `end` is missing, null or not a readable time;
-- `end` is not after `start`;
-- `end` is more than 48 hours after `start`.
-
-Until the user pans the strip, and after the user selects "Back to tonight", the strip's time axis SHALL be the opening axis.
+The strip SHALL open on the opening axis. Unless the opening axis falls back to the browser's clock, it SHALL run from 4 hours before the Verdict sensor's `dark_window.start` to 5 hours after its `dark_window.end`. Until the user pans the strip, and after the user selects "Back to tonight", the strip's time axis SHALL be the opening axis.
 
 #### Scenario: A normal night
 - **WHEN** the Verdict sensor's `dark_window` is `{start: 2026-10-31T20:30:00Z, end: 2026-11-01T03:25:00Z}`
@@ -26,7 +20,7 @@ Until the user pans the strip, and after the user selects "Back to tonight", the
 - **THEN** the strip's axis runs from 2026-11-01T06:00:00Z to 2026-11-02T06:00:00Z
 
 ### Requirement: Dusk and dawn lines mark the dark window
-When the opening axis comes from the Verdict sensor's `dark_window`, the card SHALL draw a dashed grey `#898781` line at `dark_window.start`, labelled `dusk`, and another at `dark_window.end`, labelled `dawn`. The card SHALL draw each line only while its time is on the axis, from its start to its end. Each line SHALL cross every row from Sun altitude to Rain chance, the Moon up lane and every target lane. When the opening axis falls back to the browser's current time, the card SHALL draw no dusk or dawn line.
+When the opening axis comes from the Verdict sensor's `dark_window`, the card SHALL draw a dashed grey `#898781` line at `dark_window.start`, labelled `dusk`, and another at `dark_window.end`, labelled `dawn`, each only while its time lies on the axis. Each line SHALL cross every row from Sun altitude to Rain chance, the Moon up lane and every target lane. When the opening axis falls back to the browser's current time, the card SHALL draw no dusk or dawn line.
 
 #### Scenario: A normal night
 - **WHEN** the Verdict sensor's `dark_window` is `{start: 2026-10-31T20:30:00Z, end: 2026-11-01T03:25:00Z}`
@@ -56,6 +50,17 @@ For a row that says `No forecast`, the "If something looks wrong" section of `do
 - **THEN** its `No forecast` help names a later night, past a weather source's last hour, as a cause
 
 ## ADDED Requirements
+
+### Requirement: The opening axis falls back to the browser's clock
+The card SHALL fall back to an opening axis from 6 hours before the browser's current time to 18 hours after it in each of these cases:
+
+- `dark_window`, its `start` or its `end` is missing, null or not a readable time;
+- `end` is not after `start`;
+- `end` is more than 48 hours after `start`.
+
+#### Scenario: A window over 48 hours long
+- **WHEN** the Verdict sensor's `dark_window` is `{start: 2006-10-31T20:30:00Z, end: 2026-11-01T03:25:00Z}` and the browser's clock reads 2026-11-01T12:00:00Z
+- **THEN** the strip's axis runs from 2026-11-01T06:00:00Z to 2026-11-02T06:00:00Z
 
 ### Requirement: The strip pans as far as the forecast reaches
 The user SHALL be able to pan the strip's axis earlier or later, inside the reach. The axis SHALL always be as long as the opening axis. The reach SHALL run from the start of the earliest timeline hour to the end of the latest, and SHALL always cover the opening axis.
