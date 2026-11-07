@@ -5,6 +5,7 @@ import {
   type Bar,
   type Cell,
   HOUR,
+  type Line,
   type TimeLabel,
   asRecord,
   buildStrip,
@@ -64,6 +65,7 @@ export class PierPressureCard extends LitElement {
       margin: 0;
     }
     .strip {
+      position: relative;
       display: grid;
       grid-template-columns: max-content 1fr;
       gap: 2px 8px;
@@ -94,6 +96,35 @@ export class PierPressureCard extends LitElement {
       top: 0;
       bottom: 0;
       border-radius: 2px;
+    }
+    .marks {
+      color: #898781;
+      font-size: 0.75em;
+    }
+    .mark {
+      position: absolute;
+      transform: translateX(-50%);
+    }
+    .lines {
+      position: absolute;
+      pointer-events: none;
+    }
+    /* A box wider than the stroke, so the line is easy to hover. */
+    .line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 8px;
+      transform: translateX(-50%);
+      pointer-events: auto;
+    }
+    .line::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 3px;
+      border-left: 2px dashed #898781;
     }
     .bar {
       position: absolute;
@@ -168,11 +199,18 @@ const DASH = "—";
 
 function renderStrip(hass: HomeAssistant, pier: string) {
   const strip = buildStrip(hass.states, pier, Date.now(), hass.config?.time_zone);
+  // Grid row 1 holds the line labels, then come the rows, the Moon up lane and
+  // the time labels. The lines' overlay spans from the first row to the lane.
+  const gridRows = strip.rows.length + 3;
+  const laneEnd = strip.rows.length + 3;
   return html`<div
     class="strip"
+    style=${`grid-template-rows: repeat(${gridRows}, auto)`}
     data-axis-start=${iso(strip.axis.start)}
     data-axis-end=${iso(strip.axis.end)}
   >
+    <span></span>
+    <div class="track marks">${strip.lines.map((line) => renderMark(line, strip.axis))}</div>
     ${strip.rows.map(
       (row) =>
         html`<div class="row" data-row=${row.key}>
@@ -188,7 +226,27 @@ function renderStrip(hass: HomeAssistant, pier: string) {
     <div class="track times">
       ${strip.labels.map((label) => renderTimeLabel(label, strip.axis))}
     </div>
+    <div class="lines" style=${`grid-column: 2; grid-row: 2 / ${laneEnd}; inset: 0; z-index: 1`}>
+      ${strip.lines.map((line) => renderLine(line, strip.axis))}
+    </div>
   </div>`;
+}
+
+function renderMark(line: Line, axis: Axis) {
+  const style = `left: ${offset(line.at, axis)}%`;
+  return html`<span class="mark" style=${style} data-mark=${line.kind}>${line.kind}</span>`;
+}
+
+function renderLine(line: Line, axis: Axis) {
+  const style = `left: ${offset(line.at, axis)}%`;
+  return html`<div
+    class="line"
+    style=${style}
+    data-line=${line.kind}
+    data-at=${iso(line.at)}
+    title=${line.text}
+    aria-label=${line.text}
+  ></div>`;
 }
 
 function renderTimeLabel(label: TimeLabel, axis: Axis) {

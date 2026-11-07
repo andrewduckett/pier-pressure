@@ -16,13 +16,22 @@ export interface Axis {
   end: number;
 }
 
-export function stripAxis(darkWindow: unknown, now: number): Axis {
-  const window = asRecord(darkWindow);
+export interface Night {
+  dusk: number;
+  dawn: number;
+}
+
+export function darkWindow(attribute: unknown): Night | undefined {
+  const window = asRecord(attribute);
   const dusk = readTime(window?.["start"]);
   const dawn = readTime(window?.["end"]);
-  if (dusk !== undefined && dawn !== undefined && dawn > dusk && dawn - dusk <= LONGEST_WINDOW) {
-    return { start: dusk - BEFORE_DUSK, end: dawn + AFTER_DAWN };
-  }
+  if (dusk === undefined || dawn === undefined || dawn <= dusk) return undefined;
+  if (dawn - dusk > LONGEST_WINDOW) return undefined;
+  return { dusk, dawn };
+}
+
+export function stripAxis(night: Night | undefined, now: number): Axis {
+  if (night !== undefined) return { start: night.dusk - BEFORE_DUSK, end: night.dawn + AFTER_DAWN };
   return { start: now - FALLBACK_BEFORE, end: now + FALLBACK_AFTER };
 }
 
@@ -82,6 +91,13 @@ export interface Bar {
   text: string;
 }
 
+export interface Line {
+  kind: "dusk" | "dawn";
+  at: number;
+  // What hovering over the line shows.
+  text: string;
+}
+
 export interface TimeLabel {
   at: number;
   text: string;
@@ -91,6 +107,7 @@ export interface Strip {
   axis: Axis;
   rows: Row[];
   moonUp: Bar[];
+  lines: Line[];
   labels: TimeLabel[];
 }
 
@@ -103,7 +120,8 @@ export function buildStrip(
   timeZone: string | undefined,
 ): Strip {
   const verdict = states[pierEntityId(pier, "verdict")];
-  const axis = stripAxis(verdict?.attributes["dark_window"], now);
+  const night = darkWindow(verdict?.attributes["dark_window"]);
+  const axis = stripAxis(night, now);
   const time = clock(timeZone);
   return {
     axis,
@@ -117,7 +135,15 @@ export function buildStrip(
       })),
     })),
     moonUp: moonUpBars(forecastOf(states[pierEntityId(pier, "moon_altitude")]), axis, time),
+    lines: night === undefined ? [] : nightLines(night, time),
   };
+}
+
+function nightLines(night: Night, time: (at: number) => string): Line[] {
+  return [
+    { kind: "dusk", at: night.dusk, text: `Dusk, ${time(night.dusk)}` },
+    { kind: "dawn", at: night.dawn, text: `Dawn, ${time(night.dawn)}` },
+  ];
 }
 
 // Home Assistant normally drops an unavailable entity's attributes; when it has

@@ -10,6 +10,8 @@ import {
   bars,
   cells,
   forecastEntity,
+  line,
+  mark,
   moonLane,
   mountCard,
   verdictEntity,
@@ -735,6 +737,115 @@ describe("hovering over a Moon up bar", () => {
     const [title] = await hoverText(runOf(hours), POLAR);
 
     expect(title).toBe("Moon up");
+  });
+});
+
+function cardStyles(): string {
+  const element = customElements.get("pierpressure-card") as typeof PierPressureCard;
+  return [element.styles]
+    .flat()
+    .map((style) => String(style))
+    .join("");
+}
+
+describe("the dusk and dawn lines", () => {
+  it("sit at the ends of the dark window", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect([line(card, "dusk")?.dataset["at"], line(card, "dawn")?.dataset["at"]]).toEqual([
+      "2026-10-31T20:30:00.000Z",
+      "2026-11-01T03:25:00.000Z",
+    ]);
+  });
+
+  // 16:30 to 08:25 is 955 minutes; dusk at 20:30 is 240 minutes in.
+  it("are placed in percent of the axis", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect(line(card, "dusk")?.style.left).toBe("25.1309%");
+  });
+
+  it("are labelled dusk and dawn above the strip, over their lines", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect(
+      ["dusk", "dawn"].map((kind) => [
+        mark(card, kind)?.textContent?.trim(),
+        mark(card, kind)?.style.left === line(card, kind)?.style.left,
+      ]),
+    ).toEqual([
+      ["dusk", true],
+      ["dawn", true],
+    ]);
+  });
+
+  it("show their time on hover", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect(
+      ["dusk", "dawn"].flatMap((kind) => [
+        line(card, kind)?.getAttribute("title"),
+        line(card, kind)?.getAttribute("aria-label"),
+      ]),
+    ).toEqual(["Dusk, 20:30", "Dusk, 20:30", "Dawn, 03:25", "Dawn, 03:25"]);
+  });
+
+  it("are dashed grey", () => {
+    expect(cardStyles()).toMatch(/\.line::after\s*\{[^}]*border-left:\s*2px dashed #898781/);
+  });
+
+  it("are missing on a night with no astronomical darkness", async () => {
+    pinClock("2026-06-21T12:00:00Z");
+
+    const card = await mountCard({
+      [VERDICT]: verdictEntity("GO", { dark_window: { start: null, end: null } }),
+    });
+
+    expect([line(card, "dusk"), line(card, "dawn"), mark(card, "dusk")]).toEqual([
+      null,
+      null,
+      null,
+    ]);
+  });
+});
+
+describe("the lines' overlay", () => {
+  function overlay(card: PierPressureCard): HTMLElement | null | undefined {
+    return card.shadowRoot?.querySelector<HTMLElement>(".strip .lines");
+  }
+
+  // Grid row 1 holds the line labels, rows 2 to 6 the five rows, and row 7 the
+  // Moon up lane, so the overlay runs from line 2 to line 8.
+  it("covers the rows and the Moon up lane", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    const style = overlay(card)?.getAttribute("style") ?? "";
+    expect([style.includes("grid-column: 2"), style.includes("grid-row: 2 / 8")]).toEqual([
+      true,
+      true,
+    ]);
+  });
+
+  it("stretches over its grid area", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect(overlay(card)?.getAttribute("style")).toContain("inset: 0");
+  });
+
+  it("paints above the cells and bars", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    const element = overlay(card);
+    expect([
+      element?.getAttribute("style")?.includes("z-index: 1"),
+      element === strip(card)?.lastElementChild,
+    ]).toEqual([true, true]);
+  });
+
+  it("gives the strip one explicit grid row for each of its rows", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect(strip(card)?.getAttribute("style")).toContain("grid-template-rows: repeat(8, auto)");
   });
 });
 

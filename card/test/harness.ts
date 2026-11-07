@@ -59,3 +59,11 @@ export function moonLane(card: PierPressureCard): HTMLElement | null {
 export function bars(card: PierPressureCard): HTMLElement[] {
   return [...(moonLane(card)?.querySelectorAll<HTMLElement>(".bar") ?? [])];
 }
+
+export function line(card: PierPressureCard, kind: string): HTMLElement | null {
+  return card.shadowRoot?.querySelector<HTMLElement>(`.strip [data-line="${kind}"]`) ?? null;
+}
+
+export function mark(card: PierPressureCard, kind: string): HTMLElement | null {
+  return card.shadowRoot?.querySelector<HTMLElement>(`.strip [data-mark="${kind}"]`) ?? null;
+}
