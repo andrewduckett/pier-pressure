@@ -40,6 +40,15 @@
   // A release inside the listed range moves uv.lock and leaves pyproject.toml alone.
   pep621: {
     rangeStrategy: "update-lockfile",
+    // Security pull requests reach only the packages pyproject.toml lists, so
+    // a weekly refresh of uv.lock is what moves the transitive ones. Set on
+    // this manager so card/package-lock.json is left alone.
+    lockFileMaintenance: {
+      enabled: true,
+      // The default, "before 4am on monday", never fires: the workflow runs
+      // at 04:17 UTC.
+      schedule: ["on monday"],
+    },
   },
   // A later rule wins over an earlier one.
   packageRules: [
