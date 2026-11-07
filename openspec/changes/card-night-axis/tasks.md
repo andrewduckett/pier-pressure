@@ -29,3 +29,4 @@
 - 2026-11-07: task 3.1's test that the fallback axis has no dusk or dawn line passed on its first run, because the lines did not exist yet. It stays as a guard rather than a red step.
 - 2026-11-07: in task 4.1, the doc words astronomical, dusk, dawn, now and forecast were already on the page, so those cases passed on their first run.
 - 2026-11-07: code review found that a 23-hour Moon up run across a spring clock change read `from 04:00 to 04:00`. The card reads "a run of 24 hours or more" on Home Assistant's clock: a run whose start and end show the same time also shows `Moon up`.
+- 2026-11-07: `buildStrip` turns the dark window straight into `lines` rather than returning it as `night` (design DD4). The lines still show exactly when the axis comes from the window.
