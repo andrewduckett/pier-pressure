@@ -1335,6 +1335,17 @@ def test_nws_rain_chance_moves_and_sky_cover_does_not() -> None:
     assert forecast.readings[_hour(22)].cloud_cover is None
 
 
+def test_nws_rain_chance_hour_at_the_horizon_is_cut() -> None:
+    forecast = parse_nws(
+        _nws(
+            temperature=[("2026-09-08T18:00:00+00:00/PT1H", 12.0)],
+            probabilityOfPrecipitation=[("2026-09-11T16:00:00+00:00/PT2H", 30)],
+        )
+    )
+    assert forecast.readings[_at(11, 17)].precipitation_probability == 30.0
+    assert _at(11, 18) not in forecast.readings
+
+
 _MILWAUKEE = PierConfig(id="milwaukee", latitude=43.0389, longitude=-87.9065, elevation_m=180.0)
 _LUDINGTON = PierConfig(id="ludington", latitude=43.9553, longitude=-86.4526, elevation_m=180.0)
 
