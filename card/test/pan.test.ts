@@ -629,22 +629,15 @@ describe("dragging the strip", () => {
     expect(axisOf(card)[0]).toBe("2026-11-01T12:00:00.000Z");
   });
 
-  it("captures the pointer once the drag starts", async () => {
+  // A mouse or pen pointer has no capture of its own, so a drag that leaves the
+  // strip before it starts to pan would otherwise lose its moves.
+  it("captures the pointer as soon as it is pressed", async () => {
     const capture = vi.spyOn(HTMLElement.prototype, "setPointerCapture");
     const card = await mountCard(DAY_AROUND_NOW);
 
-    await drag(card, [[100, 100]]);
+    stripOf(card)?.dispatchEvent(pointer("pointerdown", 200, 100));
 
     expect(capture).toHaveBeenCalledWith(1);
-  });
-
-  it("leaves the pointer free for a tap", async () => {
-    const capture = vi.spyOn(HTMLElement.prototype, "setPointerCapture");
-    const card = await mountCard(DAY_AROUND_NOW);
-
-    await drag(card, [[195, 100]]);
-
-    expect(capture).not.toHaveBeenCalled();
   });
 
   it("pans nothing before the strip is laid out", async () => {

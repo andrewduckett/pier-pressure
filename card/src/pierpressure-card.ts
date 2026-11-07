@@ -405,6 +405,10 @@ export class PierPressureCard extends LitElement {
         held: this.heldStart,
         panning: false,
       };
+      // A mouse or pen has no capture of its own, so without this a drag that
+      // leaves the strip before it starts to pan would lose its moves. The Back
+      // to tonight button is outside the strip, so no click there is retargeted.
+      (event.currentTarget as Element).setPointerCapture(event.pointerId);
     },
     // A drag pans only once it is clearly sideways, so a tap that slips or the
     // start of a vertical swipe moves nothing.
@@ -416,7 +420,6 @@ export class PierPressureCard extends LitElement {
         if (Math.abs(sideways) <= DRAG_SLOP) return;
         if (Math.abs(sideways) <= Math.abs(event.clientY - drag.y)) return;
         drag.panning = true;
-        (event.currentTarget as Element).setPointerCapture(event.pointerId);
       }
       this.panTo(drag.start - (sideways / drag.width) * drag.length);
     },
