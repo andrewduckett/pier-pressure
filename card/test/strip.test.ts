@@ -809,6 +809,66 @@ describe("the dusk and dawn lines", () => {
   });
 });
 
+describe("the now line", () => {
+  it("sits at the browser's time", async () => {
+    pinClock("2026-10-31T22:00:00Z");
+
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect([line(card, "now")?.dataset["at"], mark(card, "now")?.textContent?.trim()]).toEqual([
+      "2026-10-31T22:00:00.000Z",
+      "now",
+    ]);
+  });
+
+  it("shows its time on hover", async () => {
+    pinClock("2026-10-31T22:00:00Z");
+
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect([
+      line(card, "now")?.getAttribute("title"),
+      line(card, "now")?.getAttribute("aria-label"),
+    ]).toEqual(["Now, 22:00", "Now, 22:00"]);
+  });
+
+  it("is solid red", () => {
+    expect(cardStyles()).toMatch(
+      /\.line\[data-line="now"\]::after\s*\{[^}]*border-left:\s*2px solid #e66767/,
+    );
+  });
+
+  it("has a red label", () => {
+    expect(cardStyles()).toMatch(/\.mark\[data-mark="now"\]\s*\{[^}]*color:\s*#e66767/);
+  });
+
+  it("is missing before the axis starts", async () => {
+    pinClock("2026-10-31T12:00:00Z");
+
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect([line(card, "now"), mark(card, "now")]).toEqual([null, null]);
+  });
+
+  it("is missing after the axis ends", async () => {
+    pinClock("2026-11-01T09:00:00Z");
+
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect(line(card, "now")).toBeNull();
+  });
+
+  it("sits at the browser's time on a night with no astronomical darkness", async () => {
+    pinClock("2026-06-21T12:00:00Z");
+
+    const card = await mountCard({
+      [VERDICT]: verdictEntity("GO", { dark_window: { start: null, end: null } }),
+    });
+
+    expect(line(card, "now")?.dataset["at"]).toBe("2026-06-21T12:00:00.000Z");
+  });
+});
+
 describe("the lines' overlay", () => {
   function overlay(card: PierPressureCard): HTMLElement | null | undefined {
     return card.shadowRoot?.querySelector<HTMLElement>(".strip .lines");

@@ -92,7 +92,7 @@ export interface Bar {
 }
 
 export interface Line {
-  kind: "dusk" | "dawn";
+  kind: "dusk" | "dawn" | "now";
   at: number;
   // What hovering over the line shows.
   text: string;
@@ -135,7 +135,7 @@ export function buildStrip(
       })),
     })),
     moonUp: moonUpBars(forecastOf(states[pierEntityId(pier, "moon_altitude")]), axis, time),
-    lines: night === undefined ? [] : nightLines(night, time),
+    lines: [...(night === undefined ? [] : nightLines(night, time)), ...nowLine(now, axis, time)],
   };
 }
 
@@ -144,6 +144,11 @@ function nightLines(night: Night, time: (at: number) => string): Line[] {
     { kind: "dusk", at: night.dusk, text: `Dusk, ${time(night.dusk)}` },
     { kind: "dawn", at: night.dawn, text: `Dawn, ${time(night.dawn)}` },
   ];
+}
+
+function nowLine(now: number, axis: Axis, time: (at: number) => string): Line[] {
+  if (now < axis.start || now > axis.end) return [];
+  return [{ kind: "now", at: now, text: `Now, ${time(now)}` }];
 }
 
 // Home Assistant normally drops an unavailable entity's attributes; when it has

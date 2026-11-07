@@ -105,6 +105,9 @@ export class PierPressureCard extends LitElement {
       position: absolute;
       transform: translateX(-50%);
     }
+    .mark[data-mark="now"] {
+      color: #e66767;
+    }
     .lines {
       position: absolute;
       pointer-events: none;
@@ -125,6 +128,9 @@ export class PierPressureCard extends LitElement {
       bottom: 0;
       left: 3px;
       border-left: 2px dashed #898781;
+    }
+    .line[data-line="now"]::after {
+      border-left: 2px solid #e66767;
     }
     .bar {
       position: absolute;
