@@ -300,6 +300,18 @@ describe("a moon with no side to light", () => {
     expect(lit).toEqual(["all", null, "1"]);
   });
 
+  it("draws a full moon fully lit at an illumination of 0", async () => {
+    const card = await mountCard(withMoon({ phase: "full", illumination: 0 }));
+
+    expect(drawing(card)?.dataset["lit"]).toBe("all");
+  });
+
+  it("draws a new moon unlit at an illumination of 1", async () => {
+    const card = await mountCard(withMoon({ phase: "new", illumination: 1 }));
+
+    expect(drawing(card)?.dataset["lit"]).toBe("none");
+  });
+
   it("draws no lit part at an illumination of 0", async () => {
     const card = await mountCard(withMoon({ phase: "waxing crescent", illumination: 0 }));
 

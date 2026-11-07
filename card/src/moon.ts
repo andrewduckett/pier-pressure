@@ -58,8 +58,10 @@ export function readMoon(
 // a lit path to draw.
 function drawn(phase: string, illumination: number, latitude: unknown): MoonDrawing {
   const text = `Moon: ${phase}, ${percent(illumination)}% lit`;
-  if (phase === "new" || illumination === 0) return { lit: "none", mirrored: false, text };
-  if (phase === "full" || illumination === 1) return { lit: "all", mirrored: false, text };
+  if (phase === "new") return { lit: "none", mirrored: false, text };
+  if (phase === "full") return { lit: "all", mirrored: false, text };
+  if (illumination === 0) return { lit: "none", mirrored: false, text };
+  if (illumination === 1) return { lit: "all", mirrored: false, text };
   // Seen from the north, a waxing moon is lit on the right; from the south, on the left.
   const south = typeof latitude === "number" && latitude < 0;
   return { lit: illumination, mirrored: WANING.includes(phase) !== south, text };
