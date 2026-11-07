@@ -17,6 +17,8 @@ export const CARD_VERSION: string = __CARD_VERSION__;
 
 const CARD_TYPE = "pierpressure-card";
 
+const MINUTE = 60 * 1000;
+
 interface CustomCardEntry {
   type: string;
   name: string;
@@ -144,6 +146,21 @@ export class PierPressureCard extends LitElement {
   // Home Assistant sets hass after setConfig and after the card is attached.
   declare hass?: HomeAssistant;
   declare config?: CardConfig;
+  private timer?: ReturnType<typeof setInterval>;
+
+  // The now line, and the fallback axis around it, follow the browser's clock
+  // between Home Assistant's state updates.
+  override connectedCallback(): void {
+    super.connectedCallback();
+    clearInterval(this.timer);
+    this.timer = setInterval(() => this.requestUpdate(), MINUTE);
+  }
+
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    clearInterval(this.timer);
+    this.timer = undefined;
+  }
 
   // Home Assistant shows a thrown error in place of the card.
   setConfig(config: Record<string, unknown>): void {

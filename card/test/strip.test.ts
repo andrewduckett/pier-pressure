@@ -869,6 +869,51 @@ describe("the now line", () => {
   });
 });
 
+describe("the card's minute timer", () => {
+  // pinClock fakes only Date; these tests need the card's interval faked too.
+  function pinClockAndTimers(iso: string): void {
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+    vi.setSystemTime(new Date(iso));
+  }
+
+  it("moves the now line a minute later with no new state", async () => {
+    pinClockAndTimers("2026-10-31T22:00:00Z");
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    vi.advanceTimersByTime(60_000);
+    await card.updateComplete;
+
+    expect(line(card, "now")?.dataset["at"]).toBe("2026-10-31T22:01:00.000Z");
+  });
+
+  it("runs one timer while the card is on the page", async () => {
+    pinClockAndTimers("2026-10-31T22:00:00Z");
+
+    await mountCard({ [VERDICT]: NIGHT });
+
+    expect(vi.getTimerCount()).toBe(1);
+  });
+
+  it("stops its timer when the card is removed", async () => {
+    pinClockAndTimers("2026-10-31T22:00:00Z");
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    card.remove();
+
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("keeps one timer when the card is put back on the page", async () => {
+    pinClockAndTimers("2026-10-31T22:00:00Z");
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    card.remove();
+    document.body.append(card);
+
+    expect(vi.getTimerCount()).toBe(1);
+  });
+});
+
 describe("the lines' overlay", () => {
   function overlay(card: PierPressureCard): HTMLElement | null | undefined {
     return card.shadowRoot?.querySelector<HTMLElement>(".strip .lines");
