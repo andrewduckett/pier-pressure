@@ -2,6 +2,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   CLOUD_COVER,
   HUMIDITY,
+  PRECIPITATION_PROBABILITY,
   SEEING,
   TEMPERATURE,
   VERDICT,
@@ -40,8 +41,8 @@ describe("every timeline row", () => {
   it("is drawn in the YAML strip's order, then the rest", async () => {
     const card = await mountCard({ [VERDICT]: verdictEntity("GO") });
 
-    const labels = rows(card).map((element) => element.querySelector(".label")?.textContent?.trim());
-    expect(labels).toEqual([
+    const labels = rows(card).map((element) => element.querySelector(".label")?.textContent);
+    expect(labels.map((label) => label?.trim())).toEqual([
       "Sun altitude",
       "Moon altitude",
       "Cloud cover",
@@ -109,6 +110,40 @@ describe("a Moon altitude or weather value fills its hour", () => {
     expect([first?.dataset["from"], last?.dataset["to"]]).toEqual([
       "2026-10-31T16:30:00.000Z",
       "2026-11-01T08:25:00.000Z",
+    ]);
+  });
+});
+
+describe("a Rain chance value fills the hour before its time", () => {
+  it("fills the hour that ends at its datetime", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [PRECIPITATION_PROBABILITY]: forecastEntity([["2026-10-31T22:00:00Z", 40]]),
+    });
+
+    const [cell] = cells(card, "precipitation_probability");
+    expect([cell?.dataset["from"], cell?.dataset["to"]]).toEqual([
+      "2026-10-31T21:00:00.000Z",
+      "2026-10-31T22:00:00.000Z",
+    ]);
+  });
+
+  it("draws every hour before a value that overlaps the axis, and none outside it", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [PRECIPITATION_PROBABILITY]: forecastEntity([
+        ["2026-10-31T16:00:00Z", 10],
+        ["2026-10-31T17:00:00Z", 20],
+        ["2026-11-01T09:00:00Z", 30],
+        ["2026-11-01T10:00:00Z", 40],
+      ]),
+    });
+
+    const drawn = cells(card, "precipitation_probability");
+    const spans = drawn.map(({ dataset }) => [dataset["hour"], dataset["from"], dataset["to"]]);
+    expect(spans).toEqual([
+      ["2026-10-31T16:00:00.000Z", "2026-10-31T16:30:00.000Z", "2026-10-31T17:00:00.000Z"],
+      ["2026-11-01T08:00:00.000Z", "2026-11-01T08:00:00.000Z", "2026-11-01T08:25:00.000Z"],
     ]);
   });
 });

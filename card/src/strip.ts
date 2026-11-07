@@ -52,6 +52,8 @@ interface RowKind {
   label: string;
   unit: string;
   shade: (value: number) => string;
+  // The value is for the hour that ends at its datetime, not the one that starts there.
+  hourBefore?: true;
 }
 
 // Top to bottom: the YAML night strip's nine, then the rest in the order
@@ -71,7 +73,13 @@ export const ROWS: readonly RowKind[] = [
   { key: "humidity", label: "Humidity", unit: "", shade: cloudShade },
   { key: "wind_speed", label: "Wind speed", unit: "", shade: cloudShade },
   { key: "wind_direction", label: "Wind direction", unit: "", shade: cloudShade },
-  { key: "precipitation_probability", label: "Rain chance", unit: "", shade: cloudShade },
+  {
+    key: "precipitation_probability",
+    label: "Rain chance",
+    unit: "",
+    shade: cloudShade,
+    hourBefore: true,
+  },
 ];
 
 export interface Cell {
@@ -137,10 +145,15 @@ export function buildStrip(
   return {
     axis,
     labels: timeLabels(axis, time),
-    rows: ROWS.map(({ key, label, unit, shade }) => ({
+    rows: ROWS.map(({ key, label, unit, shade, hourBefore }) => ({
       key,
       label,
-      cells: rowCells(forecastOf(states[pierEntityId(pier, key)]), axis, shade).map((cell) => ({
+      cells: rowCells(
+        forecastOf(states[pierEntityId(pier, key)]),
+        axis,
+        shade,
+        hourBefore ? -HOUR : 0,
+      ).map((cell) => ({
         ...cell,
         text: `${label}, the hour from ${time(cell.hour)}: ${cell.value}${unit}`,
       })),
@@ -173,11 +186,13 @@ function rowCells(
   forecast: unknown,
   axis: Axis,
   shade: (value: number) => string,
+  shift: number,
 ): Omit<Cell, "text">[] {
   if (!Array.isArray(forecast)) return [];
   return forecast.flatMap((point: unknown) => {
     const record = asRecord(point);
-    const hour = readTime(record?.["datetime"]);
+    const time = readTime(record?.["datetime"]);
+    const hour = time === undefined ? undefined : time + shift;
     const value = record?.["value"];
     if (hour === undefined || hour + HOUR <= axis.start || hour >= axis.end) return [];
     // A type check, not a truthiness check: 0% cloud or 0° is a value, null is a gap.
