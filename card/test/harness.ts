@@ -10,12 +10,16 @@ export async function mountCard(
   states?: Record<string, HassEntity>,
   pier = "backyard",
   timeZone = "UTC",
+  latitude?: number,
 ): Promise<PierPressureCard> {
   const card = document.createElement("pierpressure-card") as PierPressureCard;
   card.setConfig({ type: "custom:pierpressure-card", pier });
   document.body.append(card);
   if (states !== undefined) {
-    const hass: HomeAssistant = { states, config: { time_zone: timeZone } };
+    const hass: HomeAssistant = {
+      states,
+      config: { time_zone: timeZone, ...(latitude !== undefined && { latitude }) },
+    };
     card.hass = hass;
   }
   await card.updateComplete;

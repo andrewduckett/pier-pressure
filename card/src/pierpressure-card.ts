@@ -44,7 +44,7 @@ export interface HassEntity {
 
 export interface HomeAssistant {
   states: Record<string, HassEntity | undefined>;
-  config?: { time_zone?: string };
+  config?: { time_zone?: string; latitude?: number };
 }
 
 export interface CardConfig {
@@ -277,7 +277,11 @@ export class PierPressureCard extends LitElement {
     }
     const confidence = asRecord(entity.attributes["confidence"]);
     const strip = this.shownStrip();
-    const moon = readMoon(entity.attributes["moon"], clock(this.hass.config?.time_zone));
+    const moon = readMoon(
+      entity.attributes["moon"],
+      clock(this.hass.config?.time_zone),
+      this.hass.config?.latitude,
+    );
     return html`<div class="card-content">
       <div class="summary">
         <dl>
@@ -331,17 +335,24 @@ function renderMoon(moon: MoonView) {
 // svg tag: an html fragment there would make unknown HTML elements a browser does
 // not paint.
 function renderDrawing(drawing: MoonDrawing) {
-  return html`<svg viewBox="-1.1 -1.1 2.2 2.2" width="48" height="48" data-lit=${drawing.lit}>
+  return html`<svg
+    viewBox="-1.1 -1.1 2.2 2.2"
+    width="48"
+    height="48"
+    data-lit=${drawing.lit}
+    data-mirrored=${drawing.mirrored}
+  >
     <circle r="1" fill="#3b3a36"></circle>
-    ${renderLit(drawing.lit)}
+    ${renderLit(drawing)}
     <circle r="1" fill="none" stroke="#898781" stroke-width="0.08"></circle>
   </svg>`;
 }
 
-function renderLit(lit: MoonDrawing["lit"]) {
+function renderLit({ lit, mirrored }: MoonDrawing) {
   if (lit === "none") return nothing;
   if (lit === "all") return svg`<circle r="1" fill=${LIT}></circle>`;
-  return svg`<path d=${litPath(lit)} fill=${LIT}></path>`;
+  const path = svg`<path d=${litPath(lit)} fill=${LIT}></path>`;
+  return mirrored ? svg`<g transform="scale(-1 1)">${path}</g>` : path;
 }
 
 function renderNote(strip: Strip | undefined) {

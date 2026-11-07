@@ -313,3 +313,67 @@ describe("a moon with no side to light", () => {
     expect(drawing(card)?.dataset["lit"]).toBe("0.78");
   });
 });
+
+// The lit path is drawn lit on the right, and mirrored to light the left.
+function litSide(card: PierPressureCard): "left" | "right" {
+  return litPath(card)?.closest("g")?.getAttribute("transform") === "scale(-1 1)"
+    ? "left"
+    : "right";
+}
+
+const NORTH = 52.1;
+const SOUTH = -33.9;
+
+function mountMoon(moon: unknown, latitude?: number): Promise<PierPressureCard> {
+  return mountCard(withMoon(moon), "backyard", "UTC", latitude);
+}
+
+describe("the moon's lit side", () => {
+  it.each(["waxing crescent", "first quarter", "waxing gibbous"])(
+    "lights a %s moon on the right in the north",
+    async (phase) => {
+      const card = await mountMoon({ phase, illumination: 0.5 }, NORTH);
+
+      expect(litSide(card)).toBe("right");
+    },
+  );
+
+  it.each(["waning gibbous", "last quarter", "waning crescent"])(
+    "lights a %s moon on the left in the north",
+    async (phase) => {
+      const card = await mountMoon({ phase, illumination: 0.5 }, NORTH);
+
+      expect(litSide(card)).toBe("left");
+    },
+  );
+
+  it("lights a first quarter on the left in the south", async () => {
+    const card = await mountMoon({ phase: "first quarter", illumination: 0.5 }, SOUTH);
+
+    expect(litSide(card)).toBe("left");
+  });
+
+  it("lights a waning crescent on the right in the south", async () => {
+    const card = await mountMoon({ phase: "waning crescent", illumination: 0.2 }, SOUTH);
+
+    expect(litSide(card)).toBe("right");
+  });
+
+  it("draws the northern view without a latitude", async () => {
+    const card = await mountMoon({ phase: "waning crescent", illumination: 0.2 });
+
+    expect(litSide(card)).toBe("left");
+  });
+
+  it("says when the drawing is mirrored", async () => {
+    const card = await mountMoon({ phase: "waning crescent", illumination: 0.2 }, NORTH);
+
+    expect(drawing(card)?.dataset["mirrored"]).toBe("true");
+  });
+
+  it("does not mirror a full moon in the south", async () => {
+    const card = await mountMoon({ phase: "full", illumination: 0.99 }, SOUTH);
+
+    expect(drawing(card)?.dataset["mirrored"]).toBe("false");
+  });
+});

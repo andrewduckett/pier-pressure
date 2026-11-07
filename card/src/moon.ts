@@ -14,6 +14,8 @@ const PHASES: readonly string[] = [
   "waning crescent",
 ];
 
+const WANING: readonly string[] = ["waning gibbous", "last quarter", "waning crescent"];
+
 export interface MoonView {
   phase: string;
   illumination: string;
@@ -26,10 +28,17 @@ export interface MoonView {
 export interface MoonDrawing {
   // A number is the share of the disc that is lit, above 0 and below 1.
   lit: "none" | "all" | number;
+  // True when the lit part touches the left edge rather than the right.
+  mirrored: boolean;
 }
 
-// Each text falls back to a dash on its own, as the verdict lines do.
-export function readMoon(attribute: unknown, time: (at: number) => string): MoonView {
+// Each text falls back to a dash on its own, as the verdict lines do. The
+// latitude is Home Assistant's: the document carries no pier location.
+export function readMoon(
+  attribute: unknown,
+  time: (at: number) => string,
+  latitude: unknown,
+): MoonView {
   const moon = asRecord(attribute);
   const phase = readPhase(moon?.["phase"]);
   const illumination = readIllumination(moon?.["illumination"]);
@@ -39,17 +48,19 @@ export function readMoon(attribute: unknown, time: (at: number) => string): Moon
     rise: shownTime(moon?.["rise"], time),
     set: shownTime(moon?.["set"], time),
     ...(phase !== undefined &&
-      illumination !== undefined && { drawing: drawn(phase, illumination) }),
+      illumination !== undefined && { drawing: drawn(phase, illumination, latitude) }),
   };
 }
 
 // The document does not say which side a new or full moon's sliver is on, so
 // those two phases draw no lit part and the whole disc. At 0 or 1 no phase has
 // a lit path to draw.
-function drawn(phase: string, illumination: number): MoonDrawing {
-  if (phase === "new" || illumination === 0) return { lit: "none" };
-  if (phase === "full" || illumination === 1) return { lit: "all" };
-  return { lit: illumination };
+function drawn(phase: string, illumination: number, latitude: unknown): MoonDrawing {
+  if (phase === "new" || illumination === 0) return { lit: "none", mirrored: false };
+  if (phase === "full" || illumination === 1) return { lit: "all", mirrored: false };
+  // Seen from the north, a waxing moon is lit on the right; from the south, on the left.
+  const south = typeof latitude === "number" && latitude < 0;
+  return { lit: illumination, mirrored: WANING.includes(phase) !== south };
 }
 
 // The right half-disc's edge, then the terminator back to the top as a
