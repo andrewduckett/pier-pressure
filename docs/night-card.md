@@ -1,9 +1,9 @@
 # The PierPressure card: tonight's verdict on your dashboard
 
 The PierPressure card is a Home Assistant dashboard card. It shows tonight's
-verdict, score and confidence for one pier, and a night strip with the cloud
-forecast hour by hour. Later releases add dusk, dawn, the moon and the other
-conditions to the strip.
+verdict, score and confidence for one pier, and a night strip with the sun, the
+cloud forecast and the moon hour by hour, crossed by dusk, dawn and now. Later
+releases add the other conditions to the strip.
 
 The card only shows what PierPressure already publishes. It never computes a
 verdict and never fetches data. If you would rather not install a card, the
@@ -28,22 +28,37 @@ since it started. The lines fill in when it does.
 
 ### The night strip
 
-Under the verdict, the strip shows the cloud forecast across the night, one
-row per cloud sensor:
+Under the verdict, the strip shows the night hour by hour:
 
 | Row | Sensor |
 |---|---|
+| **Sun altitude** | `sensor.pierpressure_<pier>_sun_altitude` |
 | **Cloud cover** | `sensor.pierpressure_<pier>_cloud_cover` |
 | **Cloud low** | `sensor.pierpressure_<pier>_cloud_low` |
 | **Cloud mid** | `sensor.pierpressure_<pier>_cloud_mid` |
 | **Cloud high** | `sensor.pierpressure_<pier>_cloud_high` |
+| **Moon up** | `sensor.pierpressure_<pier>_moon_altitude` |
 
 The strip runs from 4 hours before dusk to 5 hours after dawn, the dark window
 on the Verdict sensor. Some nights have no astronomical darkness, such as a
 summer night far from the equator. Then the strip runs from
 6 hours before now to 18 hours after.
 
-Each cell is one hour. Its blue runs from light for a clear sky to dark for
+Each cell is one hour. In the **Sun altitude** row, the blue darkens as the sun
+goes down:
+
+| Shade | The sun's altitude |
+|---|---|
+| Lightest | Above the horizon |
+| Light | Civil twilight, down to −6° |
+| Middle | Nautical twilight, down to −12° |
+| Dark | Astronomical twilight, down to −18° |
+| Darkest | Astronomical night, −18° or lower |
+
+The altitude is the sun's at the start of the hour. So the dusk line can fall
+inside an hour still shaded as twilight.
+
+In the cloud rows, the blue runs from light for a clear sky to dark for
 overcast, in seven steps of 15%: the same shades as the
 [night dashboard](night-dashboard.md#how-to-read-the-night-strip).
 
@@ -51,7 +66,27 @@ A blank hour in a row means the weather source has no value for that hour. A
 row with no cells at all means its sensor is unavailable or has no forecast.
 
 Hover over a cell to see its row, the hour it starts and its value, such as
-"Cloud cover, the hour from 21:00: 40%".
+"Cloud cover, the hour from 21:00: 40%" or
+"Sun altitude, the hour from 21:00: -14.235°".
+
+Under the cloud rows, the **Moon up** lane has a grey bar for each run of hours
+when the moon is above the horizon. Like the sun's, each moon altitude is for
+the start of its hour, so a bar can start up to an hour before moonrise and end
+up to an hour after moonset. Hover over a bar to see when the moon rises and
+sets, such as "Moon up from 21:00 to 03:00". The text names a rise or set only
+when the forecast holds the hour before or after it. A bar at the start of the
+forecast reads "Moon up until 03:00", one at its end "Moon up from 21:00", and
+a run of a day or more just "Moon up".
+
+Three lines cross the strip:
+
+- A dashed grey line labelled **dusk** at the start of the dark window, and
+  one labelled **dawn** at its end. On a night with no astronomical darkness,
+  there are no dusk and dawn lines.
+- A red line labelled **now** at your browser's current time. The line moves
+  every minute, and shows only while now is on the strip.
+
+Hover over a line to see its time, such as "Dusk, 20:30".
 
 All times are in your Home Assistant time zone, on a 24-hour clock, whatever
 time zone your browser or user profile uses. The axis has a time label every 3

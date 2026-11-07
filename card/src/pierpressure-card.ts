@@ -1,12 +1,23 @@
 import { LitElement, css, html, nothing } from "lit";
 import { pierSlug, verdictEntityId } from "./entity";
-import { type Axis, type Cell, HOUR, type TimeLabel, asRecord, buildStrip } from "./strip";
+import {
+  type Axis,
+  type Bar,
+  type Cell,
+  HOUR,
+  type Line,
+  type TimeLabel,
+  asRecord,
+  buildStrip,
+} from "./strip";
 
 declare const __CARD_VERSION__: string;
 
 export const CARD_VERSION: string = __CARD_VERSION__;
 
 const CARD_TYPE = "pierpressure-card";
+
+const MINUTE = 60 * 1000;
 
 interface CustomCardEntry {
   type: string;
@@ -56,6 +67,7 @@ export class PierPressureCard extends LitElement {
       margin: 0;
     }
     .strip {
+      position: relative;
       display: grid;
       grid-template-columns: max-content 1fr;
       gap: 2px 8px;
@@ -87,11 +99,68 @@ export class PierPressureCard extends LitElement {
       bottom: 0;
       border-radius: 2px;
     }
+    .marks {
+      color: #898781;
+      font-size: 0.75em;
+    }
+    .mark {
+      position: absolute;
+      transform: translateX(-50%);
+    }
+    .mark[data-mark="now"] {
+      color: #e66767;
+    }
+    .lines {
+      position: absolute;
+      pointer-events: none;
+    }
+    /* A box wider than the stroke, so the line is easy to hover. */
+    .line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 8px;
+      transform: translateX(-50%);
+      pointer-events: auto;
+    }
+    .line::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 3px;
+      border-left: 2px dashed #898781;
+    }
+    .line[data-line="now"]::after {
+      border-left: 2px solid #e66767;
+    }
+    .bar {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      border-radius: 4px;
+      background-color: #898781;
+    }
   `;
 
   // Home Assistant sets hass after setConfig and after the card is attached.
   declare hass?: HomeAssistant;
   declare config?: CardConfig;
+  private timer?: ReturnType<typeof setInterval>;
+
+  // The now line, and the fallback axis around it, follow the browser's clock
+  // between Home Assistant's state updates.
+  override connectedCallback(): void {
+    super.connectedCallback();
+    clearInterval(this.timer);
+    this.timer = setInterval(() => this.requestUpdate(), MINUTE);
+  }
+
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    clearInterval(this.timer);
+    this.timer = undefined;
+  }
 
   // Home Assistant shows a thrown error in place of the card.
   setConfig(config: Record<string, unknown>): void {
@@ -103,7 +172,7 @@ export class PierPressureCard extends LitElement {
   }
 
   getCardSize(): number {
-    return 5;
+    return 6;
   }
 
   // A sections view gives a card half its section's width by default, too
@@ -114,7 +183,9 @@ export class PierPressureCard extends LitElement {
 
   override render() {
     if (this.config === undefined) return nothing;
-    return html`<ha-card header=${`PierPressure ${this.config.pier}`}>${this.renderBody()}</ha-card>`;
+    return html`<ha-card header=${`PierPressure ${this.config.pier}`}
+      >${this.renderBody()}</ha-card
+    >`;
   }
 
   private renderBody() {
@@ -122,7 +193,9 @@ export class PierPressureCard extends LitElement {
     const entityId = verdictEntityId(this.config.pier);
     const entity = this.hass.states[entityId];
     if (entity === undefined) {
-      return html`<div class="card-content message">No PierPressure verdict found: ${entityId}</div>`;
+      return html`<div class="card-content message">
+        No PierPressure verdict found: ${entityId}
+      </div>`;
     }
     if (entity.state === "unavailable") {
       return html`<div class="card-content message">PierPressure is offline</div>`;
@@ -149,22 +222,54 @@ const DASH = "—";
 
 function renderStrip(hass: HomeAssistant, pier: string) {
   const strip = buildStrip(hass.states, pier, Date.now(), hass.config?.time_zone);
+  // Grid row 1 holds the line labels, then come the rows, the Moon up lane and
+  // the time labels. The lines' overlay spans from the first row to the lane.
+  const gridRows = strip.rows.length + 3;
+  const laneEnd = strip.rows.length + 3;
   return html`<div
     class="strip"
+    style=${`grid-template-rows: repeat(${gridRows}, auto)`}
     data-axis-start=${iso(strip.axis.start)}
     data-axis-end=${iso(strip.axis.end)}
   >
+    <span></span>
+    <div class="track marks">${strip.lines.map((line) => renderMark(line, strip.axis))}</div>
     ${strip.rows.map(
-      (row) => html`<div class="row" data-row=${row.key}>
-        <span class="label">${row.label}</span>
-        <div class="track">${row.cells.map((cell) => renderCell(cell, strip.axis))}</div>
-      </div>`,
+      (row) =>
+        html`<div class="row" data-row=${row.key}>
+          <span class="label">${row.label}</span>
+          <div class="track">${row.cells.map((cell) => renderCell(cell, strip.axis))}</div>
+        </div>`,
     )}
+    <div class="row" data-lane="moon_up">
+      <span class="label">Moon up</span>
+      <div class="track">${strip.moonUp.map((bar) => renderBar(bar, strip.axis))}</div>
+    </div>
     <span></span>
     <div class="track times">
       ${strip.labels.map((label) => renderTimeLabel(label, strip.axis))}
     </div>
+    <div class="lines" style=${`grid-column: 2; grid-row: 2 / ${laneEnd}; inset: 0; z-index: 1`}>
+      ${strip.lines.map((line) => renderLine(line, strip.axis))}
+    </div>
   </div>`;
+}
+
+function renderMark(line: Line, axis: Axis) {
+  const style = `left: ${offset(line.at, axis)}%`;
+  return html`<span class="mark" style=${style} data-mark=${line.kind}>${line.kind}</span>`;
+}
+
+function renderLine(line: Line, axis: Axis) {
+  const style = `left: ${offset(line.at, axis)}%`;
+  return html`<div
+    class="line"
+    style=${style}
+    data-line=${line.kind}
+    data-at=${iso(line.at)}
+    title=${line.text}
+    aria-label=${line.text}
+  ></div>`;
 }
 
 function renderTimeLabel(label: TimeLabel, axis: Axis) {
@@ -191,6 +296,20 @@ function renderCell(cell: Cell, axis: Axis) {
     data-shade=${cell.shade}
     title=${cell.text}
     aria-label=${cell.text}
+  ></div>`;
+}
+
+function renderBar(bar: Bar, axis: Axis) {
+  const style = `left: ${offset(bar.from, axis)}%; width: ${share(bar.to - bar.from, axis)}%`;
+  return html`<div
+    class="bar"
+    style=${style}
+    data-start=${iso(bar.start)}
+    data-end=${iso(bar.end)}
+    data-from=${iso(bar.from)}
+    data-to=${iso(bar.to)}
+    title=${bar.text}
+    aria-label=${bar.text}
   ></div>`;
 }
 

@@ -4,13 +4,20 @@ import {
   CLOUD_HIGH,
   CLOUD_LOW,
   CLOUD_MID,
+  MOON_ALTITUDE,
+  SUN_ALTITUDE,
   VERDICT,
+  bars,
   cells,
-  cloudEntity,
+  forecastEntity,
+  line,
+  mark,
+  moonLane,
   mountCard,
   verdictEntity,
 } from "./harness";
 import type { PierPressureCard } from "../src/pierpressure-card";
+import { HOUR } from "../src/strip";
 
 beforeAll(async () => {
   vi.spyOn(console, "info").mockImplementation(() => {});
@@ -82,11 +89,12 @@ function rows(card: PierPressureCard): HTMLElement[] {
   return [...(card.shadowRoot?.querySelectorAll<HTMLElement>(".strip [data-row]") ?? [])];
 }
 
-describe("the cloud rows", () => {
-  it("are Cloud cover, Cloud low, Cloud mid and Cloud high, top to bottom", async () => {
+describe("the rows", () => {
+  it("are Sun altitude, then Cloud cover, Cloud low, Cloud mid and Cloud high, top to bottom", async () => {
     const card = await mountCard({ [VERDICT]: verdictEntity("GO") });
 
     expect(rows(card).map((row) => row.querySelector(".label")?.textContent?.trim())).toEqual([
+      "Sun altitude",
       "Cloud cover",
       "Cloud low",
       "Cloud mid",
@@ -132,7 +140,7 @@ describe("a value fills its hour", () => {
     const card = await mountCard(
       {
         "sensor.pierpressure_back_yard_verdict": NIGHT,
-        "sensor.pierpressure_back_yard_cloud_high": cloudEntity([["2026-10-31T21:00:00Z", 40]]),
+        "sensor.pierpressure_back_yard_cloud_high": forecastEntity([["2026-10-31T21:00:00Z", 40]]),
       },
       "Back-Yard",
     );
@@ -145,7 +153,7 @@ describe("a value fills its hour", () => {
   it("draws every hour that overlaps the axis, and none outside it", async () => {
     const card = await mountCard({
       [VERDICT]: NIGHT,
-      [CLOUD_COVER]: cloudEntity([
+      [CLOUD_COVER]: forecastEntity([
         ["2026-10-31T15:00:00Z", 10],
         ["2026-10-31T16:00:00Z", 20],
         ["2026-10-31T17:00:00Z", 30],
@@ -164,7 +172,7 @@ describe("a value fills its hour", () => {
   it("cuts a cell off at each axis end", async () => {
     const card = await mountCard({
       [VERDICT]: NIGHT,
-      [CLOUD_COVER]: cloudEntity([
+      [CLOUD_COVER]: forecastEntity([
         ["2026-10-31T16:00:00Z", 20],
         ["2026-11-01T08:00:00Z", 40],
       ]),
@@ -180,7 +188,7 @@ describe("a value fills its hour", () => {
   it("keeps a cell inside the axis whole", async () => {
     const card = await mountCard({
       [VERDICT]: NIGHT,
-      [CLOUD_COVER]: cloudEntity([["2026-10-31T17:00:00Z", 30]]),
+      [CLOUD_COVER]: forecastEntity([["2026-10-31T17:00:00Z", 30]]),
     });
 
     const [cell] = cells(card, "cloud_cover");
@@ -194,7 +202,7 @@ describe("a value fills its hour", () => {
   it("places a cell in percent of the axis", async () => {
     const card = await mountCard({
       [VERDICT]: NIGHT,
-      [CLOUD_COVER]: cloudEntity([["2026-10-31T17:00:00Z", 30]]),
+      [CLOUD_COVER]: forecastEntity([["2026-10-31T17:00:00Z", 30]]),
     });
 
     const [cell] = cells(card, "cloud_cover");
@@ -217,10 +225,31 @@ describe("more cloud is darker", () => {
   ])("shades %d%% as %s", async (value, colour) => {
     const card = await mountCard({
       [VERDICT]: NIGHT,
-      [CLOUD_COVER]: cloudEntity([["2026-10-31T21:00:00Z", value]]),
+      [CLOUD_COVER]: forecastEntity([["2026-10-31T21:00:00Z", value]]),
     });
 
     const [cell] = cells(card, "cloud_cover");
+    expect(cell?.dataset["shade"]).toBe(colour);
+  });
+});
+
+describe("the Sun altitude row steps through twilight", () => {
+  it.each([
+    [10, "#cde2fb"],
+    [0, "#9ec5f4"],
+    [-5.9, "#9ec5f4"],
+    [-6, "#6da7ec"],
+    [-12, "#3987e5"],
+    [-17.9, "#3987e5"],
+    [-18, "#0d366b"],
+    [-30, "#0d366b"],
+  ])("shades %d° as %s", async (value, colour) => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [SUN_ALTITUDE]: forecastEntity([["2026-10-31T21:00:00Z", value]]),
+    });
+
+    const [cell] = cells(card, "sun_altitude");
     expect(cell?.dataset["shade"]).toBe(colour);
   });
 });
@@ -233,7 +262,7 @@ describe("a null hour is blank", () => {
   ])("draws no cell for a value that is %s", async (_, value) => {
     const card = await mountCard({
       [VERDICT]: NIGHT,
-      [CLOUD_LOW]: cloudEntity([
+      [CLOUD_LOW]: forecastEntity([
         ["2026-10-31T21:00:00Z", 30],
         ["2026-10-31T22:00:00Z", value],
       ]),
@@ -247,7 +276,7 @@ describe("a null hour is blank", () => {
   it("draws a cell for 0%", async () => {
     const card = await mountCard({
       [VERDICT]: NIGHT,
-      [CLOUD_MID]: cloudEntity([["2026-10-31T22:00:00Z", 0]]),
+      [CLOUD_MID]: forecastEntity([["2026-10-31T22:00:00Z", 0]]),
     });
 
     expect(cells(card, "cloud_mid").map((cell) => cell.dataset["shade"])).toEqual(["#cde2fb"]);
@@ -274,7 +303,7 @@ describe("a null hour is blank", () => {
 });
 
 describe("a missing cloud sensor leaves an empty row", () => {
-  const forecast = cloudEntity([["2026-10-31T21:00:00Z", 30]]);
+  const forecast = forecastEntity([["2026-10-31T21:00:00Z", 30]]);
 
   it.each([
     ["missing", undefined],
@@ -299,24 +328,93 @@ describe("a missing cloud sensor leaves an empty row", () => {
   it("still draws the other rows", async () => {
     const card = await mountCard({
       [VERDICT]: NIGHT,
-      [CLOUD_COVER]: cloudEntity([["2026-10-31T21:00:00Z", 30]]),
+      [CLOUD_COVER]: forecastEntity([["2026-10-31T21:00:00Z", 30]]),
       [CLOUD_HIGH]: { state: "unavailable", attributes: {} },
     });
 
     expect(cells(card, "cloud_cover")).toHaveLength(1);
   });
 
-  it("draws four empty rows when no cloud sensor exists", async () => {
+  it("draws four empty cloud rows when no cloud sensor exists", async () => {
     const card = await mountCard({ [VERDICT]: NIGHT });
 
-    expect([rows(card).length, card.shadowRoot?.querySelectorAll(".cell").length]).toEqual([4, 0]);
+    const cloudRows = rows(card).filter((row) => row.dataset["row"]?.startsWith("cloud_"));
+    expect([cloudRows.length, card.shadowRoot?.querySelectorAll(".cell").length]).toEqual([4, 0]);
+  });
+});
+
+describe("the Sun altitude row", () => {
+  it("reads the sun altitude sensor named from the pier", async () => {
+    const card = await mountCard(
+      {
+        "sensor.pierpressure_back_yard_verdict": NIGHT,
+        "sensor.pierpressure_back_yard_sun_altitude": forecastEntity([
+          ["2026-10-31T21:00:00Z", -20],
+        ]),
+      },
+      "Back-Yard",
+    );
+
+    expect(cells(card, "sun_altitude").map((cell) => cell.dataset["hour"])).toEqual([
+      "2026-10-31T21:00:00.000Z",
+    ]);
+  });
+
+  it("draws the hours that overlap the axis, cut off at its ends", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [SUN_ALTITUDE]: forecastEntity([
+        ["2026-10-31T15:00:00Z", 20],
+        ["2026-10-31T16:00:00Z", 10],
+        ["2026-10-31T17:00:00Z", 0],
+        ["2026-11-01T08:00:00Z", 5],
+        ["2026-11-01T09:00:00Z", 15],
+      ]),
+    });
+
+    expect(
+      cells(card, "sun_altitude").map((cell) => [cell.dataset["from"], cell.dataset["to"]]),
+    ).toEqual([
+      ["2026-10-31T16:30:00.000Z", "2026-10-31T17:00:00.000Z"],
+      ["2026-10-31T17:00:00.000Z", "2026-10-31T18:00:00.000Z"],
+      ["2026-11-01T08:00:00.000Z", "2026-11-01T08:25:00.000Z"],
+    ]);
+  });
+
+  it("leaves a null hour blank", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [SUN_ALTITUDE]: forecastEntity([
+        ["2026-10-31T21:00:00Z", -20],
+        ["2026-10-31T22:00:00Z", null],
+      ]),
+    });
+
+    expect(cells(card, "sun_altitude").map((cell) => cell.dataset["hour"])).toEqual([
+      "2026-10-31T21:00:00.000Z",
+    ]);
+  });
+
+  it("stays labelled and empty when its sensor is unavailable", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [SUN_ALTITUDE]: { ...forecastEntity([["2026-10-31T21:00:00Z", -20]]), state: "unavailable" },
+      [CLOUD_COVER]: forecastEntity([["2026-10-31T21:00:00Z", 30]]),
+    });
+
+    const row = rows(card).find((element) => element.dataset["row"] === "sun_altitude");
+    expect([row?.textContent?.trim(), cells(card, "sun_altitude").length]).toEqual([
+      "Sun altitude",
+      0,
+    ]);
+    expect(cells(card, "cloud_cover")).toHaveLength(1);
   });
 });
 
 describe("hovering over a cell", () => {
   async function hoverText(value: unknown, at: string, timeZone = "UTC"): Promise<string[]> {
     const card = await mountCard(
-      { [VERDICT]: NIGHT, [CLOUD_COVER]: cloudEntity([[at, value]]) },
+      { [VERDICT]: NIGHT, [CLOUD_COVER]: forecastEntity([[at, value]]) },
       "backyard",
       timeZone,
     );
@@ -378,12 +476,498 @@ describe("hovering over a cell", () => {
     card.setConfig({ type: "custom:pierpressure-card", pier: "backyard" });
     document.body.append(card);
     card.hass = {
-      states: { [VERDICT]: NIGHT, [CLOUD_COVER]: cloudEntity([["2026-10-31T21:00:00Z", 40]]) },
+      states: { [VERDICT]: NIGHT, [CLOUD_COVER]: forecastEntity([["2026-10-31T21:00:00Z", 40]]) },
     };
     await card.updateComplete;
 
     const [cell] = cells(card, "cloud_cover");
     expect(cell?.getAttribute("title")).toMatch(/^Cloud cover, the hour from \d\d:\d\d: 40%$/);
+  });
+});
+
+describe("hovering over a Sun altitude cell", () => {
+  it("shows the altitude in degrees", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [SUN_ALTITUDE]: forecastEntity([["2026-10-31T21:00:00Z", -14.235]]),
+    });
+
+    const [cell] = cells(card, "sun_altitude");
+    expect([cell?.getAttribute("title"), cell?.getAttribute("aria-label")]).toEqual([
+      "Sun altitude, the hour from 21:00: -14.235°",
+      "Sun altitude, the hour from 21:00: -14.235°",
+    ]);
+  });
+});
+
+describe("the Moon up lane", () => {
+  function spans(card: PierPressureCard, start: string, end: string): Array<[string?, string?]> {
+    return bars(card).map((bar) => [bar.dataset[start], bar.dataset[end]]);
+  }
+
+  it("is labelled Moon up, under Cloud high", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    const lane = moonLane(card);
+    expect([
+      lane?.querySelector(".label")?.textContent?.trim(),
+      (lane?.previousElementSibling as HTMLElement | null)?.dataset["row"],
+    ]).toEqual(["Moon up", "cloud_high"]);
+  });
+
+  it("reads the moon altitude sensor named from the pier", async () => {
+    const card = await mountCard(
+      {
+        "sensor.pierpressure_back_yard_verdict": NIGHT,
+        "sensor.pierpressure_back_yard_moon_altitude": forecastEntity([
+          ["2026-10-31T21:00:00Z", 12],
+        ]),
+      },
+      "Back-Yard",
+    );
+
+    expect(bars(card)).toHaveLength(1);
+  });
+
+  it("draws one bar for each run of hours the moon is up", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [MOON_ALTITUDE]: forecastEntity([
+        ["2026-10-31T16:00:00Z", 4],
+        ["2026-10-31T17:00:00Z", 6],
+        ["2026-10-31T18:00:00Z", -1],
+        ["2026-10-31T19:00:00Z", 2],
+        ["2026-10-31T20:00:00Z", 8],
+        ["2026-10-31T21:00:00Z", null],
+        ["2026-10-31T22:00:00Z", 12],
+        ["2026-10-31T23:00:00Z", 0],
+      ]),
+    });
+
+    expect(spans(card, "from", "to")).toEqual([
+      ["2026-10-31T16:30:00.000Z", "2026-10-31T18:00:00.000Z"],
+      ["2026-10-31T19:00:00.000Z", "2026-10-31T21:00:00.000Z"],
+      ["2026-10-31T22:00:00.000Z", "2026-10-31T23:00:00.000Z"],
+    ]);
+  });
+
+  it("ends a run at an hour the forecast has no point for", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [MOON_ALTITUDE]: forecastEntity([
+        ["2026-11-01T01:00:00Z", 5],
+        ["2026-11-01T03:00:00Z", 5],
+      ]),
+    });
+
+    expect(spans(card, "start", "end")).toEqual([
+      ["2026-11-01T01:00:00.000Z", "2026-11-01T02:00:00.000Z"],
+      ["2026-11-01T03:00:00.000Z", "2026-11-01T04:00:00.000Z"],
+    ]);
+  });
+
+  it("keeps a bar's own hours where the axis cuts it off", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [MOON_ALTITUDE]: forecastEntity([
+        ["2026-11-01T07:00:00Z", 5],
+        ["2026-11-01T08:00:00Z", 5],
+        ["2026-11-01T09:00:00Z", 5],
+      ]),
+    });
+
+    expect([spans(card, "start", "end"), spans(card, "from", "to")]).toEqual([
+      [["2026-11-01T07:00:00.000Z", "2026-11-01T10:00:00.000Z"]],
+      [["2026-11-01T07:00:00.000Z", "2026-11-01T08:25:00.000Z"]],
+    ]);
+  });
+
+  it("draws no bar for a run wholly outside the axis", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [MOON_ALTITUDE]: forecastEntity([
+        ["2026-10-31T12:00:00Z", 5],
+        ["2026-10-31T13:00:00Z", 5],
+      ]),
+    });
+
+    expect(bars(card)).toEqual([]);
+  });
+
+  it("follows the hours in time order, whatever order the forecast holds them in", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [MOON_ALTITUDE]: forecastEntity([
+        ["2026-10-31T22:00:00Z", 5],
+        ["2026-10-31T21:00:00Z", 5],
+      ]),
+    });
+
+    expect(spans(card, "start", "end")).toEqual([
+      ["2026-10-31T21:00:00.000Z", "2026-10-31T23:00:00.000Z"],
+    ]);
+  });
+
+  it("draws its bars in grey", () => {
+    const element = customElements.get("pierpressure-card") as typeof PierPressureCard;
+    const styles = [element.styles]
+      .flat()
+      .map((style) => String(style))
+      .join("");
+
+    expect(styles).toMatch(/\.bar\s*\{[^}]*background-color:\s*#898781/);
+  });
+
+  it.each([
+    [
+      "the moon stays down",
+      forecastEntity([
+        ["2026-10-31T21:00:00Z", -5],
+        ["2026-10-31T22:00:00Z", 0],
+      ]),
+    ],
+    ["its sensor is missing", undefined],
+    [
+      "its sensor is unavailable but kept its forecast",
+      { ...forecastEntity([["2026-10-31T21:00:00Z", 12]]), state: "unavailable" },
+    ],
+    ["its sensor has no forecast", { state: "12", attributes: {} }],
+    ["its forecast is not a list", { state: "12", attributes: { forecast: "soon" } }],
+  ])("stays labelled with no bars when %s", async (_, moon) => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      ...(moon && { [MOON_ALTITUDE]: moon }),
+    });
+
+    expect([moonLane(card)?.textContent?.trim(), bars(card)]).toEqual(["Moon up", []]);
+  });
+});
+
+describe("hovering over a Moon up bar", () => {
+  async function hoverText(
+    points: Array<[string, unknown]>,
+    verdict = NIGHT,
+    timeZone = "UTC",
+  ): Promise<string[]> {
+    const card = await mountCard(
+      { [VERDICT]: verdict, [MOON_ALTITUDE]: forecastEntity(points) },
+      "backyard",
+      timeZone,
+    );
+    const [bar] = bars(card);
+    return [bar?.getAttribute("title") ?? "", bar?.getAttribute("aria-label") ?? ""];
+  }
+
+  const RISE_AND_SET: Array<[string, unknown]> = [
+    ["2026-10-31T15:00:00Z", -2],
+    ["2026-10-31T16:00:00Z", 4],
+    ["2026-10-31T17:00:00Z", 6],
+    ["2026-10-31T18:00:00Z", -1],
+  ];
+
+  it("shows the hours the moon rises and sets", async () => {
+    expect(await hoverText(RISE_AND_SET)).toEqual([
+      "Moon up from 16:00 to 18:00",
+      "Moon up from 16:00 to 18:00",
+    ]);
+  });
+
+  it("shows the hours in Home Assistant's time zone", async () => {
+    const [title] = await hoverText(RISE_AND_SET, NIGHT, "Asia/Tokyo");
+
+    expect(title).toBe("Moon up from 01:00 to 03:00");
+  });
+
+  it("leaves out a rise before the forecast starts", async () => {
+    const [title] = await hoverText([
+      ["2026-11-01T00:00:00Z", 4],
+      ["2026-11-01T01:00:00Z", 6],
+      ["2026-11-01T02:00:00Z", -1],
+    ]);
+
+    expect(title).toBe("Moon up until 02:00");
+  });
+
+  it("leaves out a rise after a null hour", async () => {
+    const [title] = await hoverText([
+      ["2026-10-31T21:00:00Z", null],
+      ["2026-10-31T22:00:00Z", 4],
+      ["2026-10-31T23:00:00Z", -1],
+    ]);
+
+    expect(title).toBe("Moon up until 23:00");
+  });
+
+  it("leaves out a set after the forecast ends", async () => {
+    const [title] = await hoverText([
+      ["2026-11-01T06:00:00Z", -1],
+      ["2026-11-01T07:00:00Z", 3],
+      ["2026-11-01T08:00:00Z", 5],
+    ]);
+
+    expect(title).toBe("Moon up from 07:00");
+  });
+
+  it("shows neither when the forecast holds no rise or set", async () => {
+    const [title] = await hoverText([["2026-10-31T22:00:00Z", 5]]);
+
+    expect(title).toBe("Moon up");
+  });
+
+  const POLAR = verdictEntity("GO", {
+    dark_window: { start: "2026-12-20T12:00:00Z", end: "2026-12-21T06:00:00Z" },
+  });
+
+  function runOf(hours: number): Array<[string, unknown]> {
+    const start = Date.parse("2026-12-20T07:00:00Z");
+    const at = (n: number) => new Date(start + n * 60 * 60 * 1000).toISOString();
+    return [
+      [at(-1), -1],
+      ...Array.from({ length: hours }, (_, n): [string, unknown] => [at(n), 5]),
+      [at(hours), -1],
+    ];
+  }
+
+  it("shows the hours of a run shorter than a day", async () => {
+    const [title] = await hoverText(runOf(23), POLAR);
+
+    expect(title).toBe("Moon up from 07:00 to 06:00");
+  });
+
+  // Clocks in Athens go forward at 01:00 UTC on 2026-03-29, so 23 hours from
+  // 04:00 local ends at 04:00 local the next day.
+  it("shows no hours for a run that ends at the same time of day as it starts", async () => {
+    const points: Array<[string, unknown]> = [["2026-03-28T01:00:00Z", -1]];
+    const start = Date.parse("2026-03-28T02:00:00Z");
+    for (let n = 0; n < 23; n++) points.push([new Date(start + n * HOUR).toISOString(), 5]);
+    points.push(["2026-03-29T01:00:00Z", -1]);
+    const verdict = verdictEntity("GO", {
+      dark_window: { start: "2026-03-28T19:00:00Z", end: "2026-03-29T02:00:00Z" },
+    });
+
+    const [title] = await hoverText(points, verdict, "Europe/Athens");
+
+    expect(title).toBe("Moon up");
+  });
+
+  it.each([24, 30])("shows no hours for a run of %d hours", async (hours) => {
+    const [title] = await hoverText(runOf(hours), POLAR);
+
+    expect(title).toBe("Moon up");
+  });
+});
+
+function cardStyles(): string {
+  const element = customElements.get("pierpressure-card") as typeof PierPressureCard;
+  return [element.styles]
+    .flat()
+    .map((style) => String(style))
+    .join("");
+}
+
+describe("the dusk and dawn lines", () => {
+  it("sit at the ends of the dark window", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect([line(card, "dusk")?.dataset["at"], line(card, "dawn")?.dataset["at"]]).toEqual([
+      "2026-10-31T20:30:00.000Z",
+      "2026-11-01T03:25:00.000Z",
+    ]);
+  });
+
+  // 16:30 to 08:25 is 955 minutes; dusk at 20:30 is 240 minutes in.
+  it("are placed in percent of the axis", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect(line(card, "dusk")?.style.left).toBe("25.1309%");
+  });
+
+  it("are labelled dusk and dawn above the strip, over their lines", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect(
+      ["dusk", "dawn"].map((kind) => [
+        mark(card, kind)?.textContent?.trim(),
+        mark(card, kind)?.style.left === line(card, kind)?.style.left,
+      ]),
+    ).toEqual([
+      ["dusk", true],
+      ["dawn", true],
+    ]);
+  });
+
+  it("show their time on hover", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect(
+      ["dusk", "dawn"].flatMap((kind) => [
+        line(card, kind)?.getAttribute("title"),
+        line(card, kind)?.getAttribute("aria-label"),
+      ]),
+    ).toEqual(["Dusk, 20:30", "Dusk, 20:30", "Dawn, 03:25", "Dawn, 03:25"]);
+  });
+
+  it("are dashed grey", () => {
+    expect(cardStyles()).toMatch(/\.line::after\s*\{[^}]*border-left:\s*2px dashed #898781/);
+  });
+
+  it("are missing on a night with no astronomical darkness", async () => {
+    pinClock("2026-06-21T12:00:00Z");
+
+    const card = await mountCard({
+      [VERDICT]: verdictEntity("GO", { dark_window: { start: null, end: null } }),
+    });
+
+    expect([line(card, "dusk"), line(card, "dawn"), mark(card, "dusk")]).toEqual([
+      null,
+      null,
+      null,
+    ]);
+  });
+});
+
+describe("the now line", () => {
+  it("sits at the browser's time", async () => {
+    pinClock("2026-10-31T22:00:00Z");
+
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect([line(card, "now")?.dataset["at"], mark(card, "now")?.textContent?.trim()]).toEqual([
+      "2026-10-31T22:00:00.000Z",
+      "now",
+    ]);
+  });
+
+  it("shows its time on hover", async () => {
+    pinClock("2026-10-31T22:00:00Z");
+
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect([
+      line(card, "now")?.getAttribute("title"),
+      line(card, "now")?.getAttribute("aria-label"),
+    ]).toEqual(["Now, 22:00", "Now, 22:00"]);
+  });
+
+  it("is solid red", () => {
+    expect(cardStyles()).toMatch(
+      /\.line\[data-line="now"\]::after\s*\{[^}]*border-left:\s*2px solid #e66767/,
+    );
+  });
+
+  it("has a red label", () => {
+    expect(cardStyles()).toMatch(/\.mark\[data-mark="now"\]\s*\{[^}]*color:\s*#e66767/);
+  });
+
+  it("is missing before the axis starts", async () => {
+    pinClock("2026-10-31T12:00:00Z");
+
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect([line(card, "now"), mark(card, "now")]).toEqual([null, null]);
+  });
+
+  it("is missing after the axis ends", async () => {
+    pinClock("2026-11-01T09:00:00Z");
+
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect(line(card, "now")).toBeNull();
+  });
+
+  it("sits at the browser's time on a night with no astronomical darkness", async () => {
+    pinClock("2026-06-21T12:00:00Z");
+
+    const card = await mountCard({
+      [VERDICT]: verdictEntity("GO", { dark_window: { start: null, end: null } }),
+    });
+
+    expect(line(card, "now")?.dataset["at"]).toBe("2026-06-21T12:00:00.000Z");
+  });
+});
+
+describe("the card's minute timer", () => {
+  // pinClock fakes only Date; these tests need the card's interval faked too.
+  function pinClockAndTimers(iso: string): void {
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+    vi.setSystemTime(new Date(iso));
+  }
+
+  it("moves the now line a minute later with no new state", async () => {
+    pinClockAndTimers("2026-10-31T22:00:00Z");
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    vi.advanceTimersByTime(60_000);
+    await card.updateComplete;
+
+    expect(line(card, "now")?.dataset["at"]).toBe("2026-10-31T22:01:00.000Z");
+  });
+
+  it("runs one timer while the card is on the page", async () => {
+    pinClockAndTimers("2026-10-31T22:00:00Z");
+
+    await mountCard({ [VERDICT]: NIGHT });
+
+    expect(vi.getTimerCount()).toBe(1);
+  });
+
+  it("stops its timer when the card is removed", async () => {
+    pinClockAndTimers("2026-10-31T22:00:00Z");
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    card.remove();
+
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("keeps one timer when the card is put back on the page", async () => {
+    pinClockAndTimers("2026-10-31T22:00:00Z");
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    card.remove();
+    document.body.append(card);
+
+    expect(vi.getTimerCount()).toBe(1);
+  });
+});
+
+describe("the lines' overlay", () => {
+  function overlay(card: PierPressureCard): HTMLElement | null | undefined {
+    return card.shadowRoot?.querySelector<HTMLElement>(".strip .lines");
+  }
+
+  // Grid row 1 holds the line labels, rows 2 to 6 the five rows, and row 7 the
+  // Moon up lane, so the overlay runs from line 2 to line 8.
+  it("covers the rows and the Moon up lane", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    const style = overlay(card)?.getAttribute("style") ?? "";
+    expect([style.includes("grid-column: 2"), style.includes("grid-row: 2 / 8")]).toEqual([
+      true,
+      true,
+    ]);
+  });
+
+  it("stretches over its grid area", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect(overlay(card)?.getAttribute("style")).toContain("inset: 0");
+  });
+
+  it("paints above the cells and bars", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    const element = overlay(card);
+    expect([
+      element?.getAttribute("style")?.includes("z-index: 1"),
+      element === strip(card)?.lastElementChild,
+    ]).toEqual([true, true]);
+  });
+
+  it("gives the strip one explicit grid row for each of its rows", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect(strip(card)?.getAttribute("style")).toContain("grid-template-rows: repeat(8, auto)");
   });
 });
 
