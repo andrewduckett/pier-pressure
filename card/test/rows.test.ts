@@ -1,6 +1,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   CLOUD_COVER,
+  DEW_POINT,
   MOON_ALTITUDE,
   HUMIDITY,
   PRECIPITATION_PROBABILITY,
@@ -208,6 +209,46 @@ describe("worse seeing and transparency are darker", () => {
 
   it("keeps a Transparency above 1 at the lightest", async () => {
     expect(await shades(TRANSPARENCY, "transparency", [1.2])).toEqual(["#cde2fb"]);
+  });
+});
+
+describe("warmer is darker in Temperature and Dew point", () => {
+  it("steps Temperature from a cold night to a warm one", async () => {
+    expect(await shades(TEMPERATURE, "temperature", [-8, -5, 0, 7, 12, 17, 25])).toEqual([
+      "#cde2fb",
+      "#9ec5f4",
+      "#6da7ec",
+      "#3987e5",
+      "#256abf",
+      "#184f95",
+      "#0d366b",
+    ]);
+  });
+
+  it("shades Dew point on the same scale", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [TEMPERATURE]: hourly([7]),
+      [DEW_POINT]: hourly([6]),
+    });
+
+    const shaded = ["temperature", "dew_point"].map((key) => cells(card, key)[0]?.dataset["shade"]);
+    expect(shaded).toEqual(["#3987e5", "#3987e5"]);
+  });
+});
+
+describe("more humidity and rain chance is darker", () => {
+  it("steps Humidity from dry to saturated", async () => {
+    expect(await shades(HUMIDITY, "humidity", [0, 44, 100])).toEqual([
+      "#cde2fb",
+      "#6da7ec",
+      "#0d366b",
+    ]);
+  });
+
+  it("shades Rain chance on the same scale", async () => {
+    const key = "precipitation_probability";
+    expect(await shades(PRECIPITATION_PROBABILITY, key, [90])).toEqual(["#0d366b"]);
   });
 });
 

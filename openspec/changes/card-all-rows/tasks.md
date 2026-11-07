@@ -4,7 +4,7 @@
 - [x] 1.2 [easy] A Rain chance value fills the hour that ends at its `datetime`: a value at 22:00 UTC fills 21:00 to 22:00, and the spec's axis-end scenario holds (design DD1) (verify: mise exec -- npm --prefix card test -- rows) (✓ npm test -- rows passed)
 - [x] 1.3 [easy] Moon altitude, Wind gust and Wind speed cells take the spec's shades: −10, 0, 3, 6, 12, 18, 24, 30 and 60 for the moon; 0, 6.9, 7, 41 and 42 for gusts; 21 for wind speed (design DD2) (verify: mise exec -- npm --prefix card test -- rows) (✓ npm test -- rows passed)
 - [x] 1.4 [easy] Seeing and Transparency cells are darker when worse: 1, 0.8, 0.5 and 0 give `#cde2fb`, `#9ec5f4`, `#256abf` and `#0d366b`, and 1.2 gives `#cde2fb` (design DD2) (verify: mise exec -- npm --prefix card test -- rows) (✓ npm test -- rows passed)
-- [ ] 1.5 [easy] Temperature and Dew point share one scale, −8 to 25 °C from the spec, and Humidity and Rain chance step by 15% (design DD2) (verify: mise exec -- npm --prefix card test -- rows)
+- [x] 1.5 [easy] Temperature and Dew point share one scale, −8 to 25 °C from the spec, and Humidity and Rain chance step by 15% (design DD2) (verify: mise exec -- npm --prefix card test -- rows) (✓ npm test -- rows passed)
 - [ ] 1.6 [medium] A Wind direction cell has no shade and no `data-shade`, carries `data-arrow` with `(v + 180) mod 360` (225 gives 45, 0 gives 180), and holds an `<svg>` whose group is rotated by that angle; a null hour has no cell; shaded cells have no `data-arrow` (design DD2, DD3) (verify: mise exec -- npm --prefix card test -- rows)
 
 ## 2. Hover and size [depends-on: 1]
@@ -24,3 +24,4 @@
 
 - 2026-11-07: in task 1.1, the ten new rows start with the cloud shade and no unit, so each later task's test goes red first. The Seeing null-hour test passed on its first run, because a missing row has no cells either; it stays as a guard.
 - 2026-11-07: in task 1.4, the Transparency-above-1 test passed on its first run, because the cloud shade also gives 1.2 the lightest blue. It stays as a guard for the clamp.
+- 2026-11-07: in task 1.5, the Humidity and Rain chance shade tests passed on their first run, because task 1.1 gave those rows the cloud shade they keep. They stay as guards.

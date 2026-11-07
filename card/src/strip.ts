@@ -68,8 +68,8 @@ export const ROWS: readonly RowKind[] = [
   { key: "wind_gust", label: "Wind gust", unit: "", shade: windShade },
   { key: "seeing", label: "Seeing", unit: "", shade: qualityShade },
   { key: "transparency", label: "Transparency", unit: "", shade: qualityShade },
-  { key: "temperature", label: "Temperature", unit: "", shade: percentShade },
-  { key: "dew_point", label: "Dew point", unit: "", shade: percentShade },
+  { key: "temperature", label: "Temperature", unit: "", shade: temperatureShade },
+  { key: "dew_point", label: "Dew point", unit: "", shade: temperatureShade },
   { key: "humidity", label: "Humidity", unit: "", shade: percentShade },
   { key: "wind_speed", label: "Wind speed", unit: "", shade: windShade },
   { key: "wind_direction", label: "Wind direction", unit: "", shade: percentShade },
@@ -296,6 +296,12 @@ function moonShade(degrees: number): string {
 // A quality from 0 to 1, where 1 is best, so darker is worse, as in the YAML strip.
 function qualityShade(quality: number): string {
   return blue(Math.round((1 - quality) * 7));
+}
+
+// Temperature and Dew point share this scale, so the two rows compare by eye:
+// one step per 5 °C, from below −5 °C to 20 °C or more.
+function temperatureShade(celsius: number): string {
+  return blue(Math.floor((celsius + 10) / 5));
 }
 
 // One step per 7 km/h, so 42 km/h or more is the darkest, as in the YAML strip.
