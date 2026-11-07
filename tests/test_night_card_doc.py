@@ -163,3 +163,34 @@ def test_docs_strip_gives_the_axis_span() -> None:
 @pytest.mark.parametrize("term", ["clear", "overcast", "blank", "hover", "time zone"])
 def test_docs_strip_explains_what_it_shows(term: str) -> None:
     assert term in _page().lower()
+
+
+def test_docs_night_axis_names_the_sun_and_moon_sensors() -> None:
+    page = _page()
+
+    assert "**Sun altitude**" in page
+    assert "**Moon up**" in page
+    assert "sensor.pierpressure_<pier>_sun_altitude" in page
+    assert "sensor.pierpressure_<pier>_moon_altitude" in page
+
+
+@pytest.mark.parametrize(
+    "term",
+    [
+        "civil",
+        "nautical",
+        "astronomical",
+        "start of the hour",
+        "dusk",
+        "dawn",
+        "now",
+        "every minute",
+        "forecast",
+    ],
+)
+def test_docs_night_axis_explains_what_it_shows(term: str) -> None:
+    assert term in _page().lower()
+
+
+def test_docs_night_axis_no_longer_promises_dusk_and_dawn_later() -> None:
+    assert "Later releases add dusk, dawn" not in _page()

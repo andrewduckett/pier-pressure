@@ -18,7 +18,7 @@
 
 ## 4. Docs and the whole path [depends-on: 3]
 
-- [ ] 4.1 [easy] `docs/night-card.md` describes the Sun altitude row and its sensor, the civil, nautical and astronomical twilight steps, that each altitude is for the start of the hour, the Moon up lane and its sensor and that its hover names only a rise or set inside the forecast, the dusk and dawn lines and their absence with no astronomical darkness, and the now line that moves every minute; its opening no longer says a later release adds dusk, dawn and the moon (test: `tests/test_night_card_doc.py`) (verify: uv run pytest tests/test_night_card_doc.py -k axis)
+- [x] 4.1 [easy] `docs/night-card.md` describes the Sun altitude row and its sensor, the civil, nautical and astronomical twilight steps, that each altitude is for the start of the hour, the Moon up lane and its sensor and that its hover names only a rise or set inside the forecast, the dusk and dawn lines and their absence with no astronomical darkness, and the now line that moves every minute; its opening no longer says a later release adds dusk, dawn and the moon (test: `tests/test_night_card_doc.py`) (verify: uv run pytest tests/test_night_card_doc.py -k axis) (✓ pytest tests/test_night_card_doc.py -k axis passed)
 - [ ] 4.2 [complex] The whole path works: `mise run check` is green, and `mise run dashboard-check` shows the Sun altitude row, the Moon up lane and the dusk, dawn and now lines crossing the strip in a real Home Assistant, beside the YAML strip, checked by eye (verify: mise run check)
 
 ## Deviations Ledger
@@ -27,3 +27,4 @@
 
 - 2026-11-07: the harness's `cloudEntity` is now `forecastEntity`, since the sun and moon sensors share its shape.
 - 2026-11-07: task 3.1's test that the fallback axis has no dusk or dawn line passed on its first run, because the lines did not exist yet. It stays as a guard rather than a red step.
+- 2026-11-07: in task 4.1, the doc words astronomical, dusk, dawn, now and forecast were already on the page, so those cases passed on their first run.
