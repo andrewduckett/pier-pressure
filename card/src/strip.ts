@@ -189,7 +189,7 @@ export function buildStrip(
       };
     }),
     moonUp: moonUpBars(forecastOf(states[pierEntityId(pier, "moon_altitude")]), axis, time),
-    targets: targetLanes(states, pier, axis),
+    targets: targetLanes(states, pier, axis, time),
     lines: [...(night === undefined ? [] : nightLines(night, time)), ...nowLine(now, axis, time)],
   };
 }
@@ -289,7 +289,12 @@ const TARGET_RANKS = 10;
 // unknown state beside a window; such a rank waits for its name.
 const NO_NAME = new Set(["", "unknown", "unavailable"]);
 
-function targetLanes(states: States, pier: string, axis: Axis): TargetLane[] {
+function targetLanes(
+  states: States,
+  pier: string,
+  axis: Axis,
+  time: (at: number) => string,
+): TargetLane[] {
   return Array.from({ length: TARGET_RANKS }, (_, index) => index + 1).flatMap((rank) => {
     const entity = states[pierEntityId(pier, `target_${rank}`)];
     if (entity === undefined || NO_NAME.has(entity.state)) return [];
@@ -302,8 +307,15 @@ function targetLanes(states: States, pier: string, axis: Axis): TargetLane[] {
     if (end <= axis.start || start >= axis.end) return [lane];
     const from = Math.max(start, axis.start);
     const to = Math.min(end, axis.end);
-    return [{ ...lane, bar: { start, end, from, to, text: name } }];
+    return [{ ...lane, bar: { start, end, from, to, text: targetText(name, start, end, time) } }];
   });
+}
+
+// As for a Moon up run, HH:MM cannot tell one day from the next. A polar night's
+// window runs from solar noon to solar noon, and a target can be up for all of it.
+function targetText(name: string, start: number, end: number, time: (at: number) => string) {
+  if (end - start >= 24 * HOUR || time(start) === time(end)) return name;
+  return `${name} from ${time(start)} to ${time(end)}`;
 }
 
 // Hour by hour in time order, so a run never depends on the forecast's order.

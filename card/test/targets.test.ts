@@ -232,3 +232,81 @@ describe("a target bar's look", () => {
     ]).toEqual([true, true, true]);
   });
 });
+
+describe("hovering over a target bar", () => {
+  function hover(card: PierPressureCard): [string | null | undefined, string | null | undefined] {
+    const bar = targetBar(card, 1);
+    return [bar?.getAttribute("title"), bar?.getAttribute("aria-label")];
+  }
+
+  it("shows the target's name and window", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [target(1)]: targetEntity("Andromeda Galaxy", EVENING),
+    });
+
+    expect(hover(card)).toEqual([
+      "Andromeda Galaxy from 21:00 to 02:00",
+      "Andromeda Galaxy from 21:00 to 02:00",
+    ]);
+  });
+
+  it("shows the window's own times where the axis cuts the bar off", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [target(1)]: targetEntity("Orion Nebula", {
+        start: "2026-11-01T06:00:00Z",
+        end: "2026-11-01T10:00:00Z",
+      }),
+    });
+
+    expect(hover(card)[0]).toBe("Orion Nebula from 06:00 to 10:00");
+  });
+
+  it("shows the name alone for a target up all through a polar night", async () => {
+    const card = await mountCard({
+      [VERDICT]: verdictEntity("GO", {
+        dark_window: { start: "2026-12-21T10:58:02Z", end: "2026-12-22T10:58:32Z" },
+      }),
+      [target(1)]: targetEntity("IC2184", {
+        start: "2026-12-21T10:58:02Z",
+        end: "2026-12-22T10:58:32Z",
+      }),
+    });
+
+    expect(hover(card)[0]).toBe("IC2184");
+  });
+
+  it("shows the name alone for a window of over 24 hours", async () => {
+    const card = await mountCard({
+      [VERDICT]: verdictEntity("GO", {
+        dark_window: { start: "2026-12-21T10:00:00Z", end: "2026-12-22T10:30:00Z" },
+      }),
+      [target(1)]: targetEntity("IC2184", {
+        start: "2026-12-21T10:00:00Z",
+        end: "2026-12-22T10:30:00Z",
+      }),
+    });
+
+    expect(hover(card)[0]).toBe("IC2184");
+  });
+
+  // London's clocks go forward at 01:00 UTC, so 23 hours from 00:30 is 00:30 again.
+  it("shows the name alone when both ends read the same time", async () => {
+    const card = await mountCard(
+      {
+        [VERDICT]: verdictEntity("GO", {
+          dark_window: { start: "2026-03-29T00:00:00Z", end: "2026-03-30T00:00:00Z" },
+        }),
+        [target(1)]: targetEntity("Orion Nebula", {
+          start: "2026-03-29T00:30:00Z",
+          end: "2026-03-29T23:30:00Z",
+        }),
+      },
+      "backyard",
+      "Europe/London",
+    );
+
+    expect(hover(card)[0]).toBe("Orion Nebula");
+  });
+});
