@@ -132,7 +132,12 @@ export class PierPressureCard extends LitElement {
 
   private renderStrip() {
     if (this.hass === undefined || this.config === undefined) return nothing;
-    const strip = buildStrip(this.hass.states, this.config.pier, Date.now());
+    const strip = buildStrip(
+      this.hass.states,
+      this.config.pier,
+      Date.now(),
+      this.hass.config?.time_zone,
+    );
     return html`<div
       class="strip"
       data-axis-start=${iso(strip.axis.start)}
@@ -168,6 +173,8 @@ function renderCell(cell: Cell, axis: Axis) {
     data-from=${iso(cell.from)}
     data-to=${iso(cell.to)}
     data-shade=${cell.shade}
+    title=${cell.text}
+    aria-label=${cell.text}
   ></div>`;
 }
 

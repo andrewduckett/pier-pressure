@@ -9,7 +9,7 @@
 - [x] 2.2 [medium] Each forecast point fills the hour from its `datetime` as one cell, positioned in percent of the axis; hours wholly outside the axis get no cell, and a cell cut off at an axis end is flush with it, with `data-from` and `data-to` giving its drawn bounds (design DD2, DD3) (verify: mise exec -- npm --prefix card test -- strip) (✓ npm test -- strip passed)
 - [x] 2.3 [easy] A cell is shaded in the seven blues by shade step `min(6, floor(v / 15))`, clamped at 0: 0 gives `#cde2fb`, 44 gives `#6da7ec`, 100 gives `#0d366b` (design DD7) (verify: mise exec -- npm --prefix card test -- strip) (✓ npm test -- strip passed)
 - [x] 2.4 [medium] A null or non-number value, an hour with no point, a point without a readable `datetime`, a sensor that is missing or `unavailable` (even with a `forecast`), and a `forecast` that is missing or not a list each leave blank hours or an empty labelled row, and the card never throws (design DD7) (verify: mise exec -- npm --prefix card test -- strip) (✓ npm test -- strip passed)
-- [ ] 2.5 [medium] Each cell's `title` and `aria-label` read `<row>, the hour from <HH:MM>: <value>%` in `hass.config.time_zone` on a 24-hour clock with Latin digits: `21:00` for 12:00 UTC in `Asia/Tokyo`, and `21:00` in a browser set to `ar-EG`; a missing or invalid time zone falls back to the browser's (design DD4, DD5) (verify: mise exec -- npm --prefix card test -- strip)
+- [x] 2.5 [medium] Each cell's `title` and `aria-label` read `<row>, the hour from <HH:MM>: <value>%` in `hass.config.time_zone` on a 24-hour clock with Latin digits: `21:00` for 12:00 UTC in `Asia/Tokyo`, and `21:00` in a browser set to `ar-EG`; a missing or invalid time zone falls back to the browser's (design DD4, DD5) (verify: mise exec -- npm --prefix card test -- strip) (✓ npm test -- strip passed)
 
 ## 3. The time labels [depends-on: 2]
 
@@ -27,3 +27,4 @@
 
 - 2026-11-07: each cell also carries its shade in `data-shade` (design DD3 named only `style`), so the tests read the hex colour without depending on how happy-dom rewrites `background-color`.
 - 2026-11-07: task 2.3 skips a value that is not a finite number, because a shade needs a number. Some of task 2.4's cases therefore pass on their first run, as guards rather than red steps.
+- 2026-11-07: the Tokyo hover test reads 21:00 UTC as `06:00`, not 12:00 UTC as `21:00` as in the spec scenario, because 12:00 UTC falls outside the test night's axis. It proves the same rule.

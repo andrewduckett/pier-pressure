@@ -51,6 +51,8 @@ export interface Cell {
   to: number;
   value: number;
   shade: string;
+  // What hovering over the cell shows.
+  text: string;
 }
 
 export interface Row {
@@ -66,15 +68,24 @@ export interface Strip {
 
 type States = Record<string, { state: string; attributes: Record<string, unknown> } | undefined>;
 
-export function buildStrip(states: States, pier: string, now: number): Strip {
+export function buildStrip(
+  states: States,
+  pier: string,
+  now: number,
+  timeZone: string | undefined,
+): Strip {
   const verdict = states[pierEntityId(pier, "verdict")];
   const axis = stripAxis(verdict?.attributes["dark_window"], now);
+  const time = clock(timeZone);
   return {
     axis,
     rows: CLOUD_ROWS.map(({ key, label }) => ({
       key,
       label,
-      cells: rowCells(forecastOf(states[pierEntityId(pier, key)]), axis),
+      cells: rowCells(forecastOf(states[pierEntityId(pier, key)]), axis).map((cell) => ({
+        ...cell,
+        text: `${label}, the hour from ${time(cell.hour)}: ${cell.value}%`,
+      })),
     })),
   };
 }
@@ -86,7 +97,7 @@ function forecastOf(entity: States[string]): unknown {
   return entity.attributes["forecast"];
 }
 
-function rowCells(forecast: unknown, axis: Axis): Cell[] {
+function rowCells(forecast: unknown, axis: Axis): Omit<Cell, "text">[] {
   if (!Array.isArray(forecast)) return [];
   return forecast.flatMap((point: unknown) => {
     const record = asRecord(point);
@@ -113,4 +124,32 @@ const BLUES = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95",
 function cloudShade(percent: number): string {
   const step = Math.min(BLUES.length - 1, Math.max(0, Math.floor(percent / 15)));
   return BLUES[step] ?? BLUES[0];
+}
+
+// Every viewer reads the same `HH:MM`: a pinned locale and Latin digits, so a
+// browser in Arabic or Bengali still matches the time labels' filter.
+export function clock(timeZone: string | undefined): (time: number) => string {
+  const format = timeFormat(timeZone);
+  return (time) => {
+    const parts = format.formatToParts(time);
+    const part = (type: Intl.DateTimeFormatPartTypes) =>
+      parts.find((p) => p.type === type)?.value ?? "";
+    return `${part("hour")}:${part("minute")}`;
+  };
+}
+
+function timeFormat(timeZone: string | undefined): Intl.DateTimeFormat {
+  const options: Intl.DateTimeFormatOptions = {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    numberingSystem: "latn",
+  };
+  try {
+    return new Intl.DateTimeFormat("en-GB", { ...options, timeZone });
+  } catch (error) {
+    // An unknown time zone falls back to the browser's rather than breaking the card.
+    if (error instanceof RangeError) return new Intl.DateTimeFormat("en-GB", options);
+    throw error;
+  }
 }

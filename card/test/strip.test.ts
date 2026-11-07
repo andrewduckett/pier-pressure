@@ -312,3 +312,77 @@ describe("a missing cloud sensor leaves an empty row", () => {
     expect([rows(card).length, card.shadowRoot?.querySelectorAll(".cell").length]).toEqual([4, 0]);
   });
 });
+
+describe("hovering over a cell", () => {
+  async function hoverText(value: unknown, at: string, timeZone = "UTC"): Promise<string[]> {
+    const card = await mountCard(
+      { [VERDICT]: NIGHT, [CLOUD_COVER]: cloudEntity([[at, value]]) },
+      "backyard",
+      timeZone,
+    );
+    const [cell] = cells(card, "cloud_cover");
+    return [cell?.getAttribute("title") ?? "", cell?.getAttribute("aria-label") ?? ""];
+  }
+
+  it("shows the row, the hour and the value", async () => {
+    expect(await hoverText(40, "2026-10-31T21:00:00Z")).toEqual([
+      "Cloud cover, the hour from 21:00: 40%",
+      "Cloud cover, the hour from 21:00: 40%",
+    ]);
+  });
+
+  it("shows the value as the forecast holds it", async () => {
+    const [title] = await hoverText(37.5, "2026-10-31T21:00:00Z");
+
+    expect(title).toBe("Cloud cover, the hour from 21:00: 37.5%");
+  });
+
+  it("shows the hour in Home Assistant's time zone", async () => {
+    const [title] = await hoverText(40, "2026-10-31T21:00:00Z", "Asia/Tokyo");
+
+    expect(title).toBe("Cloud cover, the hour from 06:00: 40%");
+  });
+
+  it("writes midnight as 00:00", async () => {
+    const [title] = await hoverText(40, "2026-11-01T00:00:00Z");
+
+    expect(title).toBe("Cloud cover, the hour from 00:00: 40%");
+  });
+
+  // A browser's language sets the default locale, and some locales write other digits.
+  it("uses the digits 0 to 9 in a browser set to Arabic", async () => {
+    const Native = Intl.DateTimeFormat;
+    class ArabicByDefault extends Native {
+      constructor(locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions) {
+        super(locales ?? "ar-EG", options);
+      }
+    }
+    Intl.DateTimeFormat = ArabicByDefault as typeof Intl.DateTimeFormat;
+    try {
+      const [title] = await hoverText(40, "2026-10-31T21:00:00Z");
+
+      expect(title).toBe("Cloud cover, the hour from 21:00: 40%");
+    } finally {
+      Intl.DateTimeFormat = Native;
+    }
+  });
+
+  it("falls back to the browser's time zone for one Intl does not know", async () => {
+    const [title] = await hoverText(40, "2026-10-31T21:00:00Z", "Mars/Olympus_Mons");
+
+    expect(title).toMatch(/^Cloud cover, the hour from \d\d:\d\d: 40%$/);
+  });
+
+  it("falls back to the browser's time zone when Home Assistant gives none", async () => {
+    const card = document.createElement("pierpressure-card") as PierPressureCard;
+    card.setConfig({ type: "custom:pierpressure-card", pier: "backyard" });
+    document.body.append(card);
+    card.hass = {
+      states: { [VERDICT]: NIGHT, [CLOUD_COVER]: cloudEntity([["2026-10-31T21:00:00Z", 40]]) },
+    };
+    await card.updateComplete;
+
+    const [cell] = cells(card, "cloud_cover");
+    expect(cell?.getAttribute("title")).toMatch(/^Cloud cover, the hour from \d\d:\d\d: 40%$/);
+  });
+});
