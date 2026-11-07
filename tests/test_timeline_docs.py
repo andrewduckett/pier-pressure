@@ -30,6 +30,8 @@ _NEW_KEYS = (
     "wind_speed",
     "wind_direction",
     "precipitation_probability",
+    "cloud_cover_min",
+    "cloud_cover_max",
 )
 _NEW_NAMES = (
     "Cloud low",
@@ -46,6 +48,8 @@ _NEW_NAMES = (
     "Wind speed",
     "Wind direction",
     "Precipitation probability",
+    "Cloud cover min",
+    "Cloud cover max",
 )
 
 
@@ -242,3 +246,15 @@ def test_page_says_the_timeline_covers_the_hours_of_the_variables_it_shows(
 
 def test_page_says_the_air_quality_variables_never_add_an_hour(page_text: str) -> None:
     assert "air-quality variables never add an hour" in page_text
+
+
+def test_page_tables_the_cloud_range_keys_in_the_timeline(page_text: str) -> None:
+    section = _section(page_text, "## What the timeline is")
+    [row] = [line for line in section.splitlines() if "`cloud_cover_min`" in line]
+    assert "`cloud_cover_max`" in row
+    assert "two or more" in row
+
+
+def test_page_counts_the_sensors_per_pier(page_text: str) -> None:
+    section = " ".join(_section(page_text, "## Keep the forecast out of the recorder").split())
+    assert "its own seventeen sensors" in section
