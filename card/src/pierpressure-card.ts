@@ -129,6 +129,26 @@ export class PierPressureCard extends LitElement {
       height: 100%;
       color: var(--secondary-text-color);
     }
+    /* Twice a shaded row, so a 15% step of cloud is about 5 px, with its label
+       and message in the middle as in the other rows. */
+    .row[data-row="cloud_range"] .track {
+      height: 32px;
+    }
+    .row[data-row="cloud_range"] .label,
+    .row[data-row="cloud_range"] .missing {
+      line-height: 32px;
+    }
+    /* The hour's 0 to 100% column; its bar keeps to the rounded corners. */
+    .column {
+      background-color: #cde2fb;
+      overflow: hidden;
+    }
+    .range {
+      position: absolute;
+      left: 0;
+      right: 0;
+      background-color: #256abf;
+    }
     .marks {
       color: #898781;
       font-size: 0.75em;
@@ -400,7 +420,7 @@ function renderBand(band: Band, axis: Axis) {
   const range =
     `bottom: min(${band.low}%, calc(100% - 2px)); ` + `height: max(2px, ${band.high - band.low}%)`;
   return html`<div
-    class="cell"
+    class="cell column"
     style=${hourPlace(band, axis)}
     data-hour=${iso(band.hour)}
     data-from=${iso(band.from)}

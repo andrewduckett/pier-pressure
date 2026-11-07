@@ -4,6 +4,7 @@ import {
   CLOUD_COVER_MAX,
   CLOUD_COVER_MIN,
   VERDICT,
+  cardStyles,
   cells,
   forecastEntity,
   mountCard,
@@ -264,5 +265,44 @@ describe("a Cloud range row with a column", () => {
     const card = await oneHour(40, 70);
 
     expect(rowMessage(card, "cloud_range")).toBeNull();
+  });
+});
+
+// The declarations of every rule whose selector list holds `selector`.
+function declarations(selector: string): string[] {
+  const css = cardStyles().replace(/\/\*[\s\S]*?\*\//g, "");
+  const rules = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)];
+  return rules
+    .filter(([, selectors]) => selectors?.split(",").some((part) => part.trim() === selector))
+    .flatMap(([, , body]) => (body ?? "").split(";").map((part) => part.trim()));
+}
+
+describe("the Cloud range row's styles", () => {
+  it("make the row's track twice a shaded row's height", () => {
+    expect(declarations('.row[data-row="cloud_range"] .track')).toContain("height: 32px");
+  });
+
+  it.each([".label", ".missing"])("centre its %s in the taller row", (part) => {
+    expect(declarations(`.row[data-row="cloud_range"] ${part}`)).toContain("line-height: 32px");
+  });
+
+  it.each(["background-color: #cde2fb", "overflow: hidden"])(
+    "style each column with %s",
+    (declaration) => {
+      expect(declarations(".column")).toContain(declaration);
+    },
+  );
+
+  it.each(["position: absolute", "left: 0", "right: 0", "background-color: #256abf"])(
+    "style each range bar with %s",
+    (declaration) => {
+      expect(declarations(".range")).toContain(declaration);
+    },
+  );
+
+  it("mark each column for those styles", async () => {
+    const card = await oneHour(40, 70);
+
+    expect(columns(card)[0]?.classList.contains("column")).toBe(true);
   });
 });
