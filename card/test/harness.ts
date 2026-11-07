@@ -103,6 +103,15 @@ export function targetBar(card: PierPressureCard, rank: number): HTMLElement | n
   );
 }
 
+// The message a row, or a lane such as `moon_up`, shows when it has nothing to draw.
+export function rowMessage(card: PierPressureCard, key: string): HTMLElement | null {
+  return (
+    card.shadowRoot?.querySelector<HTMLElement>(
+      `.strip [data-row="${key}"] .missing, .strip [data-lane="${key}"] .missing`,
+    ) ?? null
+  );
+}
+
 // The card's stylesheet as text, for checking a rule the test DOM does not lay out.
 export function cardStyles(): string {
   const element = customElements.get("pierpressure-card") as typeof PierPressureCard;

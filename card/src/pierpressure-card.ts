@@ -6,6 +6,7 @@ import {
   type Cell,
   HOUR,
   type Line,
+  type Missing,
   type Strip,
   type TimeLabel,
   asRecord,
@@ -67,6 +68,10 @@ export class PierPressureCard extends LitElement {
     dd {
       margin: 0;
     }
+    .note {
+      margin: 16px 0 0;
+      color: var(--secondary-text-color);
+    }
     .strip {
       position: relative;
       display: grid;
@@ -85,6 +90,22 @@ export class PierPressureCard extends LitElement {
     .track {
       position: relative;
       height: 16px;
+    }
+    /* A block sized to its text: the track has no line height of its own, and
+       an inline box would sit low on Home Assistant's taller line and ignore
+       the indent. Hovering covers only the text, and a narrow card cuts it off. */
+    .missing {
+      display: block;
+      width: fit-content;
+      max-width: 100%;
+      box-sizing: border-box;
+      padding-left: 4px;
+      color: var(--secondary-text-color);
+      font-size: 0.75em;
+      line-height: 16px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .times {
       color: var(--secondary-text-color);
@@ -222,6 +243,7 @@ export class PierPressureCard extends LitElement {
       return html`<div class="card-content message">PierPressure is offline</div>`;
     }
     const confidence = asRecord(entity.attributes["confidence"]);
+    const strip = this.shownStrip();
     return html`<div class="card-content">
       <dl>
         <dt>Verdict</dt>
@@ -234,7 +256,7 @@ export class PierPressureCard extends LitElement {
           <span data-field="confidence-value">${shownNumber(confidence?.["value"])}</span>
         </dd>
       </dl>
-      ${renderStrip(this.shownStrip())}
+      ${renderNote(strip)} ${renderStrip(strip)}
     </div>`;
   }
 
@@ -248,6 +270,11 @@ export class PierPressureCard extends LitElement {
 }
 
 const DASH = "—";
+
+function renderNote(strip: Strip | undefined) {
+  if (strip?.noDarkness !== true) return nothing;
+  return html`<p class="note" data-note="no-darkness">No astronomical darkness tonight</p>`;
+}
 
 function renderStrip(strip: Strip | undefined) {
   if (strip === undefined) return nothing;
@@ -268,12 +295,18 @@ function renderStrip(strip: Strip | undefined) {
       (row) =>
         html`<div class="row" data-row=${row.key}>
           <span class="label">${row.label}</span>
-          <div class="track">${row.cells.map((cell) => renderCell(cell, strip.axis))}</div>
+          <div class="track">
+            ${row.cells.map((cell) => renderCell(cell, strip.axis))}
+            ${row.missing === undefined ? nothing : renderMissing(row.missing)}
+          </div>
         </div>`,
     )}
     <div class="row" data-lane="moon_up">
       <span class="label">Moon up</span>
-      <div class="track">${strip.moonUp.map((bar) => renderBar(bar, strip.axis))}</div>
+      <div class="track">
+        ${strip.moonUp.map((bar) => renderBar(bar, strip.axis))}
+        ${strip.moonUpMissing === undefined ? nothing : renderMissing(strip.moonUpMissing)}
+      </div>
     </div>
     ${strip.targets.map(
       (lane) =>
@@ -292,6 +325,17 @@ function renderStrip(strip: Strip | undefined) {
       ${strip.lines.map((line) => renderLine(line, strip.axis))}
     </div>
   </div>`;
+}
+
+function renderMissing(missing: Missing) {
+  const kind = missing.message.toLowerCase().replace(/ /g, "-");
+  return html`<span
+    class="missing"
+    data-missing=${kind}
+    title=${missing.text}
+    aria-label=${missing.text}
+    >${missing.message}</span
+  >`;
 }
 
 function renderMark(line: Line, axis: Axis) {

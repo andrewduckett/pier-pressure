@@ -15,6 +15,7 @@ import {
   mark,
   moonLane,
   mountCard,
+  rowMessage,
   verdictEntity,
 } from "./harness";
 import type { PierPressureCard } from "../src/pierpressure-card";
@@ -309,12 +310,20 @@ describe("a missing cloud sensor leaves an empty row", () => {
   const forecast = forecastEntity([["2026-10-31T21:00:00Z", 30]]);
 
   it.each([
-    ["missing", undefined],
-    ["unavailable", { state: "unavailable", attributes: {} }],
-    ["unavailable but still holding its forecast", { ...forecast, state: "unavailable" }],
-    ["without a forecast", { state: "30", attributes: {} }],
-    ["with a forecast that is not a list", { state: "30", attributes: { forecast: "soon" } }],
-  ])("keeps the row labelled and empty when the sensor is %s", async (_, cloudHigh) => {
+    ["missing", undefined, "Not found"],
+    ["unavailable", { state: "unavailable", attributes: {} }, "Unavailable"],
+    [
+      "unavailable but still holding its forecast",
+      { ...forecast, state: "unavailable" },
+      "Unavailable",
+    ],
+    ["without a forecast", { state: "30", attributes: {} }, "No forecast"],
+    [
+      "with a forecast that is not a list",
+      { state: "30", attributes: { forecast: "soon" } },
+      "No forecast",
+    ],
+  ])("keeps the row labelled and empty when the sensor is %s", async (_, cloudHigh, message) => {
     const states = {
       [VERDICT]: NIGHT,
       [CLOUD_COVER]: forecast,
@@ -324,8 +333,11 @@ describe("a missing cloud sensor leaves an empty row", () => {
     const card = await mountCard(states);
 
     const row = rows(card).find((element) => element.dataset["row"] === "cloud_high");
-    expect(row?.textContent?.trim()).toBe("Cloud high");
-    expect(cells(card, "cloud_high")).toEqual([]);
+    expect(row?.querySelector(".label")?.textContent?.trim()).toBe("Cloud high");
+    expect([cells(card, "cloud_high"), rowMessage(card, "cloud_high")?.textContent]).toEqual([
+      [],
+      message,
+    ]);
   });
 
   it("still draws the other rows", async () => {
@@ -406,10 +418,11 @@ describe("the Sun altitude row", () => {
     });
 
     const row = rows(card).find((element) => element.dataset["row"] === "sun_altitude");
-    expect([row?.textContent?.trim(), cells(card, "sun_altitude").length]).toEqual([
-      "Sun altitude",
-      0,
-    ]);
+    expect([
+      row?.querySelector(".label")?.textContent?.trim(),
+      cells(card, "sun_altitude").length,
+      rowMessage(card, "sun_altitude")?.textContent,
+    ]).toEqual(["Sun altitude", 0, "Unavailable"]);
     expect(cells(card, "cloud_cover")).toHaveLength(1);
   });
 });
@@ -622,21 +635,31 @@ describe("the Moon up lane", () => {
         ["2026-10-31T21:00:00Z", -5],
         ["2026-10-31T22:00:00Z", 0],
       ]),
+      undefined,
     ],
-    ["its sensor is missing", undefined],
+    ["its sensor is missing", undefined, "Not found"],
     [
       "its sensor is unavailable but kept its forecast",
       { ...forecastEntity([["2026-10-31T21:00:00Z", 12]]), state: "unavailable" },
+      "Unavailable",
     ],
-    ["its sensor has no forecast", { state: "12", attributes: {} }],
-    ["its forecast is not a list", { state: "12", attributes: { forecast: "soon" } }],
-  ])("stays labelled with no bars when %s", async (_, moon) => {
+    ["its sensor has no forecast", { state: "12", attributes: {} }, "No forecast"],
+    [
+      "its forecast is not a list",
+      { state: "12", attributes: { forecast: "soon" } },
+      "No forecast",
+    ],
+  ])("stays labelled with no bars when %s", async (_, moon, message) => {
     const card = await mountCard({
       [VERDICT]: NIGHT,
       ...(moon && { [MOON_ALTITUDE]: moon }),
     });
 
-    expect([moonLane(card)?.textContent?.trim(), bars(card)]).toEqual(["Moon up", []]);
+    expect([
+      moonLane(card)?.querySelector(".label")?.textContent?.trim(),
+      bars(card),
+      rowMessage(card, "moon_up")?.textContent,
+    ]).toEqual(["Moon up", [], message]);
   });
 });
 

@@ -108,10 +108,19 @@ export interface Cell {
   text: string;
 }
 
+// Why a row has no cell to draw, in the words the row shows.
+export interface Missing {
+  message: "Not found" | "Unavailable" | "No forecast";
+  // What hovering over the message shows: the sensor's id, so the user can find it.
+  text: string;
+}
+
 export interface Row {
   key: string;
   label: string;
   cells: Cell[];
+  // Only on a row with no cell.
+  missing?: Missing;
 }
 
 export interface Bar {
@@ -150,8 +159,13 @@ export interface TimeLabel {
 
 export interface Strip {
   axis: Axis;
+  // The core sends a dark window with two null ends when the sun never gets 18°
+  // below the horizon; a missing or unreadable window is not that.
+  noDarkness: boolean;
   rows: Row[];
   moonUp: Bar[];
+  // The Moon altitude row's, since the lane reads the same sensor.
+  moonUpMissing?: Missing;
   targets: TargetLane[];
   lines: Line[];
   labels: TimeLabel[];
@@ -166,29 +180,34 @@ export function buildStrip(
   timeZone: string | undefined,
 ): Strip {
   const verdict = states[pierEntityId(pier, "verdict")];
-  const night = darkWindow(verdict?.attributes["dark_window"]);
+  const window = asRecord(verdict?.attributes["dark_window"]);
+  const night = darkWindow(window);
   const axis = stripAxis(night, now);
   const time = clock(timeZone);
+  const rows = ROWS.map(({ key, label, unit, hourBefore, reading, ...mark }): Row => {
+    const write = reading ?? ((value: number) => `${value}${unit}`);
+    const entityId = pierEntityId(pier, key);
+    const entity = states[entityId];
+    const cells = rowCells(
+      forecastOf(entity),
+      axis,
+      (value) => (mark.arrow ? { arrow: mark.arrow(value) } : { shade: mark.shade(value) }),
+      hourBefore ? -HOUR : 0,
+    ).map((cell) => ({
+      ...cell,
+      text: `${label}, the hour from ${time(cell.hour)}: ${write(cell.value)}`,
+    }));
+    if (cells.length > 0) return { key, label, cells };
+    return { key, label, cells, missing: missing(entityId, entity) };
+  });
+  const moonMissing = rows.find((row) => row.key === "moon_altitude")?.missing;
   return {
     axis,
+    noDarkness: window?.["start"] === null && window["end"] === null,
     labels: timeLabels(axis, time),
-    rows: ROWS.map(({ key, label, unit, hourBefore, reading, ...mark }) => {
-      const write = reading ?? ((value: number) => `${value}${unit}`);
-      return {
-        key,
-        label,
-        cells: rowCells(
-          forecastOf(states[pierEntityId(pier, key)]),
-          axis,
-          (value) => (mark.arrow ? { arrow: mark.arrow(value) } : { shade: mark.shade(value) }),
-          hourBefore ? -HOUR : 0,
-        ).map((cell) => ({
-          ...cell,
-          text: `${label}, the hour from ${time(cell.hour)}: ${write(cell.value)}`,
-        })),
-      };
-    }),
+    rows,
     moonUp: moonUpBars(forecastOf(states[pierEntityId(pier, "moon_altitude")]), axis, time),
+    ...(moonMissing && { moonUpMissing: moonMissing }),
     targets: targetLanes(states, pier, axis, time),
     lines: [...(night === undefined ? [] : nightLines(night, time)), ...nowLine(now, axis, time)],
   };
@@ -204,6 +223,18 @@ function nightLines(night: Night, time: (at: number) => string): Line[] {
 function nowLine(now: number, axis: Axis, time: (at: number) => string): Line[] {
   if (now < axis.start || now > axis.end) return [];
   return [{ kind: "now", at: now, text: `Now, ${time(now)}` }];
+}
+
+// Decided after the cells, so every way a row can end up empty, from no list to
+// every point off the axis, gives a message.
+function missing(entityId: string, entity: States[string]): Missing {
+  if (entity === undefined) {
+    return { message: "Not found", text: `${entityId} is not in Home Assistant` };
+  }
+  if (entity.state === "unavailable") {
+    return { message: "Unavailable", text: `${entityId} is unavailable` };
+  }
+  return { message: "No forecast", text: `${entityId} has no forecast for these hours` };
 }
 
 // Home Assistant normally drops an unavailable entity's attributes; when it has

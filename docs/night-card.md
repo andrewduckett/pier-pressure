@@ -55,8 +55,9 @@ Under the rows is the **Moon up** lane, which also reads
 
 The strip runs from 4 hours before dusk to 5 hours after dawn, the dark window
 on the Verdict sensor. Some nights have no astronomical darkness, such as a
-summer night far from the equator. Then the strip runs from
-6 hours before now to 18 hours after.
+summer night far from the equator. Then the card shows
+"No astronomical darkness tonight" under the confidence, and the strip runs
+from 6 hours before now to 18 hours after.
 
 #### How to read the rows
 
@@ -104,8 +105,22 @@ A **Rain chance** value is the chance of rain or snow in the hour before its
 time. So its cell fills the hour before that time: the chance at 22:00 fills
 the cell from 21:00 to 22:00.
 
-A blank hour in a row means the weather source has no value for that hour. A
-row with no cells at all means its sensor is unavailable or has no forecast.
+A blank hour in a row means the weather source has no value for that hour.
+
+A row with no cells at all says why, with **Not found**, **Unavailable** or
+**No forecast**. Hover over the message to see the sensor's entity id, such as
+"sensor.pierpressure_backyard_seeing is unavailable". The **Moon up** lane
+reads the Moon altitude sensor, so it shows the same message as the Moon
+altitude row. A lane with no bar and no message means the moon stays down.
+
+| Message | What it means |
+|---|---|
+| **Not found** | Home Assistant has no entity with the sensor's id. |
+| **Unavailable** | The sensor is unavailable. Its forecast is hidden or out of date. |
+| **No forecast** | The sensor has no value for any hour on the strip. |
+
+The other rows draw as usual. See [If something looks wrong](#if-something-looks-wrong)
+for what to do.
 
 Hover over a cell to see its row, the hour it starts and its value with its
 unit, such as "Cloud cover, the hour from 21:00: 40%",
@@ -244,6 +259,39 @@ find your **Verdict** sensor under **Settings** > **Entities**. Then use, as
 - **"Custom element doesn't exist: pierpressure-card".** The card is not
   installed, or the browser has not loaded it yet. Install it as above, then
   reload the page.
+- **"PierPressure is offline".** Home Assistant has lost PierPressure: it has
+  stopped, or it cannot reach your MQTT broker. Check that PierPressure is
+  running. The card fills in again when it comes back.
+- **"No PierPressure verdict found".** The card cannot find the Verdict sensor
+  it names. Check your `pier` key, as
+  [Find your pier's entity id](#find-your-piers-entity-id) says. On a new
+  install, wait for PierPressure's first verdict.
+- **A row says "Not found".** Home Assistant has no sensor with the id the
+  message's hover shows. The card looks for it the same way as the Verdict
+  sensor. Check the id under **Settings** > **Entities**. If you disabled the
+  sensor, enable it. If your PierPressure is older than the card, update both
+  from the same release.
+- **A row says "Unavailable".** That one sensor is unavailable, though the
+  Verdict sensor is not. PierPressure makes all its sensors unavailable
+  together when it stops, so this usually lasts only while Home Assistant
+  catches up. If it stays, restart PierPressure, so it publishes every sensor
+  again.
+- **A row says "No forecast".** No weather source gave that condition a value
+  for the hours on the strip. There are two causes:
+  - None of the providers in your pier's `providers` setting supplies that
+    condition, or a short-range model does not reach tonight. Add a provider
+    that does, under `conditions` in the
+    [configuration](../README.md#%EF%B8%8F-configuration).
+  - Every weather source failed, so every row says "No forecast", Sun altitude
+    and Moon altitude too. The verdict still shows. Check the pier's weather
+    source health sensors, such as **Open-Meteo health**. See
+    [Watching provider health](../README.md#watching-provider-health).
+
+  Before PierPressure's first verdict, every row says "No forecast" too. The
+  rows fill in when it publishes.
+- **"No astronomical darkness tonight".** The sun stays less than 18° below
+  the horizon all night, as in summer far from the equator. Nothing is wrong.
+  The strip shows the day around now, with no dusk or dawn line.
 - **The card shows an older version's layout.** The browser has the old file
   cached. Reload the page while bypassing the cache, for example with
   Ctrl+Shift+R.

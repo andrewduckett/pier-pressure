@@ -15,6 +15,7 @@ import {
   cells,
   forecastEntity,
   mountCard,
+  rowMessage,
   verdictEntity,
 } from "./harness";
 import type { HassEntity, PierPressureCard } from "../src/pierpressure-card";
@@ -373,10 +374,11 @@ describe("a missing sensor leaves its row empty", () => {
       [HUMIDITY]: { ...forecast, state: "unavailable" },
     });
 
-    expect([row(card, "humidity")?.textContent?.trim(), cells(card, "humidity")]).toEqual([
-      "Humidity",
-      [],
-    ]);
+    expect([
+      row(card, "humidity")?.querySelector(".label")?.textContent?.trim(),
+      cells(card, "humidity"),
+      rowMessage(card, "humidity")?.textContent,
+    ]).toEqual(["Humidity", [], "Unavailable"]);
     expect(cells(card, "cloud_cover")).toHaveLength(1);
   });
 
@@ -393,6 +395,7 @@ describe("a missing sensor leaves its row empty", () => {
       (element) => !SUN_AND_CLOUD.includes(element.dataset["row"] ?? ""),
     );
     const drawn = others.flatMap((element) => [...element.querySelectorAll(".cell")]);
-    expect([others.length, drawn]).toEqual([10, []]);
+    const messages = others.map((element) => element.querySelector(".missing")?.textContent);
+    expect([others.length, drawn, new Set(messages)]).toEqual([10, [], new Set(["Not found"])]);
   });
 });

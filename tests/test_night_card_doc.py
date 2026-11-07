@@ -272,3 +272,55 @@ def test_docs_targets_named_in_the_opening() -> None:
     opening = _page().split("\n\n")[1]
 
     assert "ranked targets" in opening
+
+
+_TROUBLESHOOTING = "## If something looks wrong"
+
+
+def _before_troubleshooting() -> str:
+    page = _page()
+    return page[: page.index(_TROUBLESHOOTING)]
+
+
+@pytest.mark.parametrize(
+    "message", ["Not found", "Unavailable", "No forecast", "No astronomical darkness tonight"]
+)
+def test_docs_missing_strip_section_names_the_message(message: str) -> None:
+    assert message in _before_troubleshooting()
+
+
+def test_docs_missing_paragraph_names_hover_and_the_moon_up_lane() -> None:
+    paragraphs = _before_troubleshooting().split("\n\n")
+    paragraph = " ".join(next(p for p in paragraphs if "No forecast" in p).split())
+
+    assert ["hover" in paragraph.lower(), "Moon up" in paragraph] == [True, True]
+
+
+def test_docs_missing_no_longer_leaves_an_empty_row_unexplained() -> None:
+    assert "A row with no cells at all means" not in " ".join(_page().split())
+
+
+def _troubleshooting() -> str:
+    page = _page()
+    section = page[page.index(_TROUBLESHOOTING) + len(_TROUBLESHOOTING) :]
+    return section.split("\n## ", 1)[0]
+
+
+@pytest.mark.parametrize(
+    "shown",
+    [
+        "PierPressure is offline",
+        "No PierPressure verdict found",
+        "Not found",
+        "Unavailable",
+        "No forecast",
+        "No astronomical darkness tonight",
+    ],
+)
+def test_docs_wrong_section_says_what_to_do_for(shown: str) -> None:
+    assert shown in _troubleshooting()
+
+
+@pytest.mark.parametrize("where", ["health", "`providers`"])
+def test_docs_wrong_section_says_where_to_look_for_a_missing_forecast(where: str) -> None:
+    assert where in _troubleshooting()
