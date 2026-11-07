@@ -1,4 +1,5 @@
 import { LitElement } from "lit";
+import { pierSlug } from "./entity";
 
 declare const __CARD_VERSION__: string;
 
@@ -18,7 +19,27 @@ declare global {
   }
 }
 
-export class PierPressureCard extends LitElement {}
+export interface CardConfig {
+  type: string;
+  pier: string;
+}
+
+export class PierPressureCard extends LitElement {
+  static override properties = {
+    config: { state: true },
+  };
+
+  declare config?: CardConfig;
+
+  // Home Assistant shows a thrown error in place of the card.
+  setConfig(config: Record<string, unknown>): void {
+    const pier = config["pier"];
+    if (typeof pier !== "string" || pierSlug(pier) === "") {
+      throw new Error("pier is required");
+    }
+    this.config = { type: String(config["type"]), pier };
+  }
+}
 
 // HACS can load the file again when it updates the card in place; defining
 // the element twice throws, and a second entry would show twice in the picker.
