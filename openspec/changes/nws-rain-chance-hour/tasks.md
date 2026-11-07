@@ -1,6 +1,6 @@
 ## 1. NWS rain chance on hour-ending hours
 
-- [ ] 1.1 [easy] An NWS precipitation probability period `18:00/PT6H` of `40` fills 19:00 to 00:00 the next day, and 18:00 carries no precipitation probability (verify: `uv run pytest tests/test_conditions_provider.py -k nws_rain_chance`)
+- [x] 1.1 [easy] An NWS precipitation probability period `18:00/PT6H` of `40` fills 19:00 to 00:00 the next day, and 18:00 carries no precipitation probability (verify: `uv run pytest tests/test_conditions_provider.py -k nws_rain_chance`) (✓ `uv run pytest tests/test_conditions_provider.py -k nws_rain_chance` passed)
 - [ ] 1.2 [easy] With sky cover `45` and precipitation probability `20` both for `21:00/PT1H`, 21:00 carries the cloud cover and no precipitation probability, and 22:00 carries the precipitation probability and no cloud cover (verify: `uv run pytest tests/test_conditions_provider.py -k nws_rain_chance`)
 - [ ] 1.3 [easy] With the earliest period at 18:00 on day one, a precipitation probability period `16:00/PT2H` on day four fills 17:00, and no reading exists for 18:00 on day four (verify: `uv run pytest tests/test_conditions_provider.py -k nws_rain_chance`)
 - [ ] 1.4 [easy] Parsing `tests/fixtures/nws_gridpoints.json` puts the first precipitation probability one hour after the first `probabilityOfPrecipitation` period start, and the first sky cover on its period's start hour (verify: `uv run pytest tests/test_conditions_provider.py -k nws_rain_chance`)

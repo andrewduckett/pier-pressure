@@ -60,6 +60,7 @@ variable absent rather than converted (design DD4)."""
 
 # The same reach as 7Timer!, so listing NWS never lengthens the timeline (D2).
 _HORIZON = timedelta(hours=72)
+_AN_HOUR = timedelta(hours=1)
 
 # NWS emits durations in days, hours and minutes only, so this is all the
 # ISO 8601 a period needs. The standard library has no duration parser.
@@ -111,7 +112,9 @@ def parse_nws(payload: dict[str, Any]) -> SourceForecast:
     horizon = min(start for _, start, _, _ in periods) + _HORIZON
     columns: dict[datetime, dict[Variable, float | None]] = defaultdict(dict)
     for variable, start, duration, value in periods:
-        for hour in _hours(start, duration):
+        # Rain chance at an hour is for the hour ending there (D1).
+        shift = _AN_HOUR if variable == "precipitation_probability" else timedelta(0)
+        for hour in (covered + shift for covered in _hours(start, duration)):
             if hour < horizon:
                 columns[hour][variable] = None if value is None else float(value)
     return SourceForecast(

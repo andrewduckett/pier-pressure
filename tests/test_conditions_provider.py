@@ -1315,6 +1315,13 @@ def test_nws_issue_time_is_none_without_an_update_time() -> None:
     assert parse_nws(payload).issued_at is None
 
 
+def test_nws_rain_chance_is_held_on_the_hours_that_end_within_its_period() -> None:
+    forecast = parse_nws(_nws(probabilityOfPrecipitation=[("2026-09-08T18:00:00+00:00/PT6H", 40)]))
+    expected = {_at(8, 19) + timedelta(hours=n): 40.0 for n in range(6)}
+    assert {time: r.precipitation_probability for time, r in forecast.readings.items()} == expected
+    assert _at(8, 18) not in forecast.readings
+
+
 _MILWAUKEE = PierConfig(id="milwaukee", latitude=43.0389, longitude=-87.9065, elevation_m=180.0)
 _LUDINGTON = PierConfig(id="ludington", latitude=43.9553, longitude=-86.4526, elevation_m=180.0)
 
