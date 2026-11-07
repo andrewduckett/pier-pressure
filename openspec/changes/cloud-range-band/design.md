@@ -39,6 +39,12 @@
 - **Existing seams reused:** the fake MQTT client in
   `tests/test_timeline_sensors.py` for the two sensors, and the doc tests in
   `tests/test_timeline_docs.py` and `tests/test_night_card_doc.py`.
+- **Fixtures and counts to update:** `make_timeline` in `tests/conftest.py`
+  fills every field but leaves `cloud_cover_min` and `cloud_cover_max` null; it
+  gains non-null defaults, so the per-key state and hour tests and the
+  120-hour recorder-limit test measure real numbers. The card tests that count
+  rows or grid rows (`strip.test.ts`, `rows.test.ts`, `messages.test.ts`,
+  `targets.test.ts`) take the extra row.
 
 ## Scrutiny Tier & Blast Radius
 
@@ -81,9 +87,16 @@ nothing for a band.
 
 The row reads both forecasts into maps from hour to value, using the existing
 `hourlyValues` helper. An hour gets a band only when both maps hold a finite
-number for it. `low` is the smaller of the two and `high` the larger, each
-clamped to 0–100 for drawing; the hover text shows the values as the forecasts
-hold them, lower first. Horizontal placement reuses the cell rule: the hour
+number for it and the min is not above the max. The core never sends a min
+above the max, but Home Assistant applies the two sensors' updates one at a
+time. Between them, an hour can pair a new min with an old max. Swapping the
+pair would draw a wide disagreement that no forecast gave, so the card skips
+the hour instead, as it skips a dark window or a target window whose end is not
+after its start.
+
+`Band.low` and `Band.high`, and the `data-low` and `data-high` attributes,
+hold the values clamped to 0–100 for drawing. `Band.text` shows the values as
+the forecasts hold them. Horizontal placement reuses the cell rule: the hour
 starts at `datetime`, is cut off at the axis ends, and an hour wholly off the
 axis is dropped.
 
@@ -96,8 +109,12 @@ element in the dark blue `#256abf` sits at `bottom: <low>%` with
 2 px line. At 100% the line is pulled down to stay inside the track, by
 `bottom: min(<low>%, calc(100% - 2px))`.
 
+The band's `.cell` has `overflow: hidden`, so the `.range` bar keeps to the
+cell's rounded corners at 0% and 100%.
+
 The Cloud range track is 32 px tall, twice a shade row, so a 15% step is about
-5 px. The `.cell` element carries `data-hour`, `data-from`, `data-to`,
+5 px. The row's label and message get a 32 px line height, so they sit in the
+middle of the row as they do in a 16 px row. The `.cell` element carries `data-hour`, `data-from`, `data-to`,
 `data-low` and `data-high`, and the hover text in `title` and `aria-label`, as
 the other cells do.
 
@@ -121,15 +138,21 @@ An unavailable sensor's kept forecast is ignored, as for every other row
 
 ### DD6. Docs
 
-- `docs/night-timeline.md`: two rows in the sensor table, two entities in the
-  recorder exclusions, and "seventeen" for "fifteen". The two sensors' state is
-  unknown for an hour with fewer than two forecasts.
+- `docs/night-timeline.md`: the two keys in "What the timeline is", two rows in
+  the sensor table, the two names and "eighteen values" in "Why the Verdict
+  sensor leaves the timeline out", two entities in the recorder exclusions,
+  and "seventeen" for "fifteen". The two sensors' state is unknown for an hour
+  with fewer than two forecasts.
 - `README.md`: the two sensors in the entity table, both MQTT topic tables, the
   discovery pattern and the removal loop.
 - `docs/night-card.md`: Cloud range in the row table, a paragraph on how to
-  read it, its hover, `Needs two forecasts` with the other messages, and a
-  troubleshooting entry that says to add a second provider that gives cloud
-  cover, such as an Open-Meteo model.
+  read it, its hover, and `Needs two forecasts` with the other messages. The
+  note that every row says "No forecast" before the first verdict changes to
+  say the Cloud range row says `Needs two forecasts`. A troubleshooting entry
+  names both causes. Either fewer than two providers in the `providers` list
+  under `conditions` give cloud cover, so the fix is to add one, such as an
+  Open-Meteo model; or a listed cloud provider failed, which its health sensor
+  shows. For the add-on, `conditions` goes in the config file.
 
 ### ADR
 

@@ -59,7 +59,8 @@ Each further timeline sensor SHALL carry the name and unit that the scenarios be
 
 - **WHEN** the adapter publishes for a pier
 - **THEN** the `cloud_cover_min` and `cloud_cover_max` sensors are named Cloud cover min and Cloud cover max, with the unit `%`
-- **AND** Home Assistant gives them the entity ids `sensor.pierpressure_<pier>_cloud_cover_min` and `sensor.pierpressure_<pier>_cloud_cover_max`
+- **AND** for a pier with the id `backyard`, their unique ids are `pierpressure_backyard_cloud_cover_min` and `pierpressure_backyard_cloud_cover_max`
+- **AND** each name, in lower case with `_` for each space, is its key
 
 ### Requirement: A further timeline sensor's forecast mirrors its variable
 
