@@ -6,6 +6,7 @@ import {
   VERDICT,
   WIND_GUST,
   bars,
+  cardStyles,
   cardText,
   cells,
   field,
@@ -181,5 +182,26 @@ describe("the Moon up lane", () => {
     });
 
     expect([bars(card), rowMessage(card, "moon_up")]).toEqual([[], null]);
+  });
+});
+
+describe("a row's message", () => {
+  // The test DOM does no layout, so these read the stylesheet. An inline box
+  // would ignore the indent and sit on Home Assistant's taller line.
+  it.each([
+    "display: block",
+    "width: fit-content",
+    "max-width: 100%",
+    "padding-left: 4px",
+    "color: var(--secondary-text-color)",
+    "font-size: 0.75em",
+    "line-height: 16px",
+    "white-space: nowrap",
+    "overflow: hidden",
+    "text-overflow: ellipsis",
+  ])("is styled with %s", (declaration) => {
+    const rule = /\.missing\s*\{([^}]*)\}/.exec(cardStyles())?.[1] ?? "";
+
+    expect(rule.split(";").map((part) => part.trim())).toContain(declaration);
   });
 });

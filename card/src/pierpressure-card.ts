@@ -87,6 +87,22 @@ export class PierPressureCard extends LitElement {
       position: relative;
       height: 16px;
     }
+    /* A block sized to its text: the track has no line height of its own, and
+       an inline box would sit low on Home Assistant's taller line and ignore
+       the indent. Hovering covers only the text, and a narrow card cuts it off. */
+    .missing {
+      display: block;
+      width: fit-content;
+      max-width: 100%;
+      box-sizing: border-box;
+      padding-left: 4px;
+      color: var(--secondary-text-color);
+      font-size: 0.75em;
+      line-height: 16px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     .times {
       color: var(--secondary-text-color);
       font-size: 0.75em;
