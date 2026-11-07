@@ -40,6 +40,11 @@ verdict lines.
 | **Moonrise** | When the moon rises, if it rises during the dark window |
 | **Moonset** | When the moon sets, if it sets during the dark window |
 
+Phase and Illumination are for the time PierPressure last computed the verdict,
+not for a time during the night. Both change slowly, so they differ little from
+the moon you see after dusk. Near the boundary between two phases, the phase
+can change before the night starts.
+
 The dark window runs from dusk to dawn: the time the sun is at least 18° below
 the horizon. A dash for Moonrise or Moonset means the moon does not rise or set
 during the dark window. It may be up all night, down all night, or rise or set

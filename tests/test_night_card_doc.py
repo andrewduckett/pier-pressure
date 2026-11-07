@@ -408,3 +408,9 @@ def test_docs_moon_section_says_how_to_read_the_drawing(term: str) -> None:
 @pytest.mark.parametrize("phase", ["new moon", "full moon"])
 def test_docs_moon_section_says_how_a_moon_with_no_side_is_drawn(phase: str) -> None:
     assert phase in _moon_drawing_paragraphs().lower()
+
+
+def test_docs_moon_section_says_when_the_phase_is_for() -> None:
+    sentences = _before_the_strip().split(". ")
+
+    assert any("Phase" in s and "computed the verdict" in s for s in sentences)
