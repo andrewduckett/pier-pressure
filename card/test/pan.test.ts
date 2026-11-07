@@ -5,6 +5,7 @@ import {
   PRECIPITATION_PROBABILITY,
   SEEING,
   VERDICT,
+  cardStyles,
   forecastEntity,
   mountCard,
   target,
@@ -388,6 +389,105 @@ describe("a panned strip", () => {
     expect(axisOf(card)).toEqual(["2026-11-01T16:30:00.000Z", "2026-11-02T08:25:00.000Z"]);
   });
 });
+
+describe("the Back to tonight button", () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+  });
+
+  it("is hidden on the opening axis", async () => {
+    const card = await mountCard(THREE_DAYS);
+
+    expect(backButton(card)?.hidden).toBe(true);
+  });
+
+  it("shows once the strip is panned", async () => {
+    const card = await mountCard(THREE_DAYS);
+    await pressTimes(card, "ArrowRight", 24);
+
+    expect([backButton(card)?.hidden, backButton(card)?.textContent?.trim()]).toEqual([
+      false,
+      "Back to tonight",
+    ]);
+  });
+
+  it("returns the strip to the opening axis", async () => {
+    const card = await mountCard(THREE_DAYS);
+    await pressTimes(card, "ArrowRight", 24);
+
+    backButton(card)?.click();
+    await card.updateComplete;
+
+    expect(axisOf(card)).toEqual(["2026-10-31T16:30:00.000Z", "2026-11-01T08:25:00.000Z"]);
+  });
+
+  it("hides once it has returned the strip", async () => {
+    const card = await mountCard(THREE_DAYS);
+    await pressTimes(card, "ArrowRight", 24);
+
+    backButton(card)?.click();
+    await card.updateComplete;
+
+    expect(backButton(card)?.hidden).toBe(true);
+  });
+
+  it("gives the strip keyboard focus", async () => {
+    const card = await mountCard(THREE_DAYS);
+    await pressTimes(card, "ArrowRight", 24);
+
+    backButton(card)?.click();
+    await card.updateComplete;
+
+    expect(card.shadowRoot?.activeElement).toBe(stripOf(card));
+  });
+
+  it("sits outside the strip", async () => {
+    const card = await mountCard(THREE_DAYS);
+
+    expect(backButton(card)?.closest(".strip")).toBeNull();
+  });
+
+  it("keeps its place while hidden", () => {
+    expect(cardStyles()).toMatch(/\.back button\[hidden\]\s*\{[^}]*visibility:\s*hidden/);
+  });
+
+  it("is at least 24 px tall", () => {
+    expect(cardStyles()).toMatch(/\.back button\s*\{[^}]*min-height:\s*24px/);
+  });
+
+  it("does not pan the strip when pressed with a slip", async () => {
+    const card = await mountCard(THREE_DAYS);
+    await pressTimes(card, "ArrowRight", 24);
+    const button = backButton(card);
+
+    button?.dispatchEvent(pointer("pointerdown", 100));
+    button?.dispatchEvent(pointer("pointermove", 88));
+    button?.dispatchEvent(pointer("pointerup", 88));
+    button?.click();
+    await card.updateComplete;
+
+    expect(axisOf(card)).toEqual(["2026-10-31T16:30:00.000Z", "2026-11-01T08:25:00.000Z"]);
+  });
+});
+
+function backButton(card: PierPressureCard): HTMLButtonElement | null {
+  return card.shadowRoot?.querySelector<HTMLButtonElement>(".back button") ?? null;
+}
+
+// A mouse pointer's event, as a browser sends it for the main button.
+function pointer(type: string, clientX: number, clientY = 0, pointerId = 1): PointerEvent {
+  return new PointerEvent(type, {
+    bubbles: true,
+    composed: true,
+    cancelable: true,
+    clientX,
+    clientY,
+    pointerId,
+    isPrimary: pointerId === 1,
+    button: type === "pointermove" ? -1 : 0,
+    pointerType: "mouse",
+  });
+}
 
 const BOTH_PIERS = {
   ...THREE_DAYS,

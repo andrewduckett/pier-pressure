@@ -92,6 +92,30 @@ export class PierPressureCard extends LitElement {
       margin: 16px 0 0;
       color: var(--secondary-text-color);
     }
+    /* Always laid out, so the button showing moves nothing on the card. */
+    .back {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 16px;
+    }
+    .back button {
+      min-height: 24px;
+      padding: 0 8px;
+      border: 1px solid var(--divider-color, #898781);
+      border-radius: 4px;
+      background: none;
+      color: var(--primary-color);
+      font: inherit;
+      font-size: 0.85em;
+      cursor: pointer;
+    }
+    .back button[hidden] {
+      display: inline-block;
+      visibility: hidden;
+    }
+    .back + .strip {
+      margin-top: 4px;
+    }
     .strip {
       position: relative;
       display: grid;
@@ -317,7 +341,7 @@ export class PierPressureCard extends LitElement {
         </dl>
         ${renderMoon(moon)}
       </div>
-      ${renderNote(strip)} ${renderStrip(strip, this.onKey)}
+      ${renderNote(strip)} ${renderBack(strip, this.onBack)} ${renderStrip(strip, this.onKey)}
     </div>`;
   }
 
@@ -344,6 +368,12 @@ export class PierPressureCard extends LitElement {
     if (to === strip.axis.start) return;
     this.heldStart = to === strip.opening.start ? undefined : to;
   }
+
+  // The button hides itself, so focus moves to the strip it returned.
+  private onBack = (): void => {
+    this.heldStart = undefined;
+    this.renderRoot.querySelector<HTMLElement>(".strip")?.focus();
+  };
 
   private onKey = (event: KeyboardEvent): void => {
     const by = PAN_KEYS[event.key];
@@ -407,6 +437,15 @@ function renderLit({ lit, mirrored }: MoonDrawing) {
 function renderNote(strip: Strip | undefined) {
   if (strip?.noDarkness !== true) return nothing;
   return html`<p class="note" data-note="no-darkness">No astronomical darkness tonight</p>`;
+}
+
+function renderBack(strip: Strip | undefined, onBack: () => void) {
+  if (strip === undefined) return nothing;
+  return html`<div class="back">
+    <button type="button" ?hidden=${strip.axis.start === strip.opening.start} @click=${onBack}>
+      Back to tonight
+    </button>
+  </div>`;
 }
 
 function renderStrip(strip: Strip | undefined, onKey: (event: KeyboardEvent) => void) {
