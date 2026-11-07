@@ -35,6 +35,13 @@ jobs:
           key: uv-${{ runner.os }}-${{ hashFiles('uv.lock', '.python-version') }}
           restore-keys: uv-${{ runner.os }}-
 
+      - name: Cache npm packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('card/package-lock.json') }}
+          restore-keys: npm-${{ runner.os }}-
+
       - name: Sync dependencies
         run: mise exec -- uv sync --frozen
 
@@ -87,6 +94,23 @@ jobs:
           version="$(python3 scripts/next_version.py)"
           echo "Releasing $version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      # The card is built here, before anything is published, so a broken card
+      # build stops the release with no image, tag or release (night-card DD8).
+      - name: Install mise and its tools
+        uses: jdx/mise-action@v5
+
+      - name: Cache npm packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('card/package-lock.json') }}
+          restore-keys: npm-${{ runner.os }}-
+
+      - name: Build the dashboard card
+        env:
+          PIERPRESSURE_VERSION: ${{ steps.version.outputs.version }}
+        run: mise run card
 
       - name: Read the Python version
         id: python
@@ -141,13 +165,16 @@ jobs:
             PYTHON_VERSION=${{ steps.python.outputs.version }}
 
       # Last, and only once the push succeeds: a release never exists without its
-      # image. `gh release create` also creates the tag on the released commit.
+      # image. `gh release create` also creates the tag on the released commit,
+      # and attaches the card that HACS installs.
       - name: Tag the commit and create the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
           SHA: ${{ github.sha }}
-        run: gh release create "$VERSION" --target "$SHA" --title "$VERSION" --generate-notes
+        run: >-
+          gh release create "$VERSION" card/dist/pierpressure-card.js
+          --target "$SHA" --title "$VERSION" --generate-notes
 
       # After the release, so the pull request only ever names an image that exists
       # (ha-addon design D5). One fixed branch, force-pushed, keeps at most one

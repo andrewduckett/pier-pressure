@@ -6,14 +6,19 @@ these tests cover the files it writes and how it answers the MQTT config flow.
 
 from __future__ import annotations
 
+import hashlib
+import tomllib
 from pathlib import Path
 
 import pytest
 import yaml
 from dashboard_check import (
+    CARD_DASHBOARD_PATH,
     PASSWORD,
+    ROOT,
     USERNAME,
     HttpError,
+    install_pierpressure_card,
     mqtt_flow_input,
     ready_message,
     wait_for,
@@ -21,14 +26,15 @@ from dashboard_check import (
 )
 
 _PAGE = "# Night\n\n```yaml\nviews:\n  - title: Tonight\n```\n"
+_CARD_HASH = "0123456789ab"
 
 
 def test_write_config_loads_the_page_yaml_as_a_yaml_mode_dashboard(tmp_path: Path) -> None:
-    write_config(tmp_path, _PAGE)
+    write_config(tmp_path, _PAGE, _CARD_HASH)
     config = (tmp_path / "config" / "configuration.yaml").read_text(encoding="utf-8")
     parsed = yaml.safe_load(config)
     lovelace = parsed["lovelace"]
-    dashboard = next(iter(lovelace["dashboards"].values()))
+    dashboard = lovelace["dashboards"]["pierpressure-night"]
     assert dashboard["mode"] == "yaml"
     assert (tmp_path / "config" / dashboard["filename"]).read_text(encoding="utf-8") == (
         "views:\n  - title: Tonight\n"
@@ -36,7 +42,7 @@ def test_write_config_loads_the_page_yaml_as_a_yaml_mode_dashboard(tmp_path: Pat
 
 
 def test_write_config_registers_the_plotly_graph_card_resource(tmp_path: Path) -> None:
-    write_config(tmp_path, _PAGE)
+    write_config(tmp_path, _PAGE, _CARD_HASH)
     parsed = yaml.safe_load((tmp_path / "config" / "configuration.yaml").read_text("utf-8"))
     assert {"url": "/local/plotly-graph-card/plotly-graph-card.js", "type": "module"} in parsed[
         "lovelace"
@@ -44,7 +50,7 @@ def test_write_config_registers_the_plotly_graph_card_resource(tmp_path: Path) -
 
 
 def test_write_config_points_pierpressure_at_the_compose_broker(tmp_path: Path) -> None:
-    write_config(tmp_path, _PAGE)
+    write_config(tmp_path, _PAGE, _CARD_HASH)
     parsed = yaml.safe_load((tmp_path / "pierpressure.yaml").read_text(encoding="utf-8"))
     assert parsed["mqtt"]["host"] == "mosquitto"
     assert [pier["id"] for pier in parsed["piers"]] == ["backyard"]
@@ -105,3 +111,59 @@ def test_ready_message_names_the_login_but_never_prints_the_password() -> None:
     assert USERNAME in message
     assert PASSWORD not in message
     assert "scripts/dashboard_check.py" in message
+
+
+def _built_card(tmp_path: Path) -> Path:
+    built = tmp_path / "dist" / "pierpressure-card.js"
+    built.parent.mkdir()
+    built.write_text("console.info('PIERPRESSURE-CARD dev');\n", encoding="utf-8")
+    return built
+
+
+def test_install_card_copies_the_built_file_into_www(tmp_path: Path) -> None:
+    built = _built_card(tmp_path)
+    www = tmp_path / "www"
+
+    install_pierpressure_card(www, built)
+
+    assert (www / "pierpressure-card" / "pierpressure-card.js").read_bytes() == built.read_bytes()
+
+
+def test_install_card_returns_a_hash_of_the_file(tmp_path: Path) -> None:
+    built = _built_card(tmp_path)
+
+    card_hash = install_pierpressure_card(tmp_path / "www", built)
+
+    assert card_hash == hashlib.sha256(built.read_bytes()).hexdigest()[:12]
+
+
+def test_install_card_says_to_build_it_when_the_file_is_missing(tmp_path: Path) -> None:
+    with pytest.raises(RuntimeError, match="mise run card"):
+        install_pierpressure_card(tmp_path / "www", tmp_path / "dist" / "pierpressure-card.js")
+
+
+def test_write_config_registers_the_card_resource_with_its_hash(tmp_path: Path) -> None:
+    write_config(tmp_path, _PAGE, _CARD_HASH)
+    parsed = yaml.safe_load((tmp_path / "config" / "configuration.yaml").read_text("utf-8"))
+    assert {
+        "url": f"/local/pierpressure-card/pierpressure-card.js?v={_CARD_HASH}",
+        "type": "module",
+    } in parsed["lovelace"]["resources"]
+
+
+def test_write_config_adds_a_dashboard_holding_the_card(tmp_path: Path) -> None:
+    write_config(tmp_path, _PAGE, _CARD_HASH)
+    parsed = yaml.safe_load((tmp_path / "config" / "configuration.yaml").read_text("utf-8"))
+    dashboard = parsed["lovelace"]["dashboards"][CARD_DASHBOARD_PATH]
+    views = yaml.safe_load((tmp_path / "config" / dashboard["filename"]).read_text("utf-8"))
+    assert dashboard["mode"] == "yaml"
+    assert views["views"][0]["cards"] == [{"type": "custom:pierpressure-card", "pier": "backyard"}]
+
+
+def test_ready_message_names_the_card_dashboard() -> None:
+    assert f"/{CARD_DASHBOARD_PATH}" in ready_message()
+
+
+def test_dashboard_check_builds_the_card_first() -> None:
+    tasks = tomllib.loads((ROOT / "mise.toml").read_text(encoding="utf-8"))["tasks"]
+    assert "card" in tasks["dashboard-check"]["depends"]

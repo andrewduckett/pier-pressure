@@ -65,6 +65,12 @@
       matchUpdateTypes: ["minor", "patch"],
       groupName: "mise.toml minor and patch",
     },
+    {
+      // The dashboard card's packages in card/.
+      matchManagers: ["npm"],
+      matchUpdateTypes: ["minor", "patch"],
+      groupName: "npm minor and patch",
+    },
     // 2. Anything in the workflows is CI, including the Renovate and Node pins.
     {
       matchFileNames: [".github/workflows/**"],

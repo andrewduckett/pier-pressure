@@ -1,6 +1,6 @@
 name: CI
 
-# On push and PR, runs the full gate (`mise run check` = lint + typecheck + test),
+# On push and PR, runs the full gate (`mise run check` = lint + typecheck + test + the card),
 # the opt-in integration tests against a throwaway Mosquitto broker, and an image build.
 # The checks run with the tools in mise.toml, so CI tests what developers run.
 # Activates once the repo is pushed to GitHub.
@@ -37,6 +37,13 @@ jobs:
           path: ~/.cache/uv
           key: uv-${{ runner.os }}-${{ hashFiles('uv.lock', '.python-version') }}
           restore-keys: uv-${{ runner.os }}-
+
+      - name: Cache npm packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('card/package-lock.json') }}
+          restore-keys: npm-${{ runner.os }}-
 
       - name: Sync dependencies
         run: mise exec -- uv sync --frozen
