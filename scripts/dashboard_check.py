@@ -41,7 +41,6 @@ CLIENT_ID = f"{HA_URL}/"
 USERNAME = "pier"
 PASSWORD = "pressure-check"
 DASHBOARD_PATH = "pierpressure-night"
-DASHBOARD_FILE = "night-dashboard.yaml"
 CARD_BUILT = ROOT / "card" / "dist" / "pierpressure-card.js"
 CARD_DASHBOARD_PATH = "pierpressure-card"
 CARD_DASHBOARD_FILE = "card-dashboard.yaml"
@@ -61,24 +60,14 @@ _YAML_FENCE = re.compile(r"^```yaml\n(.*?)^```", re.MULTILINE | re.DOTALL)
 # --------------------------------------------------------------------------- #
 
 
-def dashboard_yaml(page: str) -> str:
-    """The docs page's one ```yaml block: the dashboard, as a reader pastes it."""
-    blocks = _YAML_FENCE.findall(page)
-    if len(blocks) != 1:
-        raise RuntimeError(f"the docs page should hold one ```yaml block, found {len(blocks)}")
-    return str(blocks[0])
-
-
-def write_config(workdir: Path, page: str, card_hash: str) -> None:
+def write_config(workdir: Path, card_hash: str) -> None:
     """Write Home Assistant's config and PierPressure's config under ``workdir``.
 
-    The night dashboard file is the page's YAML block, unchanged. ``card_hash``
-    goes on the card's resource URL, so the browser loads a rebuilt card rather
-    than the one it cached on an earlier run.
+    ``card_hash`` goes on the card's resource URL, so the browser loads a rebuilt
+    card rather than the one it cached on an earlier run.
     """
     config_dir = workdir / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
-    (config_dir / DASHBOARD_FILE).write_text(dashboard_yaml(page), encoding="utf-8")
     card_view = {
         "views": [
             {
@@ -105,20 +94,12 @@ def write_config(workdir: Path, page: str, card_hash: str) -> None:
         "lovelace": {
             "resource_mode": "yaml",
             "resources": [
-                {"url": "/local/plotly-graph-card/plotly-graph-card.js", "type": "module"},
                 {
                     "url": f"/local/pierpressure-card/pierpressure-card.js?v={card_hash}",
                     "type": "module",
                 },
             ],
             "dashboards": {
-                DASHBOARD_PATH: {
-                    "mode": "yaml",
-                    "filename": DASHBOARD_FILE,
-                    "title": "Night",
-                    "icon": "mdi:telescope",
-                    "show_in_sidebar": True,
-                },
                 CARD_DASHBOARD_PATH: {
                     "mode": "yaml",
                     "filename": CARD_DASHBOARD_FILE,
@@ -359,7 +340,7 @@ def main() -> int:
         _compose("down")
         _reset_home_assistant_state()
         card_hash = install_pierpressure_card(WORKDIR / "config" / "www")
-        write_config(WORKDIR, PAGE.read_text(encoding="utf-8"), card_hash)
+        write_config(WORKDIR, card_hash)
         install_plotly_graph_card(WORKDIR / "config" / "www" / "plotly-graph-card")
         _compose("up", "-d", "--build", "--wait")
         token = onboard()

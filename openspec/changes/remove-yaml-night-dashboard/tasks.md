@@ -1,6 +1,6 @@
 ## 1. Remove the YAML night dashboard
 
-- [ ] 1.1 [medium] `dashboard-check` writes a Home Assistant config whose only dashboard is the card's and whose only resource is the card's file: no plotly-graph-card resource and no night dashboard file, and `write_config` no longer takes the docs page (verify: `uv run pytest tests/test_dashboard_check.py`)
+- [x] 1.1 [medium] `dashboard-check` writes a Home Assistant config whose only dashboard is the card's and whose only resource is the card's file: no plotly-graph-card resource and no night dashboard file, and `write_config` no longer takes the docs page (verify: `uv run pytest tests/test_dashboard_check.py`) (✓ `uv run pytest tests/test_dashboard_check.py` passed)
 - [ ] 1.2 [easy] `dashboard-check` downloads no plotly-graph-card, reads no docs page, and its ready message names only the card dashboard, with no plotly helpers or `PAGE` left in `scripts/dashboard_check.py` (verify: `uv run pytest tests/test_dashboard_check.py`)
 - [ ] 1.3 [easy] The YAML night dashboard is gone: `docs/night-dashboard.md`, `docs/images/night-dashboard.png` and `tests/test_night_dashboard_doc.py` are deleted (verify: `uv run pytest`)
 - [ ] 1.4 [easy] The README has one dashboard paragraph, pointing to `docs/night-card.md` and saying the card shows the verdict, the moon, the night strip and the target lanes (verify: `! grep -q night-dashboard README.md && grep -q 'docs/night-card.md' README.md`)
