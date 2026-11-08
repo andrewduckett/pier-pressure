@@ -185,6 +185,18 @@ def test_the_air_quality_section_explains_its_variables(fact: str) -> None:
     assert fact in section
 
 
+def test_the_model_limits_give_the_hours_each_model_is_asked_for() -> None:
+    section = _section(_README.read_text(encoding="utf-8"), "### Choosing Open-Meteo models")
+    assert "asks every model for the 4 hours before now and the 72 after" in section
+
+
+@pytest.mark.parametrize("key", ["open_meteo_icon", "open_meteo_gfs"])
+def test_the_model_table_says_the_global_models_reach_past_3_days(key: str) -> None:
+    section = _section(_README.read_text(encoding="utf-8"), "### Choosing Open-Meteo models")
+    [row] = [line for line in section.splitlines() if line.startswith(f"| `{key}`")]
+    assert row.endswith("| More than 3 days |")
+
+
 # --------------------------------------------------------------------------- #
 # computed-transparency 4.1: the README documents the computed source
 # --------------------------------------------------------------------------- #

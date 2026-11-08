@@ -215,8 +215,8 @@ variable fills it. None needs an API key.
 | `open_meteo_hrrr` | `ncep_hrrr_conus` | The continental United States | 48 hours |
 | `open_meteo_hrdps` | `gem_hrdps_continental` | Canada and the northern United States | 42 to 48 hours |
 | `open_meteo_rdps` | `gem_regional` | North America | 84 hours |
-| `open_meteo_icon` | `icon_seamless` | The whole world, finest in Europe | More than 2 days |
-| `open_meteo_gfs` | `gfs_global` | The whole world | More than 2 days |
+| `open_meteo_icon` | `icon_seamless` | The whole world, finest in Europe | More than 3 days |
+| `open_meteo_gfs` | `gfs_global` | The whole world | More than 3 days |
 
 For a pier near the Great Lakes, list the finest models first, then 7Timer! for
 seeing and transparency:
@@ -233,9 +233,10 @@ Before you choose, know these limits:
   PierPressure does not check a pier against a model's area. If any pier is
   outside a regional model's area, end the list with a global provider, such as
   `open_meteo`, so that pier still gets cloud cover.
-- **Hours past a model's reach stay empty.** PierPressure asks every model for 2
-  days. Hours the model does not reach are left empty, not filled from the next
-  provider, because the first provider that returns a variable fills all of it.
+- **Hours past a model's reach stay empty.** PierPressure
+  asks every model for the 4 hours before now and the 72 after. Hours the
+  model does not reach are left empty, not filled from the next provider,
+  because the first provider that returns a variable fills all of it.
   Tonight's dark hours are always within reach.
 - **The issue time is the fetch time.** Open-Meteo does not report when a model
   ran, so PierPressure records the time of the fetch. A model that runs every 6
