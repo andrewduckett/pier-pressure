@@ -303,7 +303,6 @@ def test_docs_missing_strip_section_names_the_message(message: str) -> None:
     [
         "sensor.pierpressure_<pier>_cloud_cover_min",
         "sensor.pierpressure_<pier>_cloud_cover_max",
-        "Needs two forecasts",
         "No hour on the strip has cloud cover from two or more forecasts",
         "Cloud range, the hour from 21:00: 40% to 70%",
     ],
@@ -317,11 +316,23 @@ def test_docs_cloud_range_explains_what_it_shows(term: str) -> None:
     assert term in " ".join(_before_troubleshooting().split())
 
 
-def test_docs_first_verdict_note_names_the_cloud_range_message() -> None:
+def test_docs_strip_section_says_when_the_cloud_range_row_is_left_out() -> None:
+    paragraphs = _before_troubleshooting().split("\n\n")
+    hover = "No hour on the strip has cloud cover from two or more forecasts"
+    paragraph = " ".join(next(p for p in paragraphs if hover in " ".join(p.split())).split())
+
+    assert "leaves the row out" in paragraph
+
+
+def test_docs_no_longer_name_the_retired_cloud_range_message() -> None:
+    assert "Needs two forecasts" not in _page()
+
+
+def test_docs_first_verdict_note_says_the_cloud_range_row_is_left_out() -> None:
     paragraphs = _page().split("\n\n")
     note = next(p for p in paragraphs if "Before PierPressure's first verdict" in p)
 
-    assert "Needs two forecasts" in " ".join(note.split())
+    assert "no Cloud range row" in " ".join(note.split())
 
 
 def test_docs_missing_paragraph_names_hover_and_the_moon_up_lane() -> None:
@@ -368,8 +379,8 @@ def _troubleshooting_item(shown: str) -> str:
 
 
 @pytest.mark.parametrize("term", ["`conditions`", "`providers`", "Open-Meteo", "health", "add-on"])
-def test_docs_wrong_section_says_how_to_fill_the_cloud_range_row(term: str) -> None:
-    assert term in _troubleshooting_item('The Cloud range row says "Needs two forecasts"')
+def test_docs_wrong_section_says_how_to_bring_back_the_cloud_range_row(term: str) -> None:
+    assert term in _troubleshooting_item("The strip has no Cloud range row")
 
 
 def _before_the_strip() -> str:
@@ -463,6 +474,10 @@ def test_docs_pan_says_the_strip_opens_on_the_judged_night() -> None:
 
 def test_docs_pan_says_where_it_stops() -> None:
     assert "first and last forecast hour" in _section("#### Panning the strip")
+
+
+def test_docs_pan_says_how_far_open_meteo_reaches() -> None:
+    assert "Open-Meteo, for example, about three days" in _section("#### Panning the strip")
 
 
 def test_docs_pan_says_other_nights_have_no_dusk_or_dawn() -> None:

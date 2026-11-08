@@ -1,6 +1,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   CLOUD_COVER,
+  CLOUD_RANGE_PAIR,
   DEW_POINT,
   MOON_ALTITUDE,
   HUMIDITY,
@@ -57,7 +58,7 @@ const SUN_AND_CLOUD = ["sun_altitude", "cloud_cover", "cloud_low", "cloud_mid", 
 
 describe("every timeline row", () => {
   it("is drawn in the YAML strip's order, then the rest", async () => {
-    const card = await mountCard({ [VERDICT]: verdictEntity("GO") });
+    const card = await mountCard({ [VERDICT]: verdictEntity("GO"), ...CLOUD_RANGE_PAIR });
 
     const labels = rows(card).map((element) => element.querySelector(".label")?.textContent);
     expect(labels.map((label) => label?.trim())).toEqual([

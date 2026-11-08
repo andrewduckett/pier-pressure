@@ -75,6 +75,13 @@ export function forecastEntity(points: Array<[string, unknown]>, state = "40"): 
   };
 }
 
+// Both Cloud range sensors with one readable pair, 40% to 70% at 21:00 UTC, so
+// the strip draws the row.
+export const CLOUD_RANGE_PAIR: Record<string, HassEntity> = {
+  [CLOUD_COVER_MIN]: forecastEntity([["2026-10-31T21:00:00Z", 40]]),
+  [CLOUD_COVER_MAX]: forecastEntity([["2026-10-31T21:00:00Z", 70]]),
+};
+
 export function cells(card: PierPressureCard, row: string): HTMLElement[] {
   return [
     ...(card.shadowRoot?.querySelectorAll<HTMLElement>(`.strip [data-row="${row}"] .cell`) ?? []),

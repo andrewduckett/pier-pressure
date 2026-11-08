@@ -2,6 +2,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import {
   CLOUD_COVER,
   CLOUD_COVER_MAX,
+  CLOUD_COVER_MIN,
   PRECIPITATION_PROBABILITY,
   SEEING,
   VERDICT,
@@ -187,6 +188,28 @@ describe("a strip with a held start", () => {
     const kinds = held(THREE_DAYS, "2026-11-01T16:30:00Z").lines.map((line) => line.kind);
 
     expect(kinds).toEqual([]);
+  });
+
+  // The row is judged on the whole forecast, so panning never takes it away.
+  it("keeps the Cloud range row past the end of its forecasts", () => {
+    const states = {
+      ...THREE_DAYS,
+      [CLOUD_COVER_MIN]: forecastEntity([
+        ...hourly("2026-10-31T12:00:00Z", 24),
+        ...hourly("2026-11-01T12:00:00Z", 48, null),
+      ]),
+      [CLOUD_COVER_MAX]: forecastEntity([
+        ...hourly("2026-10-31T12:00:00Z", 24, 70),
+        ...hourly("2026-11-01T12:00:00Z", 48, null),
+      ]),
+    };
+
+    const rows = held(states, "2026-11-01T16:30:00Z").rows;
+
+    expect(rows.slice(2, 4).map((row) => [row.key, row.missing?.message])).toEqual([
+      ["cloud_cover", undefined],
+      ["cloud_range", "No forecast"],
+    ]);
   });
 
   it("keeps a target lane with no bar on the next night", () => {

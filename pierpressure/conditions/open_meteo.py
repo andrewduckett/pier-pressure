@@ -130,7 +130,10 @@ class OpenMeteoProvider:
             "longitude": pier.longitude,
             "hourly": ",".join(COLUMNS[variable] for variable in self.spec.variables),
             "timezone": "UTC",
-            "forecast_days": 2,
+            # Hours, not days: a day starts at midnight UTC, so just after it the
+            # earlier hours of the night would drop out (#213).
+            "past_hours": 4,
+            "forecast_hours": 72,
         }
         if _WIND & set(self.spec.variables):
             params["wind_speed_unit"] = "kmh"

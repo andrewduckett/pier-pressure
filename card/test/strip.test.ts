@@ -1,9 +1,12 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   CLOUD_COVER,
+  CLOUD_COVER_MAX,
+  CLOUD_COVER_MIN,
   CLOUD_HIGH,
   CLOUD_LOW,
   CLOUD_MID,
+  CLOUD_RANGE_PAIR,
   MOON_ALTITUDE,
   SUN_ALTITUDE,
   VERDICT,
@@ -16,6 +19,8 @@ import {
   moonLane,
   mountCard,
   rowMessage,
+  target,
+  targetEntity,
   verdictEntity,
 } from "./harness";
 import type { PierPressureCard } from "../src/pierpressure-card";
@@ -133,7 +138,7 @@ function rows(card: PierPressureCard): HTMLElement[] {
 
 describe("the rows", () => {
   it("start with Sun altitude, Moon altitude, then the cloud rows with Cloud range", async () => {
-    const card = await mountCard({ [VERDICT]: verdictEntity("GO") });
+    const card = await mountCard({ [VERDICT]: verdictEntity("GO"), ...CLOUD_RANGE_PAIR });
 
     const labels = rows(card).map((row) => row.querySelector(".label")?.textContent?.trim());
     expect(labels.slice(0, 7)).toEqual([
@@ -1050,6 +1055,50 @@ describe("the lines' overlay", () => {
     expect([
       element?.getAttribute("style")?.includes("z-index: 1"),
       element === strip(card)?.lastElementChild,
+    ]).toEqual([true, true]);
+  });
+
+  // With Cloud range left out, rows 2 to 16 hold the fifteen rows, 17 the Moon
+  // up lane and 18 the Target 1 lane, so the overlay still ends at line 19.
+  const ONE_FORECAST = {
+    [VERDICT]: NIGHT,
+    [CLOUD_COVER_MIN]: forecastEntity([["2026-10-31T21:00:00Z", null]]),
+    [CLOUD_COVER_MAX]: forecastEntity([["2026-10-31T21:00:00Z", null]]),
+    [target(1)]: targetEntity("Andromeda Galaxy", {
+      start: "2026-10-31T21:00:00Z",
+      end: "2026-11-01T02:00:00Z",
+    }),
+  };
+
+  it("leaves the Cloud range row out of the rows' order", async () => {
+    const card = await mountCard(ONE_FORECAST);
+
+    const labels = rows(card).map((row) => row.querySelector(".label")?.textContent?.trim());
+    expect(labels).toEqual([
+      "Sun altitude",
+      "Moon altitude",
+      "Cloud cover",
+      "Cloud low",
+      "Cloud mid",
+      "Cloud high",
+      "Wind gust",
+      "Seeing",
+      "Transparency",
+      "Temperature",
+      "Dew point",
+      "Humidity",
+      "Wind speed",
+      "Wind direction",
+      "Rain chance",
+    ]);
+  });
+
+  it("ends at the last target lane without the Cloud range row", async () => {
+    const card = await mountCard(ONE_FORECAST);
+
+    expect([
+      strip(card)?.getAttribute("style")?.includes("grid-template-rows: repeat(19, auto)"),
+      overlay(card)?.getAttribute("style")?.includes("grid-row: 2 / 19"),
     ]).toEqual([true, true]);
   });
 
