@@ -74,7 +74,12 @@ In each reason, the card SHALL show every UTC time written as `YYYY-MM-DDTHH:MM:
 - **THEN** the list shows `Scored from 2026-13-45T21:00:00Z onwards.`
 
 ### Requirement: The docs describe the reasons
-Where `docs/night-card.md` says what the card shows, it SHALL have a **Reasons** line. The line SHALL say that the card lists the Verdict sensor's reasons in order, that a gated `NO-GO` names its failed gate there, that times in a reason show in the Home Assistant time zone, and that equipment notes come after the scoring reasons.
+Where `docs/night-card.md` says what the card shows, it SHALL have a **Reasons** line. The line SHALL say:
+
+- that the card lists the Verdict sensor's reasons in order;
+- that a gated `NO-GO` names its failed gate there;
+- that times in a reason show in the Home Assistant time zone;
+- that equipment notes come after the scoring reasons.
 
 #### Scenario: The table covers the reasons
 - **WHEN** the "What the card shows" section of `docs/night-card.md` is read
@@ -105,3 +110,7 @@ The card SHALL report a size of 10 to Home Assistant, plus 1 for every three tar
 #### Scenario: Targets and reasons
 - **WHEN** the strip has four target lanes and the card shows one reason
 - **THEN** the card reports a size of 13
+
+#### Scenario: Offline with reasons left over
+- **WHEN** the Verdict sensor has the state `unavailable` and a `reasons` attribute that holds four strings
+- **THEN** the card reports a size of 10

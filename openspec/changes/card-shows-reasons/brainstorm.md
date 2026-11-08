@@ -1,4 +1,4 @@
-**Why:** A gated NO-GO has a null score by design, so the card shows "NO-GO" and "Score —" with no word on which gate failed; a dashboard review on 2026-11-07 found the wind-gust gate hidden this way, while the YAML night dashboard already lists the reasons.
+**Why:** A gated NO-GO has a null score by design, so the card shows "NO-GO" and "Score —" and never says which gate failed. A dashboard review on 2026-11-07 found a failed wind-gust gate hidden this way; the YAML night dashboard already lists the reasons.
 
 ## Story
 
