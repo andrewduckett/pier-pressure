@@ -177,6 +177,7 @@ def test_the_health_topic_list_names_the_air_quality_provider() -> None:
         "µg/m³",
         "The verdict does not read them directly",
         "timeline does not show them",
+        "from 4 hours before now to 72 hours ahead",
     ],
 )
 def test_the_air_quality_section_explains_its_variables(fact: str) -> None:

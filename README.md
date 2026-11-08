@@ -298,8 +298,8 @@ Before you choose, know these limits:
 
 `open_meteo_air_quality` reads Open-Meteo's air-quality forecast, which comes
 from the Copernicus Atmosphere Monitoring Service (CAMS). It needs no API key,
-and it is in the default list. It gives two values for each hour of the next
-2 days:
+and it is in the default list. It gives two values for each hour
+from 4 hours before now to 72 hours ahead:
 
 | Variable | What it is | Unit |
 |---|---|---|
