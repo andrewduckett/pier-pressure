@@ -358,7 +358,8 @@ export class PierPressureCard extends LitElement {
         </dl>
         ${renderMoon(moon)}
       </div>
-      ${renderNote(strip)} ${renderBack(strip, this.onBack)} ${renderStrip(strip, this.input)}
+      ${renderReasons(readReasons(entity.attributes["reasons"]))} ${renderNote(strip)}
+      ${renderBack(strip, this.onBack)} ${renderStrip(strip, this.input)}
     </div>`;
   }
 
@@ -555,6 +556,17 @@ function renderLit({ lit, mirrored }: MoonDrawing) {
   if (lit === "all") return svg`<circle r="1" fill=${LIT}></circle>`;
   const path = svg`<path d=${litPath(lit)} fill=${LIT}></path>`;
   return mirrored ? svg`<g transform="scale(-1 1)">${path}</g>` : path;
+}
+
+function readReasons(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(String) : [];
+}
+
+function renderReasons(reasons: string[]) {
+  if (reasons.length === 0) return nothing;
+  return html`<ul class="reasons" aria-label="Reasons">
+    ${reasons.map((reason) => html`<li>${reason}</li>`)}
+  </ul>`;
 }
 
 function renderNote(strip: Strip | undefined) {
