@@ -222,24 +222,44 @@ const NULLS = forecastEntity([
   ["2026-10-31T22:00:00Z", null],
 ]);
 const ON_AXIS = forecastEntity([[HOUR_21, 40]]);
+// A paired hour two nights on, so the row stays with nothing to draw on the axis.
+const OFF_AXIS = forecastEntity([
+  [HOUR_21, null],
+  ["2026-11-02T21:00:00Z", 40],
+]);
 
 function message(card: PierPressureCard): [string | undefined, string | undefined] {
   const element = rowMessage(card, "cloud_range");
   return [element?.textContent?.trim(), element?.title];
 }
 
-describe("a Cloud range row with no column", () => {
-  it("says it needs two forecasts when both forecasts are null", async () => {
+function cloudRangeRow(card: PierPressureCard): HTMLElement | null | undefined {
+  return card.shadowRoot?.querySelector<HTMLElement>('.strip [data-row="cloud_range"]');
+}
+
+describe("a Cloud range row with no paired hour", () => {
+  it("is left out when both forecasts are null", async () => {
     const card = await mountCard(range(NULLS, NULLS));
 
-    expect(message(card)).toEqual([
-      "Needs two forecasts",
-      "No hour on the strip has cloud cover from two or more forecasts",
-    ]);
+    expect(cloudRangeRow(card)).toBeNull();
   });
 
+  it("is left out before the first verdict", async () => {
+    const unknown = Object.fromEntries(
+      [...ROWS.map(({ key }) => key), "cloud_cover_min", "cloud_cover_max"].map((key) => [
+        `sensor.pierpressure_backyard_${key}`,
+        verdictEntity("unknown"),
+      ]),
+    );
+    const card = await mountCard({ [VERDICT]: verdictEntity("unknown"), ...unknown });
+
+    expect(cloudRangeRow(card)).toBeNull();
+  });
+});
+
+describe("a Cloud range row with no column", () => {
   it("marks the message for styling", async () => {
-    const card = await mountCard(range(NULLS, NULLS));
+    const card = await mountCard(range(OFF_AXIS, OFF_AXIS));
 
     expect(rowMessage(card, "cloud_range")?.dataset["missing"]).toBe("needs-two-forecasts");
   });
@@ -277,18 +297,6 @@ describe("a Cloud range row with no column", () => {
     });
 
     expect(message(card)[0]).toBe("Not found");
-  });
-
-  it("says it needs two forecasts before the first verdict", async () => {
-    const unknown = Object.fromEntries(
-      [...ROWS.map(({ key }) => key), "cloud_cover_min", "cloud_cover_max"].map((key) => [
-        `sensor.pierpressure_backyard_${key}`,
-        verdictEntity("unknown"),
-      ]),
-    );
-    const card = await mountCard({ [VERDICT]: verdictEntity("unknown"), ...unknown });
-
-    expect(message(card)[0]).toBe("Needs two forecasts");
   });
 });
 

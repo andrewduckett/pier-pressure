@@ -257,8 +257,9 @@ export function buildStrip(
     return { key, label, cells, missing: missing(entityId, entity) };
   });
   // Under Cloud cover, the row it explains.
+  const range = cloudRange(states, pier, axis, time);
   const cloudCover = rows.findIndex((row) => row.key === "cloud_cover");
-  rows.splice(cloudCover + 1, 0, cloudRange(states, pier, axis, time));
+  if (range !== undefined) rows.splice(cloudCover + 1, 0, range);
   const moonMissing = rows.find((row) => row.key === "moon_altitude")?.missing;
   return {
     axis,
@@ -341,9 +342,20 @@ function rowCells(
 // both or neither, and a gap in one forecast is not a range. A min above the
 // max is skipped, not swapped: Home Assistant applies the two sensors' updates
 // one at a time, and a new min against an old max is no forecast's range.
-function cloudRange(states: States, pier: string, axis: Axis, time: (at: number) => string): Row {
+// With no such hour in either whole forecast, as with one cloud provider, the
+// row is left out, unless a sensor is missing or unavailable.
+function cloudRange(
+  states: States,
+  pier: string,
+  axis: Axis,
+  time: (at: number) => string,
+): Row | undefined {
   const lows = hourlyValues(forecastOf(states[pierEntityId(pier, "cloud_cover_min")]));
   const highs = hourlyValues(forecastOf(states[pierEntityId(pier, "cloud_cover_max")]));
+  const paired = [...lows].some(([hour, low]) => {
+    const high = highs.get(hour);
+    return isNumber(low) && isNumber(high) && low <= high;
+  });
   const bands = [...lows].flatMap(([hour, low]): Band[] => {
     const high = highs.get(hour);
     if (!isNumber(low) || !isNumber(high) || low > high) return [];
@@ -361,23 +373,26 @@ function cloudRange(states: States, pier: string, axis: Axis, time: (at: number)
   });
   const row = { key: "cloud_range", label: "Cloud range", cells: [], bands };
   if (bands.length > 0) return row;
-  return { ...row, missing: cloudRangeMissing(states, pier) };
+  const missing = cloudRangeMissing(states, pier);
+  if (missing === undefined && !paired) return undefined;
+  return { ...row, missing: missing ?? NEEDS_TWO_FORECASTS };
 }
 
 // A missing sensor comes before an unavailable one, whichever of the two it is.
-// With both there, an empty row usually means one cloud provider, which is the
-// default, so the message says what the row needs rather than that no forecast came.
-function cloudRangeMissing(states: States, pier: string): Missing {
+// Either means something is broken, so the row stays to say so.
+function cloudRangeMissing(states: States, pier: string): Missing | undefined {
   const ids = [pierEntityId(pier, "cloud_cover_min"), pierEntityId(pier, "cloud_cover_max")];
   const absent = ids.find((id) => states[id] === undefined);
   if (absent) return { message: "Not found", text: `${absent} is not in Home Assistant` };
   const down = ids.find((id) => states[id]?.state === "unavailable");
   if (down) return { message: "Unavailable", text: `${down} is unavailable` };
-  return {
-    message: "Needs two forecasts",
-    text: "No hour on the strip has cloud cover from two or more forecasts",
-  };
+  return undefined;
 }
+
+const NEEDS_TWO_FORECASTS: Missing = {
+  message: "Needs two forecasts",
+  text: "No hour on the strip has cloud cover from two or more forecasts",
+};
 
 function percent(value: number): number {
   return Math.min(100, Math.max(0, value));
