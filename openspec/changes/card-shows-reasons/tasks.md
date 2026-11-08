@@ -3,7 +3,7 @@
 Card tests go in a new `card/test/reasons.test.ts`; leave `card/test/harness.ts` as it is (brainstorm D12).
 
 - [x] 1.1 [easy] A Verdict sensor whose `reasons` is a list of strings shows a list named `Reasons`, one item per reason, in order, under the summary and before the strip (verify: npm --prefix card test -- reasons) (✓ npm --prefix card test -- reasons passed)
-- [ ] 1.2 [easy] A `reasons` attribute that is missing, null, empty, not a list, or holds a non-string item shows no list, and the card still shows the verdict and the strip (verify: npm --prefix card test -- reasons)
+- [x] 1.2 [easy] A `reasons` attribute that is missing, null, empty, not a list, or holds a non-string item shows no list, and the card still shows the verdict and the strip (verify: npm --prefix card test -- reasons) (✓ npm --prefix card test -- reasons passed)
 - [ ] 1.3 [easy] No `Reasons` list shows before the first verdict, when PierPressure is offline or when the Verdict sensor is missing (verify: npm --prefix card test -- reasons)
 - [ ] 1.4 [easy] On a night with no astronomical darkness, the list comes before the note `No astronomical darkness tonight`, and the `Back to tonight` place stays directly above the strip (verify: npm --prefix card test -- reasons)
 - [ ] 1.5 [medium] Each `YYYY-MM-DDTHH:MM:SSZ` time in a reason shows as `HH:MM` in Home Assistant's time zone, using the strip's clock; a time that `Date.parse` cannot read stays as written and never reaches the clock, which throws a `RangeError` on an invalid time (verify: npm --prefix card test -- reasons)

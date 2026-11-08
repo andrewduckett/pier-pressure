@@ -558,8 +558,11 @@ function renderLit({ lit, mirrored }: MoonDrawing) {
   return mirrored ? svg`<g transform="scale(-1 1)">${path}</g>` : path;
 }
 
+// A list with anything but strings in it is not one the core wrote, so none of
+// it is shown.
 function readReasons(value: unknown): string[] {
-  return Array.isArray(value) ? value.map(String) : [];
+  if (!Array.isArray(value)) return [];
+  return value.every((reason) => typeof reason === "string") ? value : [];
 }
 
 function renderReasons(reasons: string[]) {
