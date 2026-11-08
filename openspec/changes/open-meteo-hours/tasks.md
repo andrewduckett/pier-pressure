@@ -4,7 +4,7 @@
 - [x] 1.2 [easy] The "Panning the strip" section of `docs/night-card.md` says Open-Meteo forecasts about three days ahead, not two. A test in `tests/test_night_card_doc.py` pins "about three days" in that section (brainstorm D10). (verify: `uv run pytest tests/test_night_card_doc.py -k pan`) (✓ `uv run pytest tests/test_night_card_doc.py -k pan` passed)
 - [x] 1.3 [easy] The README's "Adding the air-quality forecast" section says the forecast gives two values for each hour from 4 hours before now to 72 hours ahead, not "the next 2 days". A fact added to `test_the_air_quality_section_explains_its_variables` in `tests/test_docs.py` pins it (brainstorm D10). (verify: `uv run pytest tests/test_docs.py -k air_quality`) (✓ `uv run pytest tests/test_docs.py -k air_quality` passed)
 - [x] 1.4 [easy] In the README's "Choosing Open-Meteo models" section, the model limits say PierPressure asks every model for the 4 hours before now and the 72 after, not 2 days. The model table says `open_meteo_icon` and `open_meteo_gfs` reach more than 3 days. A test in `tests/test_docs.py` pins both (brainstorm D10). (verify: `uv run pytest tests/test_docs.py -k model`) (✓ `uv run pytest tests/test_docs.py -k model` passed)
-- [ ] 1.5 [easy] The full gate is green. (verify: `mise run check`)
+- [x] 1.5 [easy] The full gate is green. (verify: `mise run check`) (✓ `mise run check` passed: 2160 Python and 459 card tests)
 
 ## Deviations Ledger
 
