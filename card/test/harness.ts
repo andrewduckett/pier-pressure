@@ -1,3 +1,4 @@
+import { afterEach, vi } from "vitest";
 import type { HassEntity, HomeAssistant, PierPressureCard } from "../src/pierpressure-card";
 
 export const VERDICT = "sensor.pierpressure_backyard_verdict";
@@ -6,12 +7,25 @@ export function verdictEntity(state: string, attributes: Record<string, unknown>
   return { state, attributes };
 }
 
+// The strip's opening axis follows the browser's clock once the night has
+// started, so a card mounted on the real clock would open days past the test
+// night. A test that pins its own clock keeps it.
+const BEFORE_TEST_DUSK = new Date("2026-10-31T12:00:00Z");
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 export async function mountCard(
   states?: Record<string, HassEntity>,
   pier = "backyard",
   timeZone = "UTC",
   latitude?: number,
 ): Promise<PierPressureCard> {
+  if (!vi.isFakeTimers()) {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(BEFORE_TEST_DUSK);
+  }
   const card = document.createElement("pierpressure-card") as PierPressureCard;
   card.setConfig({ type: "custom:pierpressure-card", pier });
   document.body.append(card);
