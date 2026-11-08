@@ -271,8 +271,9 @@ and target bars. Another night has no dusk line, dawn line or target bar. Its
 **Sun altitude** row still shows when it is dark.
 
 Once you have panned, the strip stays on the same hours when PierPressure
-publishes a new verdict. If you panned a little later and the clock catches up,
-the strip follows now again. While the strip is off the judged night, a
+publishes a new verdict. The exception is a pan to later hours: once the
+strip's opening hours catch up with it, as the clock moves on or with a new
+verdict, the strip follows now again. While the strip is off the judged night, a
 **Back to tonight** button shows above it. Select it to go back. Reloading the
 page also opens the strip on the judged night.
 
