@@ -341,6 +341,22 @@ describe("a panned strip", () => {
     expect(axisOf(card)).toEqual(["2026-11-01T16:30:00.000Z", "2026-11-02T09:30:00.000Z"]);
   });
 
+  // At 23:00 the opening axis runs from 19:00, and the pan moves it to 18:00.
+  it("keeps an earlier pan's axis when a minute passes during the night", async () => {
+    pinClockAndTimers("2026-10-31T23:00:00Z");
+    const card = await mountCard(THREE_DAYS);
+    await press(card, "ArrowLeft");
+
+    vi.advanceTimersByTime(60_000);
+    await card.updateComplete;
+
+    expect([...axisOf(card), backButton(card)?.hidden]).toEqual([
+      "2026-10-31T18:00:00.000Z",
+      "2026-11-01T09:55:00.000Z",
+      false,
+    ]);
+  });
+
   it("follows the clock again once panned back by hand", async () => {
     pinClockAndTimers("2026-11-01T12:00:00Z");
     const card = await mountCard({
