@@ -1,5 +1,13 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { VERDICT, cardStyles, field, mountCard, verdictEntity } from "./harness";
+import {
+  VERDICT,
+  cardStyles,
+  field,
+  mountCard,
+  target,
+  targetEntity,
+  verdictEntity,
+} from "./harness";
 import type { PierPressureCard } from "../src/pierpressure-card";
 
 beforeAll(async () => {
@@ -187,5 +195,47 @@ describe("a long list", () => {
     expect(rule.split(";").map((part) => part.trim())).toContain(
       "color: var(--secondary-text-color)",
     );
+  });
+});
+
+describe("the card's size", () => {
+  const some = (count: number) => Array.from({ length: count }, (_, index) => `Reason ${index}.`);
+
+  it.each([
+    [0, 10],
+    [1, 11],
+    [2, 11],
+    [3, 12],
+    [10, 15],
+  ])("counts %i reasons as size %i", async (count, size) => {
+    const card = await mountCard({ [VERDICT]: verdictEntity("GO", { reasons: some(count) }) });
+
+    expect(card.getCardSize()).toBe(size);
+  });
+
+  it("adds the reasons to the target lanes", async () => {
+    const night = verdictEntity("GO", {
+      dark_window: { start: "2026-10-31T20:30:00Z", end: "2026-11-01T03:25:00Z" },
+      reasons: some(1),
+    });
+    const evening = { start: "2026-10-31T21:00:00Z", end: "2026-11-01T02:00:00Z" };
+    const lanes = Object.fromEntries(
+      [1, 2, 3, 4].map((rank) => [target(rank), targetEntity(`NGC ${rank}`, evening)]),
+    );
+    const card = await mountCard({ [VERDICT]: night, ...lanes });
+
+    expect(card.getCardSize()).toBe(13);
+  });
+
+  it("counts no reasons that are not shown", async () => {
+    const card = await mountCard({ [VERDICT]: verdictEntity("GO", { reasons: [...some(4), 3] }) });
+
+    expect(card.getCardSize()).toBe(10);
+  });
+
+  it("counts no reasons left over while PierPressure is offline", async () => {
+    const card = await mountCard({ [VERDICT]: verdictEntity("unavailable", { reasons: some(4) }) });
+
+    expect(card.getCardSize()).toBe(10);
   });
 });

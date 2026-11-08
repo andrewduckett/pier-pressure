@@ -311,9 +311,11 @@ export class PierPressureCard extends LitElement {
     if (opening !== undefined && opening.start >= this.heldStart) this.heldStart = undefined;
   }
 
-  // Three target lanes are about one of Home Assistant's 50 px size units.
+  // Three target lanes, or two reasons, are about one of Home Assistant's 50 px
+  // size units.
   getCardSize(): number {
-    return 10 + Math.ceil((this.shownStrip()?.targets.length ?? 0) / 3);
+    const lanes = Math.ceil((this.shownStrip()?.targets.length ?? 0) / 3);
+    return 10 + lanes + Math.ceil(this.shownReasons().length / 2);
   }
 
   // A sections view gives a card half its section's width by default, too
@@ -360,7 +362,7 @@ export class PierPressureCard extends LitElement {
         </dl>
         ${renderMoon(moon)}
       </div>
-      ${renderReasons(readReasons(entity.attributes["reasons"]), time)} ${renderNote(strip)}
+      ${renderReasons(this.shownReasons(), time)} ${renderNote(strip)}
       ${renderBack(strip, this.onBack)} ${renderStrip(strip, this.input)}
     </div>`;
   }
@@ -377,6 +379,14 @@ export class PierPressureCard extends LitElement {
       this.hass.config?.time_zone,
       this.heldStart,
     );
+  }
+
+  // Like the strip, the reasons show only beside the verdict.
+  private shownReasons(): string[] {
+    if (this.hass === undefined || this.config === undefined) return [];
+    const entity = this.hass.states[verdictEntityId(this.config.pier)];
+    if (entity === undefined || entity.state === "unavailable") return [];
+    return readReasons(entity.attributes["reasons"]);
   }
 
   // A pan the reach stops entirely changes nothing, and one that lands on the
