@@ -124,6 +124,29 @@ describe("a Cloud range bar", () => {
   });
 });
 
+// A readable pair at 23:00 keeps the row in the strip, so an empty 21:00 is
+// the hour's own doing.
+const HOUR_23 = "2026-10-31T23:00:00Z";
+
+async function besidePair(min: unknown, max: unknown): Promise<PierPressureCard> {
+  return mountCard(
+    range(
+      forecastEntity([
+        [HOUR_21, min],
+        [HOUR_23, 50],
+      ]),
+      forecastEntity([
+        [HOUR_21, max],
+        [HOUR_23, 60],
+      ]),
+    ),
+  );
+}
+
+function drawnHours(card: PierPressureCard): Array<string | undefined> {
+  return columns(card).map((column) => column.dataset["hour"]);
+}
+
 describe("an hour without a readable pair", () => {
   it("has no column when both forecasts are null", async () => {
     const card = await mountCard(
@@ -146,24 +169,33 @@ describe("an hour without a readable pair", () => {
 
   it("has no column when the max forecast has no point for the hour", async () => {
     const card = await mountCard(
-      range(forecastEntity([[HOUR_21, 40]]), forecastEntity([["2026-10-31T22:00:00Z", 70]])),
+      range(
+        forecastEntity([
+          [HOUR_21, 40],
+          [HOUR_23, 50],
+        ]),
+        forecastEntity([
+          ["2026-10-31T22:00:00Z", 70],
+          [HOUR_23, 60],
+        ]),
+      ),
     );
 
-    expect(columns(card)).toEqual([]);
+    expect(drawnHours(card)).toEqual(["2026-10-31T23:00:00.000Z"]);
   });
 
   it("has no column when a value is not a number", async () => {
-    const card = await oneHour(40, "70");
+    const card = await besidePair(40, "70");
 
-    expect(columns(card)).toEqual([]);
+    expect(drawnHours(card)).toEqual(["2026-10-31T23:00:00.000Z"]);
   });
 
   // Home Assistant applies the two sensors' updates one at a time, so for a
   // moment a new min can meet an old max.
   it("has no column when the min is above the max", async () => {
-    const card = await oneHour(70, 20);
+    const card = await besidePair(70, 20);
 
-    expect(columns(card)).toEqual([]);
+    expect(drawnHours(card)).toEqual(["2026-10-31T23:00:00.000Z"]);
   });
 });
 
@@ -190,26 +222,75 @@ const NULLS = forecastEntity([
   ["2026-10-31T22:00:00Z", null],
 ]);
 const ON_AXIS = forecastEntity([[HOUR_21, 40]]);
+// A paired hour two nights on, so the row stays with nothing to draw on the axis.
+const OFF_AXIS = forecastEntity([
+  [HOUR_21, null],
+  ["2026-11-02T21:00:00Z", 40],
+]);
 
 function message(card: PierPressureCard): [string | undefined, string | undefined] {
   const element = rowMessage(card, "cloud_range");
   return [element?.textContent?.trim(), element?.title];
 }
 
-describe("a Cloud range row with no column", () => {
-  it("says it needs two forecasts when both forecasts are null", async () => {
+function cloudRangeRow(card: PierPressureCard): HTMLElement | null | undefined {
+  return card.shadowRoot?.querySelector<HTMLElement>('.strip [data-row="cloud_range"]');
+}
+
+describe("a Cloud range row with no paired hour", () => {
+  it("is left out when both forecasts are null", async () => {
     const card = await mountCard(range(NULLS, NULLS));
 
+    expect(cloudRangeRow(card)).toBeNull();
+  });
+
+  it("is left out before the first verdict", async () => {
+    const unknown = Object.fromEntries(
+      [...ROWS.map(({ key }) => key), "cloud_cover_min", "cloud_cover_max"].map((key) => [
+        `sensor.pierpressure_backyard_${key}`,
+        verdictEntity("unknown"),
+      ]),
+    );
+    const card = await mountCard({ [VERDICT]: verdictEntity("unknown"), ...unknown });
+
+    expect(cloudRangeRow(card)).toBeNull();
+  });
+
+  it("stays to say a sensor is not in Home Assistant", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT, [CLOUD_COVER_MIN]: NULLS });
+
+    expect(message(card)[0]).toBe("Not found");
+  });
+
+  it("stays to say a sensor is unavailable", async () => {
+    const card = await mountCard(range(verdictEntity("unavailable"), NULLS));
+
+    expect(message(card)[0]).toBe("Unavailable");
+  });
+});
+
+describe("a Cloud range row with no column", () => {
+  it("says No forecast when its only paired hour is off the axis", async () => {
+    const card = await mountCard(range(OFF_AXIS, OFF_AXIS));
+
     expect(message(card)).toEqual([
-      "Needs two forecasts",
+      "No forecast",
       "No hour on the strip has cloud cover from two or more forecasts",
     ]);
   });
 
-  it("marks the message for styling", async () => {
-    const card = await mountCard(range(NULLS, NULLS));
+  // A half-applied update can put a new min above the old max at every hour.
+  // Leaving the row out then would move every row under it, and back again.
+  it("says No forecast when its only paired hour has the min above the max", async () => {
+    const card = await oneHour(70, 20);
 
-    expect(rowMessage(card, "cloud_range")?.dataset["missing"]).toBe("needs-two-forecasts");
+    expect(message(card)[0]).toBe("No forecast");
+  });
+
+  it("marks the message as the other rows mark No forecast", async () => {
+    const card = await mountCard(range(OFF_AXIS, OFF_AXIS));
+
+    expect(rowMessage(card, "cloud_range")?.dataset["missing"]).toBe("no-forecast");
   });
 
   it("leaves the Cloud cover row drawing as usual", async () => {
@@ -245,18 +326,6 @@ describe("a Cloud range row with no column", () => {
     });
 
     expect(message(card)[0]).toBe("Not found");
-  });
-
-  it("says it needs two forecasts before the first verdict", async () => {
-    const unknown = Object.fromEntries(
-      [...ROWS.map(({ key }) => key), "cloud_cover_min", "cloud_cover_max"].map((key) => [
-        `sensor.pierpressure_backyard_${key}`,
-        verdictEntity("unknown"),
-      ]),
-    );
-    const card = await mountCard({ [VERDICT]: verdictEntity("unknown"), ...unknown });
-
-    expect(message(card)[0]).toBe("Needs two forecasts");
   });
 });
 

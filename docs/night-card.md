@@ -174,19 +174,20 @@ altitude row. A lane with no bar and no message means the moon stays down.
 
 The **Cloud range** row reads two sensors. It says **Not found** or
 **Unavailable** for the first of the two that is missing or unavailable. When
-both are there, it says **Needs two forecasts** instead of **No forecast**.
-Hover over that message to see
-"No hour on the strip has cloud cover from two or more forecasts". With the
-default providers, only Open-Meteo gives cloud cover, so the row shows this
-message. See
-[If something looks wrong](#if-something-looks-wrong) for how to fill it.
+both are there but no hour of the whole forecast has cloud cover from two or
+more weather forecasts, the card leaves the row out. With the default
+providers, only Open-Meteo gives cloud cover, so the strip has no Cloud range
+row. When two forecasts give cloud cover but not for the hours on the strip,
+as when you pan past the shorter one, the row says **No forecast**. Hover over
+it to see "No hour on the strip has cloud cover from two or more forecasts".
+See [If something looks wrong](#if-something-looks-wrong) for how to bring
+the row back.
 
 | Message | What it means |
 |---|---|
 | **Not found** | Home Assistant has no entity with the sensor's id. |
 | **Unavailable** | The sensor is unavailable. Its forecast is hidden or out of date. |
 | **No forecast** | The sensor has no value for any hour on the strip. |
-| **Needs two forecasts** | Cloud range only. No hour on the strip has cloud cover from two or more weather forecasts. |
 
 The other rows draw as usual. See [If something looks wrong](#if-something-looks-wrong)
 for what to do.
@@ -409,19 +410,19 @@ find your **Verdict** sensor under **Settings** > **Entities**. Then use, as
     source health sensors, such as **Open-Meteo health**. See
     [Watching provider health](../README.md#watching-provider-health).
 
-  Before PierPressure's first verdict, every row says "No forecast" too, except
-  Cloud range, which says "Needs two forecasts". The rows fill in when it
-  publishes.
-- **The Cloud range row says "Needs two forecasts".** Fewer than two weather
-  forecasts gave cloud cover for the hours on the strip. There are two causes:
+  Before PierPressure's first verdict, every row says "No forecast" too, and
+  the strip has no Cloud range row. The rows fill in when it publishes.
+- **The strip has no Cloud range row.** No hour of the forecast has cloud
+  cover from two or more weather forecasts, so the card leaves the row out.
+  There are two causes:
   - Only one provider in the `providers` list under `conditions` gives cloud
     cover. With the default list, only Open-Meteo does. Add a second provider
     that gives cloud cover, such as an Open-Meteo model like `open_meteo_icon`,
     in the [configuration](../README.md#%EF%B8%8F-configuration). The add-on's
     Configuration tab has no `conditions` setting, so for the add-on, set it in
     the `config.yaml` in the add-on's config folder.
-  - A listed cloud provider failed. Check that provider's health sensor, such as
-    **Open-Meteo ICON health**. See
+  - A listed cloud provider failed for a whole fetch. Check that provider's
+    health sensor, such as **Open-Meteo ICON health**. See
     [Watching provider health](../README.md#watching-provider-health).
 - **"No astronomical darkness tonight".** The sun stays less than 18° below
   the horizon all night, as in summer far from the equator. Nothing is wrong.
