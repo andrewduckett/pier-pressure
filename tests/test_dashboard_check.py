@@ -145,8 +145,18 @@ def test_write_config_adds_a_dashboard_holding_the_card(tmp_path: Path) -> None:
     assert views["views"][0]["cards"] == [{"type": "custom:pierpressure-card", "pier": "backyard"}]
 
 
-def test_ready_message_names_the_card_dashboard() -> None:
-    assert f"/{CARD_DASHBOARD_PATH}" in ready_message()
+def test_ready_message_names_only_the_card_dashboard() -> None:
+    message = ready_message()
+    assert f"/{CARD_DASHBOARD_PATH}" in message
+    assert "night" not in message.lower()
+
+
+def test_dashboard_check_has_no_plotly_helpers_or_docs_page() -> None:
+    import dashboard_check
+
+    assert not hasattr(dashboard_check, "install_plotly_graph_card")
+    assert not hasattr(dashboard_check, "PLOTLY_GRAPH_CARD_VERSION")
+    assert not hasattr(dashboard_check, "PAGE")
 
 
 def test_dashboard_check_builds_the_card_first() -> None:

@@ -1,13 +1,13 @@
-"""Bring up a throwaway Home Assistant to check the night dashboard (design DD8).
+"""Bring up a throwaway Home Assistant to check the PierPressure card.
 
 ``mise run dashboard-check`` runs this. It writes a fresh Home Assistant config
-under ``.workspace/dashboard-check/``, installs the pinned plotly-graph-card
-release, and starts Home Assistant beside mosquitto and PierPressure under the
-``dashboard`` compose profile. It also installs the locally built dashboard
-card on a second dashboard. Then it completes onboarding, adds the MQTT
-integration, waits for PierPressure's Verdict entity, and prints the URLs and
-the login. The stack stays up so a person can open the dashboard and take the
-screenshot; ``docker compose --profile dashboard down`` stops it.
+under ``.workspace/dashboard-check/``, installs the locally built card on a
+dashboard of its own, and starts Home Assistant beside mosquitto and
+PierPressure under the ``dashboard`` compose profile. Then it completes
+onboarding, adds the MQTT integration, waits for PierPressure's Verdict entity,
+and prints the URL and the login. The stack stays up so a person can open the
+dashboard and take the screenshot; ``docker compose --profile dashboard down``
+stops it.
 
 It never touches a real Home Assistant: everything it starts and writes is local
 and throwaway.
@@ -18,7 +18,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -33,14 +32,11 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKDIR = ROOT / ".workspace" / "dashboard-check"
-PAGE = ROOT / "docs" / "night-dashboard.md"
 
-PLOTLY_GRAPH_CARD_VERSION = "v4.0.2"
 HA_URL = "http://localhost:8123"
 CLIENT_ID = f"{HA_URL}/"
 USERNAME = "pier"
 PASSWORD = "pressure-check"
-DASHBOARD_PATH = "pierpressure-night"
 CARD_BUILT = ROOT / "card" / "dist" / "pierpressure-card.js"
 CARD_DASHBOARD_PATH = "pierpressure-card"
 CARD_DASHBOARD_FILE = "card-dashboard.yaml"
@@ -51,9 +47,6 @@ TIME_ZONE = "America/Denver"
 LATITUDE = 39.74
 LONGITUDE = -104.99
 ELEVATION_M = 1600
-
-_YAML_FENCE = re.compile(r"^```yaml\n(.*?)^```", re.MULTILINE | re.DOTALL)
-
 
 # --------------------------------------------------------------------------- #
 # Files
@@ -128,28 +121,6 @@ def write_config(workdir: Path, card_hash: str) -> None:
     (workdir / "pierpressure.yaml").write_text(
         yaml.safe_dump(pierpressure, sort_keys=False), encoding="utf-8"
     )
-
-
-def install_plotly_graph_card(www: Path, version: str = PLOTLY_GRAPH_CARD_VERSION) -> None:
-    """Download every ``.js`` file of the release, as the card's manual install says.
-
-    The card loads its other files on demand, so the main file alone is not
-    enough. A finished download is kept and reused on the next run.
-    """
-    marker = www / ".version"
-    if marker.is_file() and marker.read_text(encoding="utf-8") == version:
-        return
-    www.mkdir(parents=True, exist_ok=True)
-    release = _get_json(
-        f"https://api.github.com/repos/dbuezas/lovelace-plotly-graph-card/releases/tags/{version}"
-    )
-    assets = [a for a in release["assets"] if str(a["name"]).endswith(".js")]
-    if not any(a["name"] == "plotly-graph-card.js" for a in assets):
-        raise RuntimeError(f"plotly-graph-card {version} has no plotly-graph-card.js")
-    for asset in assets:
-        with urllib.request.urlopen(asset["browser_download_url"], timeout=60) as response:
-            (www / asset["name"]).write_bytes(response.read())
-    marker.write_text(version, encoding="utf-8")
 
 
 def install_pierpressure_card(www: Path, built: Path = CARD_BUILT) -> str:
@@ -310,7 +281,7 @@ def _compose(*args: str) -> None:
 
 
 def _reset_home_assistant_state() -> None:
-    """Remove everything Home Assistant wrote last time, keeping the card download.
+    """Remove everything Home Assistant wrote last time, keeping ``www``.
 
     Home Assistant writes as root inside its container, so the files are removed
     from inside a container too.
@@ -327,8 +298,7 @@ def _reset_home_assistant_state() -> None:
 def ready_message() -> str:
     """What to open and how to log in. The password stays in this file, never in output."""
     return (
-        f"\nHome Assistant is up with the night dashboard and the PierPressure card.\n"
-        f"  Dashboard: {HA_URL}/{DASHBOARD_PATH}\n"
+        f"\nHome Assistant is up with the PierPressure card.\n"
         f"  Card:      {HA_URL}/{CARD_DASHBOARD_PATH}\n"
         f"  Login:     {USERNAME}, with the PASSWORD in scripts/dashboard_check.py\n"
         f"  Stop it:   docker compose --profile dashboard down\n"
@@ -341,7 +311,6 @@ def main() -> int:
         _reset_home_assistant_state()
         card_hash = install_pierpressure_card(WORKDIR / "config" / "www")
         write_config(WORKDIR, card_hash)
-        install_plotly_graph_card(WORKDIR / "config" / "www" / "plotly-graph-card")
         _compose("up", "-d", "--build", "--wait")
         token = onboard()
         add_mqtt_integration(token)
