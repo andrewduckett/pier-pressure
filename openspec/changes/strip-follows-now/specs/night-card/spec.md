@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: The strip spans the judged night
-The strip SHALL open on the opening axis. Unless the opening axis falls back to the browser's clock, it SHALL start at the later of 4 hours before the Verdict sensor's `dark_window.start` and 4 hours before the browser's current time. It SHALL be as long as the time from 4 hours before `dark_window.start` to 5 hours after `dark_window.end`, so before dusk it ends 5 hours after `dark_window.end`. As the card redraws, the opening axis SHALL follow the browser's clock. Until the user pans the strip, and after the user selects "Back to tonight", the strip's time axis SHALL be the opening axis.
+The strip SHALL open on the opening axis. The opening axis SHALL start at the later of two times: 4 hours before the Verdict sensor's `dark_window.start`, and 4 hours before the browser's clock. This holds unless the opening axis falls back to the browser's clock. The opening axis SHALL be as long as the time from 4 hours before `dark_window.start` to 5 hours after `dark_window.end`, so before dusk it ends 5 hours after `dark_window.end`. As the card redraws, the opening axis SHALL follow the browser's clock. Until the user pans the strip, and after the user selects "Back to tonight", the strip's time axis SHALL be the opening axis.
 
 #### Scenario: A normal night
 - **WHEN** the Verdict sensor's `dark_window` is `{start: 2026-10-31T20:30:00Z, end: 2026-11-01T03:25:00Z}` and the browser's clock reads 2026-10-31T12:00:00Z
@@ -18,6 +18,10 @@ The strip SHALL open on the opening axis. Unless the opening axis falls back to 
 #### Scenario: Late in the night
 - **WHEN** the Verdict sensor's `dark_window` is `{start: 2026-10-31T20:30:00Z, end: 2026-11-01T03:25:00Z}` and the browser's clock reads 2026-11-01T03:00:00Z
 - **THEN** the strip's axis runs from 2026-10-31T23:00:00Z to 2026-11-01T14:55:00Z
+
+#### Scenario: A verdict left over after dawn
+- **WHEN** the Verdict sensor's `dark_window` is still `{start: 2026-10-31T20:30:00Z, end: 2026-11-01T03:25:00Z}` and the browser's clock reads 2026-11-01T12:00:00Z
+- **THEN** the strip's axis runs from 2026-11-01T08:00:00Z to 2026-11-01T23:55:00Z
 
 #### Scenario: A minute passes during the night
 - **WHEN** the Verdict sensor's `dark_window` is `{start: 2026-10-31T20:30:00Z, end: 2026-11-01T03:25:00Z}`, the browser's clock reads 2026-10-31T23:00:00Z, the user has not panned the strip, and the clock moves on by 60 seconds with no new state from Home Assistant
@@ -87,7 +91,7 @@ When the axis pans, the card SHALL draw every row's cells, the Cloud range row's
 - **AND** the row labels read from `Sun altitude` to `Rain chance`, as before
 
 ### Requirement: The strip stays where the user panned it
-After the user pans, the axis SHALL keep its start when Home Assistant sends new state and when the card redraws each minute. When the reach no longer holds the axis, the card SHALL move the axis only as far as it needs to stay inside the reach. A pan that the reach stops entirely SHALL count as no pan. A pan that brings the axis back to the opening axis SHALL count as selecting `Back to tonight`.
+After the user pans, the axis SHALL keep its start when Home Assistant sends new state and when the card redraws each minute. When the reach no longer holds the axis, the card SHALL move the axis only as far as it needs to stay inside the reach. A pan that the reach stops entirely SHALL count as no pan. A pan that brings the axis back to the opening axis SHALL count as selecting `Back to tonight`. When the opening axis moves on as far as the start of a later pan, the strip SHALL follow the opening axis again, as if the user selected `Back to tonight`.
 
 #### Scenario: New state after a pan
 - **WHEN** the user has panned the axis to run from 2026-11-01T16:30:00Z to 2026-11-02T08:25:00Z, and Home Assistant sends new state with the same `dark_window` and forecasts
@@ -100,6 +104,10 @@ After the user pans, the axis SHALL keep its start when Home Assistant sends new
 #### Scenario: A minute passes after a pan during the night
 - **WHEN** the Verdict sensor's `dark_window` is `{start: 2026-10-31T20:30:00Z, end: 2026-11-01T03:25:00Z}`, the browser's clock reads 2026-10-31T23:00:00Z, the reach runs further either way, the user presses the Left arrow key with the strip focused, and the clock then moves on by 60 seconds
 - **THEN** the strip's axis runs from 2026-10-31T18:00:00Z to 2026-11-01T09:55:00Z, and the card shows a `Back to tonight` button
+
+#### Scenario: The opening axis catches up with a pan
+- **WHEN** the Verdict sensor's `dark_window` is `{start: 2026-10-31T20:30:00Z, end: 2026-11-01T03:25:00Z}`, the browser's clock reads 2026-10-31T23:00:00Z, the reach runs further either way, the user presses the Right arrow key with the strip focused, and the clock then moves on to 2026-11-01T00:01:00Z
+- **THEN** the strip's axis runs from 2026-10-31T20:01:00Z to 2026-11-01T11:56:00Z, and the card shows no `Back to tonight` button
 
 #### Scenario: The forecast moves on past the axis
 - **WHEN** the user has panned the axis to start at 2026-10-31T12:00:00Z, and new state from Home Assistant makes the reach start at 2026-10-31T14:00:00Z
