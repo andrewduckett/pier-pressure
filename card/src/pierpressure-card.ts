@@ -88,6 +88,11 @@ export class PierPressureCard extends LitElement {
     dd {
       margin: 0;
     }
+    .reasons {
+      margin: 16px 0 0;
+      padding-left: 20px;
+      color: var(--secondary-text-color);
+    }
     .note {
       margin: 16px 0 0;
       color: var(--secondary-text-color);
@@ -306,9 +311,11 @@ export class PierPressureCard extends LitElement {
     if (opening !== undefined && opening.start >= this.heldStart) this.heldStart = undefined;
   }
 
-  // Three target lanes are about one of Home Assistant's 50 px size units.
+  // Three target lanes, or two reasons, are about one of Home Assistant's 50 px
+  // size units.
   getCardSize(): number {
-    return 10 + Math.ceil((this.shownStrip()?.targets.length ?? 0) / 3);
+    const lanes = Math.ceil((this.shownStrip()?.targets.length ?? 0) / 3);
+    return 10 + lanes + Math.ceil(this.shownReasons().length / 2);
   }
 
   // A sections view gives a card half its section's width by default, too
@@ -338,11 +345,8 @@ export class PierPressureCard extends LitElement {
     }
     const confidence = asRecord(entity.attributes["confidence"]);
     const strip = this.shownStrip();
-    const moon = readMoon(
-      entity.attributes["moon"],
-      clock(this.hass.config?.time_zone),
-      this.hass.config?.latitude,
-    );
+    const time = clock(this.hass.config?.time_zone);
+    const moon = readMoon(entity.attributes["moon"], time, this.hass.config?.latitude);
     return html`<div class="card-content">
       <div class="summary">
         <dl>
@@ -358,7 +362,8 @@ export class PierPressureCard extends LitElement {
         </dl>
         ${renderMoon(moon)}
       </div>
-      ${renderNote(strip)} ${renderBack(strip, this.onBack)} ${renderStrip(strip, this.input)}
+      ${renderReasons(this.shownReasons(), time)} ${renderNote(strip)}
+      ${renderBack(strip, this.onBack)} ${renderStrip(strip, this.input)}
     </div>`;
   }
 
@@ -374,6 +379,15 @@ export class PierPressureCard extends LitElement {
       this.hass.config?.time_zone,
       this.heldStart,
     );
+  }
+
+  // The reasons explain a verdict, so a dash in its place shows none, even
+  // ones left over from an earlier verdict.
+  private shownReasons(): string[] {
+    if (this.hass === undefined || this.config === undefined) return [];
+    const entity = this.hass.states[verdictEntityId(this.config.pier)];
+    if (entity === undefined || ["unavailable", "unknown"].includes(entity.state)) return [];
+    return readReasons(entity.attributes["reasons"]);
   }
 
   // A pan the reach stops entirely changes nothing, and one that lands on the
@@ -555,6 +569,32 @@ function renderLit({ lit, mirrored }: MoonDrawing) {
   if (lit === "all") return svg`<circle r="1" fill=${LIT}></circle>`;
   const path = svg`<path d=${litPath(lit)} fill=${LIT}></path>`;
   return mirrored ? svg`<g transform="scale(-1 1)">${path}</g>` : path;
+}
+
+// A list with anything but strings in it is not one the core wrote, so none of
+// it is shown.
+function readReasons(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.every((reason) => typeof reason === "string") ? value : [];
+}
+
+function renderReasons(reasons: string[], time: (time: number) => string) {
+  if (reasons.length === 0) return nothing;
+  return html`<ul class="reasons" aria-label="Reasons">
+    ${reasons.map((reason) => html`<li>${localTimes(reason, time)}</li>`)}
+  </ul>`;
+}
+
+// The core writes times as UTC, as iso_z does. The scored span lies inside one
+// night, so hours and minutes are enough, as on the strip.
+const UTC_TIME = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/g;
+
+// The clock throws on a time Date cannot read, so such a time is left as written.
+function localTimes(reason: string, time: (time: number) => string): string {
+  return reason.replace(UTC_TIME, (text) => {
+    const at = Date.parse(text);
+    return Number.isFinite(at) ? time(at) : text;
+  });
 }
 
 function renderNote(strip: Strip | undefined) {

@@ -17,6 +17,7 @@ verdict and never fetches data. If you would rather not install a card, the
 | **Verdict** | `GO`, `MAYBE` or `NO-GO`, from the **Verdict** sensor |
 | **Score** | The score from 0 to 100. A dash when a gate gives `NO-GO` and there is no score. |
 | **Confidence** | The confidence band and value, such as `HIGH · 82` |
+| **Reasons** | The reasons for the verdict, in order, from the Verdict sensor's `reasons`. A `NO-GO` from a gate names the gate that failed, such as a wind gust over your limit. Times in a reason show in your Home Assistant time zone. When your equipment is set, notes about the top target come after the scoring reasons. |
 
 The card shows a message instead when:
 
