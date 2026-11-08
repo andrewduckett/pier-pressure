@@ -279,6 +279,14 @@ describe("a Cloud range row with no column", () => {
     ]);
   });
 
+  // A half-applied update can put a new min above the old max at every hour.
+  // Leaving the row out then would move every row under it, and back again.
+  it("says No forecast when its only paired hour has the min above the max", async () => {
+    const card = await oneHour(70, 20);
+
+    expect(message(card)[0]).toBe("No forecast");
+  });
+
   it("marks the message as the other rows mark No forecast", async () => {
     const card = await mountCard(range(OFF_AXIS, OFF_AXIS));
 

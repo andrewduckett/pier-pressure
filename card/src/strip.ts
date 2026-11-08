@@ -342,8 +342,9 @@ function rowCells(
 // both or neither, and a gap in one forecast is not a range. A min above the
 // max is skipped, not swapped: Home Assistant applies the two sensors' updates
 // one at a time, and a new min against an old max is no forecast's range.
-// With no such hour in either whole forecast, as with one cloud provider, the
-// row is left out, unless a sensor is missing or unavailable.
+// With no hour where both whole forecasts hold a number, as with one cloud
+// provider, the row is left out, unless a sensor is missing or unavailable. A
+// min above the max still counts, so a half-applied update does not hide it.
 function cloudRange(
   states: States,
   pier: string,
@@ -352,10 +353,7 @@ function cloudRange(
 ): Row | undefined {
   const lows = hourlyValues(forecastOf(states[pierEntityId(pier, "cloud_cover_min")]));
   const highs = hourlyValues(forecastOf(states[pierEntityId(pier, "cloud_cover_max")]));
-  const paired = [...lows].some(([hour, low]) => {
-    const high = highs.get(hour);
-    return isNumber(low) && isNumber(high) && low <= high;
-  });
+  const paired = [...lows].some(([hour, low]) => isNumber(low) && isNumber(highs.get(hour)));
   const bands = [...lows].flatMap(([hour, low]): Band[] => {
     const high = highs.get(hour);
     if (!isNumber(low) || !isNumber(high) || low > high) return [];
