@@ -24,7 +24,7 @@ import {
   verdictEntity,
 } from "./harness";
 import type { PierPressureCard } from "../src/pierpressure-card";
-import { HOUR } from "../src/strip";
+import { HOUR, buildStrip } from "../src/strip";
 
 beforeAll(async () => {
   vi.spyOn(console, "info").mockImplementation(() => {});
@@ -59,6 +59,44 @@ describe("the strip's axis", () => {
     });
 
     expect(axis(card)).toEqual(["2026-10-31T16:30:00.000Z", "2026-11-01T08:25:00.000Z"]);
+  });
+
+  // The same length as from 4 hours before dusk to 5 hours after dawn: 15 h 55 min.
+  it.each([
+    [
+      "at dusk",
+      "2026-10-31T20:30:00Z",
+      "2026-10-31T16:30:00.000Z",
+      "2026-11-01T08:25:00.000Z",
+    ],
+    [
+      "during the night",
+      "2026-10-31T23:00:00Z",
+      "2026-10-31T19:00:00.000Z",
+      "2026-11-01T10:55:00.000Z",
+    ],
+    [
+      "late in the night",
+      "2026-11-01T03:00:00Z",
+      "2026-10-31T23:00:00.000Z",
+      "2026-11-01T14:55:00.000Z",
+    ],
+    [
+      "on a verdict left over after dawn",
+      "2026-11-01T12:00:00Z",
+      "2026-11-01T08:00:00.000Z",
+      "2026-11-01T23:55:00.000Z",
+    ],
+  ])("opens 4 hours before now %s", async (_, now, start, end) => {
+    pinClock(now);
+
+    const card = await mountCard({
+      [VERDICT]: verdictEntity("GO", {
+        dark_window: { start: "2026-10-31T20:30:00Z", end: "2026-11-01T03:25:00Z" },
+      }),
+    });
+
+    expect(axis(card)).toEqual([start, end]);
   });
 
   it.each([
@@ -496,6 +534,7 @@ describe("hovering over a cell", () => {
   });
 
   it("falls back to the browser's time zone when Home Assistant gives none", async () => {
+    pinClock("2026-10-31T12:00:00Z");
     const card = document.createElement("pierpressure-card") as PierPressureCard;
     card.setConfig({ type: "custom:pierpressure-card", pier: "backyard" });
     document.body.append(card);
@@ -773,6 +812,7 @@ describe("hovering over a Moon up bar", () => {
       dark_window: { start: "2026-03-28T19:00:00Z", end: "2026-03-29T02:00:00Z" },
     });
 
+    pinClock("2026-03-28T12:00:00Z");
     const [title] = await hoverText(points, verdict, "Europe/Athens");
 
     expect(title).toBe("Moon up");
@@ -844,6 +884,19 @@ describe("the dusk and dawn lines", () => {
       null,
     ]);
   });
+
+  // At 01:00 the opening axis runs from 21:00, after the 20:30 dusk.
+  it("leave out dusk once it is off the opening axis late in the night", async () => {
+    pinClock("2026-11-01T01:00:00Z");
+
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect([
+      line(card, "dusk"),
+      mark(card, "dusk"),
+      line(card, "dawn")?.dataset["at"],
+    ]).toEqual([null, null, "2026-11-01T03:25:00.000Z"]);
+  });
 });
 
 describe("the now line", () => {
@@ -887,12 +940,23 @@ describe("the now line", () => {
     expect([line(card, "now"), mark(card, "now")]).toEqual([null, null]);
   });
 
-  it("is missing after the axis ends", async () => {
-    pinClock("2026-11-01T09:00:00Z");
+  // An unpanned strip with a dark window always holds now, so only a pan
+  // earlier can leave now past the axis end.
+  it("is missing after the axis ends", () => {
+    const states = {
+      [VERDICT]: NIGHT,
+      [CLOUD_COVER]: forecastEntity([["2026-10-31T12:00:00Z", 40]]),
+    };
 
-    const card = await mountCard({ [VERDICT]: NIGHT });
+    const strip = buildStrip(
+      states,
+      "backyard",
+      Date.parse("2026-11-01T09:00:00Z"),
+      "UTC",
+      Date.parse("2026-10-31T16:30:00Z"),
+    );
 
-    expect(line(card, "now")).toBeNull();
+    expect(strip.lines.map((each) => each.kind)).toEqual(["dusk", "dawn"]);
   });
 
   it("sits at the browser's time on a night with no astronomical darkness", async () => {
@@ -921,6 +985,16 @@ describe("the card's minute timer", () => {
     await card.updateComplete;
 
     expect(line(card, "now")?.dataset["at"]).toBe("2026-10-31T22:01:00.000Z");
+  });
+
+  it("moves the opening axis a minute later during the night", async () => {
+    pinClockAndTimers("2026-10-31T23:00:00Z");
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    vi.advanceTimersByTime(60_000);
+    await card.updateComplete;
+
+    expect(axis(card)).toEqual(["2026-10-31T19:01:00.000Z", "2026-11-01T10:56:00.000Z"]);
   });
 
   it("runs one timer while the card is on the page", async () => {
@@ -1040,6 +1114,7 @@ describe("the axis's time labels", () => {
     // The night is 4 hours after the axis start to 5 hours before its end.
     const dusk = new Date(Date.parse(start) + 4 * 3600_000).toISOString();
     const dawn = new Date(Date.parse(end) - 5 * 3600_000).toISOString();
+    pinClock(start);
     const card = await mountCard(
       { [VERDICT]: verdictEntity("GO", { dark_window: { start: dusk, end: dawn } }) },
       "backyard",

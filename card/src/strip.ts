@@ -2,8 +2,9 @@ import { pierEntityId } from "./entity";
 
 export const HOUR = 60 * 60 * 1000;
 
-// The YAML night strip's span (docs/night-dashboard.md): the judged night with
-// its evening and morning around it, or a day around now when there is no night.
+// The strip's span: the judged night with its evening and morning around it, or
+// a day around now when there is no night. The YAML night strip
+// (docs/night-dashboard.md) has the same span, but never moves on from dusk.
 const BEFORE_DUSK = 4 * HOUR;
 const AFTER_DAWN = 5 * HOUR;
 const FALLBACK_BEFORE = 6 * HOUR;
@@ -30,9 +31,13 @@ export function darkWindow(attribute: unknown): Night | undefined {
   return { dusk, dawn };
 }
 
+// Once the night has started, the axis keeps its length and slides with the
+// clock, so it never opens on hours long gone and a pan's length never shrinks.
 export function stripAxis(night: Night | undefined, now: number): Axis {
-  if (night !== undefined) return { start: night.dusk - BEFORE_DUSK, end: night.dawn + AFTER_DAWN };
-  return { start: now - FALLBACK_BEFORE, end: now + FALLBACK_AFTER };
+  if (night === undefined) return { start: now - FALLBACK_BEFORE, end: now + FALLBACK_AFTER };
+  const length = night.dawn + AFTER_DAWN - (night.dusk - BEFORE_DUSK);
+  const start = Math.max(night.dusk, now) - BEFORE_DUSK;
+  return { start, end: start + length };
 }
 
 // The opening axis's length, moved to `start` and held inside the reach.
@@ -278,7 +283,7 @@ export function buildStrip(
   };
 }
 
-// The opening axis always holds both; a panned one may hold either or neither.
+// Late in the night dusk is off the opening axis; a panned axis may hold either line or neither.
 function nightLines(night: Night, axis: Axis, time: (at: number) => string): Line[] {
   const lines: Line[] = [
     { kind: "dusk", at: night.dusk, text: `Dusk, ${time(night.dusk)}` },

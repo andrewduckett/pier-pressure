@@ -293,6 +293,8 @@ describe("hovering over a target bar", () => {
 
   // London's clocks go forward at 01:00 UTC, so 23 hours from 00:30 is 00:30 again.
   it("shows the name alone when both ends read the same time", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-03-28T12:00:00Z"));
     const card = await mountCard(
       {
         [VERDICT]: verdictEntity("GO", {
