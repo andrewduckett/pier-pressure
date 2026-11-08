@@ -41,7 +41,7 @@ services:
     environment:
       PIERPRESSURE_MQTT_PASSWORD: "${PIERPRESSURE_MQTT_PASSWORD:-}"
 
-  # A throwaway Home Assistant for checking the night dashboard. Dev only: started
+  # A throwaway Home Assistant for checking the PierPressure card. Dev only: started
   # by `mise run dashboard-check`, which writes its config (scripts/dashboard_check.py).
   homeassistant:
     profiles: ["dashboard"]

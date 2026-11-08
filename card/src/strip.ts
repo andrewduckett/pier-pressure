@@ -3,8 +3,7 @@ import { pierEntityId } from "./entity";
 export const HOUR = 60 * 60 * 1000;
 
 // The strip's span: the judged night with its evening and morning around it, or
-// a day around now when there is no night. The YAML night strip
-// (docs/night-dashboard.md) has the same span, but never moves on from dusk.
+// a day around now when there is no night.
 const BEFORE_DUSK = 4 * HOUR;
 const AFTER_DAWN = 5 * HOUR;
 const FALLBACK_BEFORE = 6 * HOUR;
@@ -99,8 +98,8 @@ type RowKind = Mark & {
   reading?: (value: number) => string;
 };
 
-// Top to bottom: the YAML night strip's nine, then the rest in the order
-// PierPressure publishes them.
+// Top to bottom: the sky and the observing conditions, then the rest in the
+// order PierPressure publishes them.
 export const ROWS: readonly RowKind[] = [
   { key: "sun_altitude", label: "Sun altitude", unit: "°", shade: sunShade },
   { key: "moon_altitude", label: "Moon altitude", unit: "°", shade: moonShade },

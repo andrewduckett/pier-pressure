@@ -7,8 +7,7 @@ each of the ranked targets can be seen. Lines for dusk, dawn and now cross the
 strip.
 
 The card only shows what PierPressure already publishes. It never computes a
-verdict and never fetches data. If you would rather not install a card, the
-[night dashboard](night-dashboard.md) shows the same entities with YAML.
+verdict and never fetches data.
 
 ## What the card shows
 
@@ -128,10 +127,6 @@ darker means worse.
 | Seeing, Transparency | Excellent, 1 | Poor, 0. |
 | Temperature, Dew point | Below −5 °C | 20 °C or more. One step darker for every 5 °C. |
 | Humidity, Rain chance | 0% | 90% or more. One step darker for every 15%. |
-
-The rows the [night dashboard](night-dashboard.md#how-to-read-the-night-strip)
-also has use its shades. It has no Temperature, Dew point, Humidity, Wind
-speed, Wind direction or Rain chance row.
 
 In the **Sun altitude** row, the blue darkens as the sun goes down:
 
