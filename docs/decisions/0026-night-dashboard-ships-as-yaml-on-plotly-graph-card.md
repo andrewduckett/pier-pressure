@@ -1,18 +1,18 @@
 ---
 id: adrs-adr0026
 date: 2026-10-31
-status: superseded by ADR-0034
+status: superseded by ADR-0034 and ADR-0035
 title: 'ADR0026: The night dashboard ships as YAML in the docs, on core cards plus plotly-graph-card'
 description: Architecture Decision Record for delivering the night strip dashboard as documented YAML that readers paste in, built on Home Assistant core cards and the community plotly-graph-card, with no JavaScript card of PierPressure's own.
 ---
 
 # ADR-0026: The night dashboard ships as YAML in the docs, on core cards plus plotly-graph-card
 
-> **Superseded in part on 2026-11-06 by ADR-0034.** PierPressure now ships its
-> own dashboard card, so the sentence "PierPressure adds no JavaScript card of
-> its own" no longer holds. The rest stands: the YAML dashboard in the docs, on
-> core cards plus plotly-graph-card, stays as the route for anyone who will not
-> install the card.
+> **Superseded on 2026-11-08 by ADR-0034 and ADR-0035.** ADR-0034 made
+> PierPressure ship its own dashboard card, so the sentence "PierPressure adds
+> no JavaScript card of its own" no longer holds. ADR-0035 removed the YAML
+> dashboard from the docs, so nothing of this decision stands. The PierPressure
+> card is the only dashboard PierPressure documents.
 
 ## Context
 
