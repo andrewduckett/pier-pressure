@@ -79,3 +79,31 @@ describe("reasons that are not a list of strings", () => {
     ]);
   });
 });
+
+describe("without a verdict", () => {
+  it("shows no list before Home Assistant gives the card its state", async () => {
+    const card = await mountCard();
+
+    expect(reasonsList(card)).toBeNull();
+  });
+
+  it("shows no list before the first verdict", async () => {
+    const card = await mountCard({ [VERDICT]: verdictEntity("unknown") });
+
+    expect(reasonsList(card)).toBeNull();
+  });
+
+  it("shows no list while PierPressure is offline", async () => {
+    const card = await mountCard({
+      [VERDICT]: verdictEntity("unavailable", { reasons: ["Score 72/100."] }),
+    });
+
+    expect(reasonsList(card)).toBeNull();
+  });
+
+  it("shows no list while the Verdict sensor is missing", async () => {
+    const card = await mountCard({}, "frontyard");
+
+    expect(reasonsList(card)).toBeNull();
+  });
+});
