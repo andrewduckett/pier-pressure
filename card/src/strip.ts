@@ -281,7 +281,7 @@ export function buildStrip(
   };
 }
 
-// The opening axis always holds both; a panned one may hold either or neither.
+// Late in the night dusk is off the opening axis; a panned axis may hold either line or neither.
 function nightLines(night: Night, axis: Axis, time: (at: number) => string): Line[] {
   const lines: Line[] = [
     { kind: "dusk", at: night.dusk, text: `Dusk, ${time(night.dusk)}` },
