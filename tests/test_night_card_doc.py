@@ -489,3 +489,14 @@ def test_docs_pan_no_forecast_names_a_later_night_as_a_cause() -> None:
     no_forecast = help_text[help_text.index('**A row says "No forecast".**') :]
 
     assert "later night" in no_forecast.split("\n- **", 1)[0]
+
+
+def _reasons_line() -> str:
+    page = _page()
+    section = page[page.index("## What the card shows") : page.index("### The Moon section")]
+    return next((line for line in section.splitlines() if line.startswith("| **Reasons**")), "")
+
+
+@pytest.mark.parametrize("term", ["`NO-GO`", "gate", "in order", "time zone", "equipment"])
+def test_docs_reasons_line_says_what_the_list_shows(term: str) -> None:
+    assert term in _reasons_line()
