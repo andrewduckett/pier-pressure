@@ -174,19 +174,20 @@ altitude row. A lane with no bar and no message means the moon stays down.
 
 The **Cloud range** row reads two sensors. It says **Not found** or
 **Unavailable** for the first of the two that is missing or unavailable. When
-both are there, it says **Needs two forecasts** instead of **No forecast**.
-Hover over that message to see
-"No hour on the strip has cloud cover from two or more forecasts". With the
-default providers, only Open-Meteo gives cloud cover, so the row shows this
-message. See
-[If something looks wrong](#if-something-looks-wrong) for how to fill it.
+both are there but no hour of the whole forecast has cloud cover from two or
+more weather forecasts, the card leaves the row out. With the default
+providers, only Open-Meteo gives cloud cover, so the strip has no Cloud range
+row. When two forecasts give cloud cover but not for the hours on the strip,
+as when you pan past the shorter one, the row says **No forecast**. Hover over
+it to see "No hour on the strip has cloud cover from two or more forecasts".
+See [If something looks wrong](#if-something-looks-wrong) for how to bring
+the row back.
 
 | Message | What it means |
 |---|---|
 | **Not found** | Home Assistant has no entity with the sensor's id. |
 | **Unavailable** | The sensor is unavailable. Its forecast is hidden or out of date. |
 | **No forecast** | The sensor has no value for any hour on the strip. |
-| **Needs two forecasts** | Cloud range only. No hour on the strip has cloud cover from two or more weather forecasts. |
 
 The other rows draw as usual. See [If something looks wrong](#if-something-looks-wrong)
 for what to do.

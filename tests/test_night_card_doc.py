@@ -295,7 +295,6 @@ def test_docs_missing_strip_section_names_the_message(message: str) -> None:
     [
         "sensor.pierpressure_<pier>_cloud_cover_min",
         "sensor.pierpressure_<pier>_cloud_cover_max",
-        "Needs two forecasts",
         "No hour on the strip has cloud cover from two or more forecasts",
         "Cloud range, the hour from 21:00: 40% to 70%",
     ],
@@ -307,6 +306,18 @@ def test_docs_strip_section_covers_the_cloud_range_row(text: str) -> None:
 @pytest.mark.parametrize("term", ["lowest", "highest", "disagree", "0% at the bottom"])
 def test_docs_cloud_range_explains_what_it_shows(term: str) -> None:
     assert term in " ".join(_before_troubleshooting().split())
+
+
+def test_docs_strip_section_says_when_the_cloud_range_row_is_left_out() -> None:
+    paragraphs = _before_troubleshooting().split("\n\n")
+    hover = "No hour on the strip has cloud cover from two or more forecasts"
+    paragraph = " ".join(next(p for p in paragraphs if hover in " ".join(p.split())).split())
+
+    assert "leaves the row out" in paragraph
+
+
+def test_docs_no_longer_name_the_retired_cloud_range_message() -> None:
+    assert "Needs two forecasts" not in _page()
 
 
 def test_docs_first_verdict_note_says_the_cloud_range_row_is_left_out() -> None:
