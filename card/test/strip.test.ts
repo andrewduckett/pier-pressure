@@ -969,6 +969,16 @@ describe("the card's minute timer", () => {
     expect(line(card, "now")?.dataset["at"]).toBe("2026-10-31T22:01:00.000Z");
   });
 
+  it("moves the opening axis a minute later during the night", async () => {
+    pinClockAndTimers("2026-10-31T23:00:00Z");
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    vi.advanceTimersByTime(60_000);
+    await card.updateComplete;
+
+    expect(axis(card)).toEqual(["2026-10-31T19:01:00.000Z", "2026-11-01T10:56:00.000Z"]);
+  });
+
   it("runs one timer while the card is on the page", async () => {
     pinClockAndTimers("2026-10-31T22:00:00Z");
 
