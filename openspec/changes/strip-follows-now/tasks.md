@@ -1,0 +1,10 @@
+## 1. The strip follows now
+
+- [ ] 1.1 [easy] Every card test that expects the dusk-based opening axis pins the browser's clock before its night's dusk, such as 2026-10-31T12:00:00Z, so it passes on any real date once the axis depends on the clock; no card code changes (verify: npm --prefix card test)
+- [ ] 1.2 [medium] The opening axis starts at the later of 4 hours before dusk and 4 hours before the browser's clock, and keeps the length from 4 hours before dusk to 5 hours after dawn: "At dusk", "During the night" and "Late in the night" give 16:30–08:25, 19:00–10:55 and 23:00–14:55 (verify: npm --prefix card test -- test/strip.test.ts)
+- [ ] 1.3 [easy] An unpanned strip's axis moves with the minute redraw during the night: from 19:00–10:55 to 19:01–10:56 after 60 seconds with no new state (verify: npm --prefix card test -- test/strip.test.ts)
+- [ ] 1.4 [easy] Late in the night (clock 01:00) the opening axis 21:00–12:55 draws the dawn line and no dusk line; the code comment that the opening axis always holds both lines says what is now true (verify: npm --prefix card test -- test/strip.test.ts)
+- [ ] 1.5 [medium] During the night a pan keeps its start as the clock moves: Left arrow at 23:00 gives 18:00–09:55, which stays after 60 seconds with `Back to tonight` shown (verify: npm --prefix card test -- test/pan.test.ts)
+- [ ] 1.6 [easy] `Back to tonight` returns to the opening axis at the time it is selected: panned at 23:00, selected at 00:00, the axis runs 20:00–11:55 (verify: npm --prefix card test -- test/pan.test.ts)
+- [ ] 1.7 [easy] `docs/night-card.md` says that once the night has started the strip opens 4 hours before now and keeps its length, and the span comment at the top of `card/src/strip.ts` no longer says the card's strip is the YAML strip's span (verify: grep -q "4 hours before now" docs/night-card.md)
+- [ ] 1.8 [easy] The whole gate passes (verify: mise run check)
