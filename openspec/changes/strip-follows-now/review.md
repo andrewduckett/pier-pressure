@@ -28,3 +28,28 @@
 5. Rebutted as above.
 6. Fixed. The requirement now uses two sentences, and "the browser's clock" throughout.
 7. Fixed. The comment is its own task (1.9). The docs task (1.8) verifies with the doc tests.
+
+## Round 2
+
+- **Prior round:** round 1 gave REVISE at e800195. Two findings were refuted and five fixed.
+- **Reviewed commit:** cb67049
+- **Reviewer:** gemini/gemini-3.8-flash, through the t3 resolver
+- **Reviewer context:** fresh context, other family
+- **Verdict:** REVISE. The reviewer accepted both round 1 rebuttals. After two REVISE verdicts the user chose to apply these fixes and run a third round.
+
+### Findings
+
+| # | Label | Concern | Check |
+|---|---|---|---|
+| 1 | Critical | The plan does not say how the card tells a later pan from an earlier one, so a catch-up check could clear an earlier pan or miss a skipped minute. | CONFIRMED |
+| 2 | Critical | The now-line test "is missing after the axis ends" (`card/test/strip.test.ts:885-891`) fails once an unpanned strip with a dark window always holds now. | CONFIRMED |
+| 3 | Moderate | A clock pinned in `mountCard` leaks fake timers into suites that never restore real timers. | CONFIRMED |
+| 4 | Moderate | Tasks 1.4 and 1.9 check comments with commands that ignore comments. | CONFIRMED |
+| 5 | Suggestion | A 33-word bullet in "The page covers the strip". | Declined. The bullet is unchanged text from the main spec. This change only adds a bullet after it. |
+
+### Fixes
+
+1. "The strip stays where the user panned it" defines a later pan, and keeps an earlier pan's start. The catch-up fires when the opening axis reaches or passes the start of a later pan. D12 says the card remembers that a pan was later. Task 1.8 tests a skipped minute.
+2. Task 1.2 names the now-line test, which moves to a panned or fallback axis.
+3. Task 1.1 has the harness restore real timers after each test.
+4. The comment changes are tasks 1.5 and 1.10, each verified by a negative `grep`.
