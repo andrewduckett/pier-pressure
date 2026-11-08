@@ -30,9 +30,13 @@ export function darkWindow(attribute: unknown): Night | undefined {
   return { dusk, dawn };
 }
 
+// Once the night has started, the axis keeps its length and slides with the
+// clock, so it never opens on hours long gone and a pan's length never shrinks.
 export function stripAxis(night: Night | undefined, now: number): Axis {
-  if (night !== undefined) return { start: night.dusk - BEFORE_DUSK, end: night.dawn + AFTER_DAWN };
-  return { start: now - FALLBACK_BEFORE, end: now + FALLBACK_AFTER };
+  if (night === undefined) return { start: now - FALLBACK_BEFORE, end: now + FALLBACK_AFTER };
+  const length = night.dawn + AFTER_DAWN - (night.dusk - BEFORE_DUSK);
+  const start = Math.max(night.dusk, now) - BEFORE_DUSK;
+  return { start, end: start + length };
 }
 
 // The opening axis's length, moved to `start` and held inside the reach.

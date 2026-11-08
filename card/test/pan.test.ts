@@ -128,7 +128,8 @@ const THREE_DAYS = {
   [CLOUD_COVER]: forecastEntity(hourly("2026-10-31T12:00:00Z", 72)),
 };
 
-const NOW = Date.parse("2026-10-31T22:00:00Z");
+// Before dusk, so the opening axis is the judged night's.
+const NOW = Date.parse("2026-10-31T12:00:00Z");
 
 function held(states: Record<string, HassEntity>, start?: string) {
   return buildStrip(
