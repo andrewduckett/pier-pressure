@@ -107,3 +107,28 @@ describe("without a verdict", () => {
     expect(reasonsList(card)).toBeNull();
   });
 });
+
+describe("on a night with no astronomical darkness", () => {
+  const SUMMER = verdictEntity("NO-GO", {
+    dark_window: { start: null, end: null },
+    reasons: ["No astronomical night tonight: the sun never drops below -18°."],
+  });
+
+  it("lists the reasons before the darkness note", async () => {
+    const card = await mountCard({ [VERDICT]: SUMMER });
+
+    const shown = card.shadowRoot?.querySelectorAll(".reasons, .note, .strip");
+    expect([...(shown ?? [])].map((element) => element.className)).toEqual([
+      "reasons",
+      "note",
+      "strip",
+    ]);
+  });
+
+  it("keeps Back to tonight's place straight above the strip", async () => {
+    const card = await mountCard({ [VERDICT]: SUMMER });
+
+    const back = card.shadowRoot?.querySelector(".back");
+    expect(back?.nextElementSibling?.className).toBe("strip");
+  });
+});
