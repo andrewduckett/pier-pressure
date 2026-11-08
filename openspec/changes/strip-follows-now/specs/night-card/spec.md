@@ -114,7 +114,7 @@ After the user pans, the axis SHALL keep its start when Home Assistant sends new
 - **THEN** the strip's axis starts at 2026-10-31T14:00:00Z and is as long as the opening axis
 
 #### Scenario: A new night of another length
-- **WHEN** the user has panned the axis to start at 2026-11-01T16:30:00Z, and a new `dark_window` makes the opening axis 17 hours long
+- **WHEN** the user has panned the axis to start at 2026-11-01T16:30:00Z, and a new `dark_window` makes the opening axis 17 hours long, starting before 2026-11-01T16:30:00Z
 - **THEN** the strip's axis starts at 2026-11-01T16:30:00Z and is 17 hours long
 
 #### Scenario: Panning back by hand
