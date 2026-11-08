@@ -189,10 +189,10 @@ The project SHALL publish `docs/night-card.md`, and the README SHALL link to it.
 - **THEN** it names `sensor.pierpressure_<pier>_verdict` and says where Home Assistant lists entity ids
 
 ### Requirement: The card draws the four cloud rows
-Below the verdict, score and confidence, the card SHALL draw a night strip. Under the strip's Moon altitude row, the card SHALL draw the four cloud rows and, after Cloud cover, the Cloud range row. From top to bottom they SHALL be Cloud cover, Cloud range, Cloud low, Cloud mid and Cloud high, each labelled with that name. Each cloud row SHALL read the `forecast` attribute of one sensor, named from the same slug as the Verdict sensor: `sensor.pierpressure_<slug>_cloud_cover`, `sensor.pierpressure_<slug>_cloud_low`, `sensor.pierpressure_<slug>_cloud_mid` and `sensor.pierpressure_<slug>_cloud_high`.
+Below the verdict, score and confidence, the card SHALL draw a night strip. Under the strip's Moon altitude row, the card SHALL draw the four cloud rows and, after Cloud cover, the Cloud range row, unless the Cloud range row is left out because no two forecasts give cloud. From top to bottom they SHALL be Cloud cover, Cloud range, Cloud low, Cloud mid and Cloud high, each labelled with that name. Each cloud row SHALL read the `forecast` attribute of one sensor, named from the same slug as the Verdict sensor: `sensor.pierpressure_<slug>_cloud_cover`, `sensor.pierpressure_<slug>_cloud_low`, `sensor.pierpressure_<slug>_cloud_mid` and `sensor.pierpressure_<slug>_cloud_high`.
 
 #### Scenario: The rows and their sensors
-- **WHEN** the card is configured with `pier: Back-Yard` and the Verdict sensor has the state `GO`
+- **WHEN** the card is configured with `pier: Back-Yard`, the Verdict sensor has the state `GO`, and the Cloud cover min and max sensors hold 40 and 70 at 2026-10-31T21:00:00Z
 - **THEN** the strip shows the rows Sun altitude, Moon altitude, Cloud cover, Cloud range, Cloud low, Cloud mid and Cloud high, in that order, at its top
 - **AND** the four cloud rows read `sensor.pierpressure_back_yard_cloud_cover`, `sensor.pierpressure_back_yard_cloud_low`, `sensor.pierpressure_back_yard_cloud_mid` and `sensor.pierpressure_back_yard_cloud_high`
 
@@ -502,11 +502,16 @@ Hovering over the dusk, dawn or now line SHALL show its name and time, in Home A
 - **AND** it no longer says that a later release adds dusk, dawn and the moon
 
 ### Requirement: The card draws every timeline row
-The strip SHALL have sixteen rows, each labelled with its name. Fifteen rows each read one timeline sensor, from Cloud cover to Precipitation probability. The Cloud range row reads the Cloud cover min and Cloud cover max sensors. From top to bottom they SHALL be Sun altitude, Moon altitude, Cloud cover, Cloud range, Cloud low, Cloud mid, Cloud high, Wind gust, Seeing, Transparency, Temperature, Dew point, Humidity, Wind speed, Wind direction and Rain chance.
+The strip SHALL have sixteen rows, each labelled with its name, or fifteen when the Cloud range row is left out. Fifteen rows each read one timeline sensor, from Cloud cover to Precipitation probability. The Cloud range row reads the Cloud cover min and Cloud cover max sensors. From top to bottom they SHALL be Sun altitude, Moon altitude, Cloud cover, Cloud range, Cloud low, Cloud mid, Cloud high, Wind gust, Seeing, Transparency, Temperature, Dew point, Humidity, Wind speed, Wind direction and Rain chance.
 
 #### Scenario: The rows in order
-- **WHEN** the card is configured with `pier: backyard` and the Verdict sensor has the state `GO`
+- **WHEN** the card is configured with `pier: backyard`, the Verdict sensor has the state `GO`, and the Cloud cover min and max sensors hold 40 and 70 at 2026-10-31T21:00:00Z
 - **THEN** the strip's rows read, top to bottom, Sun altitude, Moon altitude, Cloud cover, Cloud range, Cloud low, Cloud mid, Cloud high, Wind gust, Seeing, Transparency, Temperature, Dew point, Humidity, Wind speed, Wind direction and Rain chance
+
+#### Scenario: The rows without Cloud range
+- **WHEN** the Verdict sensor has the state `GO`, both Cloud range sensors are available with only null values, and Target 1 has a window from 2026-10-31T21:00:00Z to 2026-11-01T02:00:00Z
+- **THEN** the strip has fifteen rows, in the same order with Cloud range left out
+- **AND** the lines overlay and the strip's grid end at the Target 1 lane
 
 ### Requirement: Each row reads its timeline sensor
 Each row but Cloud range SHALL read the `forecast` attribute of `sensor.pierpressure_<slug>_<key>`, named from the same slug as the Verdict sensor. The key SHALL be the row's name in lower case with `_` for each space, except that Rain chance reads `precipitation_probability`.
@@ -812,7 +817,7 @@ When one of the strip's rows but Cloud range would draw no cell at all, the card
 #### Scenario: Before the first verdict
 - **WHEN** the Verdict sensor and all seventeen timeline sensors have the state `unknown` and no attributes
 - **THEN** each of the fifteen rows but Cloud range shows the message `No forecast`
-- **AND** the Cloud range row shows the message `Needs two forecasts`
+- **AND** the strip has no Cloud range row
 
 ### Requirement: A row with a cell shows no message
 A row that draws at least one cell SHALL show no message. Its hours without a value SHALL stay blank.
@@ -877,27 +882,34 @@ The card SHALL show no such note in any other case: a missing `dark_window`, onl
 ### Requirement: The docs describe the row messages and the darkness note
 Where `docs/night-card.md` describes the strip, it SHALL describe:
 
-- the row messages `Not found`, `Unavailable`, `No forecast` and `Needs two forecasts`, and what each means;
-- that hovering over `Not found`, `Unavailable` or `No forecast` names the sensor, and hovering over `Needs two forecasts` says what the row needs;
+- the row messages `Not found`, `Unavailable` and `No forecast`, and what each means;
+- that hovering over `Not found`, `Unavailable` or `No forecast` names the sensor, except that hovering over the Cloud range row's `No forecast` says what the row needs;
 - that the Moon up lane repeats the Moon altitude row's message;
 - the note `No astronomical darkness tonight`.
 
+It SHALL NOT name `Needs two forecasts`.
+
 #### Scenario: The strip section covers the messages
 - **WHEN** the part of `docs/night-card.md` before its "If something looks wrong" section is read
-- **THEN** it names `Not found`, `Unavailable`, `No forecast`, `Needs two forecasts` and `No astronomical darkness tonight`
+- **THEN** it names `Not found`, `Unavailable`, `No forecast` and `No astronomical darkness tonight`
 - **AND** it names the words hover and Moon up in the same paragraph as `No forecast`
+
+#### Scenario: The retired message is gone
+- **WHEN** `docs/night-card.md` is read
+- **THEN** it does not contain `Needs two forecasts`
 
 ### Requirement: The docs say what to do when something is missing
 The "If something looks wrong" section of `docs/night-card.md` SHALL say what to do when the card shows each of these:
 
 - `PierPressure is offline`;
 - `No PierPressure verdict found`;
-- a row that says `Not found`, `Unavailable`, `No forecast` or `Needs two forecasts`;
+- a row that says `Not found`, `Unavailable` or `No forecast`;
+- a strip with no Cloud range row;
 - `No astronomical darkness tonight`.
 
 #### Scenario: The troubleshooting section covers the missing cases
 - **WHEN** the "If something looks wrong" section of `docs/night-card.md` is read
-- **THEN** it names `PierPressure is offline`, `No PierPressure verdict found`, `Not found`, `Unavailable`, `No forecast`, `Needs two forecasts` and `No astronomical darkness tonight`
+- **THEN** it names `PierPressure is offline`, `No PierPressure verdict found`, `Not found`, `Unavailable`, `No forecast`, Cloud range and `No astronomical darkness tonight`
 
 ### Requirement: The docs name the causes of No forecast
 For a row that says `No forecast`, the "If something looks wrong" section of `docs/night-card.md` SHALL name three causes. Either no weather source in the pier's `providers` gave that condition a value for these hours, or the strip is panned past the last hour that condition's weather source forecasts, or every weather source failed. It SHALL point to the pier's weather source health sensors.
@@ -961,12 +973,12 @@ The card SHALL draw no Cloud range column for an hour where either forecast has 
 - **THEN** the Cloud range row has a column for 21:00 UTC and none for 22:00 UTC
 
 #### Scenario: A min with no max
-- **WHEN** the min forecast holds 40 at 2026-10-31T21:00:00Z and the max forecast has no point at that time
-- **THEN** the Cloud range row has no column for that hour
+- **WHEN** the min forecast holds 40 at 2026-10-31T21:00:00Z and the max forecast has no point at that time, and both forecasts hold numbers at 2026-10-31T23:00:00Z
+- **THEN** the Cloud range row has no column for 21:00 UTC
 
 #### Scenario: A min above the max
 - **WHEN** the min forecast holds 70 and the max forecast holds 20 at 2026-10-31T21:00:00Z
-- **THEN** the Cloud range row has no column for that hour
+- **THEN** the strip has a Cloud range row with no column for that hour
 
 ### Requirement: Hovering over a Cloud range column shows both values
 Hovering over a Cloud range column SHALL show `Cloud range, the hour from <HH:MM>: <min>% to <max>%`, with the values as the forecasts hold them.
@@ -976,18 +988,23 @@ Hovering over a Cloud range column SHALL show `Cloud range, the hour from <HH:MM
 - **THEN** hovering over that column shows `Cloud range, the hour from 21:00: 40% to 70.5%`
 
 ### Requirement: A Cloud range row with no column says why
-When the Cloud range row would draw no column at all, the card SHALL show a message in its track. The message SHALL be the first of these that applies:
+When the Cloud range row is in the strip but would draw no column at all, the card SHALL show a message in its track. The message SHALL be the first of these that applies:
 
 1. `Not found`, when Home Assistant has no entity with the min sensor's id, or else none with the max sensor's id.
 2. `Unavailable`, when the min sensor's state is `unavailable`, or else the max sensor's.
-3. `Needs two forecasts`, otherwise.
+3. `No forecast`, otherwise: the forecasts have a paired hour, but no readable pair on the hours of the axis.
 
-A Cloud range row that draws at least one column SHALL show no message.
+A Cloud range row that draws at least one column SHALL show no message. The card SHALL NOT show the message `Needs two forecasts`.
 
 #### Scenario: One cloud provider
-- **WHEN** both sensors are in Home Assistant and available, and every point of both forecasts inside the axis is null
-- **THEN** the Cloud range row shows the message `Needs two forecasts` and no columns
+- **WHEN** both sensors are in Home Assistant and available, and every point of both forecasts is null
+- **THEN** the strip shows no Cloud range row, and so no Cloud range message
 - **AND** the Cloud cover row shows its cells and no message
+
+#### Scenario: Forecasts that end before the axis
+- **WHEN** both sensors are in Home Assistant and available, the axis runs from 2026-10-31T16:30:00Z to 2026-11-01T08:25:00Z, and the only readable pair is 40 and 70 at 2026-10-31T12:00:00Z
+- **THEN** the Cloud range row shows the message `No forecast` and no columns
+- **AND** the message is marked `no-forecast`, as the other rows' `No forecast` is
 
 #### Scenario: The max sensor is not there
 - **WHEN** the min sensor has values inside the axis and Home Assistant has no `sensor.pierpressure_backyard_cloud_cover_max`
@@ -1003,21 +1020,25 @@ A Cloud range row that draws at least one column SHALL show no message.
 
 #### Scenario: Before the first verdict
 - **WHEN** both sensors have the state `unknown` and no attributes
-- **THEN** the Cloud range row shows the message `Needs two forecasts`
+- **THEN** the strip shows no Cloud range row, and so no Cloud range message
 
 ### Requirement: Hovering over the Cloud range message says what it needs
 Hovering over the Cloud range row's message SHALL show:
 
 - `<entity id> is not in Home Assistant` for `Not found`, naming the sensor that is missing;
 - `<entity id> is unavailable` for `Unavailable`, naming the sensor that is unavailable;
-- `No hour on the strip has cloud cover from two or more forecasts` for `Needs two forecasts`.
+- `No hour on the strip has cloud cover from two or more forecasts` for `No forecast`.
 
 #### Scenario: The max sensor is not there
 - **WHEN** the min sensor is in Home Assistant and there is no `sensor.pierpressure_backyard_cloud_cover_max`
 - **THEN** hovering over the Cloud range row's message shows `sensor.pierpressure_backyard_cloud_cover_max is not in Home Assistant`
 
 #### Scenario: One cloud provider
-- **WHEN** the Cloud range row shows `Needs two forecasts`
+- **WHEN** both sensors are available and every point of both forecasts is null
+- **THEN** the strip has no Cloud range message to hover over, because it has no Cloud range row
+
+#### Scenario: Panned past the forecasts
+- **WHEN** the min and max forecasts hold 40 and 70 at 2026-10-31T12:00:00Z and null at every hour on the axis, so the Cloud range row shows `No forecast`
 - **THEN** hovering over the message shows `No hour on the strip has cloud cover from two or more forecasts`
 
 ### Requirement: The docs describe the Cloud range row
@@ -1029,19 +1050,14 @@ Where `docs/night-card.md` describes the strip, it SHALL describe the Cloud rang
 - that a tall range bar means the forecasts disagree;
 - that an hour with fewer than two forecasts is blank;
 - what hovering over an hour shows;
-- the message `Needs two forecasts`.
+- that the strip leaves the row out when no hour of the forecast has cloud cover from two or more forecasts, as with the default providers, but keeps it to say `Not found` or `Unavailable`;
+- that the row says `No forecast` when it is in the strip but no hour on the strip has two forecasts.
 
 #### Scenario: The strip section covers the Cloud range row
 - **WHEN** the part of `docs/night-card.md` before its "If something looks wrong" section is read
-- **THEN** it names Cloud range, `sensor.pierpressure_<pier>_cloud_cover_min`, `sensor.pierpressure_<pier>_cloud_cover_max` and `Needs two forecasts`
+- **THEN** it names Cloud range, `sensor.pierpressure_<pier>_cloud_cover_min` and `sensor.pierpressure_<pier>_cloud_cover_max`
 - **AND** it names the words lowest, highest and disagree
-
-### Requirement: The docs say how to fill the Cloud range row
-For `Needs two forecasts`, the "If something looks wrong" section of `docs/night-card.md` SHALL name two causes. Either fewer than two providers in the `providers` list under `conditions` give cloud cover, or a listed cloud provider failed. For the first, it SHALL say that adding a provider that gives cloud cover, such as an Open-Meteo model, fills the row. For the second, it SHALL point to the provider's health sensor.
-
-#### Scenario: The troubleshooting section covers Needs two forecasts
-- **WHEN** the "If something looks wrong" section of `docs/night-card.md` is read
-- **THEN** it names `Needs two forecasts`, `conditions`, `providers`, Open-Meteo and the word health in the same list item
+- **AND** it says the row is left out with one cloud forecast, in the same paragraph as `No hour on the strip has cloud cover from two or more forecasts`
 
 ### Requirement: The card shows a Moon section beside the verdict
 The card SHALL show a Moon section beside its Verdict, Score and Confidence lines, above the strip. The section SHALL read only the Verdict sensor's `moon` attribute, and its `illumination`, `phase`, `rise` and `set` fields.
@@ -1459,3 +1475,56 @@ While the strip's axis is not the opening axis, the card SHALL show a button lab
 - **THEN** it names the words drag, swipe, trackpad, arrow keys and `Back to tonight`
 - **AND** it says the strip opens on the judged night, and stops at the first and last forecast hour
 - **AND** its "No forecast" help names a later night past a weather source's last hour as a cause
+
+### Requirement: The Cloud range row shows only when two forecasts give cloud
+The card SHALL leave the Cloud range row out of the strip, with no label, no track and no message, when all of these hold:
+
+- Home Assistant has both `sensor.pierpressure_<slug>_cloud_cover_min` and `sensor.pierpressure_<slug>_cloud_cover_max`;
+- neither sensor's state is `unavailable`;
+- their forecasts have no paired hour.
+
+A paired hour SHALL be a min point and a max point with the same `datetime` whose values are both numbers, in either order.
+
+#### Scenario: One cloud provider
+- **WHEN** both sensors are in Home Assistant and available, the Cloud cover forecast holds values inside the axis, and every point of both the min and the max forecast is null
+- **THEN** the strip has no row labelled Cloud range
+- **AND** the strip's rows read, top to bottom, Sun altitude, Moon altitude, Cloud cover, Cloud low, Cloud mid, Cloud high, Wind gust, Seeing, Transparency, Temperature, Dew point, Humidity, Wind speed, Wind direction and Rain chance
+- **AND** the Cloud cover row shows its cells and no message
+
+#### Scenario: Every paired hour has its min above its max
+- **WHEN** both sensors are available, and the min and max forecasts hold 70 and 20 at 2026-10-31T21:00:00Z and null at every other hour
+- **THEN** the strip has a Cloud range row
+- **AND** the row shows the message `No forecast` and no columns
+
+#### Scenario: A sensor that is not there keeps the row
+- **WHEN** the min sensor is in Home Assistant with null values, and Home Assistant has no `sensor.pierpressure_backyard_cloud_cover_max`
+- **THEN** the strip has a Cloud range row, which shows the message `Not found`
+
+#### Scenario: An unavailable sensor keeps the row
+- **WHEN** `sensor.pierpressure_backyard_cloud_cover_min` has the state `unavailable` and no attributes, and the max sensor is available with null values
+- **THEN** the strip has a Cloud range row, which shows the message `Unavailable`
+
+#### Scenario: Before the first verdict
+- **WHEN** both sensors have the state `unknown` and no attributes
+- **THEN** the strip has no row labelled Cloud range
+
+### Requirement: The Cloud range row is judged on the whole forecast
+The card SHALL look for a paired hour in every point of both forecasts, not only the hours on the axis. Panning the strip SHALL never add or remove the Cloud range row.
+
+#### Scenario: A pair only off the axis
+- **WHEN** the axis runs from 2026-10-31T16:30:00Z to 2026-11-01T08:25:00Z, and the min and max forecasts hold 40 and 70 at 2026-11-02T21:00:00Z and null at every hour on the axis
+- **THEN** the strip has a Cloud range row
+- **AND** the row shows the message `No forecast` and no columns
+
+#### Scenario: Panning past the shorter forecast
+- **WHEN** the min and max forecasts hold 40 and 70 at every hour from 2026-10-31T12:00:00Z to 2026-11-01T11:00:00Z and null after it, the Cloud cover forecast runs hourly to 2026-11-03T11:00:00Z, and the user pans the axis 24 hours later
+- **THEN** the strip still has a Cloud range row, under Cloud cover
+- **AND** the row shows the message `No forecast` and no columns
+
+### Requirement: The docs say how to bring back the Cloud range row
+For a strip with no Cloud range row, the "If something looks wrong" section of `docs/night-card.md` SHALL name two causes. Either fewer than two providers in the `providers` list under `conditions` give cloud cover, or a listed cloud provider failed for a whole fetch. For the first, it SHALL say that adding a provider that gives cloud cover, such as an Open-Meteo model, brings the row back. For the second, it SHALL point to the provider's health sensor.
+
+#### Scenario: The troubleshooting section covers a missing Cloud range row
+- **WHEN** the "If something looks wrong" section of `docs/night-card.md` is read
+- **THEN** one list item starts with the strip having no Cloud range row
+- **AND** that item names `conditions`, `providers`, Open-Meteo and the word health
