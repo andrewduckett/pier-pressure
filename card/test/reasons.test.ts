@@ -132,3 +132,36 @@ describe("on a night with no astronomical darkness", () => {
     expect(back?.nextElementSibling?.className).toBe("strip");
   });
 });
+
+describe("a reason's UTC times", () => {
+  const SPAN = "Scored from 2026-10-31T21:00:00Z to 2026-11-01T03:25:00Z (the rest of tonight).";
+
+  async function shown(reason: string, timeZone = "UTC"): Promise<string[]> {
+    const card = await mountCard(
+      { [VERDICT]: verdictEntity("GO", { reasons: [reason] }) },
+      "backyard",
+      timeZone,
+    );
+    return reasons(card);
+  }
+
+  it("show as hours and minutes", async () => {
+    expect(await shown(SPAN)).toEqual(["Scored from 21:00 to 03:25 (the rest of tonight)."]);
+  });
+
+  it("show in Home Assistant's time zone", async () => {
+    expect(await shown(SPAN, "Europe/Paris")).toEqual([
+      "Scored from 22:00 to 04:25 (the rest of tonight).",
+    ]);
+  });
+
+  it("leave a reason with no time as it is", async () => {
+    expect(await shown("Atmosphere factor 95%.")).toEqual(["Atmosphere factor 95%."]);
+  });
+
+  it("leave a time that is not a real time as it is", async () => {
+    const unreal = "Scored from 2026-13-45T21:00:00Z onwards.";
+
+    expect(await shown(unreal)).toEqual([unreal]);
+  });
+});

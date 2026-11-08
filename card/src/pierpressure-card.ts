@@ -338,11 +338,8 @@ export class PierPressureCard extends LitElement {
     }
     const confidence = asRecord(entity.attributes["confidence"]);
     const strip = this.shownStrip();
-    const moon = readMoon(
-      entity.attributes["moon"],
-      clock(this.hass.config?.time_zone),
-      this.hass.config?.latitude,
-    );
+    const time = clock(this.hass.config?.time_zone);
+    const moon = readMoon(entity.attributes["moon"], time, this.hass.config?.latitude);
     return html`<div class="card-content">
       <div class="summary">
         <dl>
@@ -358,7 +355,7 @@ export class PierPressureCard extends LitElement {
         </dl>
         ${renderMoon(moon)}
       </div>
-      ${renderReasons(readReasons(entity.attributes["reasons"]))} ${renderNote(strip)}
+      ${renderReasons(readReasons(entity.attributes["reasons"]), time)} ${renderNote(strip)}
       ${renderBack(strip, this.onBack)} ${renderStrip(strip, this.input)}
     </div>`;
   }
@@ -565,11 +562,23 @@ function readReasons(value: unknown): string[] {
   return value.every((reason) => typeof reason === "string") ? value : [];
 }
 
-function renderReasons(reasons: string[]) {
+function renderReasons(reasons: string[], time: (time: number) => string) {
   if (reasons.length === 0) return nothing;
   return html`<ul class="reasons" aria-label="Reasons">
-    ${reasons.map((reason) => html`<li>${reason}</li>`)}
+    ${reasons.map((reason) => html`<li>${localTimes(reason, time)}</li>`)}
   </ul>`;
+}
+
+// The core writes times as UTC, as iso_z does. The scored span lies inside one
+// night, so hours and minutes are enough, as on the strip.
+const UTC_TIME = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/g;
+
+// The clock throws on a time Date cannot read, so such a time is left as written.
+function localTimes(reason: string, time: (time: number) => string): string {
+  return reason.replace(UTC_TIME, (text) => {
+    const at = Date.parse(text);
+    return Number.isFinite(at) ? time(at) : text;
+  });
 }
 
 function renderNote(strip: Strip | undefined) {
