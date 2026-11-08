@@ -433,11 +433,9 @@ Each pier becomes one device, `PierPressure <pier>`, with these entities:
 | **Narrative** (sensor) | `ready` or unavailable | Only when the explainer is on. The text is in its attributes. |
 | **Open-Meteo health**, **7Timer! health**, **Computed health**, and **Open-Meteo HRRR health** and so on for each listed model (diagnostic sensors) | When that weather source last succeeded, or unknown | One per provider in the `conditions` list. See [Watching provider health](#watching-provider-health). |
 
-For a ready-made dashboard that shows all of these together, with an hour-by-hour
-night strip, see [docs/night-dashboard.md](docs/night-dashboard.md).
-
-To show tonight's verdict, score and confidence on any dashboard, install the
-PierPressure card through HACS. See [docs/night-card.md](docs/night-card.md).
+To see these together on a dashboard, install the PierPressure card through
+HACS. It shows tonight's verdict, the moon, an hour-by-hour night strip and a
+lane for each ranked target. See [docs/night-card.md](docs/night-card.md).
 
 If PierPressure stops, every entity shows as unavailable. A planned stop, such as
 `docker stop`, publishes `offline` before it disconnects. After a crash or a lost
