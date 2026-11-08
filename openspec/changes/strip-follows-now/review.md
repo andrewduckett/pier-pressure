@@ -53,3 +53,25 @@
 2. Task 1.2 names the now-line test, which moves to a panned or fallback axis.
 3. Task 1.1 has the harness restore real timers after each test.
 4. The comment changes are tasks 1.5 and 1.10, each verified by a negative `grep`.
+
+## Round 3
+
+- **Prior round:** round 2 gave REVISE at cb67049. Four findings were fixed and one suggestion declined.
+- **Reviewed commit:** ff64ac2
+- **Reviewer:** gemini/gemini-3.8-flash, through the t3 resolver
+- **Reviewer context:** fresh context, other family
+- **Verdict:** APPROVE_WITH_CHANGES. The reviewer recomputed every scenario's times and accepted the earlier rebuttals and fixes.
+
+### Findings
+
+| # | Label | Concern | Check |
+|---|---|---|---|
+| 1 | Moderate | The `held()` helper in `card/test/pan.test.ts` builds the strip at 22:00, after dusk, without `mountCard`. Task 1.2 leaves it out. | CONFIRMED |
+| 2 | Moderate | Right arrow, a minute's wait, then Left arrow leaves the axis a minute before the opening axis, as an earlier pan. | REBUTTED. The `Back to tonight` button shows and returns the strip. Arrow keys step whole hours from the pan, not from the clock, and the fallback axis already behaves this way ("Panning back by hand" holds only when no minute passes between the presses). |
+| 3 | Moderate | The catch-up sentence runs to 31 words, and "as if the user selected `Back to tonight`" suggests a redraw moves focus. | CONFIRMED |
+| 4 | Suggestion | A window close to 48 hours long slides past the forecast. | Declined, as in round 1, finding 5. |
+
+### Required changes, applied
+
+1. Task 1.2 also moves the `held()` helper's `NOW` before dusk, and verifies both test files.
+2. The catch-up sentence now ends "the strip SHALL follow the opening axis again." D12 says the catch-up does not move focus.
