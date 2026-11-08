@@ -2,8 +2,9 @@ import { pierEntityId } from "./entity";
 
 export const HOUR = 60 * 60 * 1000;
 
-// The YAML night strip's span (docs/night-dashboard.md): the judged night with
-// its evening and morning around it, or a day around now when there is no night.
+// The strip's span: the judged night with its evening and morning around it, or
+// a day around now when there is no night. The YAML night strip
+// (docs/night-dashboard.md) has the same span, but never moves on from dusk.
 const BEFORE_DUSK = 4 * HOUR;
 const AFTER_DAWN = 5 * HOUR;
 const FALLBACK_BEFORE = 6 * HOUR;
