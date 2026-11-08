@@ -879,6 +879,19 @@ describe("the dusk and dawn lines", () => {
       null,
     ]);
   });
+
+  // At 01:00 the opening axis runs from 21:00, after the 20:30 dusk.
+  it("leave out dusk once it is off the opening axis late in the night", async () => {
+    pinClock("2026-11-01T01:00:00Z");
+
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect([
+      line(card, "dusk"),
+      mark(card, "dusk"),
+      line(card, "dawn")?.dataset["at"],
+    ]).toEqual([null, null, "2026-11-01T03:25:00.000Z"]);
+  });
 });
 
 describe("the now line", () => {
