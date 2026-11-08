@@ -8,6 +8,12 @@ description: Architecture Decision Record for shipping PierPressure's own Home A
 
 # ADR-0034: PierPressure ships its own dashboard card, from this repository, through HACS
 
+> **Superseded in part on 2026-11-08 by ADR-0035.** The YAML dashboard in the
+> docs is removed, so the sentence "The YAML dashboard in the docs stays, as the
+> route for anyone who will not install a card" no longer holds. The rest
+> stands: PierPressure ships its own card through HACS, and the card is now the
+> only dashboard PierPressure documents.
+
 ## Context
 
 PierPressure publishes its verdict and an hourly timeline to Home Assistant as

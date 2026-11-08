@@ -1,4 +1,4 @@
-"""Task 2.1: the pure parts of the night dashboard's Docker check (design DD8).
+"""The pure parts of the dashboard check, which runs the card in Docker.
 
 Bringing Home Assistant up is checked by running ``mise run dashboard-check``;
 these tests cover the files it writes and how it answers the MQTT config flow.
@@ -25,32 +25,26 @@ from dashboard_check import (
     write_config,
 )
 
-_PAGE = "# Night\n\n```yaml\nviews:\n  - title: Tonight\n```\n"
 _CARD_HASH = "0123456789ab"
 
 
-def test_write_config_loads_the_page_yaml_as_a_yaml_mode_dashboard(tmp_path: Path) -> None:
-    write_config(tmp_path, _PAGE, _CARD_HASH)
-    config = (tmp_path / "config" / "configuration.yaml").read_text(encoding="utf-8")
-    parsed = yaml.safe_load(config)
-    lovelace = parsed["lovelace"]
-    dashboard = lovelace["dashboards"]["pierpressure-night"]
-    assert dashboard["mode"] == "yaml"
-    assert (tmp_path / "config" / dashboard["filename"]).read_text(encoding="utf-8") == (
-        "views:\n  - title: Tonight\n"
-    )
-
-
-def test_write_config_registers_the_plotly_graph_card_resource(tmp_path: Path) -> None:
-    write_config(tmp_path, _PAGE, _CARD_HASH)
+def test_write_config_holds_only_the_card_dashboard(tmp_path: Path) -> None:
+    write_config(tmp_path, _CARD_HASH)
     parsed = yaml.safe_load((tmp_path / "config" / "configuration.yaml").read_text("utf-8"))
-    assert {"url": "/local/plotly-graph-card/plotly-graph-card.js", "type": "module"} in parsed[
-        "lovelace"
-    ]["resources"]
+    assert list(parsed["lovelace"]["dashboards"]) == [CARD_DASHBOARD_PATH]
+    assert not (tmp_path / "config" / "night-dashboard.yaml").exists()
+
+
+def test_write_config_registers_only_the_card_resource(tmp_path: Path) -> None:
+    write_config(tmp_path, _CARD_HASH)
+    parsed = yaml.safe_load((tmp_path / "config" / "configuration.yaml").read_text("utf-8"))
+    assert parsed["lovelace"]["resources"] == [
+        {"url": f"/local/pierpressure-card/pierpressure-card.js?v={_CARD_HASH}", "type": "module"}
+    ]
 
 
 def test_write_config_points_pierpressure_at_the_compose_broker(tmp_path: Path) -> None:
-    write_config(tmp_path, _PAGE, _CARD_HASH)
+    write_config(tmp_path, _CARD_HASH)
     parsed = yaml.safe_load((tmp_path / "pierpressure.yaml").read_text(encoding="utf-8"))
     assert parsed["mqtt"]["host"] == "mosquitto"
     assert [pier["id"] for pier in parsed["piers"]] == ["backyard"]
@@ -142,17 +136,8 @@ def test_install_card_says_to_build_it_when_the_file_is_missing(tmp_path: Path) 
         install_pierpressure_card(tmp_path / "www", tmp_path / "dist" / "pierpressure-card.js")
 
 
-def test_write_config_registers_the_card_resource_with_its_hash(tmp_path: Path) -> None:
-    write_config(tmp_path, _PAGE, _CARD_HASH)
-    parsed = yaml.safe_load((tmp_path / "config" / "configuration.yaml").read_text("utf-8"))
-    assert {
-        "url": f"/local/pierpressure-card/pierpressure-card.js?v={_CARD_HASH}",
-        "type": "module",
-    } in parsed["lovelace"]["resources"]
-
-
 def test_write_config_adds_a_dashboard_holding_the_card(tmp_path: Path) -> None:
-    write_config(tmp_path, _PAGE, _CARD_HASH)
+    write_config(tmp_path, _CARD_HASH)
     parsed = yaml.safe_load((tmp_path / "config" / "configuration.yaml").read_text("utf-8"))
     dashboard = parsed["lovelace"]["dashboards"][CARD_DASHBOARD_PATH]
     views = yaml.safe_load((tmp_path / "config" / dashboard["filename"]).read_text("utf-8"))
@@ -160,8 +145,18 @@ def test_write_config_adds_a_dashboard_holding_the_card(tmp_path: Path) -> None:
     assert views["views"][0]["cards"] == [{"type": "custom:pierpressure-card", "pier": "backyard"}]
 
 
-def test_ready_message_names_the_card_dashboard() -> None:
-    assert f"/{CARD_DASHBOARD_PATH}" in ready_message()
+def test_ready_message_names_only_the_card_dashboard() -> None:
+    message = ready_message()
+    assert f"/{CARD_DASHBOARD_PATH}" in message
+    assert "night" not in message.lower()
+
+
+def test_dashboard_check_has_no_plotly_helpers_or_docs_page() -> None:
+    import dashboard_check
+
+    assert not hasattr(dashboard_check, "install_plotly_graph_card")
+    assert not hasattr(dashboard_check, "PLOTLY_GRAPH_CARD_VERSION")
+    assert not hasattr(dashboard_check, "PAGE")
 
 
 def test_dashboard_check_builds_the_card_first() -> None:

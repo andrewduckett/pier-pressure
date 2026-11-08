@@ -183,8 +183,7 @@ The card above reads the live attributes, so it keeps working.
 
 ## Related
 
-- [The night dashboard](night-dashboard.md): a complete dashboard with the
-  night strip, every timeline row on one time line with dusk, dawn and your
-  targets
+- [The PierPressure card](night-card.md): the dashboard card, with the night
+  strip, every timeline row on one time line with dusk, dawn and your targets
 - [ADR-0025: the hourly timeline is evidence beside the verdict](decisions/0025-hourly-timeline-is-evidence-beside-the-verdict.md)
 - The verdict document table in the [README](../README.md#the-verdict-document)

@@ -57,7 +57,7 @@ async function shades(entityId: string, key: string, values: number[]): Promise<
 const SUN_AND_CLOUD = ["sun_altitude", "cloud_cover", "cloud_low", "cloud_mid", "cloud_high"];
 
 describe("every timeline row", () => {
-  it("is drawn in the YAML strip's order, then the rest", async () => {
+  it("is drawn in the strip's row order, then the rest", async () => {
     const card = await mountCard({ [VERDICT]: verdictEntity("GO"), ...CLOUD_RANGE_PAIR });
 
     const labels = rows(card).map((element) => element.querySelector(".label")?.textContent);

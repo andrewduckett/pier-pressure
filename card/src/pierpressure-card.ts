@@ -706,7 +706,7 @@ function renderTimeLabel(label: TimeLabel, axis: Axis) {
   return html`<span class="time" style=${style} data-at=${iso(label.at)}>${label.text}</span>`;
 }
 
-// Neighbouring hours keep a 2 px gap, as in the YAML strip; an edge cut off by
+// Neighbouring hours keep a 2 px gap; an edge cut off by
 // the axis stays flush with the axis end instead.
 function hourPlace(hour: { hour: number; from: number; to: number }, axis: Axis): string {
   const left = offset(hour.from, axis);

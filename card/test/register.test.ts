@@ -74,7 +74,7 @@ describe("the card's size", () => {
     expect((await card()).getCardSize()).toBe(10);
   });
 
-  // The strip's time labels need the room, as the YAML strip's grid options give it.
+  // The strip's time labels need the room.
   it("takes the full width of a sections view", async () => {
     expect((await card()).getGridOptions()).toEqual({ columns: "full" });
   });
