@@ -54,6 +54,10 @@ The card SHALL show no `Reasons` list when it shows no verdict: before Home Assi
 - **WHEN** the Verdict sensor has the state `unknown` and no attributes
 - **THEN** the card shows no `Reasons` list
 
+#### Scenario: Reasons left over while the verdict is unknown
+- **WHEN** the Verdict sensor has the state `unknown` and a `reasons` attribute of `["Score 72/100."]`
+- **THEN** the card shows `—` as the verdict and shows no `Reasons` list
+
 ### Requirement: A reason's UTC times show in Home Assistant's time zone
 In each reason, the card SHALL show every UTC time written as `YYYY-MM-DDTHH:MM:SSZ` as a 24-hour `HH:MM` in Home Assistant's time zone, as the strip shows times. The card SHALL leave the rest of the reason's text as it is, and SHALL leave a time it cannot read as it is.
 

@@ -101,6 +101,14 @@ describe("without a verdict", () => {
     expect(reasonsList(card)).toBeNull();
   });
 
+  it("shows no list left over from an earlier verdict while the verdict is unknown", async () => {
+    const card = await mountCard({
+      [VERDICT]: verdictEntity("unknown", { reasons: ["Score 72/100."] }),
+    });
+
+    expect([reasonsList(card), card.getCardSize()]).toEqual([null, 10]);
+  });
+
   it("shows no list while PierPressure is offline", async () => {
     const card = await mountCard({
       [VERDICT]: verdictEntity("unavailable", { reasons: ["Score 72/100."] }),

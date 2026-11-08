@@ -381,11 +381,12 @@ export class PierPressureCard extends LitElement {
     );
   }
 
-  // Like the strip, the reasons show only beside the verdict.
+  // The reasons explain a verdict, so a dash in its place shows none, even
+  // ones left over from an earlier verdict.
   private shownReasons(): string[] {
     if (this.hass === undefined || this.config === undefined) return [];
     const entity = this.hass.states[verdictEntityId(this.config.pier)];
-    if (entity === undefined || entity.state === "unavailable") return [];
+    if (entity === undefined || ["unavailable", "unknown"].includes(entity.state)) return [];
     return readReasons(entity.attributes["reasons"]);
   }
 
