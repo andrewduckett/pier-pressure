@@ -438,6 +438,20 @@ describe("the Back to tonight button", () => {
     expect(axisOf(card)).toEqual(["2026-10-31T16:30:00.000Z", "2026-11-01T08:25:00.000Z"]);
   });
 
+  // Panned at 23:00, when the opening axis ran from 19:00; selected an hour later.
+  it("returns the strip to the opening axis of the time it is selected", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-31T23:00:00Z"));
+    const card = await mountCard(THREE_DAYS);
+    await pressTimes(card, "ArrowRight", 24);
+
+    vi.setSystemTime(new Date("2026-11-01T00:00:00Z"));
+    backButton(card)?.click();
+    await card.updateComplete;
+
+    expect(axisOf(card)).toEqual(["2026-10-31T20:00:00.000Z", "2026-11-01T11:55:00.000Z"]);
+  });
+
   it("hides once it has returned the strip", async () => {
     const card = await mountCard(THREE_DAYS);
     await pressTimes(card, "ArrowRight", 24);
