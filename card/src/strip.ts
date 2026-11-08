@@ -496,7 +496,7 @@ function hourlyValues(forecast: unknown): Map<number, unknown> {
   return new Map([...values].sort(([a], [b]) => a - b));
 }
 
-// The YAML strip's seven blues, lightest to darkest.
+// Seven blues, lightest to darkest.
 const BLUES = [
   "#cde2fb",
   "#9ec5f4",
@@ -516,18 +516,18 @@ function percentShade(percent: number): string {
   return blue(Math.floor(percent / 15));
 }
 
-// The YAML strip's twilight band: sun up, civil, nautical and astronomical
+// The twilight band: sun up, civil, nautical and astronomical
 // twilight, then the darkest blue for astronomical night from −18°.
 function sunShade(degrees: number): string {
   return blue(degrees > 0 ? 0 : degrees > -6 ? 1 : degrees > -12 ? 2 : degrees > -18 ? 3 : 6);
 }
 
-// The YAML strip's moon band: lightest while the moon is down, then one step per 6°.
+// The moon band: lightest while the moon is down, then one step per 6°.
 function moonShade(degrees: number): string {
   return blue(degrees <= 0 ? 0 : 1 + Math.floor(degrees / 6));
 }
 
-// A quality from 0 to 1, where 1 is best, so darker is worse, as in the YAML strip.
+// A quality from 0 to 1, where 1 is best, so darker is worse.
 function qualityShade(quality: number): string {
   return blue(Math.round((1 - quality) * 7));
 }
@@ -552,7 +552,7 @@ function compassPoint(degrees: number): string {
   return COMPASS[Math.round(turned / 45) % COMPASS.length] ?? COMPASS[0];
 }
 
-// One step per 7 km/h, so 42 km/h or more is the darkest, as in the YAML strip.
+// One step per 7 km/h, so 42 km/h or more is the darkest.
 function windShade(speed: number): string {
   return blue(Math.floor(speed / 7));
 }
