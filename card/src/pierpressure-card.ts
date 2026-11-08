@@ -88,6 +88,11 @@ export class PierPressureCard extends LitElement {
     dd {
       margin: 0;
     }
+    .reasons {
+      margin: 16px 0 0;
+      padding-left: 20px;
+      color: var(--secondary-text-color);
+    }
     .note {
       margin: 16px 0 0;
       color: var(--secondary-text-color);

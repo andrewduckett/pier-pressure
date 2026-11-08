@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { VERDICT, field, mountCard, verdictEntity } from "./harness";
+import { VERDICT, cardStyles, field, mountCard, verdictEntity } from "./harness";
 import type { PierPressureCard } from "../src/pierpressure-card";
 
 beforeAll(async () => {
@@ -163,5 +163,29 @@ describe("a reason's UTC times", () => {
     const unreal = "Scored from 2026-13-45T21:00:00Z onwards.";
 
     expect(await shown(unreal)).toEqual([unreal]);
+  });
+});
+
+describe("a long list", () => {
+  const TEN = Array.from({ length: 10 }, (_, index) => `Reason ${index + 1}.`);
+
+  it("shows every reason", async () => {
+    const card = await mountCard({ [VERDICT]: verdictEntity("GO", { reasons: TEN }) });
+
+    expect(reasons(card)).toEqual(TEN);
+  });
+
+  it("offers no control that hides the list", async () => {
+    const card = await mountCard({ [VERDICT]: verdictEntity("GO", { reasons: TEN }) });
+
+    expect(reasonsList(card)?.querySelector("button, details")).toBeNull();
+  });
+
+  it("is in the secondary text colour", () => {
+    const rule = /\.reasons\s*\{([^}]*)\}/.exec(cardStyles())?.[1] ?? "";
+
+    expect(rule.split(";").map((part) => part.trim())).toContain(
+      "color: var(--secondary-text-color)",
+    );
   });
 });
