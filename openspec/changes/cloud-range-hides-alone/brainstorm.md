@@ -1,4 +1,4 @@
-**Why:** With the default single cloud provider, every new install shows a Cloud range row that only says "Needs two forecasts", which reads as a fault when nothing is wrong, so the card should hide the row until two forecasts give cloud.
+**Why:** With one cloud provider, the default, every new install shows a Cloud range row that only says "Needs two forecasts". It reads as a fault when nothing is wrong, so the card hides the row until two forecasts give cloud.
 
 ## Story
 

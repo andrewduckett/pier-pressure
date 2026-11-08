@@ -1,7 +1,13 @@
 ## ADDED Requirements
 
 ### Requirement: The Cloud range row shows only when two forecasts give cloud
-The card SHALL leave the Cloud range row out of the strip, with no label, no track and no message, when Home Assistant has both `sensor.pierpressure_<slug>_cloud_cover_min` and `sensor.pierpressure_<slug>_cloud_cover_max`, neither is `unavailable`, and their forecasts have no paired hour. A paired hour SHALL be a min point and a max point with the same `datetime` whose values are both numbers, whichever is larger.
+The card SHALL leave the Cloud range row out of the strip, with no label, no track and no message, when all of these hold:
+
+- Home Assistant has both `sensor.pierpressure_<slug>_cloud_cover_min` and `sensor.pierpressure_<slug>_cloud_cover_max`;
+- neither sensor's state is `unavailable`;
+- their forecasts have no paired hour.
+
+A paired hour SHALL be a min point and a max point with the same `datetime` whose values are both numbers, in either order.
 
 #### Scenario: One cloud provider
 - **WHEN** both sensors are in Home Assistant and available, the Cloud cover forecast holds values inside the axis, and every point of both the min and the max forecast is null
@@ -65,9 +71,9 @@ The strip SHALL have sixteen rows, each labelled with its name, or fifteen when 
 - **THEN** the strip's rows read, top to bottom, Sun altitude, Moon altitude, Cloud cover, Cloud range, Cloud low, Cloud mid, Cloud high, Wind gust, Seeing, Transparency, Temperature, Dew point, Humidity, Wind speed, Wind direction and Rain chance
 
 #### Scenario: The rows without Cloud range
-- **WHEN** the Verdict sensor has the state `GO`, and both Cloud range sensors are available with only null values
+- **WHEN** the Verdict sensor has the state `GO`, both Cloud range sensors are available with only null values, and Target 1 has a window from 2026-10-31T21:00:00Z to 2026-11-01T02:00:00Z
 - **THEN** the strip has fifteen rows, in the same order with Cloud range left out
-- **AND** the lines overlay and the strip's grid end at the last target lane, as they do with sixteen rows
+- **AND** the lines overlay and the strip's grid end at the Target 1 lane
 
 ### Requirement: A row with no cell says why
 When one of the strip's rows but Cloud range would draw no cell at all, the card SHALL show a message in that row's track that names the cause. The message SHALL be the first of these that applies to the row's sensor:
