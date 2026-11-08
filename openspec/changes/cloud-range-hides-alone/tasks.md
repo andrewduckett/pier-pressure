@@ -1,6 +1,6 @@
 ## 1. Hide the Cloud range row with one cloud forecast
 
-- [ ] 1.1 [easy] The range tests for an hour without a readable pair also hold a paired hour at another time, so they check a drawn row (verify: npm --prefix card test -- test/range.test.ts)
+- [x] 1.1 [easy] The range tests for an hour without a readable pair also hold a paired hour at another time, so they check a drawn row (verify: npm --prefix card test -- test/range.test.ts) (✓ npm --prefix card test -- test/range.test.ts passed)
 - [ ] 1.2 [medium] When Home Assistant has both Cloud range sensors, neither is `unavailable`, and their whole forecasts have no paired hour, the strip leaves the row out. The tests for null forecasts and the first verdict expect no row (verify: npm --prefix card test -- test/range.test.ts)
 - [ ] 1.3 [easy] A `Not found` or `Unavailable` Cloud range sensor keeps the row with its message, even with no paired hour (verify: npm --prefix card test -- test/range.test.ts)
 - [ ] 1.4 [medium] A row whose only paired hour is off the axis says `No forecast`, marked `no-forecast`, with the hover text `No hour on the strip has cloud cover from two or more forecasts`. The card no longer has `Needs two forecasts` (verify: npm --prefix card test -- test/range.test.ts)

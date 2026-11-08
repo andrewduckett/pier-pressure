@@ -124,6 +124,29 @@ describe("a Cloud range bar", () => {
   });
 });
 
+// A readable pair at 23:00 keeps the row in the strip, so an empty 21:00 is
+// the hour's own doing.
+const HOUR_23 = "2026-10-31T23:00:00Z";
+
+async function besidePair(min: unknown, max: unknown): Promise<PierPressureCard> {
+  return mountCard(
+    range(
+      forecastEntity([
+        [HOUR_21, min],
+        [HOUR_23, 50],
+      ]),
+      forecastEntity([
+        [HOUR_21, max],
+        [HOUR_23, 60],
+      ]),
+    ),
+  );
+}
+
+function drawnHours(card: PierPressureCard): Array<string | undefined> {
+  return columns(card).map((column) => column.dataset["hour"]);
+}
+
 describe("an hour without a readable pair", () => {
   it("has no column when both forecasts are null", async () => {
     const card = await mountCard(
@@ -146,24 +169,33 @@ describe("an hour without a readable pair", () => {
 
   it("has no column when the max forecast has no point for the hour", async () => {
     const card = await mountCard(
-      range(forecastEntity([[HOUR_21, 40]]), forecastEntity([["2026-10-31T22:00:00Z", 70]])),
+      range(
+        forecastEntity([
+          [HOUR_21, 40],
+          [HOUR_23, 50],
+        ]),
+        forecastEntity([
+          ["2026-10-31T22:00:00Z", 70],
+          [HOUR_23, 60],
+        ]),
+      ),
     );
 
-    expect(columns(card)).toEqual([]);
+    expect(drawnHours(card)).toEqual(["2026-10-31T23:00:00.000Z"]);
   });
 
   it("has no column when a value is not a number", async () => {
-    const card = await oneHour(40, "70");
+    const card = await besidePair(40, "70");
 
-    expect(columns(card)).toEqual([]);
+    expect(drawnHours(card)).toEqual(["2026-10-31T23:00:00.000Z"]);
   });
 
   // Home Assistant applies the two sensors' updates one at a time, so for a
   // moment a new min can meet an old max.
   it("has no column when the min is above the max", async () => {
-    const card = await oneHour(70, 20);
+    const card = await besidePair(70, 20);
 
-    expect(columns(card)).toEqual([]);
+    expect(drawnHours(card)).toEqual(["2026-10-31T23:00:00.000Z"]);
   });
 });
 
