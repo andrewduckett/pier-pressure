@@ -327,6 +327,7 @@ describe("a panned strip", () => {
     expect(axisOf(card)).toEqual(["2026-10-31T14:00:00.000Z", "2026-11-01T05:55:00.000Z"]);
   });
 
+  // The new opening axis starts at 16:00, before the pan, so it does not catch up.
   it("takes the length of a new night", async () => {
     const card = await mountCard(THREE_DAYS);
     await pressTimes(card, "ArrowRight", 24);
@@ -334,7 +335,7 @@ describe("a panned strip", () => {
     await sendStates(card, {
       ...THREE_DAYS,
       [VERDICT]: verdictEntity("GO", {
-        dark_window: { start: "2026-11-01T21:00:00Z", end: "2026-11-02T05:00:00Z" },
+        dark_window: { start: "2026-11-01T20:00:00Z", end: "2026-11-02T04:00:00Z" },
       }),
     });
 
@@ -354,6 +355,24 @@ describe("a panned strip", () => {
       "2026-10-31T18:00:00.000Z",
       "2026-11-01T09:55:00.000Z",
       false,
+    ]);
+  });
+
+  // The pan at 23:00 moves the axis to 20:00. The redraw at 00:00 never comes, as
+  // in a sleeping tab, so the opening axis first draws past it, from 20:01.
+  it("follows the opening axis again once it catches up with a later pan", async () => {
+    pinClockAndTimers("2026-10-31T23:00:00Z");
+    const card = await mountCard(THREE_DAYS);
+    await press(card, "ArrowRight");
+
+    vi.setSystemTime(new Date("2026-11-01T00:01:00Z"));
+    card.requestUpdate();
+    await card.updateComplete;
+
+    expect([...axisOf(card), backButton(card)?.hidden]).toEqual([
+      "2026-10-31T20:01:00.000Z",
+      "2026-11-01T11:56:00.000Z",
+      true,
     ]);
   });
 
@@ -597,6 +616,20 @@ describe("dragging the strip", () => {
     await drag(card, [[0, 100]], "pointercancel");
 
     expect(axisOf(card)[0]).toBe("2026-11-01T12:00:00.000Z");
+  });
+
+  // The cancelled drag pans earlier first, so only a put-back pan is a later one.
+  it("puts back a later pan the opening axis can still catch up with", async () => {
+    vi.setSystemTime(new Date("2026-10-31T23:00:00Z"));
+    const card = await mountCard(THREE_DAYS);
+    await press(card, "ArrowRight");
+    await drag(card, [[300, 100]], "pointercancel");
+
+    vi.setSystemTime(new Date("2026-11-01T00:01:00Z"));
+    card.requestUpdate();
+    await card.updateComplete;
+
+    expect(axisOf(card)[0]).toBe("2026-10-31T20:01:00.000Z");
   });
 
   it("ignores a second finger", async () => {

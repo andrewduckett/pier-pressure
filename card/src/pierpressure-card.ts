@@ -258,6 +258,9 @@ export class PierPressureCard extends LitElement {
   declare config?: CardConfig;
   // Where the user panned the strip to; undefined keeps it on the opening axis.
   declare heldStart?: number;
+  // Whether the pan was later than the opening axis. The opening axis follows the
+  // clock through the night, so it can catch up with a later pan.
+  private heldLater = false;
   private timer?: ReturnType<typeof setInterval>;
   private drag?: Drag;
 
@@ -293,6 +296,14 @@ export class PierPressureCard extends LitElement {
     }
     if (pier !== this.config?.pier) this.heldStart = undefined;
     this.config = { type: String(config["type"]), pier };
+  }
+
+  // Before each draw, so following the opening axis again costs no second one. A
+  // minute's redraw a sleeping tab skipped still counts.
+  override willUpdate(): void {
+    if (this.heldStart === undefined || !this.heldLater) return;
+    const opening = this.shownStrip()?.opening;
+    if (opening !== undefined && opening.start >= this.heldStart) this.heldStart = undefined;
   }
 
   // Three target lanes are about one of Home Assistant's 50 px size units.
@@ -373,6 +384,7 @@ export class PierPressureCard extends LitElement {
     const to = panned(strip.opening, strip.reach, start).start;
     if (to === strip.axis.start) return;
     this.heldStart = to === strip.opening.start ? undefined : to;
+    this.heldLater = to > strip.opening.start;
   }
 
   // The button hides itself, so focus moves to the strip it returned.
@@ -403,6 +415,7 @@ export class PierPressureCard extends LitElement {
         length: strip.axis.end - strip.axis.start,
         width,
         held: this.heldStart,
+        heldLater: this.heldLater,
         panning: false,
       };
       // A mouse or pen has no capture of its own, so without this a drag that
@@ -428,7 +441,9 @@ export class PierPressureCard extends LitElement {
     // through before that are undone.
     pointercancel: (event) => {
       const drag = this.endDrag(event);
-      if (drag !== undefined) this.heldStart = drag.held;
+      if (drag === undefined) return;
+      this.heldStart = drag.held;
+      this.heldLater = drag.heldLater;
     },
     // Only the strip's own loss ends the drag. A touch pointer starts captured by
     // the element under the finger, which loses it when the strip captures it.
@@ -471,6 +486,7 @@ interface Drag {
   width: number;
   // What a cancelled drag puts back.
   held: number | undefined;
+  heldLater: boolean;
   panning: boolean;
 }
 
