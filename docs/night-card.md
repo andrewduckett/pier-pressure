@@ -261,7 +261,7 @@ many hours as when it opened.
 
 The strip stops at the first and last forecast hour. How far ahead that is
 depends on your weather sources. Each forecasts its own distance ahead:
-Open-Meteo, for example, about two days.
+Open-Meteo, for example, about three days.
 
 PierPressure judges one night, so only that night has a dusk line, a dawn line
 and target bars. Another night has no dusk line, dawn line or target bar. Its

@@ -457,6 +457,10 @@ def test_docs_pan_says_where_it_stops() -> None:
     assert "first and last forecast hour" in _section("#### Panning the strip")
 
 
+def test_docs_pan_says_how_far_open_meteo_reaches() -> None:
+    assert "Open-Meteo, for example, about three days" in _section("#### Panning the strip")
+
+
 def test_docs_pan_says_other_nights_have_no_dusk_or_dawn() -> None:
     assert "no dusk line, dawn line or target bar" in _section("#### Panning the strip")
 
