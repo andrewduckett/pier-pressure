@@ -8,11 +8,11 @@ description: Architecture Decision Record for delivering the night strip dashboa
 
 # ADR-0026: The night dashboard ships as YAML in the docs, on core cards plus plotly-graph-card
 
-> **Superseded on 2026-11-08 by ADR-0034 and ADR-0035.** ADR-0034 made
-> PierPressure ship its own dashboard card, so the sentence "PierPressure adds
-> no JavaScript card of its own" no longer holds. ADR-0035 removed the YAML
-> dashboard from the docs, so nothing of this decision stands. The PierPressure
-> card is the only dashboard PierPressure documents.
+> **Superseded in part on 2026-11-06 by ADR-0034, and fully on 2026-11-08 by
+> ADR-0035.** ADR-0034 made PierPressure ship its own dashboard card, so the
+> sentence "PierPressure adds no JavaScript card of its own" no longer holds.
+> ADR-0035 removed the YAML dashboard from the docs, so nothing of this decision
+> stands. The PierPressure card is the only dashboard PierPressure documents.
 
 ## Context
 
