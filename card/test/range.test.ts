@@ -255,6 +255,18 @@ describe("a Cloud range row with no paired hour", () => {
 
     expect(cloudRangeRow(card)).toBeNull();
   });
+
+  it("stays to say a sensor is not in Home Assistant", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT, [CLOUD_COVER_MIN]: NULLS });
+
+    expect(message(card)[0]).toBe("Not found");
+  });
+
+  it("stays to say a sensor is unavailable", async () => {
+    const card = await mountCard(range(verdictEntity("unavailable"), NULLS));
+
+    expect(message(card)[0]).toBe("Unavailable");
+  });
 });
 
 describe("a Cloud range row with no column", () => {
