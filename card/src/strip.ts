@@ -142,7 +142,7 @@ export interface Cell {
 
 // Why a row has no cell to draw, in the words the row shows.
 export interface Missing {
-  message: "Not found" | "Unavailable" | "No forecast" | "Needs two forecasts";
+  message: "Not found" | "Unavailable" | "No forecast";
   // What hovering over the message shows: the sensor's id, so the user can find
   // it, or for the Cloud range row, what the row needs.
   text: string;
@@ -375,7 +375,7 @@ function cloudRange(
   if (bands.length > 0) return row;
   const missing = cloudRangeMissing(states, pier);
   if (missing === undefined && !paired) return undefined;
-  return { ...row, missing: missing ?? NEEDS_TWO_FORECASTS };
+  return { ...row, missing: missing ?? NO_PAIR_ON_AXIS };
 }
 
 // A missing sensor comes before an unavailable one, whichever of the two it is.
@@ -389,8 +389,10 @@ function cloudRangeMissing(states: States, pier: string): Missing | undefined {
   return undefined;
 }
 
-const NEEDS_TWO_FORECASTS: Missing = {
-  message: "Needs two forecasts",
+// Two forecasts give cloud, but not for these hours: the strip is panned past
+// the shorter one.
+const NO_PAIR_ON_AXIS: Missing = {
+  message: "No forecast",
   text: "No hour on the strip has cloud cover from two or more forecasts",
 };
 

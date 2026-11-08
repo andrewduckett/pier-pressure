@@ -270,10 +270,19 @@ describe("a Cloud range row with no paired hour", () => {
 });
 
 describe("a Cloud range row with no column", () => {
-  it("marks the message for styling", async () => {
+  it("says No forecast when its only paired hour is off the axis", async () => {
     const card = await mountCard(range(OFF_AXIS, OFF_AXIS));
 
-    expect(rowMessage(card, "cloud_range")?.dataset["missing"]).toBe("needs-two-forecasts");
+    expect(message(card)).toEqual([
+      "No forecast",
+      "No hour on the strip has cloud cover from two or more forecasts",
+    ]);
+  });
+
+  it("marks the message as the other rows mark No forecast", async () => {
+    const card = await mountCard(range(OFF_AXIS, OFF_AXIS));
+
+    expect(rowMessage(card, "cloud_range")?.dataset["missing"]).toBe("no-forecast");
   });
 
   it("leaves the Cloud cover row drawing as usual", async () => {
