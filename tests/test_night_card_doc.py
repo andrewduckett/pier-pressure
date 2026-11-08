@@ -309,11 +309,11 @@ def test_docs_cloud_range_explains_what_it_shows(term: str) -> None:
     assert term in " ".join(_before_troubleshooting().split())
 
 
-def test_docs_first_verdict_note_names_the_cloud_range_message() -> None:
+def test_docs_first_verdict_note_says_the_cloud_range_row_is_left_out() -> None:
     paragraphs = _page().split("\n\n")
     note = next(p for p in paragraphs if "Before PierPressure's first verdict" in p)
 
-    assert "Needs two forecasts" in " ".join(note.split())
+    assert "no Cloud range row" in " ".join(note.split())
 
 
 def test_docs_missing_paragraph_names_hover_and_the_moon_up_lane() -> None:
@@ -360,8 +360,8 @@ def _troubleshooting_item(shown: str) -> str:
 
 
 @pytest.mark.parametrize("term", ["`conditions`", "`providers`", "Open-Meteo", "health", "add-on"])
-def test_docs_wrong_section_says_how_to_fill_the_cloud_range_row(term: str) -> None:
-    assert term in _troubleshooting_item('The Cloud range row says "Needs two forecasts"')
+def test_docs_wrong_section_says_how_to_bring_back_the_cloud_range_row(term: str) -> None:
+    assert term in _troubleshooting_item("The strip has no Cloud range row")
 
 
 def _before_the_strip() -> str:
