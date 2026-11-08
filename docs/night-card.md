@@ -103,7 +103,10 @@ Under the rows is the **Moon up** lane, which also reads
 [ranked target](target-ranking.md) tonight.
 
 The strip opens from 4 hours before dusk to 5 hours after dawn, the dark window
-on the Verdict sensor. Some nights have no astronomical darkness, such as a
+on the Verdict sensor. Once the night has started, the strip opens
+4 hours before now instead, so it never opens on hours long gone. It
+keeps its length and moves on with the clock every minute, so late in the
+night it shows more of the morning. Some nights have no astronomical darkness, such as a
 summer night far from the equator. Then the card shows
 "No astronomical darkness tonight" under the confidence, and the strip opens
 from 6 hours before now to 18 hours after. You can pan the strip to the other
@@ -268,7 +271,8 @@ and target bars. Another night has no dusk line, dawn line or target bar. Its
 **Sun altitude** row still shows when it is dark.
 
 Once you have panned, the strip stays on the same hours when PierPressure
-publishes a new verdict. While the strip is off the judged night, a
+publishes a new verdict. If you panned a little later and the clock catches up,
+the strip follows now again. While the strip is off the judged night, a
 **Back to tonight** button shows above it. Select it to go back. Reloading the
 page also opens the strip on the judged night.
 

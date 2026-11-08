@@ -160,6 +160,14 @@ def test_docs_strip_gives_the_axis_span() -> None:
     assert "6 hours before now to 18 hours after" in page
 
 
+def test_docs_strip_follows_now_once_the_night_has_started() -> None:
+    page = _page()
+
+    assert "Once the night has started" in page
+    assert "4 hours before now" in page
+    assert "keeps its length" in page
+
+
 @pytest.mark.parametrize("term", ["clear", "overcast", "blank", "hover", "time zone"])
 def test_docs_strip_explains_what_it_shows(term: str) -> None:
     assert term in _page().lower()
