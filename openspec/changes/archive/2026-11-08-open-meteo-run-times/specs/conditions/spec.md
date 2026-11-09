@@ -83,6 +83,31 @@ fails, or returns no readings, SHALL fail the fetch as for any provider.
 - **THEN** its fetch outcome is failed, with the error kind and `500`, and a null issue time
 - **AND** it fills no series
 
+## MODIFIED Requirements
+
+### Requirement: Every Open-Meteo request asks for the 4 hours before the fetch and the 72 after
+
+Every request to Open-Meteo for hourly data SHALL ask for the 4 hours before the
+fetch and the 72 hours from the fetch on, whatever the time of day in UTC. This
+SHALL hold for `open_meteo`, for each model provider and for
+`open_meteo_air_quality`. No such request SHALL ask for a number of forecast
+days, because Open-Meteo starts a day's forecast at midnight in the request's
+time zone. Each such request SHALL keep asking for times in UTC. A model
+provider's metadata request asks for no hours, because the metadata file takes
+no parameters.
+
+#### Scenario: Every Open-Meteo provider asks for the same hours
+
+- **WHEN** `open_meteo`, `open_meteo_hrrr`, `open_meteo_hrdps`, `open_meteo_rdps`, `open_meteo_icon`, `open_meteo_gfs` and `open_meteo_air_quality` are each fetched for a pier
+- **THEN** each request for hourly data asks for 4 past hours and 72 forecast hours
+- **AND** no request asks for a number of forecast days
+- **AND** each request for hourly data asks for times in UTC
+
+#### Scenario: The hours asked for do not depend on the time of day
+
+- **WHEN** `open_meteo` is fetched for a pier at 00:05 UTC, and again at 18:05 UTC
+- **THEN** both requests ask for 4 past hours and 72 forecast hours
+
 ## REMOVED Requirements
 
 ### Requirement: A model provider's issue time is its fetch time

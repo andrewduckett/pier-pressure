@@ -10,6 +10,7 @@ recorded fixture with no network.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -25,7 +26,10 @@ from .provider import SourceForecast, SourceReading
 
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 OPEN_METEO_AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
+OPEN_METEO_METADATA_URL = "https://api.open-meteo.com/data/{name}/static/meta.json"
 _TIMEOUT_SECONDS = 10.0
+
+logger = logging.getLogger(__name__)
 
 
 COLUMNS: Mapping[Variable, str] = {
@@ -67,6 +71,18 @@ ENDPOINTS: Mapping[str, str] = {
 Keying it by the spec means no caller can pair a spec with the wrong host, which
 answers the other's columns with HTTP 400 (air-quality-provider DD3)."""
 
+RUN_METADATA: Mapping[str, str] = {
+    "open_meteo_hrrr": "ncep_hrrr_conus",
+    "open_meteo_hrdps": "cmc_gem_hrdps",
+    "open_meteo_rdps": "cmc_gem_rdps_10km",
+    "open_meteo_icon": "dwd_icon",
+    "open_meteo_gfs": "ncep_gfs013",
+}
+"""The Open-Meteo metadata file behind each model provider's key. The forecast
+response carries no run time, so a model provider reads its run start from this
+file. ``icon_seamless`` blends ICON grids; it reads ICON global's, the oldest run
+in the blend and the one that covers every pier (open-meteo-run-times DD1)."""
+
 _WIND: frozenset[Variable] = frozenset({"wind_gust", "wind_speed"})
 
 
@@ -90,7 +106,7 @@ def _float_at(values: list[Any], index: int) -> float | None:
     return _as_float(values[index]) if index < len(values) else None
 
 
-def parse_open_meteo(payload: dict[str, Any], issued_at: datetime) -> SourceForecast:
+def parse_open_meteo(payload: dict[str, Any], issued_at: datetime | None) -> SourceForecast:
     """Map an Open-Meteo forecast payload to a :class:`SourceForecast`.
 
     Missing or ``null`` values for an hour are left absent, so a gappy forecast is
@@ -107,6 +123,33 @@ def parse_open_meteo(payload: dict[str, Any], issued_at: datetime) -> SourceFore
             **{variable: _float_at(values, index) for variable, values in columns.items()}
         )
     return SourceForecast(issued_at=issued_at, readings=readings)
+
+
+def _run_start(client: httpx.Client, name: str) -> datetime | None:
+    """The start of the latest run in Open-Meteo's metadata file ``name``.
+
+    ``None`` when the file cannot be read or gives no usable run start. The
+    forecast is still usable then, so this never fails the fetch; the error goes
+    to the log only (open-meteo-run-times DD3). Any other exception is a bug and
+    still raises.
+    """
+    try:
+        response = client.get(OPEN_METEO_METADATA_URL.format(name=name))
+        response.raise_for_status()
+        payload = response.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.warning("Open-Meteo metadata %s unreadable: %s", name, exc)
+        return None
+    value = payload.get("last_run_initialisation_time") if isinstance(payload, dict) else None
+    # bool is an int subclass, and `true` is no run time.
+    if not isinstance(value, int) or isinstance(value, bool):
+        logger.warning("Open-Meteo metadata %s gives no run start: %r", name, value)
+        return None
+    try:
+        return datetime.fromtimestamp(value, UTC)
+    except (OverflowError, OSError, ValueError) as exc:
+        logger.warning("Open-Meteo metadata %s run start %d out of range: %s", name, value, exc)
+        return None
 
 
 @dataclass
@@ -141,10 +184,12 @@ class OpenMeteoProvider:
             params["models"] = self.model
         client = self.client or httpx.Client(timeout=_TIMEOUT_SECONDS)
         try:
+            run_metadata = RUN_METADATA.get(self.spec.key)
+            issued_at = self.now() if run_metadata is None else _run_start(client, run_metadata)
             url = ENDPOINTS.get(self.spec.key, OPEN_METEO_URL)
             response = client.get(url, params=params)
             response.raise_for_status()
-            return parse_open_meteo(response.json(), issued_at=self.now())
+            return parse_open_meteo(response.json(), issued_at=issued_at)
         finally:
             if self.client is None:
                 client.close()

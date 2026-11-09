@@ -204,19 +204,33 @@ def test_open_meteo_fetch_requests_the_weather_variables_in_kmh() -> None:
     assert request.url.params["wind_speed_unit"] == "kmh"
 
 
+def _is_metadata(request: httpx.Request) -> bool:
+    return request.url.path.endswith("/static/meta.json")
+
+
 def _requests_of(
     provider_for: Callable[[httpx.Client], OpenMeteoProvider], payload: dict
 ) -> list[httpx.Request]:
-    """Fetch once through a mock transport and return the requests it sent."""
+    """Fetch once through a mock transport and return the requests it sent.
+
+    A metadata request gets the recorded metadata file; any other gets ``payload``.
+    """
     requests: list[httpx.Request] = []
 
     def handle(request: httpx.Request) -> httpx.Response:
         requests.append(request)
+        if _is_metadata(request):
+            return httpx.Response(200, json=_load("open_meteo_meta.json"))
         return httpx.Response(200, json=payload)
 
     client = httpx.Client(transport=httpx.MockTransport(handle))
     provider_for(client).fetch(make_pier())
     return requests
+
+
+def _forecast_request(requests: list[httpx.Request]) -> httpx.Request:
+    (request,) = (request for request in requests if not _is_metadata(request))
+    return request
 
 
 def test_open_meteo_request_is_pinned_and_names_no_model() -> None:
@@ -246,7 +260,9 @@ def test_the_forecast_providers_ask_the_forecast_endpoint() -> None:
             continue
         [fetcher] = build_provider([key]).fetchers
         assert isinstance(fetcher, OpenMeteoProvider)
-        (request,) = _requests_of(lambda client, f=fetcher: replace(f, client=client), {})
+        request = _forecast_request(
+            _requests_of(lambda client, f=fetcher: replace(f, client=client), {})
+        )
         assert str(request.url.copy_with(query=None)) == "https://api.open-meteo.com/v1/forecast"
         assert request.url.params["wind_speed_unit"] == "kmh", key
 
@@ -261,7 +277,7 @@ def test_every_open_meteo_request_asks_for_4_past_hours_and_72_ahead(
 ) -> None:
     [fetcher] = build_provider([key], now=lambda: fetched_at).fetchers
     assert isinstance(fetcher, OpenMeteoProvider)
-    (request,) = _requests_of(lambda client: replace(fetcher, client=client), {})
+    request = _forecast_request(_requests_of(lambda client: replace(fetcher, client=client), {}))
     params = request.url.params
     assert (params["past_hours"], params["forecast_hours"]) == ("4", "72")
     assert "forecast_days" not in params
@@ -335,14 +351,16 @@ def test_every_variable_an_open_meteo_spec_declares_has_a_column() -> None:
 
 
 def test_a_model_provider_asks_for_its_model_and_its_declared_variables_only() -> None:
-    (request,) = _requests_of(
-        lambda client: OpenMeteoProvider(
-            spec=OPEN_METEO_HRDPS,
-            model="gem_hrdps_continental",
-            client=client,
-            now=lambda: _ISSUED,
-        ),
-        _load("open_meteo.json"),
+    request = _forecast_request(
+        _requests_of(
+            lambda client: OpenMeteoProvider(
+                spec=OPEN_METEO_HRDPS,
+                model="gem_hrdps_continental",
+                client=client,
+                now=lambda: _ISSUED,
+            ),
+            _load("open_meteo.json"),
+        )
     )
     params = request.url.params
     assert params.get_list("models") == ["gem_hrdps_continental"]
@@ -988,8 +1006,8 @@ def test_build_provider_passes_its_clock_to_open_meteo() -> None:
 def test_each_model_provider_names_exactly_its_own_model(key: str, model: str) -> None:
     [fetcher] = build_provider([key]).fetchers
     assert isinstance(fetcher, OpenMeteoProvider)
-    (request,) = _requests_of(
-        lambda client: replace(fetcher, client=client), _load("open_meteo.json")
+    request = _forecast_request(
+        _requests_of(lambda client: replace(fetcher, client=client), _load("open_meteo.json"))
     )
     params = request.url.params
     assert params.get_list("models") == [model]
@@ -999,21 +1017,67 @@ def test_each_model_provider_names_exactly_its_own_model(key: str, model: str) -
     assert params["hourly"].split(",") == [COLUMNS[v] for v in CATALOG[key].variables]
 
 
-def test_a_model_provider_stamps_its_fetch_time_as_the_issue_time() -> None:
-    fetched_at = datetime(2026, 9, 8, 21, 5, tzinfo=UTC)
-
-    def handle(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json=_load("open_meteo.json"))
-
-    stack = build_provider(["open_meteo_rdps"], now=lambda: fetched_at)
-    [fetcher] = stack.fetchers
+@pytest.mark.parametrize(
+    ("key", "name"),
+    [
+        ("open_meteo_hrrr", "ncep_hrrr_conus"),
+        ("open_meteo_hrdps", "cmc_gem_hrdps"),
+        ("open_meteo_rdps", "cmc_gem_rdps_10km"),
+        ("open_meteo_icon", "dwd_icon"),
+        ("open_meteo_gfs", "ncep_gfs013"),
+    ],
+)
+def test_each_model_provider_reads_its_own_metadata_file_before_the_forecast(
+    key: str, name: str
+) -> None:
+    [fetcher] = build_provider([key]).fetchers
     assert isinstance(fetcher, OpenMeteoProvider)
-    fetcher.client = httpx.Client(transport=httpx.MockTransport(handle))
-    conditions = stack.get(make_pier()).conditions
-    assert conditions.series
-    for series in conditions.series.values():
+    requests = _requests_of(
+        lambda client: replace(fetcher, client=client), _load("open_meteo.json")
+    )
+    metadata, forecast = requests
+    assert str(metadata.url) == f"https://api.open-meteo.com/data/{name}/static/meta.json"
+    assert forecast is _forecast_request(requests)
+
+
+@pytest.mark.parametrize("key", ["open_meteo", "open_meteo_air_quality"])
+def test_plain_open_meteo_and_air_quality_send_no_metadata_request(key: str) -> None:
+    [fetcher] = build_provider([key]).fetchers
+    assert isinstance(fetcher, OpenMeteoProvider)
+    requests = _requests_of(lambda client: replace(fetcher, client=client), {})
+    assert not any(_is_metadata(request) for request in requests)
+    assert len(requests) == 1
+
+
+_RUN_START = datetime(2026, 11, 5, 18, 0, tzinfo=UTC)
+"""The run start in ``open_meteo_meta.json``: ``1793901600``. The run became
+available at 21:55 the same day."""
+
+
+def test_a_model_provider_carries_its_run_start_as_the_issue_time() -> None:
+    stack = _open_meteo_stack(
+        ["open_meteo_rdps"],
+        {"gem_regional": httpx.Response(200, json=_load("open_meteo.json"))},
+    )
+    result = stack.get(make_pier())
+    assert result.conditions.series
+    for series in result.conditions.series.values():
         assert series.provider == "open_meteo_rdps"
-        assert series.issued_at == fetched_at
+        assert series.issued_at == _RUN_START
+    (outcome,) = result.outcomes
+    assert outcome.ok
+    assert outcome.issued_at == _RUN_START
+
+
+def test_plain_open_meteo_still_stamps_its_fetch_time_as_the_issue_time() -> None:
+    stack = _open_meteo_stack(
+        ["open_meteo"], {None: httpx.Response(200, json=_load("open_meteo.json"))}
+    )
+    result = stack.get(make_pier())
+    assert result.conditions.series
+    assert {series.issued_at for series in result.conditions.series.values()} == {_FETCHED}
+    (outcome,) = result.outcomes
+    assert outcome.issued_at == _FETCHED
 
 
 def test_build_provider_builds_the_air_quality_fetcher() -> None:
@@ -1081,12 +1145,23 @@ def test_hours_past_hrdps_reach_stay_absent() -> None:
 # --------------------------------------------------------------------------- #
 
 
+def _recorded_metadata(_: httpx.Request) -> httpx.Response:
+    return httpx.Response(200, json=_load("open_meteo_meta.json"))
+
+
 def _open_meteo_stack(
-    keys: list[str], answers: dict[str | None, httpx.Response]
+    keys: list[str],
+    answers: dict[str | None, httpx.Response],
+    metadata: Callable[[httpx.Request], httpx.Response] = _recorded_metadata,
 ) -> CompositeProvider:
-    """The production stack, with Open-Meteo answering by the request's model."""
+    """The production stack, with Open-Meteo answering by the request's model.
+
+    ``metadata`` answers a metadata request; by default with the recorded file.
+    """
 
     def handle(request: httpx.Request) -> httpx.Response:
+        if _is_metadata(request):
+            return metadata(request)
         return answers[request.url.params.get("models")]
 
     client = httpx.Client(transport=httpx.MockTransport(handle))
@@ -1191,6 +1266,87 @@ def test_hrrr_outside_its_area_fails_and_is_passed_over() -> None:
     assert hrrr.error == "HTTPStatusError: 400 Bad Request"
     assert best_match.ok
     assert result.conditions.series["cloud_cover"].provider == "open_meteo"
+
+
+# --------------------------------------------------------------------------- #
+# open-meteo-run-times 1.4: a run time that cannot be read leaves a null issue time
+# --------------------------------------------------------------------------- #
+
+
+def _metadata_with(**fields: Any) -> dict[str, Any]:
+    return {**_load("open_meteo_meta.json"), **fields}
+
+
+def _without_run_start() -> dict[str, Any]:
+    payload = _load("open_meteo_meta.json")
+    del payload["last_run_initialisation_time"]
+    return payload
+
+
+def _transport_error(request: httpx.Request) -> httpx.Response:
+    raise httpx.ConnectError("connection refused", request=request)
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        pytest.param(lambda _: httpx.Response(503), id="status-503"),
+        pytest.param(_transport_error, id="transport-error"),
+        pytest.param(
+            lambda _: httpx.Response(200, text="<html><body>Bad gateway</body></html>"),
+            id="html-body",
+        ),
+        pytest.param(lambda _: httpx.Response(200, json=[1793901600]), id="json-array"),
+        pytest.param(lambda _: httpx.Response(200, json=_without_run_start()), id="missing"),
+        pytest.param(
+            lambda _: httpx.Response(200, json=_metadata_with(last_run_initialisation_time=True)),
+            id="true",
+        ),
+        pytest.param(
+            lambda _: httpx.Response(200, json=_metadata_with(last_run_initialisation_time=1.5)),
+            id="float",
+        ),
+        pytest.param(
+            lambda _: httpx.Response(200, json=_metadata_with(last_run_initialisation_time=10**20)),
+            id="out-of-range",
+        ),
+    ],
+)
+def test_a_model_provider_with_its_run_time_unreadable_succeeds_with_no_issue_time(
+    metadata: Callable[[httpx.Request], httpx.Response], caplog: pytest.LogCaptureFixture
+) -> None:
+    stack = _open_meteo_stack(
+        ["open_meteo_gfs"],
+        {"gfs_global": httpx.Response(200, json=_load("open_meteo.json"))},
+        metadata,
+    )
+    with caplog.at_level("WARNING"):
+        result = stack.get(make_pier())
+    assert result.conditions.series
+    for series in result.conditions.series.values():
+        assert series.provider == "open_meteo_gfs"
+        assert series.issued_at is None
+    (outcome,) = result.outcomes
+    assert outcome.ok
+    assert outcome.error is None
+    assert outcome.issued_at is None
+    assert "ncep_gfs013" in caplog.text
+
+
+def test_a_model_provider_whose_forecast_fails_with_metadata_answering_fails() -> None:
+    # 2026-11-05 02:00 UTC
+    run_at_two = _metadata_with(last_run_initialisation_time=1793844000)
+    stack = _open_meteo_stack(
+        ["open_meteo_hrrr"],
+        {"ncep_hrrr_conus": httpx.Response(500)},
+        lambda _: httpx.Response(200, json=run_at_two),
+    )
+    result = stack.get(make_pier())
+    (outcome,) = result.outcomes
+    assert not outcome.ok
+    assert outcome.error == "HTTPStatusError: 500 Internal Server Error"
+    assert outcome.issued_at is None
+    assert result.conditions.series == {}
 
 
 # --------------------------------------------------------------------------- #

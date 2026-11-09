@@ -1,0 +1,22 @@
+## 1. Run times on the model providers
+
+- [x] 1.1 [easy] The test helpers answer by URL path: `_requests_of` and `_open_meteo_stack` in `tests/test_conditions_provider.py` send `/data/<name>/static/meta.json` a recorded metadata file and the forecast path a recorded forecast. A new fixture `tests/fixtures/open_meteo_meta.json` is a live `meta.json` trimmed of `crs_wkt`. The three tests that unpack one request (`test_the_forecast_providers_ask_the_forecast_endpoint`, `test_a_model_provider_asks_for_its_model_and_its_declared_variables_only`, `test_each_model_provider_names_exactly_its_own_model`) pick the forecast request. Every existing test still passes before any code changes (design Test Seams). (verify: `uv run pytest tests/test_conditions_provider.py`) (✓ `uv run pytest tests/test_conditions_provider.py` passed, 133 tests)
+- [x] 1.2 [medium] Each model provider, built through `build_provider`, reads exactly one metadata file, named by a `RUN_METADATA` table keyed by provider key: `ncep_hrrr_conus`, `cmc_gem_hrdps`, `cmc_gem_rdps_10km`, `dwd_icon`, `ncep_gfs013`. It reads the metadata before the forecast. Plain `open_meteo` and `open_meteo_air_quality` send no metadata request (design DD1, DD2). (verify: `uv run pytest tests/test_conditions_provider.py -k metadata`) (✓ `uv run pytest tests/test_conditions_provider.py -k metadata` passed)
+- [x] 1.3 [medium] A model provider's series and its successful outcome carry `last_run_initialisation_time` as a UTC issue time: `1793901600` becomes 2026-11-05 18:00 UTC, not the fetch time and not the availability time. Replace `test_a_model_provider_stamps_its_fetch_time_as_the_issue_time`. Plain `open_meteo` still carries the fetch time. `parse_open_meteo` takes `issued_at: datetime | None` (design DD3). (verify: `uv run pytest tests/test_conditions_provider.py -k "run_start or issue_time"`) (✓ `uv run pytest tests/test_conditions_provider.py -k "run_start or issue_time"` passed; full suite 1958 passed)
+- [x] 1.4 [medium] When the forecast returns readings but the run time cannot be read, the fetch succeeds with a null error and a null issue time on the outcome and every series. Cover each case: metadata status 503, a transport error, status 200 with an HTML body, a JSON array body, a missing field, a `true` or `1.5` value, and an integer outside a date's range. The error text goes to the log only (design DD3). (verify: `uv run pytest tests/test_conditions_provider.py -k run_time_unreadable`) (✓ `uv run pytest tests/test_conditions_provider.py -k run_time_unreadable` passed, 8 cases)
+- [x] 1.5 [easy] When the forecast request answers 500 while the metadata reports a run, the outcome is failed with `describe_error`'s kind and `500`, carries a null issue time, and the provider fills no series (design DD4). (verify: `uv run pytest tests/test_conditions_provider.py -k forecast_fails_with_metadata`) (✓ `uv run pytest tests/test_conditions_provider.py -k forecast_fails_with_metadata` passed; green on arrival, as DD4 needs no new code)
+
+## 2. Documentation and the full gate [depends-on: 1]
+
+- [x] 2.1 [easy] The README's model note says each model provider reports its model's latest run start as its issue time, read from Open-Meteo's metadata, and that the issue time is null when that read fails. It names the ICON global and GFS 0.11° choice. The air-quality note no longer says "as with the other Open-Meteo providers". "Watching provider health" says only plain `open_meteo` and air quality stamp the fetch time, so a model's `issued_at` can be hours older than its last success. A test in `tests/test_docs.py` pins these three statements. The `build_provider` docstring says `now` stamps the issue time only for plain `open_meteo` and air quality. (verify: `uv run pytest tests/test_docs.py`) (✓ `uv run pytest tests/test_docs.py` passed, 73 tests)
+- [x] 2.2 [easy] The full gate is green. (verify: `mise run check`) (✓ `mise run check` passed: ruff, mypy, 1974 tests)
+
+## Deviations Ledger
+
+<!-- Dated notes on small departures from the plan, written during apply. Stop and ask the user about a large one. -->
+
+- 2026-11-08: Rebased onto main after `open-meteo-hours` (#213) landed. Its test
+  `test_every_open_meteo_request_asks_for_4_past_hours_and_72_ahead` unpacked one
+  request, but a model provider now sends two. The test picks the forecast
+  request, and the hours requirement now covers only requests for hourly data,
+  not the metadata request.
