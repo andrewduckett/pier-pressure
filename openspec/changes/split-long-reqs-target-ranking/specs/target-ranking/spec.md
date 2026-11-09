@@ -252,8 +252,8 @@ any carried value.
 ### Requirement: The verdict gets one framing sentence about the top pick
 
 The system SHALL add one framing sentence about the top pick to the verdict's
-`reasons[]`, naming the top pick by its name, else by its designation. It SHALL add the sentence only when all of
-these hold:
+`reasons[]`, naming the top pick by its name, else by its designation. It SHALL
+add the sentence only when all of these hold:
 
 - The verdict passes its gates, so it has a score.
 - The target list is not empty.

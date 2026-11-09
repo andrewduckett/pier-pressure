@@ -25,7 +25,7 @@
 This change has no code, so the seams are the OpenSpec CLI and the epic's check.
 
 - **Primary test seam:** `openspec validate split-long-reqs-target-ranking --strict` before archive, and the scenario-preservation check from epic #230 decision 6 after archive, with `CAPS=target-ranking`.
-- **Existing seams reused:** `openspec validate --specs` for the warning count, and `mise run check` to show that nothing else moved. Existing tests assert the 4 added scenarios, as Decision 2 names.
+- **Existing seams reused:** `openspec validate --specs` for the warning count, and `mise run check` to show that nothing else moved. Existing tests assert the 4 added scenarios, as Decision 2 names: three at the seam the scenario describes, and the carried-magnitude one only for targets without a surface brightness. Adding a test is out of scope, because epic #230 changes no test; the pull request reports the gap.
 
 ## Scrutiny Tier & Blast Radius
 
@@ -47,9 +47,9 @@ This change has no code, so the seams are the OpenSpec CLI and the epic's check.
    | A circumpolar target's daytime transit falls before its window | A target's transit time is that day's meridian crossing | `tests/test_ranking_geometry.py` `test_circumpolar_daytime_transit_is_outside_the_window` (`geo.transit_time < geo.window_start` for NGC6543 over London) |
    | Target times carry no fraction of a second | Target times are UTC at whole-second precision | `tests/test_ranking_pipeline.py` `test_every_emitted_target_is_whole_second_and_scored` (window start, window end and transit time have `microsecond == 0`) |
    | The moon factor is neutral when the moon is down | The moon factor is neutral when the moon is down or dark | `tests/test_ranking_score.py` `test_moon_subscore_neutral_when_moon_down` (`moon_subscore(0.0, illumination=1.0, moon_up=False) == 1.0`) |
-   | A target with a surface brightness carries the catalog magnitude | The ranking's brightness choice changes no carried value | `tests/test_ranking_pipeline.py` `test_targets_carry_the_raw_catalog_facts` (every target's `magnitude` equals the catalog's, rounded to the document's precision) |
+   | A target with a surface brightness carries the catalog magnitude | The ranking's brightness choice changes no carried value | `tests/test_ranking_pipeline.py` `test_targets_carry_the_raw_catalog_facts` asserts that every target's `magnitude` equals the catalog's, rounded to the document's precision. None of the targets it ranks has a surface brightness, so no test drives the scenario's WHEN end to end. `pierpressure/core/ranking.py` line 770 builds each target with `magnitude=obj.magnitude`, so the brightness choice cannot reach it |
 
-   Each restates a SHALL the requirement keeps, so it adds no rule (epic decision 4).
+   Each restates a SHALL the requirement keeps, so it adds no rule (epic decision 4). The carried-magnitude scenario is the one whose test covers only part of its WHEN, as its row says.
    - Alternative: keep these behaviors inside a larger requirement. Each would push that requirement back past 500 characters, or bundle two behaviors again.
 3. **A scenario that tests two behaviors stays with the one its name and THEN fit** (epic decision 2):
    - "Higher-quality targets rank first" goes with "A target's score combines six factors". It also shows ordering, but its WHEN varies one factor, maximum altitude.
@@ -73,7 +73,7 @@ This change has no code, so the seams are the OpenSpec CLI and the epic's check.
 
 - [A scenario changes in copying] → The script copies blocks byte for byte. After archive, the epic's check must print `OK: target-ranking: 4 scenario(s) added`. Any other result fails the task.
 - [A SHALL is dropped or its meaning changes] → Count SHALL and MAY in the ADDED requirements: 33 SHALL (two of them SHALL NOT) and 1 MAY expected, against 29 and 1 in the originals (Decision 4). The plan review compares each original with its parts.
-- [An added scenario states a rule the spec did not have] → Each one's WHEN and THEN restate only the SHALL of the requirement it sits under, and a test already asserts it (Decision 2). The pull request lists all 4.
+- [An added scenario states a rule the spec did not have] → Each one's WHEN and THEN restate only the SHALL of the requirement it sits under, and a test already asserts it, in part for the carried-magnitude one (Decision 2). The pull request lists all 4, and names that gap.
 - [A drifted requirement gets new headings, so it looks freshly agreed] → Its REMOVED **Reason** names the drift, and so does the pull request (Decision 5).
 - [The framing requirement sits 8 characters under the limit, so any later wording change may push it over] → Accepted. A later change that touches it can split off the placement rule, with a test.
 
