@@ -55,10 +55,12 @@ This change has no code, so the seams are the OpenSpec CLI and the epic's check.
    - "A new night of another length" and "A new pier" go with "A panned strip keeps its start". Both say when the panned start holds and when it gives way.
    - "One cloud provider" and "Before the first verdict" (from the Cloud range message) go with "The card never says Needs two forecasts". Those are the cases that once showed that message.
 4. **Reword only so each requirement reads on its own** (D11):
-   - Both halves of "A missing sensor leaves its row empty" name the rows they cover. The second states its trigger again: a sensor that is missing, unavailable or has no `forecast` list.
-   - "Each cloud row" becomes "Each of the four cloud rows", because the Cloud range row reads two sensors.
+   - Both halves of "A missing sensor leaves its row empty" name the rows they cover. The second states every case it covers again: a sensor that is missing, unavailable or has no `forecast` list, and a point with no readable `datetime` (plan review round 1, Finding 1).
+   - "Each cloud row" becomes "The Cloud cover, Cloud low, Cloud mid and Cloud high rows", with their sensors "in that order", because the Cloud range row reads two sensors (plan review round 1, Finding 2).
+   - The cloud rows' 36-word lead sentence becomes two sentences, each with its own SHALL (plan review round 1, Suggestion 6).
    - "An earlier pan" gets a definition that mirrors the one the original gives for a later pan. It requires nothing new.
-   - Both docs requirements open with the original's lead sentence. This raises the SHALL count from 28 to 29. Nothing new is required.
+   - Both docs requirements open with the original's lead sentence.
+   - These two edits raise the SHALL count from 28 to 30. Nothing new is required.
 5. **Headings use the spec's own words** (D12). No ADDED heading repeats one the delta removes or one the spec keeps.
 6. **Copy scenarios with a script.** A script under `.workspace/` builds the delta. It copies each named scenario block exactly as the main spec has it, and fails if any scenario of a split requirement is left out.
 7. **Accept archive's order.** The 21 new requirements land at the end of the spec. This is what the pilot chose (#231, design Decision 2).
@@ -66,7 +68,7 @@ This change has no code, so the seams are the OpenSpec CLI and the epic's check.
 ## Risks / Trade-offs
 
 - [A scenario changes in copying] → The script copies blocks byte for byte. After archive, the epic's check must print `OK: night-card: 4 scenario(s) added`. Any other result fails the task.
-- [A SHALL is dropped or its meaning changes] → Count SHALL in the ADDED requirements: 29 expected, against 28 in the originals (Decision 4). The plan review compares each original with its parts.
+- [A SHALL is dropped or its meaning changes] → Count SHALL in the ADDED requirements: 30 expected, against 28 in the originals (Decision 4). The plan review compares each original with its parts.
 - [An added scenario states a rule the spec did not have] → Each one's WHEN and THEN restate only the SHALL of the requirement it sits under, and a test already asserts it (Decision 2). The pull request lists all 4.
 - [The longest new requirement is close to the limit] → Strict validation measures it with OpenSpec's own counter, before and after archive. A later change that lengthens it gets the warning.
 

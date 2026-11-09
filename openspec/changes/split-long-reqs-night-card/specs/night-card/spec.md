@@ -8,7 +8,7 @@ Below the verdict, score and confidence, the card SHALL draw a night strip.
 - **THEN** the strip comes after the verdict, score and confidence on the card
 
 ### Requirement: The cloud rows come under Moon altitude
-Under the strip's Moon altitude row, the card SHALL draw the four cloud rows and, after Cloud cover, the Cloud range row, unless the Cloud range row is left out because no two forecasts give cloud. From top to bottom they SHALL be Cloud cover, Cloud range, Cloud low, Cloud mid and Cloud high, each labelled with that name.
+Under the strip's Moon altitude row, the card SHALL draw the four cloud rows. After Cloud cover, the card SHALL draw the Cloud range row, unless the Cloud range row is left out because no two forecasts give cloud. From top to bottom they SHALL be Cloud cover, Cloud range, Cloud low, Cloud mid and Cloud high, each labelled with that name.
 
 #### Scenario: The rows and their sensors
 - **WHEN** the card is configured with `pier: Back-Yard`, the Verdict sensor has the state `GO`, and the Cloud cover min and max sensors hold 40 and 70 at 2026-10-31T21:00:00Z
@@ -16,7 +16,7 @@ Under the strip's Moon altitude row, the card SHALL draw the four cloud rows and
 - **AND** the four cloud rows read `sensor.pierpressure_back_yard_cloud_cover`, `sensor.pierpressure_back_yard_cloud_low`, `sensor.pierpressure_back_yard_cloud_mid` and `sensor.pierpressure_back_yard_cloud_high`
 
 ### Requirement: Each of the four cloud rows reads its cloud sensor
-Each of the four cloud rows SHALL read the `forecast` attribute of one sensor, named from the same slug as the Verdict sensor: `sensor.pierpressure_<slug>_cloud_cover`, `sensor.pierpressure_<slug>_cloud_low`, `sensor.pierpressure_<slug>_cloud_mid` and `sensor.pierpressure_<slug>_cloud_high`.
+The Cloud cover, Cloud low, Cloud mid and Cloud high rows SHALL each read the `forecast` attribute of one sensor, named from the same slug as the Verdict sensor: `sensor.pierpressure_<slug>_cloud_cover`, `sensor.pierpressure_<slug>_cloud_low`, `sensor.pierpressure_<slug>_cloud_mid` and `sensor.pierpressure_<slug>_cloud_high`, in that order.
 
 #### Scenario: Cloud high reads the sensor named from the pier
 - **WHEN** the card is configured with `pier: Back-Yard`, and `sensor.pierpressure_back_yard_cloud_high` holds 40 at 2026-10-31T21:00:00Z
@@ -90,8 +90,8 @@ This requirement covers the Moon altitude, Wind gust, Seeing, Transparency, Temp
 - **THEN** the strip shows the Humidity row with its label, no cells and the message `Unavailable`
 - **AND** the cloud rows show their cells
 
-### Requirement: A missing Moon altitude or weather sensor does not stop the other rows
-This requirement covers the Moon altitude, Wind gust, Seeing, Transparency, Temperature, Dew point, Humidity, Wind speed, Wind direction and Rain chance rows. In these rows, the card SHALL skip a point without a readable `datetime`. When a row's sensor is missing, unavailable or has no `forecast` list, the card SHALL NOT throw, and SHALL draw the other rows as usual.
+### Requirement: Missing or unreadable Moon altitude or weather data does not stop the other rows
+This requirement covers the Moon altitude, Wind gust, Seeing, Transparency, Temperature, Dew point, Humidity, Wind speed, Wind direction and Rain chance rows. In these rows, the card SHALL skip a point without a readable `datetime`. Whether a row's sensor is missing, unavailable or has no `forecast` list, or a point has no readable `datetime`, the card SHALL NOT throw, and SHALL draw the other rows as usual.
 
 #### Scenario: Only the sun and cloud sensors
 - **WHEN** the Verdict sensor has the state `GO` and Home Assistant has no timeline sensor but Sun altitude and the four cloud sensors
@@ -214,7 +214,7 @@ A later pan is one that leaves the axis starting after the opening axis. When th
 - **WHEN** the Verdict sensor's `dark_window` is `{start: 2026-10-31T20:30:00Z, end: 2026-11-01T03:25:00Z}`, the browser's clock reads 2026-10-31T23:00:00Z, the reach runs further either way, the user presses the Right arrow key with the strip focused, and the clock then moves on to 2026-11-01T00:01:00Z
 - **THEN** the strip's axis runs from 2026-10-31T20:01:00Z to 2026-11-01T11:56:00Z, and the card shows no `Back to tonight` button
 
-### Requirement: An earlier pan keeps its start as the opening axis moves on
+### Requirement: An earlier pan keeps its start as the opening axis moves away from it
 An earlier pan is one that leaves the axis starting before the opening axis. An earlier pan SHALL keep its start as the opening axis moves away from it.
 
 #### Scenario: A minute passes after a pan during the night
@@ -236,7 +236,7 @@ An earlier pan is one that leaves the axis starting before the opening axis. An 
 **Migration**: None. Nothing changes for users or code: the card and its docs behave as before.
 
 ### Requirement: A missing sensor leaves its row empty
-**Reason**: It stated two behaviors in more than 500 characters. It is split into "A missing Moon altitude or weather sensor leaves its row empty" and "A missing Moon altitude or weather sensor does not stop the other rows". They keep all of its SHALL statements and all 2 of its scenarios.
+**Reason**: It stated two behaviors in more than 500 characters. It is split into "A missing Moon altitude or weather sensor leaves its row empty" and "Missing or unreadable Moon altitude or weather data does not stop the other rows". They keep all of its SHALL statements and all 2 of its scenarios.
 **Migration**: None. Nothing changes for users or code: the card and its docs behave as before.
 
 ### Requirement: A Cloud range row with no column says why
@@ -248,5 +248,5 @@ An earlier pan is one that leaves the axis starting before the opening axis. An 
 **Migration**: None. Nothing changes for users or code: the card and its docs behave as before.
 
 ### Requirement: The strip stays where the user panned it
-**Reason**: It stated six behaviors in more than 500 characters. It is split into "A panned strip keeps its start", "A panned strip moves only as far as the reach needs", "A pan the reach stops entirely counts as no pan", "A pan back to the opening axis counts as Back to tonight", "The opening axis catches up with a later pan" and "An earlier pan keeps its start as the opening axis moves on". They keep all of its SHALL statements and all 9 of its scenarios.
+**Reason**: It stated six behaviors in more than 500 characters. It is split into "A panned strip keeps its start", "A panned strip moves only as far as the reach needs", "A pan the reach stops entirely counts as no pan", "A pan back to the opening axis counts as Back to tonight", "The opening axis catches up with a later pan" and "An earlier pan keeps its start as the opening axis moves away from it". They keep all of its SHALL statements and all 9 of its scenarios.
 **Migration**: None. Nothing changes for users or code: the card and its docs behave as before.
