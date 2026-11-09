@@ -5,7 +5,7 @@ Two requirements in `ha-addon`, about the Configuration form and how it combines
 ## What Changes
 
 - Split "The add-on offers a Configuration form for the interval and piers" into seven requirements: the three top-level settings, the broker block, a pier's horizon fields, its equipment fields, its gate fields, the names that match `config.yaml`, and the English labels (D3).
-- Split "The add-on combines the Configuration form with config.yaml" into eighteen requirements, one for each rule and each case that stops the add-on (D4).
+- Split "The add-on combines the Configuration form with config.yaml" into nineteen requirements, one for each rule and each case that stops the add-on (D4).
 - Each original is REMOVED and its parts ADDED under new headings, as epic #230 decision 5 requires (D8).
 - Every existing scenario moves word for word, and every SHALL, SHALL NOT and MAY keeps its meaning (D7).
 - Add five scenarios, one for each split-out behavior that has none of its own. Each restates SHALLs its new requirement keeps, and an existing test already asserts it (D5).
@@ -19,7 +19,7 @@ None.
 
 ### Modified Capabilities
 
-- `ha-addon`: two long requirements become 25 requirements with the same meaning, and five scenarios are added.
+- `ha-addon`: two long requirements become 26 requirements with the same meaning, and five scenarios are added.
 
 ## Impact
 
