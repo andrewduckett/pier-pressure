@@ -83,13 +83,12 @@ can never show an earlier night's prose.
 - **WHEN** a later recompute yields the same target identities but a changed target field, such as a new transit time or maximum altitude, or a changed confidence band
 - **THEN** the explainer issues a new provider call rather than reusing the cached narrative
 
-### Requirement: A rejected explainer block shows none of its values
+### Requirement: An invalid explainer setting is named without any value
 
-When the process rejects the `explainer` block, the error and the log SHALL NOT
-contain any value from that block. This SHALL hold for every source of settings.
-
-The error SHALL still say what is wrong. For a defined setting, it SHALL name the
-setting, such as `explainer.api_key`, and state the rule the value broke.
+When the process rejects the value of a setting that the `explainer` block
+defines, the error SHALL name the setting, such as `explainer.api_key`, and state
+the rule the value broke. The error and the log SHALL NOT contain any value from
+that block. This SHALL hold for every source of settings.
 
 #### Scenario: An API key that is not text is rejected without its value
 
@@ -100,13 +99,12 @@ setting, such as `explainer.api_key`, and state the rule the value broke.
 
 ### Requirement: An unknown explainer key is reported without its name
 
-When the process rejects the `explainer` block, the error and the log SHALL NOT
-contain the name of a key that the block does not define, because a user can
-type a secret where a key name belongs. This SHALL hold for every source of
-settings.
-
-For such a key, the error SHALL say that the block holds a setting it does not
-know, and list the settings the block defines.
+When the process rejects the `explainer` block because it holds a key that the
+block does not define, the error SHALL say that the block holds a setting it does
+not know, and list the settings the block defines. The error and the log SHALL NOT
+contain the name of that key, because a user can type a secret where a key name
+belongs. Nor SHALL they contain any value from that block. This SHALL hold for
+every source of settings.
 
 #### Scenario: An unknown key in the explainer block is not named
 
@@ -117,10 +115,12 @@ know, and list the settings the block defines.
 - **AND** the error lists the settings the `explainer` block defines
 - **AND** neither the error nor the log contains `apikey` or `sk-secret`
 
-### Requirement: An explainer value that is not a mapping is reported as such
+### Requirement: An explainer value that is not a mapping is reported without its value
 
-For an `explainer` value that is a list, text or a number, the configuration
-error SHALL say that `explainer` must be a mapping of settings.
+When the process rejects an `explainer` value that is a list, text or a number,
+the error SHALL say that `explainer` must be a mapping of settings. The error and
+the log SHALL NOT contain that value. This SHALL hold for every source of
+settings.
 
 #### Scenario: An explainer block that is not a mapping does not show its value
 
@@ -172,5 +172,5 @@ call the LLM provider.
 
 ### Requirement: An error about the explainer settings shows none of their text
 
-**Reason**: It stated five behaviors in more than 500 characters. It is split into five requirements. The first two are "A rejected explainer block shows none of its values" and "An unknown explainer key is reported without its name". The other three are "An explainer value that is not a mapping is reported as such", "An empty explainer block disables the explainer" and "A valid explainer API key is masked and used only to call the LLM". They keep all of its SHALL statements and all five of its scenarios.
+**Reason**: It stated five behaviors in more than 500 characters. It is split into five requirements. The first three are "An invalid explainer setting is named without any value", "An unknown explainer key is reported without its name" and "An explainer value that is not a mapping is reported without its value". The other two are "An empty explainer block disables the explainer" and "A valid explainer API key is masked and used only to call the LLM". They keep all of its SHALL statements and all five of its scenarios.
 **Migration**: None. Nothing changes for users or code: the `explainer` settings load, fail and print as before.
