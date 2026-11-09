@@ -68,16 +68,19 @@ ascending, with no hour repeated.
 - **THEN** the entries for those earlier hours are present and unchanged
 - **AND** the `scored_window` still starts at the evaluation instant
 
-### Requirement: Hours that only an alternate or a hidden variable covers add no timeline entry
+### Requirement: Hours only an alternate covers add no timeline entry
 
-Hours only an alternate covers SHALL NOT add a timeline entry. Hours only a
-series of a variable the timeline does not show covers SHALL NOT add a timeline
-entry.
+Hours only an alternate covers SHALL NOT add a timeline entry.
 
 #### Scenario: Hours only an alternate covers add no entry
 
 - **WHEN** every filled series ends at 03:00 and a `cloud_cover` alternate runs to 03:00 two days later
 - **THEN** the `timeline`'s last entry is 03:00 on the first night
+
+### Requirement: A variable the timeline does not show adds no timeline hour
+
+Hours only a series of a variable the timeline does not show covers SHALL NOT
+add a timeline entry.
 
 #### Scenario: Hours only a hidden variable covers add no entry
 
@@ -361,11 +364,12 @@ requirements.
 
 ### Requirement: The document carries an hourly timeline
 
-**Reason**: It bundled three behaviors. It is split into "The timeline holds one
-entry per hour a shown variable's filled series covers", "Hours that only an
-alternate or a hidden variable covers add no timeline entry" and "The timeline
-is empty, never absent, when no provider returned rows". Its 5 scenarios move
-word for word. No scenario is added.
+**Reason**: It bundled four behaviors. It is split into "The timeline holds one
+entry per hour a shown variable's filled series covers", "Hours only an
+alternate covers add no timeline entry", "A variable the timeline does not show
+adds no timeline hour" and "The timeline is empty, never absent, when no
+provider returned rows". Its 5 scenarios move word for word. No scenario is
+added.
 
 **Migration**: Nothing changes for users or code. Later changes MODIFY the new
 requirements.
