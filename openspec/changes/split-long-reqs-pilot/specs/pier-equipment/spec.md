@@ -59,5 +59,5 @@ derivation never divides by zero.
 
 ### Requirement: Equipment is optional on each pier
 
-**Reason**: It stated three behaviors in more than 500 characters. It is split into "Equipment is described under the `equipment` key", "A pier without equipment still produces a verdict" and "Every equipment value is strictly positive", which keep all of its SHALL statements and all five of its scenarios.
+**Reason**: It stated three behaviors in more than 500 characters. It is split into three requirements: "Equipment is described under the `equipment` key", "A pier without equipment still produces a verdict" and "Every equipment value is strictly positive". They keep all of its SHALL statements and all five of its scenarios.
 **Migration**: None. Nothing changes for users or code: the configuration, its validation and the verdict behave as before.
