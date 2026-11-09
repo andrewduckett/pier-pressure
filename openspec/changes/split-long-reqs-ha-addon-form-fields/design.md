@@ -11,7 +11,7 @@
 
 **Goals:**
 
-- After archive, each of the 23 new requirements states one behavior in no more than 500 characters. The longest, "An equipment value beside an equipment field skips the form pier", is 453 by OpenSpec's own count.
+- After archive, each of the 23 new requirements states one behavior in no more than 500 characters. The longest, "An equipment value beside an equipment field skips the form pier", is 471 by OpenSpec's own count.
 - After archive, the spec holds every one of its scenario blocks word for word, and no new one.
 - After archive, no pointer in the spec names a heading this change removes.
 
@@ -44,7 +44,7 @@ This change has no code, so the seams are the OpenSpec CLI and the epic's check.
    | The form sets each pier's equipment | A form pier's equipment fields set its equipment; A form pier's reducer defaults to 1.0; A form pier with no equipment field takes its equipment from config.yaml; Incomplete equipment skips the form pier; An equipment value of 0 or less skips the form pier; An equipment value beside an equipment field skips the form pier |
    | The form sets each pier's GO threshold and wind-gust limit | A form pier's go_threshold and max_gust pass to the pier; An unset go_threshold or max_gust on the form comes from config.yaml; A form pier with no go_threshold or max_gust uses the file defaults; A bad go_threshold or max_gust skips the form pier |
    | The form sets the broker | A broker host on the form sets all four connection settings; A blank broker field on the form counts as not set; Broker login fields on the form without a host stop the add-on; A rejected login from the form points to the form's login; The log names the Configuration tab as the broker's source; No log line or error reveals the form's broker password |
-   | (the first three) | Skipping every form pier for its horizon, equipment or gates stops the add-on |
+   | (the first three) | Skipping every pier on the Configuration form stops the add-on |
 
    These stay together on purpose:
    - The rule that blank `horizon_points` text is unset stays with `horizon_points`. "Blank horizon points are ignored" tests it.
@@ -52,7 +52,7 @@ This change has no code, so the seams are the OpenSpec CLI and the epic's check.
    - "What counts as not set" for the gate fields stays with "an unset value comes from `config.yaml`". "config.yaml fills an empty field" tests both.
    - The pointer to the Supervisor's broker rule, for a form with no host, stays with the rule for a form with a host. It requires nothing, so it needs no scenario of its own.
    - The gate skip requirement keeps the list of bad values, because its one scenario tests two of them.
-2. **One shared requirement for "every pier skipped stops the add-on"** (D7). The horizon, equipment and gate requirements each said "When every pier is skipped, the add-on SHALL stop with a configuration error, as it does for any setup with no valid pier." Three requirements with one behavior would each need a scenario, and the gates have none. The shared requirement names the three causes, so it covers what each original covered and no more. It takes both scenarios that test the rule.
+2. **One shared requirement for "every pier skipped stops the add-on"** (D7). The horizon, equipment and gate requirements each said "When every pier is skipped, the add-on SHALL stop with a configuration error, as it does for any setup with no valid pier." Three requirements with one behavior would each need a scenario, and the gates have none. Like the originals, the shared requirement names no cause: the add-on stops whenever every form pier is skipped. Naming the three causes would narrow it, because a form whose piers fail for a mix of reasons, such as one bad latitude and one bad horizon, would fall outside it. It takes both scenarios that test the rule.
    - Alternative: keep the sentence in each skip requirement. That repeats one behavior in eight places.
 3. **A scenario that tests two behaviors stays with the one its name and THEN fit** (epic decision 2):
    - "Blank horizon points are ignored" goes with `horizon_points`. It also sets `min_altitude`.
@@ -69,8 +69,9 @@ This change has no code, so the seams are the OpenSpec CLI and the epic's check.
    - Three lead sentences are dropped: "The service SHALL turn a form pier's horizon fields into that pier's horizon", its equipment twin, and "the form's broker fields SHALL work as follows". Each only introduced the bullets that follow it, and each bullet keeps its own SHALL. −3.
    - Each horizon and equipment skip requirement says "SHALL be skipped" and "SHALL still be published" again. The originals said each once for all their cases. +8.
    - The two "The error SHALL name `horizon.points`" sentences become part of the skip sentence: "skipped with a logged error that names the pier and `horizon.points`". −2.
+   - In the two requirements for a `horizon` or `equipment` value beside a set field, "The error SHALL name each of those fields" becomes part of the skip sentence: "skipped with a logged error that names the pier and each of those fields". −2.
    - The three stop sentences become one (Decision 2). −2.
-   - So the count goes from 53 to 54, 3 of them SHALL NOT. Nothing new is required.
+   - So the count goes from 53 to 52, 3 of them SHALL NOT. Each drop merges two SHALLs into one sentence that requires both. Nothing new is required.
    - "missing … while another equipment field is set" becomes "sets an equipment field but leaves out …". "When a pier's value fails these checks" becomes "fails the checks", because "these" pointed at the previous paragraph, which is now another requirement.
 5. **Retarget pointers instead of dropping them** (D8, D9). #237 dropped two pointers because their targets were about to be split. These targets stay:
    - In the horizon, equipment and gate requirements, "as the requirement "The add-on combines the Configuration form with config.yaml" describes" names "A pier in config.yaml adds its settings to the form pier with its id". That requirement holds the rule that a file pier adds settings to a form pier.
@@ -84,9 +85,9 @@ This change has no code, so the seams are the OpenSpec CLI and the epic's check.
 ## Risks / Trade-offs
 
 - [A scenario changes in copying] → The script copies blocks byte for byte. After archive, the epic's check must print `OK: ha-addon` with no scenario added. Any other result fails the task.
-- [A SHALL is dropped or its meaning changes] → Count the normative words in the ADDED requirements: 54 expected, 3 of them SHALL NOT and no MAY, against 53 in the originals (Decision 4). The plan review compares each original with its parts.
+- [A SHALL is dropped or its meaning changes] → Count the normative words in the ADDED requirements: 52 expected, 3 of them SHALL NOT and no MAY, against 53 in the originals (Decision 4). The plan review compares each original with its parts.
 - [The MODIFIED requirement changes more than its pointers] → A task diffs it against the main spec and allows only the two pointer edits.
-- [The shared stop requirement reads wider or narrower than the originals] → It names exactly the three causes the three originals covered (Decision 2).
+- [The shared stop requirement reads wider or narrower than the originals] → Like the three originals, it names no cause (Decision 2).
 - [Three pointers to the removed combine heading remain, in #239's requirements] → Accepted. The pull request names them for #239. They were left by #237, not by this change.
 - [The spec loses its grouping, so a reader finds the form rules in several places] → Accepted for now (Decision 9). Reordering is a separate change that touches no requirement text.
 

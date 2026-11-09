@@ -98,10 +98,10 @@ still be published.
 
 Inside an add-on, when the saved form values give a pier both a `horizon` value
 and a horizon field that is set, the service SHALL leave each set horizon field
-in place. The core SHALL reject each one as a field it does not know. The error
-SHALL name each of those fields. The pier SHALL be skipped, and the other piers
-SHALL still be published. The form has no `horizon` field, so this happens only
-when the saved values were written some other way.
+in place. The core SHALL reject each one as a field it does not know. The pier
+SHALL be skipped with a logged error that names the pier and each of those
+fields. The other piers SHALL still be published. The form has no `horizon`
+field, so this happens only when the saved values were written some other way.
 
 #### Scenario: A horizon mapping beside horizon fields skips the pier
 
@@ -229,9 +229,9 @@ This holds for each of the four fields and both values.
 Inside an add-on, when the saved form values give a pier both an `equipment`
 value and any equipment field, the service SHALL leave each set `equipment_*`
 field in place. The core SHALL reject each one as a field it does not know. The
-error SHALL name each of those fields. The pier SHALL be skipped, and the other
-piers SHALL still be published. The form has no `equipment` field, so this
-happens only when the saved values were written some other way.
+pier SHALL be skipped with a logged error that names the pier and each of those
+fields. The other piers SHALL still be published. The form has no `equipment`
+field, so this happens only when the saved values were written some other way.
 
 #### Scenario: An equipment mapping beside equipment fields skips the pier
 
@@ -331,12 +331,11 @@ or less.
 - **THEN** the service logs an error that names that pier and the field
 - **AND** it publishes a verdict for the other pier
 
-### Requirement: Skipping every form pier for its horizon, equipment or gates stops the add-on
+### Requirement: Skipping every pier on the Configuration form stops the add-on
 
-Inside an add-on, when the service skips every pier on the Configuration form
-because each fails the checks on its horizon, its equipment, or its
-`go_threshold` or `max_gust`, the add-on SHALL stop with a configuration error,
-as it does for any setup with no valid pier.
+Inside an add-on, when the service skips every pier on the Configuration form,
+the add-on SHALL stop with a configuration error, as it does for any setup with
+no valid pier.
 
 #### Scenario: A bad horizon on the only pier stops the add-on
 
@@ -540,19 +539,19 @@ environment names one.
 
 ### Requirement: The form sets each pier's horizon
 
-**Reason**: Split into requirements that each state one behavior: "A form pier's min_altitude sets a flat horizon floor", "A form pier's horizon_points become its horizon points", "A form pier with no horizon field takes its horizon from config.yaml", "Horizon points the core cannot read skip the form pier", "A form pier's horizon that breaks the horizon rules skips the pier", "A horizon value beside a set horizon field skips the form pier" and, with the equipment and gate checks, "Skipping every form pier for its horizon, equipment or gates stops the add-on". Its pointer to the removed requirement "The add-on combines the Configuration form with config.yaml" now names "A pier in config.yaml adds its settings to the form pier with its id".
+**Reason**: Split into requirements that each state one behavior: "A form pier's min_altitude sets a flat horizon floor", "A form pier's horizon_points become its horizon points", "A form pier with no horizon field takes its horizon from config.yaml", "Horizon points the core cannot read skip the form pier", "A form pier's horizon that breaks the horizon rules skips the pier", "A horizon value beside a set horizon field skips the form pier" and, with the other form field requirements, "Skipping every pier on the Configuration form stops the add-on". Its pointer to the removed requirement "The add-on combines the Configuration form with config.yaml" now names "A pier in config.yaml adds its settings to the form pier with its id".
 
 **Migration**: None. Nothing changes for users or code.
 
 ### Requirement: The form sets each pier's equipment
 
-**Reason**: Split into requirements that each state one behavior: "A form pier's equipment fields set its equipment", "A form pier's reducer defaults to 1.0", "A form pier with no equipment field takes its equipment from config.yaml", "Incomplete equipment skips the form pier", "An equipment value of 0 or less skips the form pier", "An equipment value beside an equipment field skips the form pier" and, with the horizon and gate checks, "Skipping every form pier for its horizon, equipment or gates stops the add-on". Its pointer to the removed requirement "The add-on combines the Configuration form with config.yaml" now names "A pier in config.yaml adds its settings to the form pier with its id".
+**Reason**: Split into requirements that each state one behavior: "A form pier's equipment fields set its equipment", "A form pier's reducer defaults to 1.0", "A form pier with no equipment field takes its equipment from config.yaml", "Incomplete equipment skips the form pier", "An equipment value of 0 or less skips the form pier", "An equipment value beside an equipment field skips the form pier" and, with the other form field requirements, "Skipping every pier on the Configuration form stops the add-on". Its pointer to the removed requirement "The add-on combines the Configuration form with config.yaml" now names "A pier in config.yaml adds its settings to the form pier with its id".
 
 **Migration**: None. Nothing changes for users or code.
 
 ### Requirement: The form sets each pier's GO threshold and wind-gust limit
 
-**Reason**: Split into requirements that each state one behavior: "A form pier's go_threshold and max_gust pass to the pier", "An unset go_threshold or max_gust on the form comes from config.yaml", "A form pier with no go_threshold or max_gust uses the file defaults", "A bad go_threshold or max_gust skips the form pier" and, with the horizon and equipment checks, "Skipping every form pier for its horizon, equipment or gates stops the add-on". Its pointer to the removed requirement "The add-on combines the Configuration form with config.yaml" now names "A pier in config.yaml adds its settings to the form pier with its id".
+**Reason**: Split into requirements that each state one behavior: "A form pier's go_threshold and max_gust pass to the pier", "An unset go_threshold or max_gust on the form comes from config.yaml", "A form pier with no go_threshold or max_gust uses the file defaults", "A bad go_threshold or max_gust skips the form pier" and, with the other form field requirements, "Skipping every pier on the Configuration form stops the add-on". Its pointer to the removed requirement "The add-on combines the Configuration form with config.yaml" now names "A pier in config.yaml adds its settings to the form pier with its id".
 
 **Migration**: None. Nothing changes for users or code.
 
