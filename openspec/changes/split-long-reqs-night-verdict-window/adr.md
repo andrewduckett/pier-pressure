@@ -18,4 +18,4 @@ ADR review completed for this change. It changes the text of one spec only. No r
 
 ## New Durable ADRs Created
 
-- None - no major durable architectural decisions were introduced. The design's decisions are about spec text. New headings are forced by OpenSpec (epic #230 decision 5), and each of the five added scenarios restates a rule its requirement keeps, so none is a costly fork.
+- None - no major durable architectural decisions were introduced. The design's decisions are about spec text. New headings are forced by OpenSpec (epic #230 decision 5), and each of the six added scenarios restates a rule its requirement keeps, so none is a costly fork.

@@ -13,7 +13,7 @@
 **Goals:**
 
 - After archive, each of the 29 new requirements states one behavior in no more than 500 characters.
-- After archive, the spec holds every one of its scenario blocks word for word, plus the 5 added on purpose.
+- After archive, the spec holds every one of its scenario blocks word for word, plus the 6 added on purpose.
 - After archive, no quoted pointer in any main spec names a heading that does not exist.
 
 **Non-Goals:**
@@ -69,22 +69,32 @@ This change has no code, so the seams are the OpenSpec CLI and the epic's check.
    - Conditions: "More usable clear darkness scores higher" with the score; "A partly clear night is not gated as overcast" with not gated; "A window that does not align to whole hours still yields a bounded score" with normalizing; "Hours without cloud data lower the score without gating" with missing cloud data.
    - Moon: "Moon object carries illumination and a bounded phase name" with illumination and phase; "Moon above-horizon behaviour is reported across an existing dark window" and "Across-window moon fields are null when there is no astronomical night" with the across-window fields.
    - Astronomy: "Verdict production performs no runtime network access" with offline; "Astronomical numeric and time fields are emitted at a fixed precision" with fixed precision, since two of its three THEN lines assert precision.
-3. **Add five scenarios, each backed by an existing test** (D9). Each goes to a new requirement that none of the original scenarios fits:
+3. **Add six scenarios, each backed by an existing test** (D9). The first five go to new requirements that none of the original scenarios fits:
    - "A grazing night that whole seconds collapse is reported as null", under "A non-null dark window starts strictly before it ends". `test_subsecond_night_collapses_to_null_on_whole_second_truncation` asserts it.
    - "Two recomputes in one continuous-night period give the same window", under "The continuous-night dark window is anchored to a stable boundary". `test_continuous_astronomical_night_is_nonnull_and_stable` asserts it with two instants eight hours apart. "Continuous astronomical night yields a non-null window" also asserts this in its last line, and stays whole under the non-null rule.
    - "In the floored dawn second, the scored window closes on the end of the dark window", under "An empty scored window arises only in the last partial second of the dark window". `test_an_instant_in_the_floored_dawn_second_has_no_dark_time_left` asserts that the scored window is the end of the dark window twice over.
    - "Moonrise and moonset are the geometric centre crossing 0 degrees", under "Moon horizon crossings use the moon's geometric centre at 0 degrees". `test_moon_rises_within_window_is_reported_and_up_during_dark` and `test_moon_sets_within_window_is_reported` assert it against a refraction-free oracle.
    - "Two offline runs give byte-identical astronomical fields", under "Repeated runs on one platform yield byte-identical astronomical values". `test_two_runs_are_byte_identical_offline` asserts it, at an instant whose night has a moonrise.
 
+   - "An instant exactly on the dawn crossing still judges the ending night", under "On an ordinary night, an instant on the exact dawn crossing still selects the ending night". The original scenario there, "A verdict after the exact dawn crossing judges the next night", tests an instant after the crossing, not on it (plan review, finding 1). `test_an_instant_exactly_on_the_dawn_crossing_has_no_dark_time_left` asserts it.
+
    Alternative: join each of these requirements to a neighbor so that an original scenario covers it. Each join runs past 500 characters, or puts two behaviors under one heading.
 4. **Reword only so each requirement reads on its own** (D13):
    - "the reasons keep their whole-night wording" becomes "the reasons SHALL keep their whole-night wording", so the narrowed-definition requirement has a SHALL. "no span line is present" stays as it was.
    - A dawn crossing or a solar-day boundary that "qualifies" becomes one that "SHALL qualify as the exact end of the selected window", so each case has a SHALL. The ordinary-night rule restates the selection rule that "The selected night is the one whose dawn comes first at or after the evaluation instant" already holds.
-   - "So the scoring instant equals `dark_window.end` only when the evaluation instant lies in that floored second" names the second: "the floored second that `dark_window.end` names". Each case requirement then ends with its own half of the original's last two sentences.
+   - "So the scoring instant equals `dark_window.end` only when the evaluation instant lies in that floored second and the selection still picks that window" names the second: "the floored second that `dark_window.end` names". Each case requirement then ends with its own half of the original's last two sentences, after a colon.
+   - "Which exact end qualifies differs by case." is not carried. It only introduced the two cases, and each case is now its own requirement.
    - "The rules below read `dark_window.end`" becomes "The rules that read `dark_window.end`", because the rules no longer sit below.
    - The `moon` field list becomes two requirements, so its "SHALL contain" opens both, as "SHALL also contain" in the second.
    - "The two extreme-latitude boundary cases SHALL be handled distinctly" becomes "Continuous non-night SHALL be handled distinctly from continuous astronomical night", and the bullets become sentences that open "In continuous ...". "e.g." becomes "as in".
    - "The window SHALL be anchored" becomes "In continuous astronomical night, the dark window SHALL be anchored".
+   - "In every case the field SHALL be present rather than omitted" gains ", including both extreme-latitude cases,".
+   - "That is the test for every rule in this requirement" becomes "That is the test for every rule about a narrowed scored window".
+   - In the conditions requirement, "Its score SHALL reflect" becomes "The score SHALL reflect", because it no longer follows the overcast sentence.
+   - The `moon` list's "with these fields: `illumination` (...), `phase` (...)" becomes "with `illumination` (...) and `phase` (...)", and "This gives later milestones" becomes "This object gives later milestones".
+   - The original's last sentence on astronomy splits in two: "This keeps Home Assistant and external services non-load-bearing for correctness" ends the offline requirement, and "This preserves the deterministic-emission guarantee once real sky math is introduced" ends the byte-identical one.
+   - A bullet that becomes a requirement, or part of one, becomes a sentence: the scoring instant, before dusk, the empty-window rule, the four conditions bullets and the two extreme-latitude cases. The list of rules that run over the scored window, the `scored_window` fields and the three facts about an empty scored window stay bullets.
+   - Decision 1 lists the sentences that move between requirements, such as "The `dark_window` field SHALL keep the whole night", which joins "The verdict judges the scored window".
    - So the count goes from 51 SHALL (9 SHALL NOT) to 55 SHALL (9 SHALL NOT), with no MAY or MUST. Per original: 19 → 21, 11 → 11, 6 → 7, 8 → 8, 2 → 3 and 5 → 5 SHALL. Nothing new is required, and nothing is dropped.
 5. **No pointers to change** (D10). No spec quotes a removed heading.
 6. **Note the drift, keep the text** (D12). "The verdict judges the scored window" keeps "the end of the local solar day that anchors the dark window". The REMOVED Reason for "The verdict judges the remaining night" says that the code uses the UTC calendar day at the exact poles.
@@ -94,7 +104,7 @@ This change has no code, so the seams are the OpenSpec CLI and the epic's check.
 
 ## Risks / Trade-offs
 
-- [A scenario changes in copying] → The script copies blocks byte for byte. After archive, the epic's check must print `OK: night-verdict` with exactly the 5 added scenarios. Any other result fails the task.
+- [A scenario changes in copying] → The script copies blocks byte for byte. After archive, the epic's check must print `OK: night-verdict` with exactly the 6 added scenarios. Any other result fails the task.
 - [A SHALL is dropped or its meaning changes] → Count the normative words in the ADDED requirements: 55 SHALL, 9 of them SHALL NOT, and no MAY expected (Decision 4). The plan review compares each original with its parts.
 - [An added scenario asserts something the code does not do] → Each rests on an existing test (Decision 3). The code review checks them against `pierpressure/core/sky.py`, `pierpressure/core/scoring.py` and the tests.
 - [Four requirements sit close to the limit] → "Less than an hour of dark time caps the verdict at MAYBE" is at 496 characters, "Astronomical numbers and document timestamps have a fixed precision from construction" at 490, "An empty scored window arises only in the last partial second of the dark window" at 485, and "The moon object carries its illumination and phase" at 484. A later change that MODIFIES one and adds words may need to split it again.

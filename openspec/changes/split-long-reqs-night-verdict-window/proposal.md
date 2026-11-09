@@ -6,7 +6,7 @@ Six `night-verdict` requirements about the night window, the scored span, the mo
 
 - Split "The verdict judges the remaining night" into ten requirements (D3), "Night window is the astronomical-night boundary" into six (D4), "Reasons name the scored span" into three (D5), "Conditions are evaluated across the whole scored window" into four (D6), "Moon information across the dark window" into three (D7) and "Astronomical fields are computed offline with stable precision" into three (D8). That makes 29 ADDED requirements.
 - Each original is REMOVED and its parts ADDED under new headings, as epic #230 decision 5 requires (D14).
-- Every existing scenario moves word for word. Five scenarios are added, one for each new requirement that no original scenario fits, and each rests on an existing test (D9).
+- Every existing scenario moves word for word. Six scenarios are added: five for new requirements that no original scenario fits, and one for an instant exactly on the dawn crossing. Each rests on an existing test (D9).
 - Every SHALL and SHALL NOT keeps its meaning. Four SHALL are added without adding an obligation: three descriptive sentences become SHALL statements so each new requirement has one, and one field list is split in two (D13).
 - No behavior, code or test changes. Nothing is **BREAKING**.
 

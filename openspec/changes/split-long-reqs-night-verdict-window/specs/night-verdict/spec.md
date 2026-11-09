@@ -108,7 +108,8 @@ On an ordinary night, a dawn crossing at or after the evaluation instant
 SHALL qualify as the exact end of the selected window, so an instant exactly on
 the crossing still selects the ending night. So the scoring instant equals
 `dark_window.end` only when the evaluation instant lies in the floored second
-that `dark_window.end` names, up to and including the exact crossing.
+that `dark_window.end` names and the selection still picks that window: up to
+and including the exact crossing.
 
 #### Scenario: A verdict after the exact dawn crossing judges the next night
 
@@ -116,14 +117,20 @@ that `dark_window.end` names, up to and including the exact crossing.
 - **THEN** `dark_window` is the next night's window
 - **AND** `scored_window` equals `dark_window`
 
+#### Scenario: An instant exactly on the dawn crossing still judges the ending night
+
+- **WHEN** a verdict is produced at an evaluation instant exactly on the exact astronomical dawn crossing
+- **THEN** `dark_window.end` is that dawn crossing, floored to a whole second
+- **AND** `scored_window.start` equals `scored_window.end`
+
 ### Requirement: In continuous polar night, an instant on the exact solar-day boundary selects the next solar day
 
 In continuous polar night, only a solar-day boundary after the evaluation
 instant SHALL qualify as the exact end of the selected window, so an instant
 exactly on the boundary selects the next solar day. So the scoring instant
 equals `dark_window.end` only when the evaluation instant lies in the floored
-second that `dark_window.end` names, up to but not including the exact
-boundary.
+second that `dark_window.end` names and the selection still picks that window:
+up to but not including the exact boundary.
 
 #### Scenario: In continuous polar night, the exact solar-day boundary starts the next window
 
@@ -481,7 +488,7 @@ dark window", "On an ordinary night, an instant on the exact dawn crossing still
 selects the ending night", "In continuous polar night, an instant on the exact
 solar-day boundary selects the next solar day", "An empty scored window gives
 MAYBE with a score of 0" and "Less than an hour of dark time caps the verdict at
-MAYBE". Its 14 scenarios move word for word, and one scenario is added. Drift:
+MAYBE". Its 14 scenarios move word for word, and two scenarios are added. Drift:
 at the exact poles, latitude 90 or -90, the code anchors continuous polar night
 to the UTC calendar day, because the sun has no meridian transit there
 (`pierpressure/core/sky.py`, `_local_solar_day`). This text says the local solar
