@@ -11,9 +11,12 @@ from __future__ import annotations
 
 import os
 import shlex
+import shutil
 import subprocess
 import tomllib
 from pathlib import Path
+
+import pytest
 
 _ROOT = Path(__file__).resolve().parent.parent
 _TASKS = tomllib.loads((_ROOT / "mise.toml").read_text(encoding="utf-8"))["tasks"]
@@ -49,7 +52,18 @@ def _openspec_root(tmp_path: Path, main_requirement: str) -> Path:
     return root
 
 
+def _require_openspec() -> None:
+    """Skip without the OpenSpec CLI, except in CI, which must never pass by skipping."""
+    if shutil.which("openspec") is not None:
+        return
+    reason = "openspec is not on PATH; run the tests with `mise run test`"
+    if os.environ.get("CI"):
+        pytest.fail(reason)
+    pytest.skip(reason)
+
+
 def _run_spec_check(root: Path, tmp_path: Path) -> subprocess.CompletedProcess[str]:
+    _require_openspec()
     command = shlex.split(_TASKS["specs"]["run"])
     # A copy of the environment keeps PATH, so openspec and Node are found.
     env = os.environ | {
@@ -100,3 +114,19 @@ def test_spec_check_ignores_a_change_in_progress(tmp_path: Path) -> None:
     result = _run_spec_check(root, tmp_path)
 
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_missing_openspec_skips_off_ci(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PATH", str(tmp_path))
+    monkeypatch.delenv("CI", raising=False)
+
+    with pytest.raises(pytest.skip.Exception):
+        _require_openspec()
+
+
+def test_missing_openspec_fails_in_ci(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PATH", str(tmp_path))
+    monkeypatch.setenv("CI", "true")
+
+    with pytest.raises(pytest.fail.Exception):
+        _require_openspec()
