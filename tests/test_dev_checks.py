@@ -80,3 +80,23 @@ def test_spec_check_passes_requirements_within_500_characters(tmp_path: Path) ->
     result = _run_spec_check(root, tmp_path)
 
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_spec_check_ignores_a_change_in_progress(tmp_path: Path) -> None:
+    root = _openspec_root(tmp_path, _requirement(500))
+    change = root / "openspec" / "changes" / "longer-pier"
+    delta = change / "specs" / "demo" / "spec.md"
+    delta.parent.mkdir(parents=True)
+    (change / ".openspec.yaml").write_text("schema: spec-driven\n", encoding="utf-8")
+    delta.write_text(
+        "## ADDED Requirements\n\n"
+        f"### Requirement: The pier holds a second mount\n{_requirement(501)}\n\n"
+        "#### Scenario: Two mounts are on the pier\n"
+        "- **WHEN** two mounts are on the pier\n"
+        "- **THEN** the pier holds both steady\n",
+        encoding="utf-8",
+    )
+
+    result = _run_spec_check(root, tmp_path)
+
+    assert result.returncode == 0, result.stdout + result.stderr
