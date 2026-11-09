@@ -1,0 +1,176 @@
+## ADDED Requirements
+
+### Requirement: The explainer takes only the verdict document as input
+
+The explainer SHALL take an already-produced verdict document as its sole input
+and produce a short prose narrative of that verdict. The narrative is derived
+only from the terms present in the document.
+
+Whether the resulting prose reads as a faithful, plain-language summary of the
+verdict is confirmed by a documented manual acceptance check, because it depends
+on generated language that PierPressure does not assert mechanically.
+
+#### Scenario: Explainer consumes the verdict document
+
+- **WHEN** the explainer is given a verdict document and asked to explain it
+- **THEN** its only input is that document (verdict, score, confidence, reasons, and targets)
+- **AND** it returns prose text without reading any astronomy, conditions, or ranking source
+
+### Requirement: The explainer never computes or changes the verdict
+
+The explainer SHALL NOT compute, re-derive, or alter the verdict, score,
+confidence, reasons, or targets. It explains what the core decided rather than
+deciding anything itself.
+
+#### Scenario: Explaining never alters the numbers
+
+- **WHEN** a verdict is explained
+- **THEN** the verdict document delivered downstream is byte-identical to the document produced without the explainer
+- **AND** the verdict, score, confidence, reasons, and targets are unchanged
+
+### Requirement: An explainer failure yields no narrative and an unavailable entity
+
+When the explainer is enabled but the provider call fails, times out, or returns
+nothing usable, the explainer SHALL produce no narrative text for that recompute
+(it yields none). The narrative entity SHALL resolve to unavailable rather than
+retaining earlier prose (spec ha-delivery). This is an active unavailable
+publish, never a skipped one that would leave stale text shown as current.
+
+#### Scenario: A provider timeout yields no narrative
+
+- **WHEN** the explainer is enabled and the provider call times out
+- **THEN** the explainer produces no narrative text for that recompute
+- **AND** the narrative entity resolves to unavailable rather than showing earlier prose
+
+### Requirement: An explainer failure never blocks the verdict
+
+When the explainer is enabled but the provider call fails, times out, or returns
+nothing usable, the system SHALL still deliver the verdict. The failure SHALL be
+reported through logging and SHALL NOT raise into the recompute loop or delay or
+corrupt delivery of the verdict.
+
+#### Scenario: Provider failure does not block the verdict
+
+- **WHEN** the explainer is enabled and the provider call fails
+- **THEN** the verdict is still delivered
+- **AND** the explainer produces no narrative text, and the narrative entity resolves to unavailable
+- **AND** the failure is reported without aborting the recompute
+
+### Requirement: Identical verdict terms reuse the cached narrative
+
+The explainer SHALL cache a produced narrative keyed on every verdict term that
+influences the narrative — the verdict value, the score, the confidence, the
+reasons, and the emitted fields of the targets included in the explanation (not
+merely their identities). When a later recompute yields identical influencing
+terms, the explainer SHALL reuse the cached narrative rather than issue a new
+provider call.
+
+#### Scenario: Identical influencing terms reuse the cached narrative
+
+- **WHEN** two recomputes yield verdicts identical in verdict, score, confidence, reasons, and every emitted target field
+- **THEN** the explainer issues a provider call for the first
+- **AND** the second reuses the cached narrative without a new provider call
+
+### Requirement: A changed verdict term produces a fresh narrative
+
+When any verdict term that influences the narrative differs from the cached
+narrative's terms, the explainer SHALL produce a fresh narrative. The cache SHALL
+NOT serve a narrative when any term it explained has changed, so a later night
+can never show an earlier night's prose.
+
+#### Scenario: A changed target field produces a fresh narrative
+
+- **WHEN** a later recompute yields the same target identities but a changed target field, such as a new transit time or maximum altitude, or a changed confidence band
+- **THEN** the explainer issues a new provider call rather than reusing the cached narrative
+
+### Requirement: A rejected explainer block shows none of its values
+
+When the process rejects the `explainer` block, the error and the log SHALL NOT
+contain any value from that block. This SHALL hold for every source of settings.
+
+The error SHALL still say what is wrong. For a defined setting, it SHALL name the
+setting, such as `explainer.api_key`, and state the rule the value broke.
+
+#### Scenario: An API key that is not text is rejected without its value
+
+- **WHEN** `config.yaml` sets `explainer.api_key` to a number, such as `12345`
+- **THEN** the process stops with a configuration error that names
+  `explainer.api_key`
+- **AND** neither the error nor the log contains `12345`
+
+### Requirement: An unknown explainer key is reported without its name
+
+When the process rejects the `explainer` block, the error and the log SHALL NOT
+contain the name of a key that the block does not define, because a user can
+type a secret where a key name belongs. This SHALL hold for every source of
+settings.
+
+For such a key, the error SHALL say that the block holds a setting it does not
+know, and list the settings the block defines.
+
+#### Scenario: An unknown key in the explainer block is not named
+
+- **WHEN** the `explainer` block in `config.yaml` holds a key it does not define,
+  such as `apikey: sk-secret`, or a bare key `sk-secret`
+- **THEN** the process stops with a configuration error that says the
+  `explainer` block holds a setting it does not know
+- **AND** the error lists the settings the `explainer` block defines
+- **AND** neither the error nor the log contains `apikey` or `sk-secret`
+
+### Requirement: An explainer value that is not a mapping is reported as such
+
+For an `explainer` value that is a list, text or a number, the configuration
+error SHALL say that `explainer` must be a mapping of settings.
+
+#### Scenario: An explainer block that is not a mapping does not show its value
+
+- **WHEN** `config.yaml` sets `explainer` to a list or text that holds a secret
+- **THEN** the process stops with a configuration error that says `explainer`
+  must be a mapping of settings
+- **AND** neither the error nor the log contains the secret
+
+### Requirement: An empty explainer block disables the explainer
+
+An `explainer` key with no value, and an `explainer` block with no settings, SHALL
+each still mean that the explainer is disabled.
+
+#### Scenario: An empty explainer block still disables the explainer
+
+- **WHEN** `config.yaml` has an `explainer` key with no value, or sets
+  `explainer` to an empty mapping
+- **THEN** the configuration loads
+- **AND** no narrative is produced
+
+### Requirement: A valid explainer API key is masked and used only to call the LLM
+
+Once the configuration is valid, the process SHALL show the API key as a mask
+whenever it prints or logs its settings. It SHALL use the key's value only to
+call the LLM provider.
+
+#### Scenario: A valid API key is masked when the settings are printed
+
+- **WHEN** the configuration is valid and sets an explainer API key
+- **AND** the process prints or logs its settings, at any stage of loading them
+- **THEN** the output does not contain the API key
+
+## REMOVED Requirements
+
+### Requirement: Narrative explains an already-computed verdict
+
+**Reason**: It stated two behaviors in more than 500 characters. It is split into "The explainer takes only the verdict document as input" and "The explainer never computes or changes the verdict". They keep all of its SHALL statements and both of its scenarios.
+**Migration**: None. Nothing changes for users or code: the explainer behaves as before.
+
+### Requirement: The explainer degrades gracefully on failure
+
+**Reason**: It stated two behaviors in more than 500 characters. It is split into "An explainer failure yields no narrative and an unavailable entity" and "An explainer failure never blocks the verdict". They keep all of its SHALL statements and its one scenario. The first gains a scenario for the timeout case the requirement already named.
+**Migration**: None. Nothing changes for users or code: a failed explainer call behaves as before.
+
+### Requirement: Narratives are cached on the deterministic verdict terms
+
+**Reason**: It stated two behaviors in more than 500 characters. It is split into "Identical verdict terms reuse the cached narrative" and "A changed verdict term produces a fresh narrative". They keep all of its SHALL statements and both of its scenarios.
+**Migration**: None. Nothing changes for users or code: the narrative cache behaves as before.
+
+### Requirement: An error about the explainer settings shows none of their text
+
+**Reason**: It stated five behaviors in more than 500 characters. It is split into five requirements. The first two are "A rejected explainer block shows none of its values" and "An unknown explainer key is reported without its name". The other three are "An explainer value that is not a mapping is reported as such", "An empty explainer block disables the explainer" and "A valid explainer API key is masked and used only to call the LLM". They keep all of its SHALL statements and all five of its scenarios.
+**Migration**: None. Nothing changes for users or code: the `explainer` settings load, fail and print as before.
