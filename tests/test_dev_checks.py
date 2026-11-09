@@ -17,9 +17,11 @@ import tomllib
 from pathlib import Path
 
 import pytest
+import yaml
 
 _ROOT = Path(__file__).resolve().parent.parent
 _TASKS = tomllib.loads((_ROOT / "mise.toml").read_text(encoding="utf-8"))["tasks"]
+_CI = _ROOT / ".github" / "workflows" / "ci.yml"
 
 # Long enough for strict mode, so only a requirement's length can fail it.
 _PURPOSE = "A throwaway capability that the spec-check contract tests validate."
@@ -141,3 +143,15 @@ def test_check_task_runs_the_spec_check_alone_in_the_specs_task() -> None:
 
     assert specs["run"] == "openspec validate --specs --strict --no-interactive"
     assert "depends" not in specs
+
+
+def test_ci_check_job_installs_the_mise_tools_before_it_runs_the_check() -> None:
+    steps = yaml.safe_load(_CI.read_text(encoding="utf-8"))["jobs"]["check"]["steps"]
+    installs = [
+        n for n, s in enumerate(steps) if str(s.get("uses", "")).startswith("jdx/mise-action@")
+    ]
+    checks = [n for n, s in enumerate(steps) if s.get("run") == "mise run check"]
+
+    assert len(installs) == 1
+    assert len(checks) == 1
+    assert installs[0] < checks[0]
