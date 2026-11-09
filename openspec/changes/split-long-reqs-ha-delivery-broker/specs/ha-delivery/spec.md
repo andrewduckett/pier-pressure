@@ -77,8 +77,8 @@ offline availability publish at QoS 1 before it disconnects.
 
 ### Requirement: A planned stop waits at most two seconds for the offline message
 
-When the process stops on purpose, it SHALL wait at most two seconds for the
-broker to confirm the offline message. The process SHALL then disconnect and
+When the process stops on purpose while connected, it SHALL wait at most two
+seconds for the broker to confirm the offline message. The process SHALL then disconnect and
 exit, whether or not the broker confirmed the message.
 
 The offline publish is a best effort. If the broker never receives it, the
@@ -131,9 +131,9 @@ SHALL keep its interval and refresh command working.
 
 While the process is disconnected from the broker, its entities show as
 unavailable through the offline last-will. A publish during that time is held
-for the replay after the reconnect, as the requirement "While disconnected, the
-process holds its publishes for the replay" describes. The disconnect is already
-logged, so the process SHALL NOT log each held publish.
+for the replay after the reconnect, as the requirement
+"While disconnected, the process holds its publishes for the replay" describes.
+The disconnect is already logged, so the process SHALL NOT log each held publish.
 
 #### Scenario: A publish held during an outage logs no warning
 
@@ -290,8 +290,8 @@ When the process loses its connection to the MQTT broker while it runs, it SHALL
 keep trying to reconnect. The process SHALL try to reconnect with the same pauses as at startup. No
 pause SHALL be shorter than 1 second or longer than 120 seconds. The process
 SHALL keep trying for as long as it runs, whichever way an attempt fails. This
-includes a failure during an immediate try, which the requirement "The process
-may try once more at once with one detail changed" describes.
+includes a failure during an immediate try, which the requirement
+"The process may try once more at once with one detail changed" describes.
 
 #### Scenario: A failed immediate try during a reconnect is tried again
 
