@@ -14,3 +14,9 @@
 ## Deviations Ledger
 
 <!-- Dated notes on small departures from the plan, written during apply. Stop and ask the user about a large one. -->
+
+- 2026-11-08: Rebased onto main after `open-meteo-hours` (#213) landed. Its test
+  `test_every_open_meteo_request_asks_for_4_past_hours_and_72_ahead` unpacked one
+  request, but a model provider now sends two. The test picks the forecast
+  request, and the hours requirement now covers only requests for hourly data,
+  not the metadata request.

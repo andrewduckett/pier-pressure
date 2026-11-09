@@ -277,7 +277,7 @@ def test_every_open_meteo_request_asks_for_4_past_hours_and_72_ahead(
 ) -> None:
     [fetcher] = build_provider([key], now=lambda: fetched_at).fetchers
     assert isinstance(fetcher, OpenMeteoProvider)
-    (request,) = _requests_of(lambda client: replace(fetcher, client=client), {})
+    request = _forecast_request(_requests_of(lambda client: replace(fetcher, client=client), {}))
     params = request.url.params
     assert (params["past_hours"], params["forecast_hours"]) == ("4", "72")
     assert "forecast_days" not in params
