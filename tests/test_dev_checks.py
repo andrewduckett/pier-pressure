@@ -130,3 +130,14 @@ def test_missing_openspec_fails_in_ci(tmp_path: Path, monkeypatch: pytest.Monkey
 
     with pytest.raises(pytest.fail.Exception):
         _require_openspec()
+
+
+def test_check_task_runs_the_spec_check_first() -> None:
+    assert _TASKS["check"]["run"][0] == {"task": "specs"}
+
+
+def test_check_task_runs_the_spec_check_alone_in_the_specs_task() -> None:
+    specs = _TASKS["specs"]
+
+    assert specs["run"] == "openspec validate --specs --strict --no-interactive"
+    assert "depends" not in specs

@@ -69,9 +69,16 @@ description = "Validate the main specs with OpenSpec in strict mode."
 run = "openspec validate --specs --strict --no-interactive"
 
 [tasks.check]
-description = "The full gate CI runs: lint + typecheck + test + the card."
-# Task references run in order and stop at the first failure.
-run = [{ task = "lint" }, { task = "typecheck" }, { task = "test" }, { task = "card" }]
+description = "The full gate CI runs: specs + lint + typecheck + test + the card."
+# Task references run in order and stop at the first failure. The spec check
+# takes a second, so it goes first and fails fast.
+run = [
+  { task = "specs" },
+  { task = "lint" },
+  { task = "typecheck" },
+  { task = "test" },
+  { task = "card" },
+]
 
 [tasks.broker-up]
 description = "Start a local Mosquitto broker (dev only, anonymous on 1883)."
