@@ -297,10 +297,10 @@ or only for some of its hours.
 
 ### Requirement: An unavailable wind-gust limit caps the verdict at MAYBE
 
-When the wind-gust limit is treated as unavailable this way, and no hour with
-wind data has already failed the gate, the verdict SHALL NOT be `GO` and SHALL
-be capped at `MAYBE`, with a reason that wind data is unavailable and lowered
-confidence.
+When a configured wind-gust limit is treated as unavailable because wind data
+does not cover every hour of the scored window, and no hour with wind data has
+already failed the gate, the verdict SHALL NOT be `GO` and SHALL be capped at
+`MAYBE`, with a reason that wind data is unavailable and lowered confidence.
 
 #### Scenario: Missing wind data caps the verdict at MAYBE when a limit is configured
 
@@ -335,10 +335,10 @@ A pier configuration MAY set three tuning knobs: a go-threshold, a wind-gust
 limit and a dew margin. These SHALL be the only tuning knobs; all other
 thresholds and weights are fixed by the system.
 
-#### Scenario: A pier configuration sets all three tuning knobs
+#### Scenario: A pier configuration sets its go-threshold and wind-gust limit
 
-- **WHEN** a pier configuration sets a go-threshold of 70, a wind-gust limit of 45 and a dew margin of 3
-- **THEN** the pier's go-threshold is 70, its wind-gust limit is 45 and its dew margin is 3 °C
+- **WHEN** a pier configuration sets a go-threshold of 70 and a wind-gust limit of 45
+- **THEN** the pier's go-threshold is 70 and its wind-gust limit is 45
 
 ### Requirement: An omitted go-threshold takes the system default
 
