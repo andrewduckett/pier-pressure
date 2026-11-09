@@ -25,7 +25,7 @@
 This change has no code, so the seams are the OpenSpec CLI and the epic's check.
 
 - **Primary test seam:** `openspec validate split-long-reqs-horizon-mask --strict` before archive, and the scenario-preservation check from epic #230 decision 6 after archive, with `CAPS=horizon-mask`.
-- **Existing seams reused:** `openspec validate --specs` for the warning count, and `mise run check` to show that nothing else moved. The 3 added scenarios are each asserted by an existing test, named in Decision 2.
+- **Existing seams reused:** `openspec validate --specs` for the warning count, and `mise run check` to show that nothing else moved. Existing tests assert the 3 added scenarios, as Decision 2 names: two at the seam the scenario describes, and the empty-list one at the horizon builder only.
 
 ## Scrutiny Tier & Blast Radius
 
@@ -43,9 +43,9 @@ This change has no code, so the seams are the OpenSpec CLI and the epic's check.
 
    | Added scenario | Under | Test that already asserts it |
    |---|---|---|
-   | An azimuth of 360 is the same direction as 0 | A horizon is a set of azimuth and altitude samples | `tests/test_horizon.py` `test_input_azimuth_of_exactly_360_behaves_as_zero` |
+   | A sample at azimuth 360 is held at azimuth 0 | A horizon is a set of azimuth and altitude samples | `tests/test_horizon.py` `test_azimuth_360_normalizes_to_zero_and_deduplicates` (the samples' azimuths are `[0.0]`) |
    | An imported file and the same inline points hold the same samples | Every horizon source gives the same samples | `tests/test_horizon.py` `test_nina_fixture_imports_to_the_equivalent_inline_points_horizon` (`imported.samples == equivalent.samples`) |
-   | An empty points list is rejected | Inline points hold at least one pair | `tests/test_horizon.py` `test_at_least_one_point_is_required`; `points: []` reaches `from_points`, so `validate_piers` skips the pier |
+   | An empty points list is rejected | Inline points hold at least one pair | `tests/test_horizon.py` `test_at_least_one_point_is_required` asserts that `from_points([])` rejects the list. No test drives `points: []` through the configuration: `pierpressure/core/config.py` lines 202–203 pass the list to `from_points`, and a hand run of `validate_piers` while planning skipped the pier |
 
    Each restates a SHALL the requirement keeps, so it adds no rule (epic decision 4).
    - Alternative: keep these behaviors inside a larger requirement. Two of them would push that requirement past 500 characters again.
@@ -70,7 +70,7 @@ This change has no code, so the seams are the OpenSpec CLI and the epic's check.
 - [A scenario changes in copying] → The script copies blocks byte for byte. After archive, the epic's check must print `OK: horizon-mask: 3 scenario(s) added`. Any other result fails the task.
 - [A SHALL is dropped or its meaning changes] → Count SHALL and MAY in the ADDED requirements: 41 SHALL (one of them SHALL NOT) and 4 MAY expected, against 42 and 4 in the originals (Decision 4). The plan review compares each original with its parts.
 - [An added scenario states a rule the spec did not have] → Each one's WHEN and THEN restate only the SHALL of the requirement it sits under, and a test already asserts it (Decision 2). The pull request lists all 3.
-- [A stale requirement gets a new heading, so it looks freshly agreed] → Its REMOVED **Reason** says it is restated, and the pull request names the drift (Decision 5).
+- [A stale requirement gets a new heading, so it looks freshly agreed] → Its REMOVED **Reason** says it is restated and names the drift, and so does the pull request (Decision 5).
 - [Archive puts the new requirements after the two kept ones, so the spec reads out of its old order] → Accepted (Decision 8). Each requirement reads on its own.
 
 ## Migration & Rollback

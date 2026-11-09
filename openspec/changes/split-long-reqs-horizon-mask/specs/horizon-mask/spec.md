@@ -8,10 +8,10 @@ through east, and SHALL lie in the half-open range 0 to 360 degrees; a supplied 
 exactly 360 is the same direction as 0 and SHALL be normalized to 0. Altitude SHALL be
 the angle the terrain rises to above the true horizon, in degrees, in the range 0 to 90.
 
-#### Scenario: An azimuth of 360 is the same direction as 0
+#### Scenario: A sample at azimuth 360 is held at azimuth 0
 
-- **WHEN** a horizon has samples at azimuths 0 and 180 and is queried at azimuth 360
-- **THEN** the returned altitude equals the altitude it returns at azimuth 0
+- **WHEN** a horizon is given the samples `[0, 20]` and `[360, 20]`
+- **THEN** every sample the horizon holds is at azimuth 0
 
 ### Requirement: Every horizon source gives the same samples
 
@@ -303,5 +303,5 @@ horizon a consumer.
 **Migration**: None. Nothing changes for users or code: flat floors, open sky and the one-source rule behave as before.
 
 ### Requirement: The horizon does not change the verdict document
-**Reason**: It was more than 500 characters. It is restated in fewer words as "The horizon mask has no consumer in the verdict document", which keeps all of its SHALL statements and its scenario.
+**Reason**: It was more than 500 characters. It is restated in fewer words as "The horizon mask has no consumer in the verdict document", which keeps all of its SHALL statements and its scenario. Its rule that `targets` stays empty is out of date: `target-ranking` and `tests/test_horizon_contract.py` show that the horizon now changes `targets`. Epic #230 changes no meaning, so the restated requirement keeps it, and the pull request reports the drift for a separate fix.
 **Migration**: None. Nothing changes for users or code.
