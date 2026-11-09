@@ -45,7 +45,7 @@ services:
   # by `mise run dashboard-check`, which writes its config (scripts/dashboard_check.py).
   homeassistant:
     profiles: ["dashboard"]
-    image: ghcr.io/home-assistant/home-assistant:2026.10.4
+    image: ghcr.io/home-assistant/home-assistant:2026.11.0
     depends_on:
       mosquitto:
         condition: service_healthy
