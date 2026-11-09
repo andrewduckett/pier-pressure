@@ -88,7 +88,7 @@ topic derived from the pier identifier.
 - **AND** the discovery payload validates against Home Assistant's MQTT discovery schema for a sensor
 - **AND** the sensor state is the top-ranked target's name, with the full ordered target list published as a JSON attributes payload
 
-### Requirement: The top-target sensor's state is the top target's name
+### Requirement: The top-target sensor shows the top target's name and the ordered list
 
 The top-target sensor's state SHALL be the top-ranked target's name (its
 designation when the catalog records no common name). The full ordered target
@@ -568,10 +568,11 @@ requirements.
 ### Requirement: Top target is exposed as an entity
 
 **Reason**: It bundled four behaviors. It is split into "The top-target sensor
-is announced by discovery", "The top-target sensor's state is the top target's
-name", "Re-publishing updates the existing top-target sensor" and "An empty
-target list makes the top-target sensor unavailable". Its 3 scenarios move word
-for word. One scenario is added, so each new requirement has one.
+is announced by discovery", "The top-target sensor shows the top target's name
+and the ordered list", "Re-publishing updates the existing top-target sensor"
+and "An empty target list makes the top-target sensor unavailable". Its 3
+scenarios move word for word. One scenario is added, so each new requirement has
+one.
 
 **Migration**: Nothing changes for users or code. Later changes MODIFY the new
 requirements.
