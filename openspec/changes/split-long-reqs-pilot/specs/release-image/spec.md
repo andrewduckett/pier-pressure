@@ -55,5 +55,5 @@ release it has already published.
 
 ### Requirement: A release proposes the add-on version update
 
-**Reason**: It stated four behaviors in more than 500 characters. It is split into four requirements. They are "A release opens a version pull request for the add-on", "A release does not change `main`", "A release keeps at most one version pull request open" and "A failed version pull request fails the release run". They keep all of its SHALL statements and all four of its scenarios.
+**Reason**: It stated four behaviors in more than 500 characters. It is split into four requirements. The first two are "A release opens a version pull request for the add-on" and "A release does not change `main`". The other two are "A release keeps at most one version pull request open" and "A failed version pull request fails the release run". They keep all of its SHALL statements and all four of its scenarios.
 **Migration**: None. Nothing changes for users or code: the release workflow and its version pull request behave as before.

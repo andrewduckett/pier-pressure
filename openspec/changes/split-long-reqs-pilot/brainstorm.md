@@ -16,7 +16,7 @@ https://github.com/andrewduckett/pier-pressure/issues/231
 | D7 | May the SHALL text be reworded? | Only to make each new requirement read on its own, such as naming its subject again. Every SHALL and MUST keeps its meaning. | Evidence: #230 Shared decision 3 |
 | D8 | What does "done" mean for this story? | `openspec validate split-long-reqs-pilot --strict` passes before archive; after archive neither spec has a long-requirement warning; the scenario-preservation check (as fixed in D10) passes for both specs; `mise run check` is green. | Evidence: #230 Shared decisions 6 and 7 |
 | D9 | Where are the pilot's findings recorded? | The D3 finding goes in decision 5 of the epic #230 body, so later stories use new headings. The D10 fix replaces the check in decision 6. | Evidence: #231 Scope |
-| D10 | Does the scenario-preservation check need a fix? | Yes. Copied from the raw issue body, its Python keeps the list's indent and fails, yet the check prints nothing and passes. A wrong spec path also passes. The fixed check stops on any failure or on zero scenarios, and prints `OK: <cap>` only when it passes. | Evidence: the raw-body check run under `.workspace/`, plan review round 1 |
+| D10 | Does the scenario-preservation check need a fix? | Yes. Copied from the raw issue body, its Python keeps the list's indent and fails, yet the check prints nothing and passes. A wrong spec path also passes. The fixed check exits non-zero if any spec fails, and prints `OK: <cap>` for each spec that passes. Added scenarios still pass, and are listed. | Evidence: the raw-body check run under `.workspace/`, plan review rounds 1 and 2 |
 
 ## Changes from the story
 
