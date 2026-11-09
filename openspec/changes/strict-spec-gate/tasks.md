@@ -1,0 +1,15 @@
+## 1. Run the strict spec check in `mise run check`
+
+- [ ] 1.1 [medium] The `specs` task's command, run by the pinned OpenSpec on a throwaway root, fails a main spec with a requirement over 500 characters, and its output names the spec and the long-requirement warning (verify: `mise exec -- uv run pytest tests/test_dev_checks.py -k over_500`)
+- [ ] 1.2 [easy] The same command passes a throwaway root whose main spec has only requirements of 500 characters or fewer (verify: `mise exec -- uv run pytest tests/test_dev_checks.py -k within_500`)
+- [ ] 1.3 [easy] The same command passes when only a change in `openspec/changes/` holds a requirement over 500 characters (verify: `mise exec -- uv run pytest tests/test_dev_checks.py -k change_in_progress`)
+- [ ] 1.4 [easy] A missing `openspec` skips the contract tests on a developer's machine, and fails them when `CI` is set (verify: `mise exec -- uv run pytest tests/test_dev_checks.py -k missing_openspec`)
+- [ ] 1.5 [easy] `mise run check` runs the `specs` task first, and the `specs` task runs only the strict main-spec command, with no dependencies (verify: `mise exec -- uv run pytest tests/test_dev_checks.py -k check_task`)
+- [ ] 1.6 [easy] The `check` job in `ci.yml` installs the mise tools before it runs `mise run check` (verify: `mise exec -- uv run pytest tests/test_dev_checks.py -k ci_check_job`)
+- [ ] 1.7 [easy] The `check` task's description, AGENTS.md's Development section, the README's task list and no-mise line, and the header comment of `ci.yml` name the spec check (verify: `grep -q 'specs + lint' mise.toml && grep -q 'openspec validate --specs --strict' AGENTS.md && grep -q '^mise run specs ' README.md && grep -q 'specs + lint + typecheck + test + card' README.md && grep -q 'specs + lint + typecheck + test + the card' .github/workflows/ci.yml`)
+- [ ] 1.8 [medium] In a throwaway worktree, a main-spec requirement made longer than 500 characters fails `mise run check` at the spec check, and the unchanged specs pass `mise run specs` (verify: `git worktree add -q --detach .workspace/gate-proof HEAD && (cd .workspace/gate-proof && mise trust -q . 2>/dev/null; mise run specs && python3 -c 'import re; p="openspec/specs/pier-equipment/spec.md"; t=open(p).read(); t=re.sub(r"(?m)^(### Requirement: .+\n)", lambda m: m.group(1)+"The pier SHALL "+"x"*520+".\n", t, count=1); open(p,"w").write(t)' && ! mise run check > ../gate-proof.log 2>&1 && grep -q "spec/pier-equipment" ../gate-proof.log && ! grep -q "ruff check" ../gate-proof.log); r=$?; git worktree remove --force .workspace/gate-proof; exit $r`)
+- [ ] 1.9 [easy] The whole gate is green with the spec check in it (verify: `mise run check`)
+
+## Deviations Ledger
+
+<!-- Dated notes on small departures from the plan, written during apply. Stop and ask the user about a large one. -->
