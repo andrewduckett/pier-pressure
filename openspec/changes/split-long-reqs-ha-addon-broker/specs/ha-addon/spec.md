@@ -83,9 +83,9 @@ recompute interval each count as one setting" describes.
 
 Inside an add-on, when neither the Configuration form nor `config.yaml` sets
 `mqtt.host`, the broker's host, port, username and password SHALL all come from
-the Supervisor's `mqtt` service. When the form sets `mqtt.host`, all four SHALL
-come from the form, as the requirement "A broker host on the form sets all four
-connection settings" describes.
+the Supervisor's `mqtt` service. When the Configuration form sets `mqtt.host`,
+the requirement "A broker host on the form sets all four connection settings"
+decides where all four come from.
 
 #### Scenario: Mosquitto user leaves out the broker settings
 
@@ -277,10 +277,10 @@ add-on has two sources.
 
 ### Requirement: A form field that is not set is left out before the core checks the pier
 
-A Configuration form field that is not set SHALL be left out before the core
-checks the pier, as the requirement "An empty or blank form field counts as not
-set" describes. This rule says what an empty field means, not whether a value is
-valid.
+The add-on SHALL leave out any Configuration form field that is not set before
+the core checks the pier, as the requirement "An empty or blank form field counts
+as not set" describes. This rule says what an empty field means, not whether a
+value is valid.
 
 #### Scenario: A field saved as null is left out
 

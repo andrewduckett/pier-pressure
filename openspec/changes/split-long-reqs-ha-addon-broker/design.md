@@ -47,7 +47,7 @@ This change has no code, so the seams are the OpenSpec CLI and the epic's check.
 
    These stay together on purpose:
    - The definition of the connection settings and the "one source" rule sit with the `config.yaml` source. "The file's broker wins" asserts that all four come from the file and none from the Supervisor.
-   - The form-source sentence, "When the form sets `mqtt.host`, all four SHALL come from the form", sits with the Supervisor source. It names the case in which the Supervisor is not asked, and it points to the form's own requirement. Putting it with the file source would take that requirement over 500 characters.
+   - The form-source sentence, "When the form sets `mqtt.host`, all four SHALL come from the form", becomes a pointer beside the Supervisor source: the form's own requirement, "A broker host on the form sets all four connection settings", already states the same SHALL. The pointer names the case in which the Supervisor is not asked, without a second copy of the rule under a heading about the other case (plan review, finding 1).
    - The list of "not provided yet" cases stays with the rule to keep asking, because it says when that rule applies.
    - In the setting-check split, "the add-on SHALL NOT decide whether a value is valid" and "it SHALL pass on any value it does not expect" stay with the core's check. Together they say that only the core judges a value, and "Values the Supervisor would refuse get the core's errors" tests them together.
 2. **Where each scenario goes** (D3–D6). Each moves whole, under the requirement it fits best:
@@ -64,9 +64,11 @@ This change has no code, so the seams are the OpenSpec CLI and the epic's check.
    - Each new requirement names its scope again, mostly "Inside an add-on".
    - "Neither error SHALL say that `config.yaml` is not read" becomes "It SHALL NOT say that `config.yaml` is not read" in each of the two error requirements. +1 SHALL.
    - "the service SHALL behave as it did before this change" becomes "as it did before the add-on could use the Supervisor's broker". "This change" named the change that added the Supervisor broker, which a split requirement no longer makes clear. The scenario "Outside an add-on, nothing changes" keeps its words.
+   - "A form field that is not set SHALL be left out" becomes "The add-on SHALL leave out any Configuration form field that is not set", which names who leaves it out (plan review, finding 3).
    - "The add-on SHALL still stop with a configuration error" becomes "the service SHALL stop with a configuration error", because "still" pointed to the previous paragraph, which is now another requirement.
    - "any other top-level key" becomes "any top-level key … that the form does not declare", because "other" pointed to the sentence on declared settings, which is now another requirement.
-   - So the count goes from 36 SHALL (3 SHALL NOT) and 1 MAY to 37 SHALL (5 SHALL NOT) and 1 MAY. Per original: 3 → 3, 14 → 14, 11 → 12, 8 → 8. Nothing new is required.
+   - The form-source SHALL becomes a pointer, because "A broker host on the form sets all four connection settings" already requires it (Decision 1). −1 SHALL.
+   - So the count stays at 36 SHALL, now 5 of them SHALL NOT, and 1 MAY. Per original: 3 → 3, 14 → 13, 11 → 12, 8 → 8. Nothing new is required, and nothing is dropped.
 5. **Retarget pointers instead of dropping them** (D8, D9):
    - The config-folder pointer to the removed combine heading names "The add-on builds one set of settings from the form and config.yaml", which holds the rule that the file adds settings to the form.
    - The setting-check pointer on unset fields names "An empty or blank form field counts as not set". The pointer on combining rules names "The add-on builds one set of settings from the form and config.yaml".
@@ -80,7 +82,7 @@ This change has no code, so the seams are the OpenSpec CLI and the epic's check.
 ## Risks / Trade-offs
 
 - [A scenario changes in copying] → The script copies blocks byte for byte. After archive, the epic's check must print `OK: ha-addon` with exactly the 2 added scenarios. Any other result fails the task.
-- [A SHALL is dropped or its meaning changes] → Count the normative words in the ADDED requirements: 37 SHALL, 5 of them SHALL NOT, and 1 MAY expected (Decision 4). The plan review compares each original with its parts.
+- [A SHALL is dropped or its meaning changes] → Count the normative words in the ADDED requirements: 36 SHALL, 5 of them SHALL NOT, and 1 MAY expected (Decision 4). The plan review compares each original with its parts.
 - [An added scenario asserts something the code does not do] → Each rests on an existing test (Decision 3). The code review checks them against `pierpressure/addon_options.py`.
 - [The MODIFIED requirement changes more than its pointer] → A task diffs it against the main spec and allows only the pointer edit.
 - [Two code comments name a removed heading] → Accepted (D10). The pull request names them for a later change that may edit code.
