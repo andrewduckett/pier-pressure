@@ -72,3 +72,11 @@ def test_spec_check_fails_a_requirement_over_500_characters(tmp_path: Path) -> N
     assert result.returncode != 0
     assert "spec/demo" in output
     assert _LONG_REQUIREMENT_WARNING in output
+
+
+def test_spec_check_passes_requirements_within_500_characters(tmp_path: Path) -> None:
+    root = _openspec_root(tmp_path, _requirement(500))
+
+    result = _run_spec_check(root, tmp_path)
+
+    assert result.returncode == 0, result.stdout + result.stderr

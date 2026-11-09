@@ -1,7 +1,7 @@
 ## 1. Run the strict spec check in `mise run check`
 
 - [x] 1.1 [medium] The `specs` task's command, run by the pinned OpenSpec on a throwaway root, fails a main spec with a requirement over 500 characters, and its output names the spec and the long-requirement warning (verify: `mise exec -- uv run pytest tests/test_dev_checks.py -k over_500`) (✓ `mise exec -- uv run pytest tests/test_dev_checks.py -k over_500` passed; it failed first with `KeyError: 'specs'`)
-- [ ] 1.2 [easy] The same command passes a throwaway root whose main spec has only requirements of 500 characters or fewer (verify: `mise exec -- uv run pytest tests/test_dev_checks.py -k within_500`)
+- [x] 1.2 [easy] The same command passes a throwaway root whose main spec has only requirements of 500 characters or fewer (verify: `mise exec -- uv run pytest tests/test_dev_checks.py -k within_500`) (✓ `mise exec -- uv run pytest tests/test_dev_checks.py -k within_500` passed; with a 501-character fixture it failed)
 - [ ] 1.3 [easy] The same command passes when only a change in `openspec/changes/` holds a requirement over 500 characters (verify: `mise exec -- uv run pytest tests/test_dev_checks.py -k change_in_progress`)
 - [ ] 1.4 [easy] A missing `openspec` skips the contract tests on a developer's machine, and fails them when `CI` is set (verify: `mise exec -- uv run pytest tests/test_dev_checks.py -k missing_openspec`)
 - [ ] 1.5 [easy] `mise run check` runs the `specs` task first, and the `specs` task runs only the strict main-spec command, with no dependencies (verify: `mise exec -- uv run pytest tests/test_dev_checks.py -k check_task`)
@@ -13,3 +13,5 @@
 ## Deviations Ledger
 
 <!-- Dated notes on small departures from the plan, written during apply. Stop and ask the user about a large one. -->
+
+- 2026-11-09, tasks 1.2 and 1.3: these contract tests pin OpenSpec behavior that task 1.1's `specs` task already delivers, so they passed on their first run. To show each one can fail, it was run once against a fixture that breaks it (a 501-character requirement for 1.2), then restored.
