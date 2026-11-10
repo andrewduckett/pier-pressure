@@ -1,0 +1,24 @@
+## Story
+
+#237 split-long-reqs-ha-addon-form — the add-on's Configuration form requirements each state one behavior.
+https://github.com/andrewduckett/pier-pressure/issues/237
+
+## Decisions
+
+| # | Question | Answer | Source |
+|---|---|---|---|
+| D1 | Which requirements does this story split? | The 2 the issue names in `ha-addon`: "The add-on combines the Configuration form with config.yaml" (26 scenarios) and "The add-on offers a Configuration form for the interval and piers" (3 scenarios). The other 8 long `ha-addon` requirements belong to #238 and #239 and stay as they are. | Evidence: #237 body; #238 and #239 bodies; `openspec validate --specs --json` |
+| D2 | Does a change already in flight touch `ha-addon`? | No. Open pull requests #246 and #255 edit only `openspec/discovery.md`. The stack's other pull requests edit other specs, and no other remote branch holds a change to `openspec/specs/ha-addon/`. | Evidence: `gh pr list`; `gh pr view <n> --json files`; `git branch -r` |
+| D3 | How does "The add-on offers a Configuration form for the interval and piers" split? | Into seven, one per group of the original: the three top-level settings and their defaults; the broker block's four fields; a pier's two horizon fields and the save check; a pier's four equipment fields; a pier's two gate fields; the names match `config.yaml`'s, with the flattened horizon and equipment fields as the exception; every field has an English label and description. | Assumption (the user delegated the brainstorm). Evidence: `openspec/specs/ha-addon/spec.md` |
+| D4 | How does "The add-on combines the Configuration form with config.yaml" split? | Into nineteen, one per behavior: building one set of settings; what counts as not set; matching a file pier by `id`; a setting in both stops the add-on; a pier's two groups that count as one setting; the two top-level groups that count as one setting; an unlisted file pier; a repeated file pier; a pier list of the wrong shape; an invalid YAML file; one error lists every problem; no error quotes the file or a value; an `id` or key stays on one line; a relative horizon path; each pier checked after combining; an empty form; the empty-form error naming the file's piers; the log line; outside an add-on. All 26 scenarios move over whole. | Assumption. Evidence: `openspec/specs/ha-addon/spec.md` |
+| D5 | How many scenarios may this story add? | Five, one for each split-out behavior that would otherwise have none, since strict validation rejects an ADDED requirement without a scenario. Four are on the form side: the broker fields, the equipment fields, the gate fields and the matching names. "Add-on config declares the form" asserts all of these, but it can sit under only one requirement. The fifth is the log line. Each restates SHALLs its requirement keeps, and an existing test already asserts it. The pull request lists each one. | Assumption. Evidence: #230 Shared decision 4; `tests/test_ha_addon.py`, `tests/test_addon_options.py`, `tests/test_main.py` |
+| D6 | Does the code disagree with either requirement? | No drift found. Checked against `ha-addon/config.yaml`, `ha-addon/translations/en.yaml`, `pierpressure/addon_options.py`, `pierpressure/addon_settings.py`, `pierpressure/__main__.py` and `pierpressure/core/config.py`. Two near misses are not drift: a YAML error may also name where the broken part starts, which is still a line and column; and the code also stops on a file `mqtt` that is not a mapping, which the spec never says is an exhaustive list. | Evidence: those files |
+| D7 | May the SHALL text be reworded? | Only so that each new requirement reads on its own: naming its subject again ("the Configuration form", "`config.yaml`", "inside an add-on"), and saying "the add-on SHALL stop with a configuration error" in each requirement that the original's one list of stop cases covered. Every SHALL, SHALL NOT and MAY keeps its meaning. | Evidence: #230 Shared decision 3 |
+| D8 | Which words do the new headings use? | The spec's own words (Configuration form, `config.yaml`, pier, setting, broker connection, recompute interval, configuration error). `openspec/glossary.md` defines no add-on term, and no term is new. No heading repeats a heading the delta removes or one the spec keeps. | Evidence: `openspec/glossary.md`; `openspec/specs/ha-addon/spec.md` headings; #230 Shared decision 5 |
+| D9 | What does "done" mean for this story? | `openspec validate split-long-reqs-ha-addon-form --strict` passes before archive; after archive neither requirement leaves a long-requirement warning, and `ha-addon` keeps the 8 that #238 and #239 own; the epic's check with `TARGET=split-long-reqs-conditions` and `CAPS=ha-addon` prints `OK: ha-addon` with 5 scenarios added; `mise run check` is green. | Evidence: #230 Shared decisions 6 and 7; the stacked base, PR #257 |
+
+## Changes from the story
+
+None
+
+Confirmed by user: yes

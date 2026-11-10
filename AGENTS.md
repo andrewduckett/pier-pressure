@@ -50,9 +50,12 @@ This section adds what is specific to PierPressure.
   file and tested with Vitest, on the Node pinned in `mise.toml`.
   `mise run card` type-checks, tests and builds it. It is outside the core and
   only displays published entities.
-- **`mise run check`** (`ruff check`, mypy, pytest, `mise run card`) is the CI
-  gate — it must be green before a PR. Formatting is enforced by the pre-commit hooks
-  (`uv run pre-commit install` once per clone), not by `mise run check`.
+- **`mise run check`** (`openspec validate --specs --strict`, `ruff check`,
+  mypy, pytest, `mise run card`) is the CI gate — it must be green before a PR.
+  The spec check fails on any OpenSpec warning in a main spec, such as a
+  requirement over 500 characters; `mise run specs` runs it alone. Formatting
+  is enforced by the pre-commit hooks (`uv run pre-commit install` once per
+  clone), not by `mise run check`.
   Practice TDD: write the failing test first.
 - Add dependencies with `uv add` so `pyproject.toml` and `uv.lock` stay in step.
   For the card, run `npm install <package>` in `card/` so `package-lock.json`

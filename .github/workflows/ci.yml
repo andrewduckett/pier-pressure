@@ -1,6 +1,7 @@
 name: CI
 
-# On push and PR, runs the full gate (`mise run check` = lint + typecheck + test + the card),
+# On push and PR, runs the full gate
+# (`mise run check` = specs + lint + typecheck + test + the card),
 # the opt-in integration tests against a throwaway Mosquitto broker, and an image build.
 # The checks run with the tools in mise.toml, so CI tests what developers run.
 # Activates once the repo is pushed to GitHub.

@@ -735,7 +735,7 @@ openspec/        # product intent, discovery map, specs, and change history
 Install [mise](https://mise.jdx.dev), then run `mise install` in the repo once. It
 installs the tool versions set in `mise.toml`, and uv installs the Python version
 set in `.python-version`. The tasks are in `mise.toml`, and `mise tasks` lists
-them. Each line below shows the uv command the task runs:
+them. Each line below shows the command the task runs:
 
 ```bash
 mise run install     # npm ci in card/, then uv sync
@@ -744,15 +744,17 @@ mise run format      # uv run ruff format .
 mise run typecheck   # uv run mypy
 mise run test        # uv run pytest (integration tests are skipped by default)
 mise run card        # in card/: npm ci when the lockfile changed, then type-check, test and build
-mise run check       # lint + typecheck + test + card: the CI gate
+mise run specs       # openspec validate --specs --strict --no-interactive
+mise run check       # specs + lint + typecheck + test + card: the CI gate
 mise run test-integration   # integration tests against a throwaway Mosquitto
 mise run up          # PierPressure in its image against a local broker
 ```
 
-Without mise, install [uv](https://docs.astral.sh/uv/) and run the uv command
+Without mise, install [uv](https://docs.astral.sh/uv/) and run the command
 shown for each task. For the card, install Node, then in `card/` run
 `npm ci --ignore-scripts`, `npm run typecheck`, `npm test` and `npm run build`.
-For `check`, run lint, typecheck, test and the card in turn.
+For `specs`, install the OpenSpec CLI at the version `mise.toml` pins. For
+`check`, run the specs, lint, typecheck, test and the card in turn.
 
 CI runs these same commands with the tools in `mise.toml`, so it tests the tools
 you use.
