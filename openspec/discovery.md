@@ -52,7 +52,7 @@
 
 ## Journey Map
 
-Stage status checked against the code on 2026-11-06.
+Stage status checked against the code on 2026-11-08.
 
 ### People who use PierPressure
 
@@ -94,12 +94,13 @@ Stage status checked against the code on 2026-11-06.
    pier can change: Open-Meteo and its named models, the National Weather Service,
    the air-quality forecast, 7Timer!, and seeing and transparency computed from
    the others. The verdict says how well the forecasts agree on cloud, and the
-   reasons warn of dew or frost. The strip needs a community card from HACS, does
-   not show where the forecasts disagree, and loses the sun and moon for hours no
+   reasons warn of dew or frost. The PierPressure card, installed through HACS,
+   draws the strip, shades the range between the forecasts' cloud, and pans
+   through the forecast. The timeline still loses the sun and moon for hours no
    forecast returned. Every input is a forecast, so nothing says what the sky is
    doing now; ECMWF is not among the models, every model but NWS comes through
    one API, and a fire too small for the smoke forecast goes unmentioned — partial
-   ([#180](https://github.com/andrewduckett/pier-pressure/issues/180), [#186](https://github.com/andrewduckett/pier-pressure/issues/186), [#174](https://github.com/andrewduckett/pier-pressure/issues/174), [#173](https://github.com/andrewduckett/pier-pressure/issues/173),
+   ([#174](https://github.com/andrewduckett/pier-pressure/issues/174),
    [#217](https://github.com/andrewduckett/pier-pressure/issues/217), [#218](https://github.com/andrewduckett/pier-pressure/issues/218), [#219](https://github.com/andrewduckett/pier-pressure/issues/219), [#220](https://github.com/andrewduckett/pier-pressure/issues/220), [#221](https://github.com/andrewduckett/pier-pressure/issues/221))
 6. **Get told in time** — the README gives a Home Assistant automation that
    notifies at a chosen time — supported
