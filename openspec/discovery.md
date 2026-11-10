@@ -97,11 +97,15 @@ Stage status checked against the code on 2026-11-08.
    reasons warn of dew or frost. The PierPressure card, installed through HACS,
    draws the strip, shades the range between the forecasts' cloud, and pans
    through the forecast. The timeline still loses the sun and moon for hours no
-   forecast returned. Every input is a forecast, so nothing says what the sky is
-   doing now; ECMWF is not among the models, every model but NWS comes through
-   one API, and a fire too small for the smoke forecast goes unmentioned — partial
+   forecast returned. The strip's shades show how much of something there is,
+   and whether darker is good or bad changes from row to row; on a phone it shows
+   no values, because they sit in hovers. Every input is a forecast, so nothing
+   says what the sky is doing now; ECMWF is not among the models, every model but
+   NWS comes through one API, and a fire too small for the smoke forecast goes
+   unmentioned — partial
    ([#174](https://github.com/andrewduckett/pier-pressure/issues/174),
-   [#217](https://github.com/andrewduckett/pier-pressure/issues/217), [#218](https://github.com/andrewduckett/pier-pressure/issues/218), [#219](https://github.com/andrewduckett/pier-pressure/issues/219), [#220](https://github.com/andrewduckett/pier-pressure/issues/220), [#221](https://github.com/andrewduckett/pier-pressure/issues/221))
+   [#217](https://github.com/andrewduckett/pier-pressure/issues/217), [#218](https://github.com/andrewduckett/pier-pressure/issues/218), [#219](https://github.com/andrewduckett/pier-pressure/issues/219), [#220](https://github.com/andrewduckett/pier-pressure/issues/220), [#221](https://github.com/andrewduckett/pier-pressure/issues/221),
+   [#252](https://github.com/andrewduckett/pier-pressure/issues/252), [#253](https://github.com/andrewduckett/pier-pressure/issues/253), [#254](https://github.com/andrewduckett/pier-pressure/issues/254))
 6. **Get told in time** — the README gives a Home Assistant automation that
    notifies at a chosen time — supported
 7. **Choose a target** — the Top target sensor and one sensor per rank, Target 1
