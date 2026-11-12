@@ -44,10 +44,10 @@ a different stretch from the target's `window`.
 
 #### Scenario: A target with a second stretch ahead is ranked on it
 
-- **WHEN** a verdict is produced at 22:00, a candidate is above the mask from 20:00 to 21:30 and from 23:00 to 01:00, and the dark window runs from 19:45 to 05:00
+- **WHEN** a verdict is produced at 23:15, a candidate is above the mask from 20:00 to 23:00 and from 23:30 to 01:00, and the dark window runs from 19:45 to 05:00
 - **THEN** the candidate appears in the target list
-- **AND** its `window` runs from 20:00 to 21:30
-- **AND** its `remaining_window` runs from 23:00 to 01:00
+- **AND** its `window` runs from 20:00 to 23:00
+- **AND** its `remaining_window` runs from 23:30 to 01:00
 
 ### Requirement: Before astronomical dusk, the remaining window is the observable window
 

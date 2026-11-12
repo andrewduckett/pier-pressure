@@ -12,6 +12,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+import pierpressure.core.ranking as ranking
+from pierpressure.core.catalog import load_catalog
 from pierpressure.core.config import PierConfig
 from pierpressure.core.model import Target
 from pierpressure.core.ranking import rank_targets
@@ -95,3 +97,31 @@ def test_the_last_half_hour_of_the_night_has_no_targets() -> None:
 
 def test_at_the_end_of_the_night_there_are_no_targets() -> None:
     assert _rank(_london(), _dark_end()) == []
+
+
+def test_a_target_with_a_second_stretch_ahead_is_ranked_on_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A narrow wall in the south-east hides M31 from about 00:50 to 01:18 as its
+    # azimuth climbs. The catalog is cut to M31 and a few rivals so the list is
+    # about this one target, not about the night's competition.
+    chosen = {"NGC0224", "NGC0433", "NGC0657", "NGC7429"}
+    monkeypatch.setattr(
+        ranking, "load_catalog", lambda: [o for o in load_catalog() if o.id in chosen]
+    )
+    pier = _london(
+        id="wall", horizon={"points": [[0, 0], [139, 0], [140, 89], [165, 89], [166, 0]]}
+    )
+    ranking._scan_cache.clear()
+    try:
+        before = {t.id: t for t in _rank(pier, _BEFORE_DUSK)}
+        between = {t.id: t for t in _rank(pier, datetime(2026, 9, 9, 1, 5, tzinfo=UTC))}
+    finally:
+        ranking._scan_cache.clear()
+    first = before["NGC0224"].window
+    m31 = between["NGC0224"]
+    assert m31.window == first
+    assert first.end < datetime(2026, 9, 9, 1, 5, tzinfo=UTC) < m31.remaining_window.start
+    assert m31.remaining_window.end == _dark_end()
+    # The first stretch is the longer, so it stays the whole-night window.
+    assert first.end - first.start > m31.remaining_window.end - m31.remaining_window.start
