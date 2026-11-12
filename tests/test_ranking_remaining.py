@@ -125,3 +125,25 @@ def test_a_target_with_a_second_stretch_ahead_is_ranked_on_it(
     assert m31.remaining_window.end == _dark_end()
     # The first stretch is the longer, so it stays the whole-night window.
     assert first.end - first.start > m31.remaining_window.end - m31.remaining_window.start
+
+
+def test_a_later_recompute_matches_a_fresh_ranking(monkeypatch: pytest.MonkeyPatch) -> None:
+    pier = _london()
+    at_21 = datetime(2026, 9, 8, 21, 0, tzinfo=UTC)
+    at_23 = datetime(2026, 9, 8, 23, 0, tzinfo=UTC)
+    ranking._scan_cache.clear()
+    fresh = [t.model_dump_json() for t in _rank(pier, at_23)]
+
+    ranking._scan_cache.clear()
+    scans = {"count": 0}
+    real_scan = ranking._scan_night
+
+    def counting_scan(*args: object, **kwargs: object) -> object:
+        scans["count"] += 1
+        return real_scan(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(ranking, "_scan_night", counting_scan)
+    _rank(pier, at_21)
+    later = [t.model_dump_json() for t in _rank(pier, at_23)]
+    assert scans["count"] == 1
+    assert later == fresh
