@@ -794,6 +794,25 @@ def _score_reasons(
     return reasons
 
 
+def scored_window(
+    instant: datetime, window: tuple[datetime, datetime] | tuple[None, None]
+) -> tuple[datetime, datetime] | tuple[None, None]:
+    """The scored window: the dark window from the scoring instant on.
+
+    The scoring instant is ``instant`` floored to a whole second, as
+    ``generated_at`` is. The verdict and the target ranking both judge this span,
+    so the clamp lives in one place (rank-remaining-night design D1). Returns
+    ``(None, None)`` without a dark window.
+    """
+    start, end = window
+    if start is None or end is None:
+        return (None, None)
+    # The inner max drops the hours that have passed; the outer min keeps the start
+    # from passing the end when the instant lies in the window's last partial second.
+    now = instant.replace(microsecond=0)
+    return (min(max(now, start), end), end)
+
+
 def evaluate(
     pier: PierConfig,
     instant: datetime,
@@ -815,17 +834,15 @@ def evaluate(
     ever a failed hard gate; a missing observation or a scored window under
     ``MIN_USABLE_WINDOW`` caps the verdict at MAYBE but never fails one.
     """
-    start, end = window
+    dusk = window[0]
+    start, end = scored_window(instant, window)
     # 1. No dark window: astronomy alone decides, with no forecast to distrust.
-    if start is None or end is None:
+    if dusk is None or start is None or end is None:
         return Decision(Verdict.NO_GO, None, Band.HIGH, 100, [_REASON_NO_WINDOW], (None, None))
-    # The inner max drops the hours that have passed; the outer min keeps the start
-    # from passing the end when the instant lies in the window's last partial second.
-    now = instant.replace(microsecond=0)
-    scored: tuple[datetime, datetime] = (min(max(now, start), end), end)
+    scored: tuple[datetime, datetime] = (start, end)
     # Narrowed: hours have passed, so every reason speaks of the rest of the night,
     # after a first line naming the span judged (score-remaining-night design D4).
-    narrowed = scored[0] > start
+    narrowed = scored[0] > dusk
     span = [_span_reason(scored)] if narrowed else []
 
     # 1a. No dark time left: the instant lies in the window's last partial second.

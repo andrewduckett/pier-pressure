@@ -29,6 +29,7 @@ from pierpressure.core.model import (
 _START = datetime(2026, 9, 8, 20, 30, 49, tzinfo=UTC)
 _END = datetime(2026, 9, 9, 3, 25, 52, tzinfo=UTC)
 _TRANSIT = datetime(2026, 9, 9, 0, 12, 5, tzinfo=UTC)
+_REMAINING_START = datetime(2026, 9, 8, 23, 0, 0, tzinfo=UTC)
 
 TARGET_KEY_ORDER = [
     "id",
@@ -36,6 +37,7 @@ TARGET_KEY_ORDER = [
     "type",
     "score",
     "window",
+    "remaining_window",
     "max_altitude",
     "transit_time",
     "moon_separation",
@@ -52,6 +54,7 @@ def _target(**overrides: object) -> Target:
         "type": "G",
         "score": 88,
         "window": TargetWindow(start=_START, end=_END),
+        "remaining_window": TargetWindow(start=_REMAINING_START, end=_END),
         "max_altitude": 61.234,
         "transit_time": _TRANSIT,
         "moon_separation": 112.5,
@@ -72,6 +75,27 @@ def test_target_carries_all_fields() -> None:
     assert target.window.start == _START
     assert target.window.end == _END
     assert target.transit_time == _TRANSIT
+
+
+def test_target_carries_its_remaining_window() -> None:
+    target = _target()
+    assert target.remaining_window.start == _REMAINING_START
+    assert target.remaining_window.end == _END
+
+
+def test_target_requires_a_remaining_window() -> None:
+    base = _target().model_dump()
+    del base["remaining_window"]
+    with pytest.raises(ValidationError):
+        Target(**base)
+
+
+def test_target_remaining_window_serializes_with_z_suffix() -> None:
+    payload = json.loads(_target().model_dump_json())
+    assert payload["remaining_window"] == {
+        "start": "2026-09-08T23:00:00Z",
+        "end": "2026-09-09T03:25:52Z",
+    }
 
 
 def test_target_name_is_nullable() -> None:

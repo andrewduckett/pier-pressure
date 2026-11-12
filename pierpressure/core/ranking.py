@@ -5,7 +5,8 @@ mask, it ranks the eligible catalog objects (``core/catalog``) into the top few
 worth pointing at, reusing the offline astronomy of ``core/sky`` (the pinned
 ephemeris and timescale) and the canonical horizon of ``core/horizon``. It has no
 Home Assistant, MQTT, or network imports — the boundary test enforces that — so
-the same ``(pier, selected night)`` yields a byte-identical target list.
+the same ``(pier, selected night, scoring instant)`` yields a byte-identical target
+list.
 
 The pipeline (design D3):
 
@@ -25,17 +26,22 @@ The pipeline (design D3):
    or the pool is exhausted. Every emitted target is therefore both refined
    (exact whole-second times) and gate-satisfying.
 
-The ranking's curve and weight parameters are fixed module constants (design
-D5/D6), so the ranking depends only on ``(pier, selected night)`` — including the
-pier's optional equipment, which shapes the field-of-view term — and is cached on that
-key.
+The coarse scan depends only on the pier's location, horizon and dark window, so it
+is cached per night and shared by every ranking that night, whatever the
+equipment. Steps 2 and 3 run per call over the remaining grid: the scoring
+instant, then the later grid points. Before dusk that is the whole-night grid, so
+the list is the whole-night ranking. Once the night has started, each target is
+gated and scored on its remaining window (rank-remaining-night design D2-D4).
+The curve and weight parameters are fixed module constants (design D5/D6), so the
+same pier, night and scoring instant always yield the same list.
 """
 
 from __future__ import annotations
 
 import math
 from collections import OrderedDict
-from dataclasses import dataclass
+from collections.abc import Iterable
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from functools import lru_cache
 from typing import Any
@@ -47,7 +53,7 @@ from .catalog import CatalogObject, load_catalog
 from .config import Equipment, PierConfig
 from .horizon import Horizon
 from .model import Moon, Target, TargetWindow
-from .scoring import MIN_USABLE_WINDOW
+from .scoring import MIN_USABLE_WINDOW, scored_window
 from .sky import _ephemeris, _timescale, _to_datetime
 
 # --- Ranking parameters (fixed constants; validated on a real night) -------- #
@@ -574,30 +580,39 @@ def geometry_for(
     window: tuple[datetime, datetime] | tuple[None, None],
     instant: datetime,
 ) -> Geometry | None:
-    """The refined geometry of one catalog object, or ``None`` if it never clears the mask.
+    """One catalog object's refined geometry over its remaining window.
 
-    Exposed for testing the per-target geometry directly; the pipeline shares the
-    same coarse-scan and refinement code.
+    Returns ``None`` when the object does not clear the mask within the scored
+    window. Before dusk the remaining window is the whole-night observable
+    window. Exposed for testing the per-target geometry directly; it shares the
+    pipeline's scan, remaining grid and refinement code.
     """
     start, end = window
-    if start is None or end is None:
+    scored_start, scored_end = scored_window(instant, window)
+    if start is None or end is None or scored_start is None or scored_end is None:
         return None
-    eph = _ephemeris()
-    ts = _timescale()
-    location = wgs84.latlon(pier.latitude, pier.longitude, elevation_m=pier.elevation_m)
-    observer = eph["earth"] + location
-    star = _star(obj)
-    times = _grid_times(start, end)
-    alt, az, _ = observer.at(ts.from_datetimes(times)).observe(star).apparent().altaz()
-    alt_deg, az_deg = alt.degrees, az.degrees
-    above = [
-        pier.horizon_mask.is_above(float(az_deg[i]), float(alt_deg[i])) for i in range(len(times))
-    ]
-    run = observable_window(times, above)
+    if scored_start == scored_end:
+        return None
+    scan = _scan_night(pier, (start, end), objects=(obj,))
+    if not scan.objects:
+        return None
+    grid = _remaining_grid(pier, scan, scored_start)
+    _, _, above = grid.candidate(scan, 0)
+    run = observable_window(grid.times, above)
     if run is None:
         return None
+    eph, ts, location, observer = _observer(pier)
     return _refine(
-        observer, ts, eph, location, pier.horizon_mask, (start, end), times, obj, run[0], run[1]
+        observer,
+        ts,
+        eph,
+        location,
+        pier.horizon_mask,
+        (scored_start, scored_end),
+        grid.times,
+        obj,
+        run[0],
+        run[1],
     )
 
 
@@ -607,36 +622,48 @@ def geometry_for(
 
 
 # One scored candidate carried from the coarse scan into the refinement walk.
+# ``index`` is the candidate's position in the night scan.
 @dataclass(frozen=True)
 class _Scored:
     score: int
-    obj: CatalogObject
+    index: int
     start_index: int
     end_index: int
 
 
-# Per-night ranking cache keyed by (pier identity + horizon + equipment + dark window).
-# The ranking's curve/weight parameters are fixed constants, so they do not enter
-# the key; design D5/D7 requires adding any that becomes per-pier configuration —
-# the equipment now does, because framing depends on it (an equipment change must change the
-# ranking, not serve a stale one). The cache is a bounded
-# LRU so a persistent container recomputing night after night keeps only the most
-# recent few rankings rather than retaining one entry per night forever. It is a
-# performance optimization only, so eviction never affects correctness (design D5).
-_CACHE_MAXSIZE = 16
-_rank_cache: OrderedDict[tuple[Any, ...], tuple[Target, ...]] = OrderedDict()
+@dataclass(frozen=True)
+class _NightScan:
+    """The whole-night coarse scan of one pier, shared by every ranking that night.
+
+    It holds the grid, the moon's grid altitude and azimuth, and, for each
+    candidate above the mask at one grid point or more, its grid altitude,
+    azimuth and above-mask flags (rank-remaining-night design D2). Candidates
+    that never clear the mask are dropped: their remaining window can never
+    reach the minimum. ``whole_night`` memoizes each finalist's refined
+    whole-night geometry, filled lazily.
+    """
+
+    times: list[datetime]
+    moon_alt: Any
+    moon_az: Any
+    objects: tuple[CatalogObject, ...]
+    alt: tuple[Any, ...]
+    az: tuple[Any, ...]
+    above: tuple[list[bool], ...]
+    whole_night: dict[int, Geometry] = field(default_factory=dict)
 
 
-def _equipment_key(equipment: Equipment | None) -> tuple[Any, ...] | None:
-    """The equipment's identity for the cache key, or ``None`` when none is configured."""
-    if equipment is None:
-        return None
-    return (
-        equipment.focal_length_mm,
-        equipment.sensor_width_mm,
-        equipment.sensor_height_mm,
-        equipment.reducer,
-    )
+# The night scans, keyed by pier identity, location, horizon and dark window.
+# Equipment is left out, because the scan does not depend on it: field-of-view
+# fit is applied per ranking, so two rigs on one pier share a scan (design D2).
+# The ranking's curve and weight parameters are fixed constants, so they do not
+# enter the key either. The cache is a bounded LRU, so a persistent container
+# recomputing night after night keeps only the most recent few scans. Eight still
+# covers eight piers through a night rollover, and caps the worst case near
+# 150 MB on a polar night (design D6). It is a performance optimization only, so
+# eviction never affects correctness.
+_CACHE_MAXSIZE = 8
+_scan_cache: OrderedDict[tuple[Any, ...], _NightScan] = OrderedDict()
 
 
 def _cache_key(pier: PierConfig, window: tuple[datetime, datetime]) -> tuple[Any, ...]:
@@ -646,10 +673,157 @@ def _cache_key(pier: PierConfig, window: tuple[datetime, datetime]) -> tuple[Any
         pier.longitude,
         pier.elevation_m,
         pier.horizon_mask.samples,
-        _equipment_key(pier.equipment),
         window[0],
         window[1],
     )
+
+
+def _observer(pier: PierConfig) -> tuple[Any, Any, Any, Any]:
+    """The pinned ephemeris and timescale, the pier's location, and its observer."""
+    eph = _ephemeris()
+    location = wgs84.latlon(pier.latitude, pier.longitude, elevation_m=pier.elevation_m)
+    return eph, _timescale(), location, eph["earth"] + location
+
+
+def _scan_night(
+    pier: PierConfig,
+    window: tuple[datetime, datetime],
+    objects: Iterable[CatalogObject] | None = None,
+) -> _NightScan:
+    """Scan ``objects`` (the whole catalog by default) across the dark window's grid."""
+    eph, ts, _, observer = _observer(pier)
+    horizon = pier.horizon_mask
+    times = _grid_times(*window)
+    positions = observer.at(ts.from_datetimes(times))
+    # The moon's grid alt/az once, so the coarse moon separation is analytic.
+    moon_alt, moon_az, _ = positions.observe(eph["moon"]).apparent().altaz()
+
+    kept: list[CatalogObject] = []
+    alts: list[Any] = []
+    azs: list[Any] = []
+    aboves: list[list[bool]] = []
+    for obj in load_catalog() if objects is None else objects:
+        alt, az, _ = positions.observe(_star(obj)).apparent().altaz()
+        alt_deg, az_deg = alt.degrees, az.degrees
+        above = [horizon.is_above(float(az_deg[i]), float(alt_deg[i])) for i in range(len(times))]
+        if not any(above):
+            continue
+        kept.append(obj)
+        alts.append(alt_deg)
+        azs.append(az_deg)
+        aboves.append(above)
+    return _NightScan(
+        times=times,
+        moon_alt=moon_alt.degrees,
+        moon_az=moon_az.degrees,
+        objects=tuple(kept),
+        alt=tuple(alts),
+        az=tuple(azs),
+        above=tuple(aboves),
+    )
+
+
+@dataclass(frozen=True)
+class _RemainingGrid:
+    """The scan's columns for the remaining grid (rank-remaining-night design D3).
+
+    The remaining grid is the scoring instant, then every whole-night grid point
+    later than it. ``first`` is the index of the first of those grid points in the
+    scan. ``instant`` is the extra column at the scoring instant, or ``None`` when
+    the instant is itself a grid point, which is always so before dusk.
+    """
+
+    times: list[datetime]
+    first: int
+    instant: _InstantColumn | None
+
+    def moon(self, scan: _NightScan) -> tuple[list[Any], list[Any]]:
+        """The moon's altitude and azimuth over the remaining grid."""
+        alt, az = list(scan.moon_alt[self.first :]), list(scan.moon_az[self.first :])
+        if self.instant is None:
+            return alt, az
+        return [self.instant.moon_alt, *alt], [self.instant.moon_az, *az]
+
+    def candidate(self, scan: _NightScan, index: int) -> tuple[list[Any], list[Any], list[bool]]:
+        """One scanned candidate's altitude, azimuth and above-mask flags."""
+        alt = list(scan.alt[index][self.first :])
+        az = list(scan.az[index][self.first :])
+        above = scan.above[index][self.first :]
+        if self.instant is None:
+            return alt, az, above
+        column = self.instant
+        return (
+            [column.alt[index], *alt],
+            [column.az[index], *az],
+            [column.above[index], *above],
+        )
+
+
+@dataclass(frozen=True)
+class _InstantColumn:
+    """Every scanned candidate and the moon, observed at the scoring instant."""
+
+    alt: Any
+    az: Any
+    above: list[bool]
+    moon_alt: float
+    moon_az: float
+
+
+def _remaining_grid(pier: PierConfig, scan: _NightScan, scored_start: datetime) -> _RemainingGrid:
+    """The remaining grid from ``scored_start``, which lies within the scan's night."""
+    first = next(i for i, when in enumerate(scan.times) if when >= scored_start)
+    later = scan.times[first:]
+    if later[0] == scored_start or not scan.objects:
+        return _RemainingGrid(times=later, first=first, instant=None)
+    eph, ts, _, observer = _observer(pier)
+    at = observer.at(ts.from_datetime(scored_start))
+    # One vectorized call for every scanned candidate. It is computed the same way
+    # cached or not, so a recompute matches a fresh ranking byte for byte.
+    stars = Star(
+        ra_hours=[obj.ra_hours for obj in scan.objects],
+        dec_degrees=[obj.dec_degrees for obj in scan.objects],
+    )
+    alt, az, _ = at.observe(stars).apparent().altaz()
+    moon_alt, moon_az, _ = at.observe(eph["moon"]).apparent().altaz()
+    alt_deg, az_deg = alt.degrees, az.degrees
+    horizon = pier.horizon_mask
+    column = _InstantColumn(
+        alt=alt_deg,
+        az=az_deg,
+        above=[
+            horizon.is_above(float(az_deg[i]), float(alt_deg[i])) for i in range(len(scan.objects))
+        ],
+        moon_alt=float(moon_alt.degrees),
+        moon_az=float(moon_az.degrees),
+    )
+    return _RemainingGrid(times=[scored_start, *later], first=first, instant=column)
+
+
+def _whole_night_geometry(
+    pier: PierConfig, scan: _NightScan, window: tuple[datetime, datetime], index: int
+) -> Geometry:
+    """A scanned candidate's refined whole-night geometry, memoized in the scan."""
+    memo = scan.whole_night.get(index)
+    if memo is not None:
+        return memo
+    run = observable_window(scan.times, scan.above[index])
+    assert run is not None  # the scan keeps only candidates above the mask
+    eph, ts, location, observer = _observer(pier)
+    geo = _refine(
+        observer,
+        ts,
+        eph,
+        location,
+        pier.horizon_mask,
+        window,
+        scan.times,
+        scan.objects[index],
+        run[0],
+        run[1],
+    )
+    scan.whole_night[index] = geo
+    return geo
 
 
 def rank_targets(
@@ -660,51 +834,59 @@ def rank_targets(
 ) -> list[Target]:
     """The ordered top-:data:`TOP_N` targets for the selected night (empty if none).
 
-    Returns an empty list when the night has no dark window. Otherwise the result
-    is cached per ``(pier, selected night)``: a recompute within the same night
-    reuses the same ranking rather than rescanning the catalog (design D5).
+    Returns an empty list when the night has no dark window, or no dark time is
+    left. Otherwise targets are ranked on their remaining window within the
+    scored window, so once the night has started the hours that have passed no
+    longer count. The night scan is cached per pier and dark window: a recompute
+    within the same night ranks from the cached scan rather than rescanning the
+    catalog (rank-remaining-night design D2).
     """
     start, end = window
-    if start is None or end is None:
+    scored_start, scored_end = scored_window(instant, window)
+    if start is None or end is None or scored_start is None or scored_end is None:
+        return []
+    if scored_start == scored_end:
         return []
     key = _cache_key(pier, (start, end))
-    cached = _rank_cache.get(key)
-    if cached is not None:
-        _rank_cache.move_to_end(key)  # most-recently-used
-        return list(cached)
-    result = tuple(_rank(pier, (start, end), moon))
-    _rank_cache[key] = result
-    if len(_rank_cache) > _CACHE_MAXSIZE:
-        _rank_cache.popitem(last=False)  # evict the least-recently-used night
-    return list(result)
+    scan = _scan_cache.get(key)
+    if scan is None:
+        scan = _scan_night(pier, (start, end))
+        _scan_cache[key] = scan
+        if len(_scan_cache) > _CACHE_MAXSIZE:
+            _scan_cache.popitem(last=False)  # evict the least-recently-used night
+    else:
+        _scan_cache.move_to_end(key)  # most-recently-used
+    return _rank(pier, scan, (start, end), (scored_start, scored_end), moon)
 
 
-def _rank(pier: PierConfig, window: tuple[datetime, datetime], moon: Moon) -> list[Target]:
-    """The full gate-geometry-score-bound-refine pipeline for one night."""
-    start, end = window
-    eph = _ephemeris()
-    ts = _timescale()
-    location = wgs84.latlon(pier.latitude, pier.longitude, elevation_m=pier.elevation_m)
-    observer = eph["earth"] + location
+def _rank(
+    pier: PierConfig,
+    scan: _NightScan,
+    window: tuple[datetime, datetime],
+    scored: tuple[datetime, datetime],
+    moon: Moon,
+) -> list[Target]:
+    """The gate-geometry-score-bound-refine pipeline over the remaining grid.
+
+    Before dusk the remaining grid is the scan's own grid, so every value is the
+    whole-night one (rank-remaining-night design D3, D4).
+    """
+    eph, ts, location, observer = _observer(pier)
     horizon = pier.horizon_mask
-    dark_duration = end - start
-
-    times = _grid_times(start, end)
-    positions = observer.at(ts.from_datetimes(times))
-    # The moon's grid alt/az once, so the coarse moon separation is analytic.
-    moon_alt, moon_az, _ = positions.observe(eph["moon"]).apparent().altaz()
-    moon_alt_deg, moon_az_deg = moon_alt.degrees, moon_az.degrees
+    scored_duration = scored[1] - scored[0]
+    narrowed = scored[0] > window[0]
+    grid = _remaining_grid(pier, scan, scored[0])
+    times = grid.times
+    moon_alt_deg, moon_az_deg = grid.moon(scan)
 
     # The equipment's short-edge field of view (arcmin) once per pier; None without it.
     fov_short_arcmin = _fov_short_arcmin(pier.equipment)
 
-    scored: list[_Scored] = []
-    for obj in load_catalog():
-        alt, az, _ = positions.observe(_star(obj)).apparent().altaz()
-        alt_deg, az_deg = alt.degrees, az.degrees
-        above = [horizon.is_above(float(az_deg[i]), float(alt_deg[i])) for i in range(len(times))]
+    ranked: list[_Scored] = []
+    for index, obj in enumerate(scan.objects):
+        alt_deg, az_deg, above = grid.candidate(scan, index)
         run = observable_window(times, above)
-        if run is None:
+        if run is None:  # the candidate has set for the rest of the night
             continue
         start_index, end_index = run
         peak = max(range(start_index, end_index + 1), key=lambda i: float(alt_deg[i]))
@@ -716,39 +898,45 @@ def _rank(pier: PierConfig, window: tuple[datetime, datetime], moon: Moon) -> li
         )
         coarse_score = combined_score(
             altitude_subscore(float(alt_deg[peak])),
-            window_subscore(times[end_index] - times[start_index], dark_duration),
+            window_subscore(times[end_index] - times[start_index], scored_duration),
             moon_subscore(coarse_separation, moon.illumination, float(moon_alt_deg[peak]) >= 0.0),
             # Coarse transit proxy: the grid peak, refined exactly for finalists.
             transit_subscore(times[peak], times[start_index], times[end_index]),
             brightness=brightness_subscore(obj.surface_brightness, obj.magnitude),
             fov_fit=_fov_fit_for(obj, fov_short_arcmin),
         )
-        scored.append(_Scored(coarse_score, obj, start_index, end_index))
+        ranked.append(_Scored(coarse_score, index, start_index, end_index))
 
     # Order by coarse score, ties by designation, then refine top-down until TOP_N
     # pass the exact gate (design D3, step 6).
-    scored.sort(key=lambda item: (-item.score, item.obj.id))
+    ranked.sort(key=lambda item: (-item.score, scan.objects[item.index].id))
 
     emitted: list[Target] = []
-    for candidate in scored:
+    for candidate in ranked:
+        obj = scan.objects[candidate.index]
         geo = _refine(
             observer,
             ts,
             eph,
             location,
             horizon,
-            window,
+            scored,
             times,
-            candidate.obj,
+            obj,
             candidate.start_index,
             candidate.end_index,
         )
         if not meets_minimum(geo.window_start, geo.window_end):
             continue
-        obj = candidate.obj
+        # Before dusk the remaining geometry is the whole-night one, so it is not
+        # refined twice, and it fills the memo for later rankings that night.
+        if narrowed:
+            whole = _whole_night_geometry(pier, scan, window, candidate.index)
+        else:
+            whole = scan.whole_night.setdefault(candidate.index, geo)
         score = combined_score(
             altitude_subscore(geo.max_altitude),
-            window_subscore(geo.window_end - geo.window_start, dark_duration),
+            window_subscore(geo.window_end - geo.window_start, scored_duration),
             moon_subscore(geo.moon_separation, moon.illumination, geo.moon_up_at_peak),
             transit_subscore(geo.transit_time, geo.window_start, geo.window_end),
             brightness=brightness_subscore(obj.surface_brightness, obj.magnitude),
@@ -760,10 +948,11 @@ def _rank(pier: PierConfig, window: tuple[datetime, datetime], moon: Moon) -> li
                 name=obj.name,
                 type=obj.type,
                 score=score,
-                window=TargetWindow(start=geo.window_start, end=geo.window_end),
-                max_altitude=geo.max_altitude,
-                transit_time=geo.transit_time,
-                moon_separation=geo.moon_separation,
+                window=TargetWindow(start=whole.window_start, end=whole.window_end),
+                remaining_window=TargetWindow(start=geo.window_start, end=geo.window_end),
+                max_altitude=whole.max_altitude,
+                transit_time=whole.transit_time,
+                moon_separation=whole.moon_separation,
                 # The raw catalog facts, carried additively (design D8, ADR-0009);
                 # None (present, not omitted) when the catalog records no value.
                 size_arcmin=obj.size_arcmin,

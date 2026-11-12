@@ -149,25 +149,13 @@ def test_targets_carry_the_raw_catalog_facts() -> None:
 def test_an_equipment_change_changes_the_ranking() -> None:
     # The target-ranking "An equipment change changes the ranking" scenario: the same pier
     # and instant with two differently-framing rigs must differ in scores or order.
-    ranking._rank_cache.clear()
+    ranking._scan_cache.clear()
     widefield = _rank(_london(equipment=_WIDEFIELD_EQUIPMENT))
-    ranking._rank_cache.clear()
+    ranking._scan_cache.clear()
     long = _rank(_london(equipment=_LONG_EQUIPMENT))
     widefield_key = [(t.id, t.score) for t in widefield]
     long_key = [(t.id, t.score) for t in long]
     assert widefield_key != long_key
-
-
-def test_the_equipment_joins_the_cache_key() -> None:
-    # Two rigs must not collide in the per-night cache: the second rig recomputes
-    # rather than serving the first rig's ranking.
-    ranking._rank_cache.clear()
-    with no_network():
-        window = dark_window(_london(), _INSTANT)
-        moon = moon_info(_london(), window, _INSTANT)
-        first = rank_targets(_london(equipment=_WIDEFIELD_EQUIPMENT), _INSTANT, window, moon)
-        second = rank_targets(_london(equipment=_LONG_EQUIPMENT), _INSTANT, window, moon)
-    assert [(t.id, t.score) for t in first] != [(t.id, t.score) for t in second]
 
 
 # --------------------------------------------------------------------------- #
@@ -195,7 +183,7 @@ def test_object_that_never_clears_the_mask_is_absent() -> None:
 
 def test_ranking_is_byte_identical_for_same_pier_and_instant() -> None:
     first = _rank(_london())
-    ranking._rank_cache.clear()  # force a real second computation, not a cache hit
+    ranking._scan_cache.clear()  # force a real second computation, not a cache hit
     second = _rank(_london())
     assert [t.model_dump_json() for t in first] == [t.model_dump_json() for t in second]
 
@@ -223,20 +211,30 @@ def test_polar_day_pier_yields_empty_list() -> None:
 # --------------------------------------------------------------------------- #
 
 
+def _count_scans(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
+    # rank_targets resolves the module global at call time, so the wrapper is seen.
+    calls = {"scans": 0}
+    real_scan = ranking._scan_night
+
+    def counting_scan(*args: object, **kwargs: object) -> object:
+        calls["scans"] += 1
+        return real_scan(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(ranking, "_scan_night", counting_scan)
+    return calls
+
+
+def test_before_dusk_the_remaining_window_is_the_window() -> None:
+    targets = _rank(_london())
+    assert targets
+    for target in targets:
+        assert target.remaining_window == target.window
+
+
 def test_recomputes_within_one_night_reuse_the_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     pier = _london()
-    ranking._rank_cache.clear()
-
-    # Count real pipeline scans by wrapping _rank; rank_targets resolves the module
-    # global at call time, so the wrapper is seen.
-    calls = {"scans": 0}
-    real_rank = ranking._rank
-
-    def counting_rank(*args: object, **kwargs: object) -> list:
-        calls["scans"] += 1
-        return real_rank(*args, **kwargs)  # type: ignore[arg-type]
-
-    monkeypatch.setattr(ranking, "_rank", counting_rank)
+    ranking._scan_cache.clear()
+    calls = _count_scans(monkeypatch)
 
     with no_network():
         window = dark_window(pier, _INSTANT)
@@ -253,14 +251,31 @@ def test_recomputes_within_one_night_reuse_the_cache(monkeypatch: pytest.MonkeyP
     assert [t.model_dump_json() for t in first] == [t.model_dump_json() for t in second]
 
 
+def test_two_rigs_on_one_pier_share_a_scan_but_score_differently(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ranking._scan_cache.clear()
+    calls = _count_scans(monkeypatch)
+    with no_network():
+        window = dark_window(_london(), _INSTANT)
+        moon = moon_info(_london(), window, _INSTANT)
+        widefield = rank_targets(_london(equipment=_WIDEFIELD_EQUIPMENT), _INSTANT, window, moon)
+        long = rank_targets(_london(equipment=_LONG_EQUIPMENT), _INSTANT, window, moon)
+    assert calls["scans"] == 1
+    assert [(t.id, t.score) for t in widefield] != [(t.id, t.score) for t in long]
+
+
 def test_cache_is_bounded_so_a_long_running_container_does_not_leak(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # A persistent container recomputes night after night; the cache must not grow
     # one entry per night forever. With the scan stubbed out, feed many distinct
     # nights and assert the cache stays within its bound.
-    ranking._rank_cache.clear()
-    monkeypatch.setattr(ranking, "_rank", lambda pier, window, moon: [])
+    ranking._scan_cache.clear()
+    real_scan = ranking._scan_night
+    monkeypatch.setattr(
+        ranking, "_scan_night", lambda pier, window: real_scan(pier, window, objects=())
+    )
     pier = _london()
     moon = Moon(illumination=0.1, phase=MoonPhase.NEW)
     base = datetime(2026, 1, 1, 20, 0, tzinfo=UTC)
@@ -268,4 +283,5 @@ def test_cache_is_bounded_so_a_long_running_container_does_not_leak(
         start = base + timedelta(days=day)
         window = (start, start + timedelta(hours=6))
         rank_targets(pier, start, window, moon)
-    assert len(ranking._rank_cache) <= ranking._CACHE_MAXSIZE
+    assert ranking._CACHE_MAXSIZE == 8
+    assert len(ranking._scan_cache) <= ranking._CACHE_MAXSIZE

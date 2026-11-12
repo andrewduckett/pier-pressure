@@ -15,8 +15,15 @@ from skyfield.api import Star, load, load_file, wgs84
 from pierpressure.core.catalog import load_catalog
 from pierpressure.core.config import PierConfig
 from pierpressure.core.horizon import flat, open_sky
-from pierpressure.core.ranking import geometry_for
-from pierpressure.core.sky import dark_window, ephemeris_path
+from pierpressure.core.ranking import (
+    Geometry,
+    altitude_subscore,
+    geometry_for,
+    rank_targets,
+    transit_subscore,
+    window_subscore,
+)
+from pierpressure.core.sky import dark_window, ephemeris_path, moon_info
 
 from .offline_guard import no_network
 
@@ -184,3 +191,69 @@ def test_open_sky_geometry_completes_for_many_targets() -> None:
             if geo is not None:
                 assert geo.window_start < geo.window_end
                 assert flat(0.0).is_above(0.0, geo.max_altitude)
+
+
+# --------------------------------------------------------------------------- #
+# Mid-session: the geometry factors judge the remaining window (#110)
+# --------------------------------------------------------------------------- #
+
+# After M31's transit (about 00:12), with M31 above open sky until dawn.
+_AFTER_TRANSIT = datetime(2026, 9, 9, 2, 0, tzinfo=UTC)
+
+
+def _m31_mid_session() -> tuple[Geometry, Geometry, tuple[datetime, datetime]]:
+    pier = _london()
+    with no_network():
+        window = dark_window(pier, _INSTANT)
+        whole = geometry_for(pier, _CATALOG["NGC0224"], window, _INSTANT)
+        remaining = geometry_for(pier, _CATALOG["NGC0224"], window, _AFTER_TRANSIT)
+    assert whole is not None and remaining is not None
+    assert window[1] is not None
+    return whole, remaining, (_AFTER_TRANSIT, window[1])
+
+
+def test_mid_session_geometry_starts_at_the_scoring_instant() -> None:
+    _, remaining, scored = _m31_mid_session()
+    assert (remaining.window_start, remaining.window_end) == scored
+
+
+def test_a_target_past_its_peak_is_scored_on_the_altitude_still_ahead() -> None:
+    whole, remaining, _ = _m31_mid_session()
+    # Descending all the remaining window, so its peak is now.
+    assert remaining.max_instant == _AFTER_TRANSIT
+    assert abs(remaining.max_altitude - _oracle_alt(_london(), "NGC0224", _AFTER_TRANSIT)) < 0.01
+    assert altitude_subscore(remaining.max_altitude) < altitude_subscore(whole.max_altitude)
+    expected_sep = _oracle_moon_sep(_london(), "NGC0224", _AFTER_TRANSIT)
+    assert abs(remaining.moon_separation - expected_sep) < 0.01
+
+
+def test_a_transit_that_has_passed_scores_no_transit_timing() -> None:
+    whole, remaining, _ = _m31_mid_session()
+    # The crossing nearest the remaining window's midpoint is tonight's, now passed.
+    assert remaining.transit_time == whole.transit_time < _AFTER_TRANSIT
+    score = transit_subscore(remaining.transit_time, remaining.window_start, remaining.window_end)
+    assert score == 0.0
+
+
+def test_a_target_up_for_the_rest_of_the_night_has_a_full_window_factor() -> None:
+    _, remaining, (start, end) = _m31_mid_session()
+    assert window_subscore(remaining.window_end - remaining.window_start, end - start) == 1.0
+
+
+def test_mid_session_targets_keep_their_whole_night_fields() -> None:
+    pier = _london()
+    with no_network():
+        window = dark_window(pier, _INSTANT)
+        moon = moon_info(pier, window, _INSTANT)
+        targets = rank_targets(pier, _AFTER_TRANSIT, window, moon)
+        assert targets
+        for target in targets:
+            whole = geometry_for(pier, _CATALOG[target.id], window, _INSTANT)
+            assert whole is not None
+            assert (target.window.start, target.window.end) == (
+                whole.window_start,
+                whole.window_end,
+            )
+            assert target.max_altitude == whole.max_altitude
+            assert target.transit_time == whole.transit_time
+            assert target.moon_separation == whole.moon_separation

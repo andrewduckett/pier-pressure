@@ -50,6 +50,10 @@ def _target(id_: str, name: str | None, score: int) -> Target:
             start=datetime(2026, 9, 8, 21, 0, tzinfo=UTC),
             end=datetime(2026, 9, 9, 2, 0, tzinfo=UTC),
         ),
+        remaining_window=TargetWindow(
+            start=datetime(2026, 9, 8, 21, 0, tzinfo=UTC),
+            end=datetime(2026, 9, 9, 2, 0, tzinfo=UTC),
+        ),
         max_altitude=61.0,
         transit_time=datetime(2026, 9, 8, 23, 30, tzinfo=UTC),
         moon_separation=100.0,

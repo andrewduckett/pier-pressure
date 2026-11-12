@@ -229,10 +229,13 @@ class Target(BaseModel):
     The fields are numbers, not prose: the structure is the explanation, and the
     M7 LLM explainer turns it into sentences. ``name`` is null when the catalog records
     no common name. ``score`` is the unbanded 0-100 ranking value. ``window`` is
-    the observable window; ``max_altitude`` (degrees) is the peak altitude reached
-    inside it; ``transit_time`` is the meridian crossing for that day (which may
-    fall outside the window); ``moon_separation`` (degrees) is measured at the
-    instant of maximum altitude within the window.
+    the observable window; ``remaining_window`` is the longest above-mask stretch
+    within the scored window, the one the target was ranked on, and equals
+    ``window`` before dusk (rank-remaining-night design D5). ``window`` and the
+    fields after it keep their whole-night meaning: ``max_altitude`` (degrees) is
+    the peak altitude reached inside ``window``; ``transit_time`` is the meridian
+    crossing for that day (which may fall outside the window); ``moon_separation``
+    (degrees) is measured at the instant of maximum altitude within the window.
 
     ``size_arcmin`` (angular size), ``magnitude`` (the catalog's visual-then-blue
     integrated magnitude — the same value used as the candidate filter), and
@@ -250,6 +253,7 @@ class Target(BaseModel):
     type: str
     score: Score
     window: TargetWindow
+    remaining_window: TargetWindow
     max_altitude: Degrees
     transit_time: datetime
     moon_separation: Degrees

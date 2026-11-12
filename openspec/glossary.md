@@ -96,3 +96,32 @@ It has a stable key, declares its variables and has a health record like a
 provider, but it fetches nothing and runs after every provider has returned.
 
 Scope: configuration, conditions and provider health.
+
+## Scored window
+
+The part of the dark window that the verdict and the target ranking judge.
+Before astronomical dusk it is the whole dark window. Once the night has
+started, it runs from the scoring instant to `dark_window.end`. It is empty only
+when the scoring instant equals `dark_window.end`. The `dark_window` field
+always keeps the whole night.
+
+Scope: the verdict, target ranking and the verdict document. Code and specs use
+`scored_window`.
+
+## Scoring instant
+
+The evaluation instant with its sub-second part removed: the same whole second
+as `generated_at`. Once the night has started, the scored window starts here.
+
+Scope: the verdict and target ranking.
+
+## Remaining window
+
+A target's longest stretch above the pier's horizon mask within the scored
+window. The ranking gates and scores the target on it. Before dusk it equals
+the target's observable window (`window`). Once the night has started it can be
+shorter, or, for a target that clears the mask more than once, a different
+stretch.
+
+Scope: target ranking and the verdict document's targets. Code and specs use
+`remaining_window`.

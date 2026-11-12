@@ -133,6 +133,7 @@ def _m31_target() -> Target:
         type=m31.type,
         score=90,
         window=_WINDOW,
+        remaining_window=_WINDOW,
         max_altitude=60.0,
         transit_time=datetime(2026, 9, 8, 23, 30, tzinfo=UTC),
         moon_separation=100.0,
