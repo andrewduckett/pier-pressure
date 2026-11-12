@@ -314,15 +314,19 @@ def moon_penalty(window: tuple[datetime, datetime], conditions: Conditions, moon
     total_clear = clear_hours_total(window, conditions)
     if total_clear <= 0.0:
         return 0.0
-    start, end = window
     up_clear = 0.0
     for slot, weight in _clear_weights(window, conditions):
-        covered_start = max(slot, start)
-        covered_end = min(slot + _HOUR, end)
-        midpoint = covered_start + (covered_end - covered_start) / 2
-        if moon_up_at(midpoint, moon, window):
+        if _moon_up_in_slot(slot, moon, window):
             up_clear += weight
     return moon.illumination * (up_clear / total_clear)
+
+
+def _moon_up_in_slot(slot: datetime, moon: Moon, window: tuple[datetime, datetime]) -> bool:
+    """Whether the moon is up at the middle of the slot's part of the window."""
+    start, end = window
+    covered_start = max(slot, start)
+    covered_end = min(slot + _HOUR, end)
+    return moon_up_at(covered_start + (covered_end - covered_start) / 2, moon, window)
 
 
 # --- Score assembly (design D4; task 5.1) ---------------------------------- #
@@ -400,8 +404,15 @@ def _hour_high_cloud_factor(conditions: Conditions, slot: datetime) -> float:
     return 1.0 - _HIGH_CLOUD_MAX_PENALTY * (high / 100.0)
 
 
-def _scaled_sky(window: tuple[datetime, datetime], conditions: Conditions) -> float:
-    """``Σ w·q·(0.7 + 0.3a)·(high-cloud factor) / Σ w``: each hour's sky, scaled by its factors."""
+def _hour_moon_factor(slot: datetime, moon: Moon, window: tuple[datetime, datetime]) -> float:
+    """The hour's moon factor ``1 - 0.5 · illumination`` while the moon is up, else 1."""
+    if not _moon_up_in_slot(slot, moon, window):
+        return 1.0
+    return 1.0 - _MOON_MAX_PENALTY * moon.illumination
+
+
+def _scaled_sky(window: tuple[datetime, datetime], conditions: Conditions, moon: Moon) -> float:
+    """``Σ w·q·(atmosphere)·(moon)·(high cloud) / Σ w``: each hour's sky, scaled by its factors."""
     denominator = total_coverage(window)
     if denominator <= 0.0:
         return 0.0
@@ -409,7 +420,8 @@ def _scaled_sky(window: tuple[datetime, datetime], conditions: Conditions) -> fl
     for slot, weight in _clear_weights(window, conditions):
         quality = _hour_atmosphere(conditions, slot)
         atmosphere = ATMOSPHERE_FLOOR + (1.0 - ATMOSPHERE_FLOOR) * quality
-        numerator += weight * atmosphere * _hour_high_cloud_factor(conditions, slot)
+        factors = _hour_moon_factor(slot, moon, window) * _hour_high_cloud_factor(conditions, slot)
+        numerator += weight * atmosphere * factors
     return numerator / denominator
 
 
@@ -444,7 +456,7 @@ def score_terms(
     atmosphere = atmosphere_factor(window, conditions)
     high_cloud = high_cloud_penalty(window, conditions)
     moon_term = moon_penalty(window, conditions, moon)
-    score01 = _scaled_sky(window, conditions) * (1.0 - _MOON_MAX_PENALTY * moon_term)
+    score01 = _scaled_sky(window, conditions, moon)
     score = max(0, min(100, round(100.0 * _clamp01(score01))))
     return ScoreTerms(cloud_term, atmosphere, high_cloud, moon_term, score)
 

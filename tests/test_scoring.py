@@ -227,6 +227,36 @@ def test_moon_penalty_is_zero_without_usable_dark_hours() -> None:
     assert moon_penalty(window, overcast, _moon(1.0, up_during_dark=True)) == 0.0
 
 
+def _moon_up_first_four_hours(window: tuple[datetime, datetime]) -> Moon:
+    """A full moon that sets four hours into the window, so it is up in hours 1-4 only."""
+    return _moon(1.0, set=window[0] + timedelta(hours=4))
+
+
+def test_the_moon_factor_per_hour_cuts_only_the_hours_the_moon_is_up() -> None:
+    # Four moon hours at 0.7 x 0.5 plus six hours at 1 gives 7.4 of 10 hours.
+    window = _window(10)
+    atmosphere: list[float | None] = [0.0] * 4 + [None] * 6
+    snap = Conditions(
+        series={
+            "cloud_cover": _series(window, [0.0] * 10),
+            "seeing": _series(window, atmosphere),
+            "transparency": _series(window, atmosphere),
+        }
+    )
+    assert assemble_score(window, snap, _moon_up_first_four_hours(window)) == 74
+
+
+def test_the_moon_and_high_cloud_cut_only_the_hours_they_are_in() -> None:
+    window = _window(10)
+    snap = Conditions(
+        series={
+            "cloud_cover": _series(window, [0.0] * 10),
+            "cloud_high": _series(window, [100.0] * 4 + [0.0] * 6),
+        }
+    )
+    assert assemble_score(window, snap, _moon_up_first_four_hours(window)) == 74
+
+
 # --------------------------------------------------------------------------- #
 # 4.1 high/thin-cloud penalty: clarity-weighted mean over both-present hours
 # --------------------------------------------------------------------------- #
