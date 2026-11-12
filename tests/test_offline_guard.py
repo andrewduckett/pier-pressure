@@ -39,13 +39,12 @@ def test_guard_is_lifted_after_the_block() -> None:
 
 
 def test_ephemeris_and_timescale_load_offline_under_guard() -> None:
-    import os
-
     from skyfield.api import load, load_file, wgs84
-    from skyfield_data import get_skyfield_data_path
+
+    from pierpressure.core.sky import ephemeris_path
 
     with no_network():
-        eph = load_file(os.path.join(get_skyfield_data_path(), "de421.bsp"))
+        eph = load_file(ephemeris_path())
         ts = load.timescale(builtin=True)
         t = ts.utc(2026, 9, 8, 21, 30)
         observer = eph["earth"] + wgs84.latlon(51.5, -0.12, elevation_m=30.0)
