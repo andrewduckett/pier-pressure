@@ -10,7 +10,7 @@ from pierpressure.core.conditions import Conditions, Series, Variable
 from pierpressure.core.config import PierConfig
 from pierpressure.core.model import Band, Moon, MoonPhase, Verdict, VerdictDocument
 from pierpressure.core.producer import produce_verdict
-from pierpressure.core.scoring import Decision, evaluate, hour_slots
+from pierpressure.core.scoring import Decision, evaluate, hour_slots, scored_window
 from pierpressure.core.sky import _local_solar_day, _night_transitions, dark_window
 
 from .conftest import make_conditions, make_pier
@@ -310,6 +310,23 @@ def test_mid_session_the_scored_window_starts_at_the_floored_instant() -> None:
 def test_without_a_dark_window_the_scored_window_is_null() -> None:
     decision = evaluate(_pier(), _INSTANT, _NO_WINDOW, Conditions(), _new_moon())
     assert decision.scored_window == (None, None)
+
+
+def test_scored_window_before_dusk_is_the_dark_window() -> None:
+    assert scored_window(_INSTANT, _WINDOW) == _WINDOW
+
+
+def test_scored_window_mid_session_starts_at_the_floored_instant() -> None:
+    instant = datetime(2026, 9, 8, 23, 30, 0, 750_000, tzinfo=UTC)
+    assert scored_window(instant, _WINDOW) == (datetime(2026, 9, 8, 23, 30, tzinfo=UTC), _END)
+
+
+def test_scored_window_never_starts_past_the_end() -> None:
+    assert scored_window(_END + timedelta(hours=1), _WINDOW) == (_END, _END)
+
+
+def test_scored_window_without_a_dark_window_is_null() -> None:
+    assert scored_window(_INSTANT, _NO_WINDOW) == (None, None)
 
 
 def test_passed_clear_hours_no_longer_lift_the_night() -> None:

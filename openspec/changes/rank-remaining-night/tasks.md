@@ -1,6 +1,6 @@
 ## 1. Shared contracts
 
-- [ ] 1.1 [easy] A public `scored_window(instant, window)` in `core/scoring.py` returns the dark window clamped to start at the instant floored to a whole second (never past the end), `(None, None)` without a dark window; `evaluate` uses it, so every existing verdict test still passes (verify: uv run pytest tests/test_verdict_eval.py -q)
+- [x] 1.1 [easy] A public `scored_window(instant, window)` in `core/scoring.py` returns the dark window clamped to start at the instant floored to a whole second (never past the end), `(None, None)` without a dark window; `evaluate` uses it, so every existing verdict test still passes (verify: uv run pytest tests/test_verdict_eval.py -q) (✓ uv run pytest tests/test_verdict_eval.py -q passed)
 - [ ] 1.2 [easy] `Target` requires a `remaining_window` (`TargetWindow`), declared right after `window`, so a serialized target lists `window` then `remaining_window` (verify: uv run pytest tests/test_target_model.py -q)
 
 ## 2. Ranking on the remaining window [depends-on: 1]
