@@ -19,14 +19,13 @@ The exposed engine is:
 
 from __future__ import annotations
 
-import os
 from datetime import UTC, datetime, timedelta
 from functools import lru_cache
+from importlib.resources import files
 from typing import Any
 
 from skyfield import almanac
 from skyfield.api import load, load_file, wgs84
-from skyfield_data import get_skyfield_data_path
 
 from .config import PierConfig
 from .model import Moon, MoonPhase
@@ -45,10 +44,21 @@ _SEARCH_BACK = timedelta(hours=24)
 _SEARCH_FORWARD = timedelta(hours=48)
 
 
+def ephemeris_path() -> str:
+    """The path of the ``de421.bsp`` file the pinned ``skyfield-data`` ships.
+
+    ``skyfield_data.get_skyfield_data_path()`` warns for every bundled file past
+    its expiry date, including ``finals2000A.all``, which the core never reads.
+    Finding the file by its package location skips that check. Dates past the
+    ephemeris's coverage still fail, with Skyfield's ``EphemerisRangeError``.
+    """
+    return str(files("skyfield_data") / "data" / "de421.bsp")
+
+
 @lru_cache(maxsize=1)
 def _ephemeris() -> Any:
     """The version-pinned de421 ephemeris, loaded once from local data."""
-    return load_file(os.path.join(get_skyfield_data_path(), "de421.bsp"))
+    return load_file(ephemeris_path())
 
 
 @lru_cache(maxsize=1)

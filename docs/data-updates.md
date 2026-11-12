@@ -152,20 +152,33 @@ Suspicious, at any time — stop and investigate:
   contract, so this is never a data update)
 - the difference covers more than the update could explain
 
-## Known warning: expired `finals2000A.all`
+## Why there is no expiry warning for `skyfield-data` files
 
-`skyfield-data` 7.0.0 ships an Earth-orientation file, `finals2000A.all`, that
-expires on 18 October 2026. From that date, loading the ephemeris logs this
-warning:
+`skyfield-data` records an expiry date for each file it ships. Its
+`get_skyfield_data_path()` function checks those dates on every call, and logs a
+warning for each file whose date has passed, whether or not anything reads it:
 
 ```text
 RuntimeWarning: The file finals2000A.all has expired. Please upgrade your version of `skyfield-data` or expect computation errors
 ```
 
-PierPressure never reads that file: it uses Skyfield's built-in timescale
-instead. The warning does not affect the verdict, and the tests do not fail on
-it. It goes away when a newer `skyfield-data` is released and Renovate proposes
-it.
+PierPressure never reads `finals2000A.all`: it uses Skyfield's built-in
+timescale instead. So that it does not tell users to expect errors that cannot
+happen, PierPressure does not call `get_skyfield_data_path()`. It finds
+`de421.bsp` by its location inside the installed package, in
+`ephemeris_path()` in `pierpressure/core/sky.py`. The tests use the same
+function.
+
+Skipping the check loses no real signal:
+
+- **The ephemeris running out still fails.** The `de421.bsp` expiry date,
+  9 October 2053, is where its data ends. For any later date, Skyfield raises
+  `EphemerisRangeError`, and no verdict is produced.
+  `tests/test_sky_bundled_data.py` checks this.
+- **A moved file fails loudly in CI.** The package's `data/` folder is not
+  public API. If a `skyfield-data` update moves or renames `de421.bsp`, loading
+  the ephemeris fails, so the tests fail on the Renovate pull request before
+  the update can merge.
 
 ## Related decisions
 

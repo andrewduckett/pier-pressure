@@ -6,21 +6,19 @@ centre altitude, so the tests check the astronomy rather than restate it.
 
 from __future__ import annotations
 
-import os
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from skyfield import almanac
 from skyfield.api import load, load_file, wgs84
-from skyfield_data import get_skyfield_data_path
 
 from pierpressure.core.config import PierConfig
 from pierpressure.core.model import MoonPhase
-from pierpressure.core.sky import _phase_from_angle, dark_window, moon_info
+from pierpressure.core.sky import _phase_from_angle, dark_window, ephemeris_path, moon_info
 
 from .offline_guard import no_network
 
-_EPH = load_file(os.path.join(get_skyfield_data_path(), "de421.bsp"))
+_EPH = load_file(ephemeris_path())
 _TS = load.timescale(builtin=True)
 _MOON = _EPH["moon"]
 _EARTH = _EPH["earth"]
