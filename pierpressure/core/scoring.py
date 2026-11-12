@@ -12,11 +12,13 @@ the atmosphere factor, the moon penalty — is a clarity-weighted sum over the
 scored window, so the whole verdict rests on one concept rather than many ad-hoc
 rules.
 
-The score is a product of factors, each at most 1: how much usable sky there is
-(the cloud term), scaled by how good it is (the atmosphere factor from seeing and
-transparency), the moon, and high cloud. Seeing and transparency scale the cloud
-term rather than adding to it, so they can never stand in for sky that is not
-there (score-remaining-night design D3).
+The score sums each hour's usable sky (its clear weight), scaled by three
+factors of that hour, each at most 1: the atmosphere factor from seeing and
+transparency, the moon, and high cloud. Seeing and transparency scale the usable
+sky rather than adding to it, so they can never stand in for sky that is not
+there (score-remaining-night design D3). Because every factor belongs to its own
+hour, more cloud in any hour can only remove that hour's share, never raise the
+score (per-hour-sky-penalties D3).
 
 Each variable is its own series, possibly from different providers
 (provider-order D1); the scoring reads each slot through ``Conditions.value_at``,
@@ -126,7 +128,7 @@ def _clear_weights(
     """Each window slot with cloud data, paired with its clear weight ``w·q``.
 
     Every clarity-weighted sum in this module (the overcast gate, the cloud term,
-    the atmosphere factor, the moon and high-cloud penalties) walks exactly this
+    the score, and the atmosphere, moon and high-cloud reason terms) walks exactly this
     sequence, so the one place that defines "usable dark time per slot" is here.
     Slots without cloud data are skipped: they are neither clear nor overcast.
     """
@@ -213,8 +215,8 @@ def optional_term_mean(
     partial-coverage gap from artificially depressing the mean — three clear hours
     of good seeing read as good seeing, not as good seeing diluted by the hours
     that carried none. ``None`` when the term has no usable hour, so the caller
-    omits its reason line. The score itself does not read this mean: it flows
-    through :func:`atmosphere_mean`.
+    omits its reason line. The score itself does not read this mean: it scales
+    each hour by that hour's own atmosphere.
     """
     return _optional_term(window, conditions, variable)[0]
 
@@ -236,10 +238,9 @@ def atmosphere_mean(window: tuple[datetime, datetime], conditions: Conditions) -
     """``A = Σ(w·q·a) / Σ(w·q)`` over the hours with cloud data, in ``[0, 1]``.
 
     Unlike :func:`optional_term_mean`, an hour without seeing or transparency stays
-    in the mean at ``a = 1`` rather than dropping out. With that, the cloud and
-    atmosphere product is a sum of per-hour terms, each increasing in that hour's
-    clarity, so more cloud in any hour can never raise it (score-remaining-night
-    design D3). Returns 1 when no hour is usably clear.
+    in the mean at ``a = 1`` rather than dropping out, as it does in the score. The
+    score scales each hour by its own atmosphere; this mean only feeds the
+    atmosphere factor's reason line. Returns 1 when no hour is usably clear.
     """
     numerator = 0.0
     denominator = 0.0
@@ -264,7 +265,9 @@ def high_cloud_penalty(window: tuple[datetime, datetime], conditions: Conditions
     ``cloud_high`` is optional. Clarity-weighting means a fully-overcast hour
     (``q = 0``) adds nothing — it is already penalised by the total-cloud term — so
     the penalty bites on hours that read otherwise clear but carry cirrus aloft.
-    Returns ``None`` when no hour qualifies, so the caller drops the term entirely.
+    It states the high-cloud reason line; the score cuts each hour by its own
+    reading instead (per-hour-sky-penalties D4, D5). Returns ``None`` when no hour
+    qualifies, so the caller omits the line.
     """
     numerator = 0.0
     denominator = 0.0
@@ -309,20 +312,25 @@ def moon_penalty(window: tuple[datetime, datetime], conditions: Conditions, moon
     ``illumination × Σ_{h∈C}(w·q·up_h) / W`` — how much of the usable dark time
     the moon is up, weighted by clarity and scaled by its brightness. A dark or
     absent moon gives 0; a full moon up throughout the usable darkness approaches
-    the illumination. Zero when there is no usable dark time to spoil.
+    the illumination. Zero when there is no usable dark time to spoil. It states
+    the moon reason line; the score cuts only the hours the moon is up in.
     """
     total_clear = clear_hours_total(window, conditions)
     if total_clear <= 0.0:
         return 0.0
-    start, end = window
     up_clear = 0.0
     for slot, weight in _clear_weights(window, conditions):
-        covered_start = max(slot, start)
-        covered_end = min(slot + _HOUR, end)
-        midpoint = covered_start + (covered_end - covered_start) / 2
-        if moon_up_at(midpoint, moon, window):
+        if _moon_up_in_slot(slot, moon, window):
             up_clear += weight
     return moon.illumination * (up_clear / total_clear)
+
+
+def _moon_up_in_slot(slot: datetime, moon: Moon, window: tuple[datetime, datetime]) -> bool:
+    """Whether the moon is up at the middle of the slot's part of the window."""
+    start, end = window
+    covered_start = max(slot, start)
+    covered_end = min(slot + _HOUR, end)
+    return moon_up_at(covered_start + (covered_end - covered_start) / 2, moon, window)
 
 
 # --- Score assembly (design D4; task 5.1) ---------------------------------- #
@@ -332,14 +340,14 @@ def moon_penalty(window: tuple[datetime, datetime], conditions: Conditions, moon
 # (score-remaining-night design D3). Not 0: poor atmosphere still leaves a night
 # for bright targets, and a factor of 0 would be a gate by another name.
 ATMOSPHERE_FLOOR = 0.7
-# The most a full moon, up throughout the usable darkness, can cut the score: a
-# penalty rather than a gate, because a bright moon spoils faint targets but
-# never makes a night impossible (design D4).
+# The most a full moon can cut an hour it is up in: a penalty rather than a gate,
+# because a bright moon spoils faint targets but never makes a night impossible
+# (design D4).
 _MOON_MAX_PENALTY = 0.50
-# The most high, thin cirrus over the whole usable darkness can cut the score. Kept
-# below the moon's penalty (design D2): high cloud is a meaningful transparency hit
-# but not as ruinous as a full moon, and it compounds *multiplicatively* with the
-# moon penalty rather than adding to it, so it is tuned in that awareness.
+# The most 100% high, thin cirrus can cut an hour. Kept below the moon's penalty
+# (design D2): high cloud is a meaningful transparency hit but not as ruinous as a
+# full moon, and in an hour with both it compounds *multiplicatively* with the
+# moon factor rather than adding to it, so it is tuned in that awareness.
 _HIGH_CLOUD_MAX_PENALTY = 0.30
 
 
@@ -392,6 +400,35 @@ def atmosphere_factor(window: tuple[datetime, datetime], conditions: Conditions)
     return ATMOSPHERE_FLOOR + (1.0 - ATMOSPHERE_FLOOR) * atmosphere_mean(window, conditions)
 
 
+def _hour_high_cloud_factor(conditions: Conditions, slot: datetime) -> float:
+    """The hour's high-cloud factor ``1 - 0.3 · h``, or 1 when it carries no reading."""
+    high = _cloud_high_at(conditions, slot)
+    if high is None:
+        return 1.0
+    return 1.0 - _HIGH_CLOUD_MAX_PENALTY * (high / 100.0)
+
+
+def _hour_moon_factor(slot: datetime, moon: Moon, window: tuple[datetime, datetime]) -> float:
+    """The hour's moon factor ``1 - 0.5 · illumination`` while the moon is up, else 1."""
+    if not _moon_up_in_slot(slot, moon, window):
+        return 1.0
+    return 1.0 - _MOON_MAX_PENALTY * moon.illumination
+
+
+def _scaled_sky(window: tuple[datetime, datetime], conditions: Conditions, moon: Moon) -> float:
+    """``Σ w·q·(atmosphere)·(moon)·(high cloud) / Σ w``: each hour's sky, scaled by its factors."""
+    denominator = total_coverage(window)
+    if denominator <= 0.0:
+        return 0.0
+    numerator = 0.0
+    for slot, weight in _clear_weights(window, conditions):
+        quality = _hour_atmosphere(conditions, slot)
+        atmosphere = ATMOSPHERE_FLOOR + (1.0 - ATMOSPHERE_FLOOR) * quality
+        factors = _hour_moon_factor(slot, moon, window) * _hour_high_cloud_factor(conditions, slot)
+        numerator += weight * atmosphere * factors
+    return numerator / denominator
+
+
 @dataclass(frozen=True)
 class ScoreTerms:
     """The terms behind one banded score, computed once and shared with the reasons.
@@ -410,21 +447,22 @@ class ScoreTerms:
 def score_terms(
     window: tuple[datetime, datetime], conditions: Conditions, moon: Moon
 ) -> ScoreTerms:
-    """The banded 0-100 score and its terms: cloud scaled by atmosphere, moon, and high cloud.
+    """The banded 0-100 score and the window-wide terms its reasons state.
 
-    ``cloud_term × atmosphere_factor × moon factor × high-cloud factor``, rounded to
-    the nearest integer (half to even) and clamped to ``[0, 100]`` — so identical
-    inputs yield an identical integer (design D4). Every factor is at most 1, so the
-    score never exceeds the cloud term (score-remaining-night design D3). A ``None``
-    high-cloud penalty (no ``cloud_high`` data for the window) leaves its factor at
-    1, so the term drops out entirely.
+    The score is ``Σ w·q·(atmosphere)·(moon)·(high cloud) / Σ w`` over the hour
+    slots, each factor that hour's own, rounded to the nearest integer (half to
+    even) and clamped to ``[0, 100]`` — so identical inputs yield an identical
+    integer (design D4). Every factor is at most 1, so the score never exceeds the
+    cloud term (score-remaining-night design D3). An hour without a ``cloud_high``
+    reading has a high-cloud factor of 1 (per-hour-sky-penalties D4). The other
+    terms are window-wide summaries for the reasons; the score does not multiply
+    them together.
     """
     cloud_term = cloud_score_term(window, conditions)
     atmosphere = atmosphere_factor(window, conditions)
     high_cloud = high_cloud_penalty(window, conditions)
-    high_cloud_factor = 1.0 if high_cloud is None else 1.0 - _HIGH_CLOUD_MAX_PENALTY * high_cloud
     moon_term = moon_penalty(window, conditions, moon)
-    score01 = cloud_term * atmosphere * (1.0 - _MOON_MAX_PENALTY * moon_term) * high_cloud_factor
+    score01 = _scaled_sky(window, conditions, moon)
     score = max(0, min(100, round(100.0 * _clamp01(score01))))
     return ScoreTerms(cloud_term, atmosphere, high_cloud, moon_term, score)
 
@@ -785,7 +823,11 @@ def _score_reasons(
     # sub-half-percent penalty never emits a confusing "High cloud penalty 0%" line
     # (design D3). Kept distinct from the total-cloud "Cloud:" line above.
     if high_cloud is not None and round(high_cloud * 100) > 0:
-        reasons.append(f"High cloud penalty {round(high_cloud * 100)}% (thin cirrus aloft).")
+        # The score cuts only the hours with a reading, so a mean over part of the
+        # usable sky says how much of it the cut reaches (per-hour-sky-penalties D5).
+        covers = round(_optional_term(window, conditions, "cloud_high")[1] * 100)
+        note = "" if covers >= 100 else f"; covers {covers}% of the usable sky"
+        reasons.append(f"High cloud penalty {round(high_cloud * 100)}% (thin cirrus aloft{note}).")
     if terms.moon_penalty > 0.0:
         reasons.append(
             f"Moon penalty {round(terms.moon_penalty * 100)}% (illuminated and up during darkness)."

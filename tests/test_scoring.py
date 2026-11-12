@@ -227,6 +227,36 @@ def test_moon_penalty_is_zero_without_usable_dark_hours() -> None:
     assert moon_penalty(window, overcast, _moon(1.0, up_during_dark=True)) == 0.0
 
 
+def _moon_up_first_four_hours(window: tuple[datetime, datetime]) -> Moon:
+    """A full moon that sets four hours into the window, so it is up in hours 1-4 only."""
+    return _moon(1.0, set=window[0] + timedelta(hours=4))
+
+
+def test_the_moon_factor_per_hour_cuts_only_the_hours_the_moon_is_up() -> None:
+    # Four moon hours at 0.7 x 0.5 plus six hours at 1 gives 7.4 of 10 hours.
+    window = _window(10)
+    atmosphere: list[float | None] = [0.0] * 4 + [None] * 6
+    snap = Conditions(
+        series={
+            "cloud_cover": _series(window, [0.0] * 10),
+            "seeing": _series(window, atmosphere),
+            "transparency": _series(window, atmosphere),
+        }
+    )
+    assert assemble_score(window, snap, _moon_up_first_four_hours(window)) == 74
+
+
+def test_the_moon_and_high_cloud_cut_only_the_hours_they_are_in() -> None:
+    window = _window(10)
+    snap = Conditions(
+        series={
+            "cloud_cover": _series(window, [0.0] * 10),
+            "cloud_high": _series(window, [100.0] * 4 + [0.0] * 6),
+        }
+    )
+    assert assemble_score(window, snap, _moon_up_first_four_hours(window)) == 74
+
+
 # --------------------------------------------------------------------------- #
 # 4.1 high/thin-cloud penalty: clarity-weighted mean over both-present hours
 # --------------------------------------------------------------------------- #
@@ -331,6 +361,17 @@ def test_assemble_score_is_monotonic_non_increasing_in_high_cloud() -> None:
     assert scores[-1] < scores[0]  # full high cloud -> a real cut
 
 
+def test_clouding_out_the_one_cirrus_hour_never_raises_the_score() -> None:
+    # Ten clear hours, one with 100% high cloud and nine with no reading: only that
+    # hour is cut, so clouding it out loses its 0.7 of an hour, never gains.
+    window = _window(10)
+    high: list[float | None] = [100.0] + [None] * 9
+    clear = _conditions_high(window, cloud=[0.0] * 10, high=high)
+    clouded = _conditions_high(window, cloud=[100.0] + [0.0] * 9, high=high)
+    assert assemble_score(window, clear, _moon(0.0, up_during_dark=False)) == 97
+    assert assemble_score(window, clouded, _moon(0.0, up_during_dark=False)) == 90
+
+
 # --------------------------------------------------------------------------- #
 # 4.4 the high-cloud term never gates; missing data drops it silently
 # --------------------------------------------------------------------------- #
@@ -386,6 +427,15 @@ def test_high_cloud_reason_is_a_distinct_line_when_the_penalty_bites() -> None:
     assert high_lines[0] == "High cloud penalty 60% (thin cirrus aloft)."
     # It is separate from the total-cloud line, not folded into it.
     assert any(r.startswith("Cloud:") for r in decision.reasons)
+
+
+def test_high_cloud_reason_states_the_share_of_the_usable_sky_its_readings_cover() -> None:
+    window = _window(10)
+    snap = _conditions_high(window, cloud=[0.0] * 10, high=[100.0] + [None] * 9)
+    decision = evaluate(make_pier(), _EVAL_INSTANT, window, snap, _moon(0.0, up_during_dark=False))
+    assert "High cloud penalty 100% (thin cirrus aloft; covers 10% of the usable sky)." in (
+        decision.reasons
+    )
 
 
 def test_high_cloud_reason_is_absent_for_a_sub_half_percent_penalty() -> None:
