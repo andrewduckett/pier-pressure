@@ -9,9 +9,9 @@ targets you can no longer image.
 ## What Changes
 
 - Once the night has started, target ranking gates and scores each target on
-  its **remaining window**: the longest stretch above the horizon mask within
-  the **scored window**, from the scoring instant to `dark_window.end` (D2).
-  This can be a different stretch from the published `window`.
+  its **remaining window** (D2). That is its longest stretch above the horizon
+  mask within the **scored window**, which runs from the scoring instant to
+  `dark_window.end`. It can be a different stretch from the published `window`.
 - All four geometry terms use the remaining window: altitude, moon separation,
   window length as a share of the scored window, and transit (D1). Brightness
   and field-of-view fit do not change.
@@ -47,7 +47,8 @@ None.
 
 - **Code:** `pierpressure/core/ranking.py` (`rank_targets`, `_rank`, the
   cache), `pierpressure/core/model.py` (`Target`),
-  `pierpressure/core/producer.py` (passes the scored window to ranking).
+  `pierpressure/core/scoring.py` (the scored-window function the verdict and
+  the ranking share).
 - **Tests:** the ranking tests, and the golden documents under
   `tests/fixtures/golden/expected/`, which gain `remaining_window` and change
   in the mid-session fixture.

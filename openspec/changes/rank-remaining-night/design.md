@@ -48,7 +48,10 @@ field reaches Home Assistant and the narrative with no change there.
   two-stretch case uses a horizon mask with a wall that hides a chosen target
   partway through the night.
 - **Existing seams reused:** `geometry_for` (`tests/test_ranking_geometry.py`)
-  for the remaining-window geometry. The golden verdict suite
+  for the remaining-window geometry. The scenarios that name a single factor
+  (altitude, transit timing, window length) are asserted here: the remaining
+  geometry's peak altitude, transit and length, fed to the existing pure
+  sub-score functions. `Target` exposes only the combined `score`. The golden verdict suite
   (`tests/test_golden_verdict.py`) for the document shape, where
   `both_present_mid_session` shows the mid-session change end to end. The
   sub-score unit tests stay as they are.

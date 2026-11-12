@@ -3,10 +3,10 @@
 ### Requirement: A target must clear the horizon mask for the minimum duration
 
 A candidate SHALL appear in the ranked list only when its remaining window
-spans at least a configured minimum duration. A candidate that never rises
-above the horizon mask within the scored window, or is observable for less than
-the minimum duration within it, SHALL be absent from the list rather than listed
-with a low score.
+spans at least a configured minimum duration. Otherwise it SHALL be absent from
+the list rather than listed with a low score. This covers a candidate that never
+rises above the horizon mask within the scored window, and one that is above it
+for less than the minimum duration.
 
 #### Scenario: An object that never clears the mask is absent
 
@@ -69,7 +69,7 @@ observable window, so the target list is the same as a whole-night ranking.
 The four geometry factors SHALL be measured over the target's remaining window:
 
 - maximum altitude and moon separation at the target's peak within it;
-- observable window length as a share of the scored window;
+- remaining window length as a share of the scored window;
 - transit timing against it.
 
 Brightness and field-of-view fit SHALL NOT depend on the evaluation instant.
@@ -87,7 +87,7 @@ Brightness and field-of-view fit SHALL NOT depend on the evaluation instant.
 #### Scenario: A target up for the rest of the night has a full window factor
 
 - **WHEN** a verdict is produced mid-session for a target that stays above the mask from `generated_at` to `dark_window.end`
-- **THEN** its observable window length factor is 1
+- **THEN** its window length factor is 1
 
 ### Requirement: Each target carries its remaining window
 
@@ -103,6 +103,11 @@ whole-night meaning.
 - **THEN** its `remaining_window.start` equals `generated_at`
 - **AND** its `remaining_window.end` equals its `window.end`
 - **AND** its `window.start` is earlier than `generated_at`
+
+#### Scenario: Every remaining window spans the minimum duration
+
+- **WHEN** the target list is produced, before or after dusk
+- **THEN** each target's `remaining_window` spans at least the minimum duration
 
 ### Requirement: A recompute in the same night matches a fresh ranking
 
