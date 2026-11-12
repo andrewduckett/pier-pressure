@@ -11,8 +11,8 @@
 ### Requirement: The score sums each hour's usable sky, scaled by that hour's factors
 
 The score SHALL be a sum over the scored window's hour slots, divided by the
-window's length in hours, scaled to 100 and rounded. Each slot adds its weight,
-as the atmosphere factor defines it, times three factors of that hour:
+window's length in hours, scaled to 100 and rounded. Each slot adds its
+weight (see the atmosphere factor) times three factors of that hour:
 
 - the **atmosphere factor**: `0.7 + 0.3 × a`;
 - the **moon factor**: `1 − 0.5 × illumination` when the moon is up at the middle of the slot's part of the window, else 1;
