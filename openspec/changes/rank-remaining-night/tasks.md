@@ -15,7 +15,7 @@
 
 - [x] 3.1 [medium] Regenerate the goldens with `PP_WRITE_GOLDENS=1`: every pre-dusk fixture differs from the committed one only by each target's added `remaining_window`, and the mid-session fixture's targets and "Top pick" line follow the remaining ranking (verify: uv run pytest tests/test_golden_verdict.py tests/test_producer_targets.py -q) (✓ uv run pytest tests/test_golden_verdict.py tests/test_producer_targets.py -q passed; with `remaining_window` removed, every pre-dusk golden equals the committed one)
 - [x] 3.2 [easy] `docs/target-ranking.md` explains `remaining_window` and that ranking judges the rest of the night once it has started, and the README's `targets` row lists `remaining_window` (verify: uv run pytest tests/test_docs.py -q) (✓ uv run pytest tests/test_docs.py -q passed)
-- [ ] 3.3 [easy] The whole project gate is green (verify: mise run check)
+- [x] 3.3 [easy] The whole project gate is green (verify: mise run check) (✓ mise run check passed)
 
 ## Deviations Ledger
 
