@@ -58,6 +58,10 @@ def _target(
             start=datetime(2026, 9, 8, 21, 0, tzinfo=UTC),
             end=datetime(2026, 9, 9, 3, 0, tzinfo=UTC),
         ),
+        remaining_window=TargetWindow(
+            start=datetime(2026, 9, 8, 21, 0, tzinfo=UTC),
+            end=datetime(2026, 9, 9, 3, 0, tzinfo=UTC),
+        ),
         max_altitude=max_altitude,
         transit_time=datetime(2026, 9, 9, transit_hour, 0, tzinfo=UTC),
         moon_separation=moon_separation,

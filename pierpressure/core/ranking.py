@@ -761,6 +761,7 @@ def _rank(pier: PierConfig, window: tuple[datetime, datetime], moon: Moon) -> li
                 type=obj.type,
                 score=score,
                 window=TargetWindow(start=geo.window_start, end=geo.window_end),
+                remaining_window=TargetWindow(start=geo.window_start, end=geo.window_end),
                 max_altitude=geo.max_altitude,
                 transit_time=geo.transit_time,
                 moon_separation=geo.moon_separation,

@@ -1,7 +1,7 @@
 ## 1. Shared contracts
 
 - [x] 1.1 [easy] A public `scored_window(instant, window)` in `core/scoring.py` returns the dark window clamped to start at the instant floored to a whole second (never past the end), `(None, None)` without a dark window; `evaluate` uses it, so every existing verdict test still passes (verify: uv run pytest tests/test_verdict_eval.py -q) (✓ uv run pytest tests/test_verdict_eval.py -q passed)
-- [ ] 1.2 [easy] `Target` requires a `remaining_window` (`TargetWindow`), declared right after `window`, so a serialized target lists `window` then `remaining_window` (verify: uv run pytest tests/test_target_model.py -q)
+- [x] 1.2 [easy] `Target` requires a `remaining_window` (`TargetWindow`), declared right after `window`, so a serialized target lists `window` then `remaining_window` (verify: uv run pytest tests/test_target_model.py -q) (✓ uv run pytest tests/test_target_model.py -q passed)
 
 ## 2. Ranking on the remaining window [depends-on: 1]
 
@@ -18,3 +18,5 @@
 - [ ] 3.3 [easy] The whole project gate is green (verify: mise run check)
 
 ## Deviations Ledger
+
+- 1.2: ranking sets `remaining_window` to `window` until task 2.1 computes it. From this commit until task 3.1 regenerates them, `tests/test_golden_verdict.py` fails, because the committed goldens lack the new key.
