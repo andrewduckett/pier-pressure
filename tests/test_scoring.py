@@ -429,6 +429,15 @@ def test_high_cloud_reason_is_a_distinct_line_when_the_penalty_bites() -> None:
     assert any(r.startswith("Cloud:") for r in decision.reasons)
 
 
+def test_high_cloud_reason_states_the_share_of_the_usable_sky_its_readings_cover() -> None:
+    window = _window(10)
+    snap = _conditions_high(window, cloud=[0.0] * 10, high=[100.0] + [None] * 9)
+    decision = evaluate(make_pier(), _EVAL_INSTANT, window, snap, _moon(0.0, up_during_dark=False))
+    assert "High cloud penalty 100% (thin cirrus aloft; covers 10% of the usable sky)." in (
+        decision.reasons
+    )
+
+
 def test_high_cloud_reason_is_absent_for_a_sub_half_percent_penalty() -> None:
     # cloud_high = 0.4% -> penalty 0.004 -> round(0.4) == 0, so no "0%" line.
     window = _window(6)

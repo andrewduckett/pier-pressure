@@ -817,7 +817,11 @@ def _score_reasons(
     # sub-half-percent penalty never emits a confusing "High cloud penalty 0%" line
     # (design D3). Kept distinct from the total-cloud "Cloud:" line above.
     if high_cloud is not None and round(high_cloud * 100) > 0:
-        reasons.append(f"High cloud penalty {round(high_cloud * 100)}% (thin cirrus aloft).")
+        # The score cuts only the hours with a reading, so a mean over part of the
+        # usable sky says how much of it the cut reaches (per-hour-sky-penalties D5).
+        covers = round(_optional_term(window, conditions, "cloud_high")[1] * 100)
+        note = "" if covers >= 100 else f"; covers {covers}% of the usable sky"
+        reasons.append(f"High cloud penalty {round(high_cloud * 100)}% (thin cirrus aloft{note}).")
     if terms.moon_penalty > 0.0:
         reasons.append(
             f"Moon penalty {round(terms.moon_penalty * 100)}% (illuminated and up during darkness)."
