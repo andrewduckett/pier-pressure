@@ -575,30 +575,39 @@ def geometry_for(
     window: tuple[datetime, datetime] | tuple[None, None],
     instant: datetime,
 ) -> Geometry | None:
-    """The refined geometry of one catalog object, or ``None`` if it never clears the mask.
+    """One catalog object's refined geometry over its remaining window.
 
-    Exposed for testing the per-target geometry directly; the pipeline shares the
-    same coarse-scan and refinement code.
+    Returns ``None`` when the object does not clear the mask within the scored
+    window. Before dusk the remaining window is the whole-night observable
+    window. Exposed for testing the per-target geometry directly; it shares the
+    pipeline's scan, remaining grid and refinement code.
     """
     start, end = window
-    if start is None or end is None:
+    scored_start, scored_end = scored_window(instant, window)
+    if start is None or end is None or scored_start is None or scored_end is None:
         return None
-    eph = _ephemeris()
-    ts = _timescale()
-    location = wgs84.latlon(pier.latitude, pier.longitude, elevation_m=pier.elevation_m)
-    observer = eph["earth"] + location
-    star = _star(obj)
-    times = _grid_times(start, end)
-    alt, az, _ = observer.at(ts.from_datetimes(times)).observe(star).apparent().altaz()
-    alt_deg, az_deg = alt.degrees, az.degrees
-    above = [
-        pier.horizon_mask.is_above(float(az_deg[i]), float(alt_deg[i])) for i in range(len(times))
-    ]
-    run = observable_window(times, above)
+    if scored_start == scored_end:
+        return None
+    scan = _scan_night(pier, (start, end), objects=(obj,))
+    if not scan.objects:
+        return None
+    grid = _remaining_grid(pier, scan, scored_start)
+    _, _, above = grid.candidate(scan, 0)
+    run = observable_window(grid.times, above)
     if run is None:
         return None
+    eph, ts, location, observer = _observer(pier)
     return _refine(
-        observer, ts, eph, location, pier.horizon_mask, (start, end), times, obj, run[0], run[1]
+        observer,
+        ts,
+        eph,
+        location,
+        pier.horizon_mask,
+        (scored_start, scored_end),
+        grid.times,
+        obj,
+        run[0],
+        run[1],
     )
 
 
