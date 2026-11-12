@@ -331,6 +331,17 @@ def test_assemble_score_is_monotonic_non_increasing_in_high_cloud() -> None:
     assert scores[-1] < scores[0]  # full high cloud -> a real cut
 
 
+def test_clouding_out_the_one_cirrus_hour_never_raises_the_score() -> None:
+    # Ten clear hours, one with 100% high cloud and nine with no reading: only that
+    # hour is cut, so clouding it out loses its 0.7 of an hour, never gains.
+    window = _window(10)
+    high: list[float | None] = [100.0] + [None] * 9
+    clear = _conditions_high(window, cloud=[0.0] * 10, high=high)
+    clouded = _conditions_high(window, cloud=[100.0] + [0.0] * 9, high=high)
+    assert assemble_score(window, clear, _moon(0.0, up_during_dark=False)) == 97
+    assert assemble_score(window, clouded, _moon(0.0, up_during_dark=False)) == 90
+
+
 # --------------------------------------------------------------------------- #
 # 4.4 the high-cloud term never gates; missing data drops it silently
 # --------------------------------------------------------------------------- #

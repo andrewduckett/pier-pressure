@@ -392,6 +392,27 @@ def atmosphere_factor(window: tuple[datetime, datetime], conditions: Conditions)
     return ATMOSPHERE_FLOOR + (1.0 - ATMOSPHERE_FLOOR) * atmosphere_mean(window, conditions)
 
 
+def _hour_high_cloud_factor(conditions: Conditions, slot: datetime) -> float:
+    """The hour's high-cloud factor ``1 - 0.3 · h``, or 1 when it carries no reading."""
+    high = _cloud_high_at(conditions, slot)
+    if high is None:
+        return 1.0
+    return 1.0 - _HIGH_CLOUD_MAX_PENALTY * (high / 100.0)
+
+
+def _scaled_sky(window: tuple[datetime, datetime], conditions: Conditions) -> float:
+    """``Σ w·q·(0.7 + 0.3a)·(high-cloud factor) / Σ w``: each hour's sky, scaled by its factors."""
+    denominator = total_coverage(window)
+    if denominator <= 0.0:
+        return 0.0
+    numerator = 0.0
+    for slot, weight in _clear_weights(window, conditions):
+        quality = _hour_atmosphere(conditions, slot)
+        atmosphere = ATMOSPHERE_FLOOR + (1.0 - ATMOSPHERE_FLOOR) * quality
+        numerator += weight * atmosphere * _hour_high_cloud_factor(conditions, slot)
+    return numerator / denominator
+
+
 @dataclass(frozen=True)
 class ScoreTerms:
     """The terms behind one banded score, computed once and shared with the reasons.
@@ -422,9 +443,8 @@ def score_terms(
     cloud_term = cloud_score_term(window, conditions)
     atmosphere = atmosphere_factor(window, conditions)
     high_cloud = high_cloud_penalty(window, conditions)
-    high_cloud_factor = 1.0 if high_cloud is None else 1.0 - _HIGH_CLOUD_MAX_PENALTY * high_cloud
     moon_term = moon_penalty(window, conditions, moon)
-    score01 = cloud_term * atmosphere * (1.0 - _MOON_MAX_PENALTY * moon_term) * high_cloud_factor
+    score01 = _scaled_sky(window, conditions) * (1.0 - _MOON_MAX_PENALTY * moon_term)
     score = max(0, min(100, round(100.0 * _clamp01(score01))))
     return ScoreTerms(cloud_term, atmosphere, high_cloud, moon_term, score)
 
