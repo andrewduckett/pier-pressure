@@ -92,8 +92,8 @@ def test_a_gated_no_go_carries_no_equipment_reason() -> None:
 
 def test_a_window_not_worth_setting_up_for_carries_no_equipment_reason() -> None:
     # Thirty minutes before dawn the verdict is capped at MAYBE with "not worth
-    # setting up". Targets are still ranked for the whole night (#110), but the
-    # reasons must not then advertise a top pick to set up on (score-remaining-night).
+    # setting up", and no target has the minimum left to rank (#110), so the
+    # reasons must not advertise a top pick to set up on (score-remaining-night).
     from datetime import timedelta
 
     from pierpressure.core.model import Verdict
@@ -107,8 +107,24 @@ def test_a_window_not_worth_setting_up_for_carries_no_equipment_reason() -> None
     assert document.verdict is Verdict.MAYBE
     assert document.score is not None
     assert any("Less than an hour" in r for r in document.reasons), document.reasons
-    assert document.targets
+    assert document.targets == []
     assert not any("Top pick" in r for r in document.reasons), document.reasons
+
+
+def test_mid_session_the_top_pick_follows_the_remaining_ranking() -> None:
+    # The framing sentence reads the first target, so once the night has started it
+    # names the best target for the rest of the night (#110, brainstorm D8).
+    from datetime import datetime
+
+    conditions = assemble_snapshot([(OPEN_METEO, _base_full()), (SEVEN_TIMER, _secondary_full())])
+    mid_session = FixedClock(datetime.fromisoformat("2026-09-09T01:00:00Z"))
+    with no_network():
+        before_dusk = produce_verdict(_equipped_pier(), FixedClock(_INSTANT), conditions)
+        document = produce_verdict(_equipped_pier(), mid_session, conditions)
+    top = document.targets[0]
+    assert top.id != before_dusk.targets[0].id
+    name = top.name or top.id
+    assert any(r.startswith(f"Top pick {name} ") for r in document.reasons), document.reasons
 
 
 def test_equipment_reasons_are_deterministic() -> None:
