@@ -26,7 +26,17 @@ def doc_text() -> str:
 
 @pytest.mark.parametrize(
     "field",
-    ["id", "name", "type", "score", "window", "max_altitude", "transit_time", "moon_separation"],
+    [
+        "id",
+        "name",
+        "type",
+        "score",
+        "window",
+        "remaining_window",
+        "max_altitude",
+        "transit_time",
+        "moon_separation",
+    ],
 )
 def test_doc_explains_each_target_field(doc_text: str, field: str) -> None:
     assert field.lower() in doc_text
@@ -42,6 +52,19 @@ def test_doc_explains_the_four_ranking_factors(doc_text: str, factor: str) -> No
 @pytest.mark.parametrize("reason", ["too faint", "never clears your horizon", "up too briefly"])
 def test_doc_explains_why_an_object_may_be_absent(doc_text: str, reason: str) -> None:
     assert reason in doc_text
+
+
+def test_doc_explains_ranking_judges_the_rest_of_the_night(doc_text: str) -> None:
+    # rank-remaining-night: once the night has started, the ranking judges what is left.
+    assert "rest of the night" in doc_text
+    assert "remaining_window" in doc_text
+
+
+def test_readme_targets_row_lists_the_remaining_window() -> None:
+    readme = (Path(__file__).resolve().parent.parent / "README.md").read_text(encoding="utf-8")
+    row = next(line for line in readme.splitlines() if line.startswith("| `targets` |"))
+    assert "`remaining_window`" in row
+    assert "still judge the whole night" not in readme
 
 
 def test_doc_explains_home_assistant_surface(doc_text: str) -> None:

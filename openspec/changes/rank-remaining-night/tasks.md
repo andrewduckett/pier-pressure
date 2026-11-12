@@ -14,7 +14,7 @@
 ## 3. Document, docs and the gate [depends-on: 2]
 
 - [x] 3.1 [medium] Regenerate the goldens with `PP_WRITE_GOLDENS=1`: every pre-dusk fixture differs from the committed one only by each target's added `remaining_window`, and the mid-session fixture's targets and "Top pick" line follow the remaining ranking (verify: uv run pytest tests/test_golden_verdict.py tests/test_producer_targets.py -q) (✓ uv run pytest tests/test_golden_verdict.py tests/test_producer_targets.py -q passed; with `remaining_window` removed, every pre-dusk golden equals the committed one)
-- [ ] 3.2 [easy] `docs/target-ranking.md` explains `remaining_window` and that ranking judges the rest of the night once it has started, and the README's `targets` row lists `remaining_window` (verify: uv run pytest tests/test_docs.py -q)
+- [x] 3.2 [easy] `docs/target-ranking.md` explains `remaining_window` and that ranking judges the rest of the night once it has started, and the README's `targets` row lists `remaining_window` (verify: uv run pytest tests/test_docs.py -q) (✓ uv run pytest tests/test_docs.py -q passed)
 - [ ] 3.3 [easy] The whole project gate is green (verify: mise run check)
 
 ## Deviations Ledger
@@ -23,3 +23,4 @@
 - 2.1: `test_the_equipment_joins_the_cache_key` is removed. Equipment has left the cache key (design D2), and `test_two_rigs_on_one_pier_share_a_scan_but_score_differently` now covers two rigs.
 - 2.4: the spec scenario "A target with a second stretch ahead is ranked on it" had a first stretch (90 minutes) shorter than its second (120 minutes). Since `window` is the longest stretch, its THEN lines could not both hold. The times now make the first stretch the longer one, at 23:15. The test cuts the catalog to M31 and three rivals, so that M31 makes the list between its two stretches.
 - 3.1: the mid-session golden pier has no equipment, so it carries no "Top pick" line. `test_mid_session_the_top_pick_follows_the_remaining_ranking` in `tests/test_producer_targets.py` covers that line instead. `test_a_window_not_worth_setting_up_for_carries_no_equipment_reason` now expects an empty target list 30 minutes before dawn, as the gate requirement says.
+- 3.2: the README paragraph that said targets "still judge the whole night" is rewritten, and `ranking.py`'s module docstring now describes the per-night scan and the remaining grid.

@@ -5,7 +5,8 @@ mask, it ranks the eligible catalog objects (``core/catalog``) into the top few
 worth pointing at, reusing the offline astronomy of ``core/sky`` (the pinned
 ephemeris and timescale) and the canonical horizon of ``core/horizon``. It has no
 Home Assistant, MQTT, or network imports — the boundary test enforces that — so
-the same ``(pier, selected night)`` yields a byte-identical target list.
+the same ``(pier, selected night, scoring instant)`` yields a byte-identical target
+list.
 
 The pipeline (design D3):
 
@@ -25,10 +26,14 @@ The pipeline (design D3):
    or the pool is exhausted. Every emitted target is therefore both refined
    (exact whole-second times) and gate-satisfying.
 
-The ranking's curve and weight parameters are fixed module constants (design
-D5/D6), so the ranking depends only on ``(pier, selected night)`` — including the
-pier's optional equipment, which shapes the field-of-view term — and is cached on that
-key.
+The coarse scan depends only on the pier's location, horizon and dark window, so it
+is cached per night and shared by every ranking that night, whatever the
+equipment. Steps 2 and 3 run per call over the remaining grid: the scoring
+instant, then the later grid points. Before dusk that is the whole-night grid, so
+the list is the whole-night ranking. Once the night has started, each target is
+gated and scored on its remaining window (rank-remaining-night design D2-D4).
+The curve and weight parameters are fixed module constants (design D5/D6), so the
+same pier, night and scoring instant always yield the same list.
 """
 
 from __future__ import annotations

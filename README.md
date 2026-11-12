@@ -481,7 +481,7 @@ hold every key except `timeline`, which would push them past Home Assistant's
 | `score` | 0–100 or `null` | The banded score when every gate passes; `null` when a gate fails. |
 | `confidence` | object | `{ band: LOW\|MEDIUM\|HIGH, value: 0–100 }`. Rises as dusk nears and the forecast firms up. |
 | `reasons` | list of strings | Each gate and score term, so the verdict explains itself. |
-| `targets` | list | Up to ten ranked targets. Each has `id`, `name`, `type`, `score`, `window`, `max_altitude`, `transit_time`, `moon_separation`, `size_arcmin`, `magnitude`, and `surface_brightness`. |
+| `targets` | list | Up to ten ranked targets. Each has `id`, `name`, `type`, `score`, `window`, `remaining_window`, `max_altitude`, `transit_time`, `moon_separation`, `size_arcmin`, `magnitude`, and `surface_brightness`. |
 | `dark_window` | object | Tonight's astronomical night: `{ start, end }`. |
 | `scored_window` | object | The part of `dark_window` that the verdict judged: `{ start, end }`. |
 | `moon` | object | The moon's illumination, phase, and behaviour during the dark window. |
@@ -510,9 +510,11 @@ always `dark_window.end`.
   a score of 0.
 - Both are `null` when `dark_window` is `null`.
 
-The `targets` still judge the whole night, so a target that has already set can
-stay on the list beside a verdict for the rest of the night. Issue #110 covers
-ranking only the rest of the night.
+The `targets` judge the same span. Once the night has started, each target is
+ranked on its `remaining_window`, its longest stretch above the horizon mask
+within `scored_window`. A target that has set drops off the list, and in the last
+hour of the night the list is empty. See
+[Target ranking](docs/target-ranking.md#once-the-night-has-started).
 
 **`moon`** always has `illumination` and `phase`. Its other fields are `null`
 when there is no dark window.

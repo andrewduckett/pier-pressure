@@ -23,7 +23,12 @@ verdict each time the core recomputes. Every target carries these fields:
 - **`score`:** the ranking score from 0 to 100. Higher is better placed tonight.
 - **`window`:** the observable window — `start` and `end` times (UTC) when the
   object is above your horizon mask and the sky is astronomically dark.
-- **`max_altitude`:** the highest the object climbs during that window, in degrees
+- **`remaining_window`:** the part of the night the target was ranked on, with a
+  `start` and an `end` (UTC). Before dusk it equals `window`. Once the night has
+  started, it is the object's longest stretch above your horizon mask from now
+  until the end of the dark window. See
+  [Once the night has started](#once-the-night-has-started).
+- **`max_altitude`:** the highest the object climbs during `window`, in degrees
   above the horizon.
 - **`transit_time`:** when the object crosses your meridian — its highest point for
   the day. This can fall in daylight for an object that stays up all night, so it
@@ -52,6 +57,9 @@ score. All four reward what makes an object easy to image well tonight:
   window. A target that peaks mid-window gives you its best view during the dark
   hours.
 
+Before dusk, all four factors judge the whole night. Once the night has started,
+they judge only the rest of it, as the next section explains.
+
 Altitude carries the most weight, then window length, then moon separation, then
 transit timing. These weights are fixed in the app version, so the ranking is the
 same for everyone running that version and does not drift between runs.
@@ -60,6 +68,31 @@ Brightness is **not** a ranking factor yet. A fainter but better-placed object c
 outrank a famous bright one, because equipment and field-of-view fit arrive in a
 later milestone. Until then, the ranking answers "what is best placed tonight?",
 not "what is easiest to see in a small scope?"
+
+### Once the night has started
+
+After astronomical dusk, the ranking judges the rest of the night only. Hours
+that have passed no longer count. Each target is ranked on its
+`remaining_window`, and the four factors are measured over that window:
+
+- **Altitude** and **moon separation** are read at the highest point the object
+  still reaches.
+- **Window length** is the remaining window's length as a share of the rest of
+  the night. A target that stays up until the dark window ends scores the full
+  amount.
+- **Transit timing** scores nothing once the object has crossed the meridian.
+
+So the scores and the order can change during the night, and the top pick can
+change with them. A target that has set drops off the list. So does a target with
+less than the minimum observing window left. In the last hour of the night, the
+list is empty.
+
+The other fields keep their whole-night meaning. `window`, `max_altitude`,
+`transit_time` and `moon_separation` describe the whole night, even after it has
+started. This means `remaining_window` can be a different stretch from `window`.
+For example, a tree can hide the object for part of the night. `window` is
+then its longest stretch of the whole night, and `remaining_window` is a later
+one.
 
 ## Why an object might be missing
 
@@ -73,7 +106,9 @@ An object you expected can be absent for three plain reasons:
   cannot be observed, so it is left out.
 - **Up too briefly:** if the object is above your horizon for less than the minimum
   observing window, it is dropped rather than listed with a low score. A target you
-  can only catch for a few minutes is not worth setting up for.
+  can only catch for a few minutes is not worth setting up for. Once the night has
+  started, this applies to the time left: a target that has set, or has less than
+  the minimum left, is dropped.
 
 The list is also capped at ten, so a well-placed object can rank just outside the
 top ten on a night crowded with good targets.
