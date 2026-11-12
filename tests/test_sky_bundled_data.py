@@ -10,12 +10,17 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Iterator
-from datetime import date
+from datetime import UTC, date, datetime
 
 import pytest
+from skyfield.errors import EphemerisRangeError
 from skyfield_data import expirations
 
 from pierpressure.core import sky
+from pierpressure.core.clock import FixedClock
+from pierpressure.core.producer import produce_verdict
+
+from .conftest import make_conditions, make_pier
 
 
 @pytest.fixture
@@ -36,3 +41,10 @@ def test_ephemeris_loads_without_warning_after_every_bundled_file_expires(
         eph = sky._ephemeris()
 
     assert eph["earth"] is not None
+
+
+def test_verdict_past_the_ephemeris_range_fails_naming_its_end() -> None:
+    clock = FixedClock(datetime(2060, 1, 1, 22, 0, tzinfo=UTC))
+
+    with pytest.raises(EphemerisRangeError, match="2053-10-09"):
+        produce_verdict(make_pier(), clock, make_conditions())
