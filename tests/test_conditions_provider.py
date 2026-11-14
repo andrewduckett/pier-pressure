@@ -345,7 +345,7 @@ def test_the_air_quality_issue_time_is_the_fetch_time() -> None:
 
 def test_every_variable_an_open_meteo_spec_declares_has_a_column() -> None:
     open_meteo_specs = [spec for key, spec in CATALOG.items() if key.startswith("open_meteo")]
-    assert len(open_meteo_specs) == 7
+    assert len(open_meteo_specs) == 8
     for spec in open_meteo_specs:
         assert set(spec.variables) <= COLUMNS.keys(), spec.key
 
@@ -372,6 +372,17 @@ def test_a_model_provider_asks_for_its_model_and_its_declared_variables_only() -
     assert "total_column_integrated_water_vapour" not in hourly
     assert not {COLUMNS[variable] for variable in SEEING_COLUMN} & set(hourly)
     assert hourly == [COLUMNS[variable] for variable in OPEN_METEO_HRDPS.variables]
+
+
+def test_the_ecmwf_model_asks_for_water_vapour_without_the_seeing_column() -> None:
+    [fetcher] = build_provider(["open_meteo_ecmwf"]).fetchers
+    assert isinstance(fetcher, OpenMeteoProvider)
+    request = _forecast_request(
+        _requests_of(lambda client: replace(fetcher, client=client), _load("open_meteo.json"))
+    )
+    hourly = request.url.params["hourly"].split(",")
+    assert {"precipitation_probability", "total_column_integrated_water_vapour"} <= set(hourly)
+    assert not {COLUMNS[variable] for variable in SEEING_COLUMN} & set(hourly)
 
 
 def test_the_open_meteo_class_still_points_at_the_best_match_spec() -> None:
@@ -1001,6 +1012,7 @@ def test_build_provider_passes_its_clock_to_open_meteo() -> None:
         ("open_meteo_rdps", "gem_regional"),
         ("open_meteo_icon", "icon_seamless"),
         ("open_meteo_gfs", "gfs_global"),
+        ("open_meteo_ecmwf", "ecmwf_ifs"),
     ],
 )
 def test_each_model_provider_names_exactly_its_own_model(key: str, model: str) -> None:
