@@ -12,8 +12,10 @@ from typing import Any
 
 import httpx
 import pytest
+from pydantic import ValidationError
 
 from pierpressure import __version__
+from pierpressure.conditions.metar import MetarFetcher, NoReport
 from pierpressure.conditions.nws import NwsProvider, parse_nws
 from pierpressure.conditions.open_meteo import COLUMNS, OpenMeteoProvider, parse_open_meteo
 from pierpressure.conditions.provider import (
@@ -28,7 +30,8 @@ from pierpressure.conditions.provider import (
 from pierpressure.conditions.seven_timer import SevenTimerProvider, parse_seven_timer
 from pierpressure.core.computed import computed_seeing, computed_transparency
 from pierpressure.core.conditions import SEEING_COLUMN, Conditions, Series
-from pierpressure.core.config import DEFAULT_PROVIDERS, PierConfig
+from pierpressure.core.config import DEFAULT_PROVIDERS, ConditionsConfig, PierConfig
+from pierpressure.core.observation import CloudLayer, Observation
 from pierpressure.core.providers import (
     CATALOG,
     NWS,
@@ -2129,3 +2132,109 @@ def test_computed_outcome_of_a_raising_derivation_is_failed_and_fills_nothing(
     )
     assert result.conditions == unlisted.get(make_pier()).conditions
     assert "43.65" in caplog.text
+
+
+# --------------------------------------------------------------------------- #
+# metar-reason DD2: the composite fetches the pier's METAR after the providers
+# --------------------------------------------------------------------------- #
+
+_METAR_OBSERVATION = Observation(
+    station="KBOS",
+    observed_at=datetime(2026, 10, 5, 17, 54, tzinfo=UTC),
+    cover="BKN",
+    clouds=(CloudLayer("BKN", 4200),),
+)
+
+
+class _StubMetar:
+    def __init__(self, *, error: Exception | None = None) -> None:
+        self._error = error
+        self.calls: list[str] = []
+
+    def fetch(self, station: str) -> Observation:
+        self.calls.append(station)
+        if self._error is not None:
+            raise self._error
+        return _METAR_OBSERVATION
+
+
+def _station_pier() -> PierConfig:
+    return make_pier().model_copy(update={"metar_station": "KBOS"})
+
+
+def _metar_composite(metar: _StubMetar) -> CompositeProvider:
+    return CompositeProvider(
+        fetchers=(_StubProvider(_BASE_FORECAST),), metar=metar, now=lambda: _FETCHED
+    )
+
+
+def test_a_pier_with_a_station_gets_its_metar_observation() -> None:
+    metar = _StubMetar()
+    result = _metar_composite(metar).get(_station_pier())
+    assert metar.calls == ["KBOS"]
+    assert result.observation == _METAR_OBSERVATION
+
+
+def test_the_metar_outcome_follows_the_provider_outcomes() -> None:
+    result = _metar_composite(_StubMetar()).get(_station_pier())
+    assert [o.key for o in result.outcomes] == ["open_meteo", "metar"]
+    assert result.outcomes[-1] == FetchOutcome(
+        key="metar",
+        name="METAR",
+        variables=(),
+        fetched_at=_FETCHED,
+        ok=True,
+        issued_at=_METAR_OBSERVATION.observed_at,
+    )
+
+
+def test_a_failed_metar_fetch_gives_no_observation_and_a_failed_outcome() -> None:
+    error = httpx.HTTPStatusError(
+        "boom",
+        request=httpx.Request("GET", "https://aviationweather.gov/api/data/metar"),
+        response=httpx.Response(503),
+    )
+    result = _metar_composite(_StubMetar(error=error)).get(_station_pier())
+    assert result.observation is None
+    outcome = result.outcomes[-1]
+    assert (outcome.key, outcome.ok, outcome.error, outcome.issued_at) == (
+        "metar",
+        False,
+        "HTTPStatusError: 503 Service Unavailable",
+        None,
+    )
+
+
+def test_a_metar_fetch_with_no_report_fails_with_no_report_returned() -> None:
+    result = _metar_composite(_StubMetar(error=NoReport("KZZZ"))).get(_station_pier())
+    assert result.observation is None
+    assert result.outcomes[-1].error == "no report returned"
+
+
+@pytest.mark.parametrize("error", [None, RuntimeError("down")], ids=["observed", "failed"])
+def test_a_metar_fetch_leaves_the_snapshot_unchanged(error: Exception | None) -> None:
+    observed = _metar_composite(_StubMetar(error=error)).get(_station_pier())
+    plain = _metar_composite(_StubMetar()).get(make_pier())
+    assert observed.conditions == plain.conditions
+
+
+def test_a_pier_with_no_station_makes_no_metar_call() -> None:
+    metar = _StubMetar()
+    result = _metar_composite(metar).get(make_pier())
+    assert metar.calls == []
+    assert result.observation is None
+    assert [o.key for o in result.outcomes] == ["open_meteo"]
+
+
+def test_build_provider_wires_the_real_metar_fetcher() -> None:
+    assert isinstance(build_provider(["open_meteo"]).metar, MetarFetcher)
+
+
+def test_build_provider_metar_keyword_replaces_the_real_fetcher() -> None:
+    metar = _StubMetar()
+    assert build_provider(["open_meteo"], metar=metar).metar is metar
+
+
+def test_listing_metar_as_a_provider_is_an_unknown_provider() -> None:
+    with pytest.raises(ValidationError, match="metar is not a known provider"):
+        ConditionsConfig(providers=["open_meteo", "metar"])

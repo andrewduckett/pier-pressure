@@ -16,7 +16,7 @@ from typing import Any, ClassVar
 import httpx
 
 from pierpressure.core.observation import CloudLayer, Observation
-from pierpressure.health import NO_REPORT
+from pierpressure.health import NO_REPORT, ProviderInfo
 
 from .nws import USER_AGENT
 
@@ -24,6 +24,10 @@ METAR_URL = "https://aviationweather.gov/api/data/metar"
 _TIMEOUT_SECONDS = 10.0
 # The same fixed User-Agent as NWS, so there is nothing to configure.
 _HEADERS = {"User-Agent": USER_AGENT}
+
+# Who reports METAR health. It is not a ProviderSpec and not in the catalog, so
+# ``metar`` in the provider order stays an unknown key. It fills no variable.
+METAR = ProviderInfo(key="metar", name="METAR", variables=())
 
 # Layer codes that say there is no cloud. A report can carry one as a layer
 # with no base; naming it would read "CLR at an unknown height".
