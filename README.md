@@ -199,7 +199,7 @@ conditions:
 | `go_threshold` | The score a night needs for `GO`. |
 | `max_gust` | Turns on the wind gate. Leave it out to ignore wind gusts. |
 | `dew_margin` | When the air temperature is less than this many °C above the dew point, the reasons say from which hour dew is likely, or frost at 0 °C or below. The default is 4. Set 0 to turn the line off. It never changes the verdict, score or confidence. |
-| `metar_station` | Optional. The code of an airport weather station near the pier, such as `EGLL` or `KBOS`: four letters or digits, starting with a letter, in any case. PierPressure then fetches that station's latest METAR report from aviationweather.gov on every recompute, and the reasons end with what it reported, such as `At 2026-11-14T20:54:00Z, KBOS reported few cloud at 3,000 ft and broken cloud at 4,200 ft.` A report more than 90 minutes old is not quoted. It never changes the verdict, score or confidence. Choose a station whose sky is close to yours. |
+| `metar_station` | Optional. The code of an airport weather station near the pier, such as `EGLL` or `KBOS`: four letters or digits, starting with a letter, in any case. PierPressure then fetches that station's latest METAR report from aviationweather.gov on every recompute, and the reasons end with what it reported, such as `At 2026-11-14T20:54:00Z, KBOS reported few cloud at 3,000 ft and broken cloud at 4,200 ft.` A report more than 90 minutes old is not quoted. When the report shows more cloud than this hour's low and mid cloud forecast, it lowers confidence, and a reason line says by how much. This check needs a cloud forecast with low and mid layers, which the Open-Meteo providers give and NWS and 7Timer! do not. The report never changes the verdict or score. Choose a station whose sky is close to yours. |
 | `horizon` | Exactly one of: `points` (a list of `[azimuth, altitude]` pairs), `min_altitude` (a flat floor in degrees), or `file` + `format`. Without it the horizon is flat at 0°. The only file format supported today is `nina` (a NINA `.hrz` export). `stellarium` and `telescopius` are recognised but rejected as not yet supported. |
 | `equipment` | Your telescope and camera. With equipment, targets are also ranked on how well they fit the field of view. |
 | `explainer` | The optional LLM summary. See [docs/llm-explainer.md](docs/llm-explainer.md). |
@@ -485,7 +485,7 @@ hold every key except `timeline`, which would push them past Home Assistant's
 | `generated_at` | timestamp | When this document was computed. |
 | `verdict` | `GO` \| `MAYBE` \| `NO-GO` | The decision. |
 | `score` | 0–100 or `null` | The banded score when every gate passes; `null` when a gate fails. |
-| `confidence` | object | `{ band: LOW\|MEDIUM\|HIGH, value: 0–100 }`. Rises as dusk nears and the forecast firms up. |
+| `confidence` | object | `{ band: LOW\|MEDIUM\|HIGH, value: 0–100 }`. Rises as dusk nears and the forecast firms up. Falls when the forecasts disagree or the airport reports more cloud than forecast. |
 | `reasons` | list of strings | Each gate and score term, so the verdict explains itself. |
 | `targets` | list | Up to ten ranked targets. Each has `id`, `name`, `type`, `score`, `window`, `remaining_window`, `max_altitude`, `transit_time`, `moon_separation`, `size_arcmin`, `magnitude`, and `surface_brightness`. |
 | `dark_window` | object | Tonight's astronomical night: `{ start, end }`. |

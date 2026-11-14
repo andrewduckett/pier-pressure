@@ -406,3 +406,32 @@ def test_the_verdict_document_table_documents_observation() -> None:
     [row] = [line for line in document.splitlines() if line.startswith("| `observation`")]
     for field in ("station", "observed_at", "cover", "clouds", "base_ft", "90 minutes"):
         assert field in row
+
+
+# --------------------------------------------------------------------------- #
+# metar-confidence 3.1: the README says the observation can lower confidence
+# --------------------------------------------------------------------------- #
+
+
+def _metar_station_row() -> str:
+    table = _section(_README.read_text(encoding="utf-8"), "## ⚙️ Configuration")
+    [row] = [line for line in table.splitlines() if line.startswith("| `metar_station`")]
+    return row
+
+
+def test_the_metar_station_row_says_a_cloudier_report_lowers_confidence() -> None:
+    row = _metar_station_row()
+    assert "lowers confidence" in row
+    assert "It never changes the verdict, score or confidence." not in row
+
+
+@pytest.mark.parametrize("fact", ["low and mid", "Open-Meteo", "NWS", "7Timer!"])
+def test_the_metar_station_row_says_which_forecasts_the_check_needs(fact: str) -> None:
+    assert fact in _metar_station_row()
+
+
+def test_the_confidence_row_names_disagreement_and_the_airport_report() -> None:
+    document = _section(_README.read_text(encoding="utf-8"), "### The verdict document")
+    [row] = [line for line in document.splitlines() if line.startswith("| `confidence`")]
+    assert "disagree" in row
+    assert "airport reports more cloud" in row

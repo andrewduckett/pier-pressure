@@ -12,7 +12,7 @@
 
 ## 3. Docs and the gate [depends-on: 2]
 
-- [ ] 3.1 [easy] The README's `metar_station` row says the observation lowers confidence when the report shows more cloud than this hour's low and mid cloud forecast, and that the check needs a cloud forecast with low and mid layers (the Open-Meteo providers, not NWS or 7Timer!); its `confidence` row says confidence also falls when the forecasts disagree or the airport reports more cloud than forecast (design DD7) (verify: uv run pytest tests/test_docs.py -q)
+- [x] 3.1 [easy] The README's `metar_station` row says the observation lowers confidence when the report shows more cloud than this hour's low and mid cloud forecast, and that the check needs a cloud forecast with low and mid layers (the Open-Meteo providers, not NWS or 7Timer!); its `confidence` row says confidence also falls when the forecasts disagree or the airport reports more cloud than forecast (design DD7) (verify: uv run pytest tests/test_docs.py -q) (✓ uv run pytest tests/test_docs.py -q passed)
 - [ ] 3.2 [easy] The whole project gate is green (verify: mise run check)
 
 ## Deviations Ledger
