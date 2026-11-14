@@ -794,6 +794,44 @@ def test_confidence_already_low_still_falls_when_forecasts_disagree() -> None:
     assert _value(instant, window, conditions, _DISAGREE) == 20
 
 
+_CONTRADICTED = ObservedTerm("KBOS", 100, 0)
+
+
+def test_confidence_falls_by_a_third_when_the_report_contradicts_the_forecast() -> None:
+    window = _window(10)
+    instant = window[0] - timedelta(hours=1)
+    conditions = _confident(window, instant, cloud_hours=3)
+    assert _value(instant, window, conditions, None) == 30
+    assert confidence(make_pier(), instant, window, conditions, observed=_CONTRADICTED)[1] == 20
+
+
+def test_confidence_with_disagreement_and_a_contradicting_report_stays_medium() -> None:
+    window = _window(10)
+    instant = window[0] - timedelta(hours=24)
+    conditions = _confident(window, instant)
+    assert _value(instant, window, conditions, None) == 50
+    assert confidence(
+        make_pier(), instant, window, conditions, _DISAGREE, observed=_CONTRADICTED
+    ) == (Band.MEDIUM, 40)
+
+
+def test_confidence_multiplies_the_agreement_and_observed_factors() -> None:
+    window = _window(10)
+    instant = window[0] - timedelta(hours=1)
+    conditions = _confident(window, instant)
+    mixed = ObservedTerm("KBOS", 62, 40)
+    assert confidence(make_pier(), instant, window, conditions, _MIXED, observed=mixed)[1] == 81
+
+
+def test_confidence_without_an_observed_term_is_unchanged() -> None:
+    window = _window(10)
+    instant = window[0] - timedelta(hours=1)
+    conditions = _confident(window, instant)
+    assert confidence(make_pier(), instant, window, conditions, _MIXED, observed=None) == (
+        confidence(make_pier(), instant, window, conditions, _MIXED)
+    )
+
+
 def test_confidence_ignores_an_alternates_issue_time() -> None:
     window = _window(10)
     instant = window[0] - timedelta(hours=1)

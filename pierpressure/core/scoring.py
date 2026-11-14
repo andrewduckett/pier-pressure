@@ -723,8 +723,9 @@ def confidence(
     window: tuple[datetime, datetime],
     conditions: Conditions,
     agreement: AgreementTerm | None = None,
+    observed: ObservedTerm | None = None,
 ) -> tuple[Band, int]:
-    """The forecast-based confidence ``(band, value)`` = ``max(floor, 100·L·F)·K·A``.
+    """The forecast-based confidence ``(band, value)`` = ``max(floor, 100·L·F)·K·A·O``.
 
     ``window`` is the scored window. Lead time over it equals lead time over the
     dark window: before dusk they are the same span, and once the night has begun
@@ -739,13 +740,16 @@ def confidence(
 
     The agreement factor ``A`` applies after the floor, like ``K``, so the floor
     cannot rescue a disagreeing night. It never takes a value at or above the
-    MEDIUM threshold below it (cloud-agreement DD4).
+    MEDIUM threshold below it (cloud-agreement DD4). The observed factor ``O``
+    multiplies with it, and the same clamp covers the product (metar-confidence
+    DD4).
     """
     lead = lead_time_factor(instant, window)
     fresh = freshness_factor(instant, conditions.issued_at("cloud_cover"))
     complete = completeness_factor(window, conditions, pier.max_gust)
     raw = max(_CONFIDENCE_FLOOR, lead * fresh) * complete * 100.0
-    value = round(raw * _agreement_factor(agreement))
+    observed_factor = observed.factor if observed is not None else 1.0
+    value = round(raw * _agreement_factor(agreement) * observed_factor)
     if round(raw) >= _BAND_MEDIUM:
         value = max(value, _BAND_MEDIUM)
     value = max(0, min(100, value))
