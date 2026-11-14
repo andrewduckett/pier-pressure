@@ -20,28 +20,48 @@ from datetime import datetime
 from .clock import Clock
 from .conditions import TIMELINE_VARIABLES, Conditions
 from .config import PierConfig
-from .model import Agreement, Confidence, DarkWindow, TimelineEntry, VerdictDocument
+from .model import (
+    Agreement,
+    CloudLayerEntry,
+    Confidence,
+    DarkWindow,
+    ObservationEntry,
+    TimelineEntry,
+    VerdictDocument,
+)
+from .observation import Observation, usable
 from .ranking import equipment_reasons, rank_targets
 from .scoring import MIN_USABLE_WINDOW, AgreementTerm, evaluate
 from .sky import altitudes_at, dark_window, moon_info
 
 
-def produce_verdict(pier: PierConfig, clock: Clock, conditions: Conditions) -> VerdictDocument:
+def produce_verdict(
+    pier: PierConfig,
+    clock: Clock,
+    conditions: Conditions,
+    observation: Observation | None = None,
+) -> VerdictDocument:
     """Produce the verdict document for ``pier`` at the injected clock instant.
 
     ``pier`` is an already-validated :class:`PierConfig`; ``conditions`` is the
     immutable per-variable value the provider layer obtained for this evaluation. The
     single evaluation instant comes from the injected ``clock`` and drives
     ``generated_at``, the astronomy, and the lead-time confidence, so the whole
-    document is a pure function of ``(pier, clock, conditions)``.
+    document is a pure function of ``(pier, clock, conditions, observation)``.
 
     When the selected night has no dark window, astronomy alone decides the
     verdict (a NO-GO) and ignores the conditions, matching the rule that no dark
     window means conditions are not required. The ``timeline`` still carries every
     hour the providers returned: it is evidence beside the verdict, never an input
     to it (ADR-0025).
+
+    ``observation`` is the pier's latest METAR, fetched beside ``conditions``. Like
+    the timeline it is evidence only: it reaches the document when it is usable
+    at the instant, and changes no gate, score or confidence (metar-reason DD1).
     """
     instant = clock.now()
+    if observation is not None and not usable(observation, instant):
+        observation = None
     window = dark_window(pier, instant)
     moon = moon_info(pier, window, instant)
     decision = evaluate(pier, instant, window, conditions, moon)
@@ -79,6 +99,18 @@ def produce_verdict(pier: PierConfig, clock: Clock, conditions: Conditions) -> V
         moon=moon,
         timeline=_timeline(pier, conditions),
         agreement=_agreement(decision.agreement),
+        observation=_observation_entry(observation),
+    )
+
+
+def _observation_entry(observation: Observation | None) -> ObservationEntry | None:
+    if observation is None:
+        return None
+    return ObservationEntry(
+        station=observation.station,
+        observed_at=observation.observed_at,
+        cover=observation.cover,
+        clouds=[CloudLayerEntry(cover=c.cover, base_ft=c.base_ft) for c in observation.clouds],
     )
 
 

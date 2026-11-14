@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -11,6 +12,7 @@ from pierpressure.core.clock import FixedClock
 from pierpressure.core.conditions import Conditions
 from pierpressure.core.config import PierConfig
 from pierpressure.core.model import Agreement, AgreementBand, MoonPhase, Verdict, VerdictDocument
+from pierpressure.core.observation import CloudLayer, Observation
 from pierpressure.core.producer import produce_verdict
 from pierpressure.core.providers import OPEN_METEO, OPEN_METEO_HRRR
 from pierpressure.delivery.mqtt import DeliveryError
@@ -189,3 +191,93 @@ def test_the_agreement_reason_precedes_the_equipment_notes() -> None:
     line = "Cloud agreement agree: 2 providers, spread 8 points."
     assert doc.reasons.count(line) == 1
     assert doc.reasons.index(line) > doc.reasons.index(f"Score {doc.score}/100.")
+
+
+# --------------------------------------------------------------------------- #
+# The document carries the pier's latest usable observation (metar-reason DD1)
+# --------------------------------------------------------------------------- #
+
+_EVENING = datetime(2026, 11, 14, 21, 30, tzinfo=UTC)
+_OBSERVED_AT = datetime(2026, 11, 14, 20, 54, tzinfo=UTC)
+_NOVEMBER_NIGHT = [datetime(2026, 11, 14, 12, tzinfo=UTC) + timedelta(hours=h) for h in range(24)]
+
+
+def _observation(observed_at: datetime = _OBSERVED_AT) -> Observation:
+    return Observation(
+        station="KBOS",
+        observed_at=observed_at,
+        cover="BKN",
+        clouds=(CloudLayer("FEW", 3000), CloudLayer("BKN", 4200)),
+    )
+
+
+def _november_conditions(cloud: float = 20.0) -> Conditions:
+    series = provider_series(
+        OPEN_METEO,
+        _NOVEMBER_NIGHT,
+        issued_at=datetime(2026, 11, 14, 18, tzinfo=UTC),
+        cloud_cover=cloud,
+        wind_gust=10.0,
+        temperature=8.0,
+        dew_point=2.0,
+    )
+    return Conditions(series=series)
+
+
+def _produce_at(
+    instant: datetime,
+    observation: Observation | None,
+    *,
+    conditions: Conditions | None = None,
+    pier: PierConfig | None = None,
+) -> VerdictDocument:
+    with no_network():
+        return produce_verdict(
+            pier or make_pier(),
+            FixedClock(instant),
+            conditions or _november_conditions(),
+            observation=observation,
+        )
+
+
+def test_a_usable_observation_fills_the_document_as_its_last_key() -> None:
+    payload = json.loads(_produce_at(_EVENING, _observation()).to_json())
+    assert payload["observation"] == {
+        "station": "KBOS",
+        "observed_at": "2026-11-14T20:54:00Z",
+        "cover": "BKN",
+        "clouds": [{"cover": "FEW", "base_ft": 3000}, {"cover": "BKN", "base_ft": 4200}],
+    }
+    assert list(payload)[-1] == "observation"
+
+
+def test_no_observation_gives_a_null_observation() -> None:
+    assert _produce_at(_EVENING, None).observation is None
+
+
+def test_an_observation_exactly_90_minutes_old_is_in_the_document() -> None:
+    doc = _produce_at(_OBSERVED_AT + timedelta(minutes=90), _observation())
+    assert doc.observation is not None
+    assert doc.observation.observed_at == _OBSERVED_AT
+
+
+def test_an_observation_91_minutes_old_gives_a_null_observation() -> None:
+    assert _produce_at(_OBSERVED_AT + timedelta(minutes=91), _observation()).observation is None
+
+
+def test_an_observation_measured_after_the_instant_gives_a_null_observation() -> None:
+    instant = datetime(2026, 11, 14, 20, 50, tzinfo=UTC)
+    assert _produce_at(instant, _observation()).observation is None
+
+
+def test_an_observation_changes_no_decision_field() -> None:
+    plain = _produce_at(_EVENING, None)
+    observed = _produce_at(_EVENING, _observation())
+    assert observed.observation is not None
+    assert (
+        observed.verdict,
+        observed.score,
+        observed.confidence,
+        observed.agreement,
+        observed.timeline,
+    ) == (plain.verdict, plain.score, plain.confidence, plain.agreement, plain.timeline)
