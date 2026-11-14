@@ -503,6 +503,7 @@ def build_provider(
     same clock. A model provider's issue time is its model's run start instead.
     ``metar`` replaces the real METAR fetcher, as ``fetchers`` replaces a provider.
     """
+    from .met_norway import MetNorwayProvider
     from .metar import MetarFetcher
     from .nws import NwsProvider
     from .open_meteo import MODELS, OpenMeteoProvider
@@ -512,6 +513,7 @@ def build_provider(
         OpenMeteoProvider.spec.key: lambda: OpenMeteoProvider(now=now),
         SevenTimerProvider.spec.key: SevenTimerProvider,
         NwsProvider.spec.key: NwsProvider,
+        MetNorwayProvider.spec.key: MetNorwayProvider,
         COMPUTED.key: ComputedSource,
     }
     for key, model in MODELS.items():

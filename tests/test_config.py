@@ -697,6 +697,22 @@ def test_the_default_order_leaves_out_nws(tmp_path: Path) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# met-norway-provider 1.1: MET Norway is a provider in the list
+# --------------------------------------------------------------------------- #
+
+
+def test_met_norway_alone_satisfies_the_cloud_rule(tmp_path: Path) -> None:
+    config = load_config(_with_conditions(tmp_path, "conditions:\n  providers: [met_norway]\n"))
+    assert config.conditions.providers == ["met_norway"]
+
+
+def test_the_default_order_leaves_out_met_norway(tmp_path: Path) -> None:
+    config = load_config(_with_conditions(tmp_path, ""))
+    assert config.conditions.providers == _DEFAULT_ORDER
+    assert "met_norway" not in config.conditions.providers
+
+
+# --------------------------------------------------------------------------- #
 # air-quality-provider 3.1: the air-quality forecast is a provider in the list
 # --------------------------------------------------------------------------- #
 
