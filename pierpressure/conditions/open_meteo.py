@@ -59,6 +59,7 @@ MODELS: Mapping[str, str] = {
     "open_meteo_rdps": "gem_regional",
     "open_meteo_icon": "icon_seamless",
     "open_meteo_gfs": "gfs_global",
+    "open_meteo_ecmwf": "ecmwf_ifs",
 }
 """The Open-Meteo ``models=`` value behind each model provider's key. It is a
 request detail, so it lives here rather than in the core spec (design D1)."""
@@ -77,6 +78,7 @@ RUN_METADATA: Mapping[str, str] = {
     "open_meteo_rdps": "cmc_gem_rdps_10km",
     "open_meteo_icon": "dwd_icon",
     "open_meteo_gfs": "ncep_gfs013",
+    "open_meteo_ecmwf": "ecmwf_ifs",
 }
 """The Open-Meteo metadata file behind each model provider's key. The forecast
 response carries no run time, so a model provider reads its run start from this

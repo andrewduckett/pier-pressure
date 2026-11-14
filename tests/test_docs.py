@@ -213,11 +213,48 @@ def test_the_model_limits_give_the_hours_each_model_is_asked_for() -> None:
     assert "asks every model for the 4 hours before now and the 72 after" in section
 
 
-@pytest.mark.parametrize("key", ["open_meteo_icon", "open_meteo_gfs"])
+@pytest.mark.parametrize("key", ["open_meteo_icon", "open_meteo_gfs", "open_meteo_ecmwf"])
 def test_the_model_table_says_the_global_models_reach_past_3_days(key: str) -> None:
     section = _section(_README.read_text(encoding="utf-8"), "### Choosing Open-Meteo models")
     [row] = [line for line in section.splitlines() if line.startswith(f"| `{key}`")]
     assert row.endswith("| More than 3 days |")
+
+
+# --------------------------------------------------------------------------- #
+# open-meteo-ecmwf 1.7: the README lists the ECMWF model provider
+# --------------------------------------------------------------------------- #
+
+
+def test_the_model_table_says_ecmwf_covers_the_whole_world() -> None:
+    section = _section(_README.read_text(encoding="utf-8"), "### Choosing Open-Meteo models")
+    assert "| `open_meteo_ecmwf` | `ecmwf_ifs` | The whole world | More than 3 days |" in section
+
+
+def test_the_configuration_table_counts_six_open_meteo_models() -> None:
+    assert "the six Open-Meteo models below" in _conditions_row()
+
+
+def test_the_water_vapour_sources_name_ecmwf() -> None:
+    section = _section(_README.read_text(encoding="utf-8"), "### Computing transparency")
+    [row] = [line for line in section.splitlines() if line.startswith("| `column_water_vapour`")]
+    assert "`open_meteo_ecmwf`" in row
+
+
+def test_the_seeing_section_says_why_ecmwf_does_not_declare_the_column() -> None:
+    section = _section(_README.read_text(encoding="utf-8"), "### Computing seeing")
+    assert "ECMWF sends no pressure-level temperatures or heights" in section
+
+
+def test_the_health_topic_list_names_ecmwf() -> None:
+    entities = _section(_README.read_text(encoding="utf-8"), "## 🏠 Home Assistant entities")
+    health_rows = [line for line in entities.splitlines() if "_health" in line]
+    assert health_rows
+    assert all("open_meteo_ecmwf" in row for row in health_rows)
+
+
+def test_the_clean_up_key_list_names_ecmwf() -> None:
+    removing = _section(_README.read_text(encoding="utf-8"), "### Removing the entities")
+    assert "`open_meteo_ecmwf`" in removing
 
 
 # --------------------------------------------------------------------------- #
@@ -332,3 +369,21 @@ def test_the_health_section_says_only_best_match_and_air_quality_stamp_the_fetch
     assert "Only `open_meteo` and `open_meteo_air_quality` stamp the fetch time" in health
     assert "This is true for each Open-Meteo model too" not in health
     assert "each Open-Meteo model" in health
+
+
+# --------------------------------------------------------------------------- #
+# open-meteo-ecmwf 1.8: the night-card Cloud range tip names ECMWF
+# --------------------------------------------------------------------------- #
+
+_NIGHT_CARD = _ROOT / "docs" / "night-card.md"
+
+
+def _cloud_range_tip() -> str:
+    text = _NIGHT_CARD.read_text(encoding="utf-8")
+    start = text.index("- **The strip has no Cloud range row.**")
+    return text[start : text.index("\n- **", start + 1)]
+
+
+@pytest.mark.parametrize("example", ["`open_meteo_ecmwf`", "**Open-Meteo ECMWF health**"])
+def test_the_night_card_cloud_range_tip_gives_ecmwf_as_its_example(example: str) -> None:
+    assert example in _cloud_range_tip()

@@ -345,7 +345,7 @@ def test_the_air_quality_issue_time_is_the_fetch_time() -> None:
 
 def test_every_variable_an_open_meteo_spec_declares_has_a_column() -> None:
     open_meteo_specs = [spec for key, spec in CATALOG.items() if key.startswith("open_meteo")]
-    assert len(open_meteo_specs) == 7
+    assert len(open_meteo_specs) == 8
     for spec in open_meteo_specs:
         assert set(spec.variables) <= COLUMNS.keys(), spec.key
 
@@ -372,6 +372,17 @@ def test_a_model_provider_asks_for_its_model_and_its_declared_variables_only() -
     assert "total_column_integrated_water_vapour" not in hourly
     assert not {COLUMNS[variable] for variable in SEEING_COLUMN} & set(hourly)
     assert hourly == [COLUMNS[variable] for variable in OPEN_METEO_HRDPS.variables]
+
+
+def test_the_ecmwf_model_asks_for_water_vapour_without_the_seeing_column() -> None:
+    [fetcher] = build_provider(["open_meteo_ecmwf"]).fetchers
+    assert isinstance(fetcher, OpenMeteoProvider)
+    request = _forecast_request(
+        _requests_of(lambda client: replace(fetcher, client=client), _load("open_meteo.json"))
+    )
+    hourly = request.url.params["hourly"].split(",")
+    assert {"precipitation_probability", "total_column_integrated_water_vapour"} <= set(hourly)
+    assert not {COLUMNS[variable] for variable in SEEING_COLUMN} & set(hourly)
 
 
 def test_the_open_meteo_class_still_points_at_the_best_match_spec() -> None:
@@ -1001,6 +1012,7 @@ def test_build_provider_passes_its_clock_to_open_meteo() -> None:
         ("open_meteo_rdps", "gem_regional"),
         ("open_meteo_icon", "icon_seamless"),
         ("open_meteo_gfs", "gfs_global"),
+        ("open_meteo_ecmwf", "ecmwf_ifs"),
     ],
 )
 def test_each_model_provider_names_exactly_its_own_model(key: str, model: str) -> None:
@@ -1025,6 +1037,7 @@ def test_each_model_provider_names_exactly_its_own_model(key: str, model: str) -
         ("open_meteo_rdps", "cmc_gem_rdps_10km"),
         ("open_meteo_icon", "dwd_icon"),
         ("open_meteo_gfs", "ncep_gfs013"),
+        ("open_meteo_ecmwf", "ecmwf_ifs"),
     ],
 )
 def test_each_model_provider_reads_its_own_metadata_file_before_the_forecast(
@@ -1054,15 +1067,15 @@ _RUN_START = datetime(2026, 11, 5, 18, 0, tzinfo=UTC)
 available at 21:55 the same day."""
 
 
-def test_a_model_provider_carries_its_run_start_as_the_issue_time() -> None:
-    stack = _open_meteo_stack(
-        ["open_meteo_rdps"],
-        {"gem_regional": httpx.Response(200, json=_load("open_meteo.json"))},
-    )
+@pytest.mark.parametrize(
+    ("key", "model"), [("open_meteo_rdps", "gem_regional"), ("open_meteo_ecmwf", "ecmwf_ifs")]
+)
+def test_a_model_provider_carries_its_run_start_as_the_issue_time(key: str, model: str) -> None:
+    stack = _open_meteo_stack([key], {model: httpx.Response(200, json=_load("open_meteo.json"))})
     result = stack.get(make_pier())
     assert result.conditions.series
     for series in result.conditions.series.values():
-        assert series.provider == "open_meteo_rdps"
+        assert series.provider == key
         assert series.issued_at == _RUN_START
     (outcome,) = result.outcomes
     assert outcome.ok
@@ -1104,7 +1117,8 @@ def test_a_composite_air_quality_fetch_fills_both_series() -> None:
 
 # --------------------------------------------------------------------------- #
 # open-meteo-models 3.1: each model's real response parses (design D6)
-# Trimmed live recordings at Toronto (43.65, -79.38), fetched 2026-11-02 UTC.
+# Trimmed live recordings at Toronto (43.65, -79.38), fetched 2026-11-02 UTC;
+# ECMWF's was fetched 2026-11-14 UTC (open-meteo-ecmwf D7).
 # --------------------------------------------------------------------------- #
 
 
@@ -1112,13 +1126,30 @@ def _recording(model: str) -> SourceForecast:
     return parse_open_meteo(_load(f"open_meteo_{model}.json"), issued_at=_ISSUED)
 
 
-@pytest.mark.parametrize("model", ["hrrr", "hrdps", "rdps", "icon", "gfs"])
+@pytest.mark.parametrize("model", ["hrrr", "hrdps", "rdps", "icon", "gfs", "ecmwf"])
 def test_each_models_recording_parses_into_four_hours_of_readings(model: str) -> None:
     forecast = _recording(model)
     assert len(forecast.readings) == 4
     first = forecast.readings[min(forecast.readings)]
     for variable in ("cloud_cover", "cloud_low", "wind_gust", "temperature", "wind_direction"):
         assert getattr(first, variable) is not None, variable
+
+
+def test_every_hour_of_the_ecmwf_recording_has_cloud_weather_and_water_vapour() -> None:
+    forecast = _recording("ecmwf")
+    assert len(forecast.readings) == 4
+    for reading in forecast.readings.values():
+        for variable in (
+            "cloud_cover",
+            "cloud_low",
+            "cloud_mid",
+            "cloud_high",
+            "wind_gust",
+            "temperature",
+            "precipitation_probability",
+            "column_water_vapour",
+        ):
+            assert getattr(reading, variable) is not None, variable
 
 
 @pytest.mark.parametrize("model", ["hrdps", "rdps"])
@@ -1199,6 +1230,35 @@ def test_water_vapour_comes_from_the_next_provider_that_declares_it() -> None:
     series = stack.get(make_pier()).conditions.series
     assert series["cloud_cover"].provider == "open_meteo_hrdps"
     assert series["column_water_vapour"].provider == "open_meteo_gfs"
+
+
+def test_water_vapour_can_come_from_ecmwf() -> None:
+    stack = _open_meteo_stack(
+        ["open_meteo_hrdps", "open_meteo_ecmwf"],
+        {
+            "gem_hrdps_continental": httpx.Response(200, json=_load("open_meteo.json")),
+            "ecmwf_ifs": httpx.Response(200, json=_load("open_meteo.json")),
+        },
+    )
+    series = stack.get(make_pier()).conditions.series
+    assert series["column_water_vapour"].provider == "open_meteo_ecmwf"
+
+
+def test_the_seeing_column_comes_from_a_later_model_than_ecmwf() -> None:
+    # ECMWF is answered with the whole column, so only its declaration keeps it
+    # from filling the bundle.
+    answer = _with_seeing_column(_load("open_meteo.json"))
+    stack = _open_meteo_stack(
+        ["open_meteo_ecmwf", "open_meteo_gfs"],
+        {
+            "ecmwf_ifs": httpx.Response(200, json=answer),
+            "gfs_global": httpx.Response(200, json=answer),
+        },
+    )
+    series = stack.get(make_pier()).conditions.series
+    for variable in ("cloud_cover", "cloud_low", "cloud_mid", "cloud_high"):
+        assert series[variable].provider == "open_meteo_ecmwf"
+    assert {series[variable].provider for variable in SEEING_COLUMN} == {"open_meteo_gfs"}
 
 
 def _model_answer(payload: dict, **seeing: float | None) -> httpx.Response:

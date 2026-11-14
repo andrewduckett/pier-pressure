@@ -418,12 +418,12 @@ find your **Verdict** sensor under **Settings** > **Entities**. Then use, as
   There are two causes:
   - Only one provider in the `providers` list under `conditions` gives cloud
     cover. With the default list, only Open-Meteo does. Add a second provider
-    that gives cloud cover, such as an Open-Meteo model like `open_meteo_icon`,
+    that gives cloud cover, such as an Open-Meteo model like `open_meteo_ecmwf`,
     in the [configuration](../README.md#%EF%B8%8F-configuration). The add-on's
     Configuration tab has no `conditions` setting, so for the add-on, set it in
     the `config.yaml` in the add-on's config folder.
   - A listed cloud provider failed for a whole fetch. Check that provider's
-    health sensor, such as **Open-Meteo ICON health**. See
+    health sensor, such as **Open-Meteo ECMWF health**. See
     [Watching provider health](../README.md#watching-provider-health).
 - **"No astronomical darkness tonight".** The sun stays less than 18° below
   the horizon all night, as in summer far from the equator. Nothing is wrong.
