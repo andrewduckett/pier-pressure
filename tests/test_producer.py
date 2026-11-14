@@ -270,19 +270,6 @@ def test_an_observation_measured_after_the_instant_gives_a_null_observation() ->
     assert _produce_at(instant, _observation()).observation is None
 
 
-def test_an_observation_changes_no_decision_field() -> None:
-    plain = _produce_at(_EVENING, None)
-    observed = _produce_at(_EVENING, _observation())
-    assert observed.observation is not None
-    assert (
-        observed.verdict,
-        observed.score,
-        observed.confidence,
-        observed.agreement,
-        observed.timeline,
-    ) == (plain.verdict, plain.score, plain.confidence, plain.agreement, plain.timeline)
-
-
 _OBSERVATION_LINE = (
     "At 2026-11-14T20:54:00Z, KBOS reported few cloud at 3,000 ft and broken cloud at 4,200 ft."
 )
@@ -458,7 +445,7 @@ def test_high_cloud_does_not_change_the_observed_confidence() -> None:
     assert cirrus.confidence == clear_aloft.confidence
 
 
-def test_an_observed_report_changes_no_verdict_score_agreement_or_timeline() -> None:
+def test_an_observation_changes_no_verdict_score_agreement_or_timeline() -> None:
     conditions = _sky(0.0, 0.0)
     plain = _produce_at(_EVENING, None, conditions=conditions)
     observed = _produce_at(_EVENING, _OVERCAST, conditions=conditions)

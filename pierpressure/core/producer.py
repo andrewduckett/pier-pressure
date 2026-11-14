@@ -55,9 +55,10 @@ def produce_verdict(
     hour the providers returned: it is evidence beside the verdict, never an input
     to it (ADR-0025).
 
-    ``observation`` is the pier's latest METAR, fetched beside ``conditions``. Like
-    the timeline it is evidence only: it reaches the document when it is usable
-    at the instant, and changes no gate, score or confidence (metar-reason DD1).
+    ``observation`` is the pier's latest METAR, fetched beside ``conditions``. It
+    reaches the document when it is usable at the instant (metar-reason DD1), and
+    changes no gate, score, agreement or timeline. It can lower the confidence when
+    it reports more cloud than this hour's forecast (metar-confidence DD5).
     """
     instant = clock.now()
     if observation is not None and not usable(observation, instant):
