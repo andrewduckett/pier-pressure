@@ -8,11 +8,13 @@ import pytest
 
 from pierpressure.core.conditions import Conditions, Series, Variable
 from pierpressure.core.model import AgreementBand, Band, Moon, MoonPhase, Verdict
+from pierpressure.core.observation import CloudLayer, Observation
 from pierpressure.core.scoring import (
     AGREE_MAX_GAP,
     MIXED_MAX_GAP,
     OVERCAST_EPSILON,
     AgreementTerm,
+    ObservedTerm,
     assemble_score,
     atmosphere_mean,
     clarity_weight,
@@ -27,6 +29,7 @@ from pierpressure.core.scoring import (
     hour_slots,
     moon_penalty,
     moon_up_at,
+    observed_term,
     optional_term_mean,
     score_terms,
 )
@@ -1084,3 +1087,100 @@ def test_temperature_and_dew_point_dew_changes_nothing_else(
     assert after.reasons[: len(before.reasons)] == before.reasons
     assert len(extra) <= 1
     assert all(line.startswith(("Dew likely from ", "Frost likely from ")) for line in extra)
+
+
+# --------------------------------------------------------------------------- #
+# The observed cloud against this hour's forecast (metar-confidence DD2, DD3)
+# --------------------------------------------------------------------------- #
+
+_OBSERVED_INSTANT = datetime(2026, 11, 14, 21, 30, tzinfo=UTC)
+_BKN = Observation(
+    station="KBOS",
+    observed_at=datetime(2026, 11, 14, 20, 54, tzinfo=UTC),
+    cover="BKN",
+    clouds=(CloudLayer("BKN", 4200),),
+)
+
+
+def _layers(per_variable: dict[Variable, dict[datetime, float]]) -> Conditions:
+    """Conditions holding one series per variable, such as ``{"cloud_low": {slot: 20.0}}``."""
+    return Conditions(
+        series={
+            variable: Series(provider="a", issued_at=None, values=values)
+            for variable, values in per_variable.items()
+        }
+    )
+
+
+def _hour(hour: int) -> datetime:
+    return datetime(2026, 11, 14, hour, 0, tzinfo=UTC)
+
+
+def test_observed_term_combines_low_and_mid_cloud_as_independent_layers() -> None:
+    conditions = _layers({"cloud_low": {_hour(21): 10.0}, "cloud_mid": {_hour(21): 10.0}})
+    term = observed_term(_OBSERVED_INSTANT, conditions, _BKN)
+    assert term == ObservedTerm("KBOS", 62, 19)
+
+
+def test_observed_term_reads_the_hour_that_holds_the_instant() -> None:
+    conditions = _layers(
+        {
+            "cloud_low": {_hour(20): 90.0, _hour(21): 20.0},
+            "cloud_mid": {_hour(20): 90.0, _hour(21): 0.0},
+        }
+    )
+    term = observed_term(_OBSERVED_INSTANT, conditions, _BKN)
+    assert term is not None
+    assert term.gap == 42
+
+
+def test_observed_term_ignores_high_cloud() -> None:
+    def with_high(high: float) -> Conditions:
+        return _layers(
+            {
+                "cloud_low": {_hour(21): 20.0},
+                "cloud_mid": {_hour(21): 0.0},
+                "cloud_high": {_hour(21): high},
+            }
+        )
+
+    clear_aloft = observed_term(_OBSERVED_INSTANT, with_high(0.0), _BKN)
+    cirrus = observed_term(_OBSERVED_INSTANT, with_high(100.0), _BKN)
+    assert clear_aloft == cirrus
+
+
+def test_observed_term_is_none_without_an_observation() -> None:
+    conditions = _layers({"cloud_low": {_hour(21): 20.0}, "cloud_mid": {_hour(21): 0.0}})
+    assert observed_term(_OBSERVED_INSTANT, conditions, None) is None
+
+
+@pytest.mark.parametrize(
+    "conditions",
+    [
+        pytest.param(_layers({"cloud_low": {_hour(21): 20.0}}), id="no-mid"),
+        pytest.param(_layers({"cloud_mid": {_hour(21): 20.0}}), id="no-low"),
+        pytest.param(
+            _layers({"cloud_low": {_hour(20): 20.0}, "cloud_mid": {_hour(20): 0.0}}),
+            id="other-hour",
+        ),
+    ],
+)
+def test_observed_term_is_none_without_low_and_mid_cloud_for_the_hour(
+    conditions: Conditions,
+) -> None:
+    assert observed_term(_OBSERVED_INSTANT, conditions, _BKN) is None
+
+
+@pytest.mark.parametrize(
+    ("observed", "forecast", "factor"),
+    [
+        pytest.param(100, 0, 0.67, id="gap-100"),
+        pytest.param(62, 26, 0.67, id="gap-36"),
+        pytest.param(62, 27, 0.90, id="gap-35"),
+        pytest.param(62, 47, 0.90, id="gap-15"),
+        pytest.param(62, 48, 1.0, id="gap-14"),
+        pytest.param(0, 80, 1.0, id="less-cloud"),
+    ],
+)
+def test_observed_factor_follows_the_gap_bands(observed: int, forecast: int, factor: float) -> None:
+    assert ObservedTerm("KBOS", observed, forecast).factor == factor

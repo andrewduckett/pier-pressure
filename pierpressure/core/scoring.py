@@ -40,6 +40,7 @@ from datetime import datetime, timedelta
 from .conditions import Conditions, Variable
 from .config import PierConfig
 from .model import AgreementBand, Band, Moon, Verdict, iso_z
+from .observation import Observation, observed_cloud
 
 _HOUR = timedelta(hours=1)
 
@@ -661,6 +662,59 @@ def _agreement_factor(agreement: AgreementTerm | None) -> float:
         AgreementBand.MIXED: _A_MIXED,
         AgreementBand.DISAGREE: _A_DISAGREE,
     }[agreement.band]
+
+
+@dataclass(frozen=True)
+class ObservedTerm:
+    """A station's observed cloud against this hour's forecast low and mid cloud.
+
+    ``observed`` is the report's :func:`~pierpressure.core.observation.observed_cloud`
+    and ``forecast`` the hour's low and mid cloud combined, both in whole points.
+    """
+
+    station: str
+    observed: int
+    forecast: int
+
+    @property
+    def gap(self) -> int:
+        """How far the report is above the forecast; negative when it shows less cloud."""
+        return self.observed - self.forecast
+
+    @property
+    def factor(self) -> float:
+        """``O``: the agreement's bands and factors, applied to the gap.
+
+        The same band reasoning holds for a report against a forecast as for two
+        forecasts, so the numbers are shared; a later change can split them
+        (metar-confidence DD2). A report can only confirm cloud, so less cloud is 1.
+        """
+        if self.gap < AGREE_MAX_GAP:
+            return 1.0
+        if self.gap <= MIXED_MAX_GAP:
+            return _A_MIXED
+        return _A_DISAGREE
+
+
+def observed_term(
+    instant: datetime, conditions: Conditions, observation: Observation | None
+) -> ObservedTerm | None:
+    """The observation against the hour that holds ``instant``, or ``None``.
+
+    ``None`` without an observation, or without both a low and a mid value for
+    that hour. High cloud never counts: a station sees no higher than 12,000 ft.
+    The layers combine as independent covers, the larger plausible forecast, so a
+    thin pair of layers is not mistaken for a contradiction (metar-confidence DD3).
+    """
+    if observation is None:
+        return None
+    slot = instant.replace(minute=0, second=0, microsecond=0)
+    low = conditions.value_at("cloud_low", slot)
+    mid = conditions.value_at("cloud_mid", slot)
+    if low is None or mid is None:
+        return None
+    forecast = round(low + mid - low * mid / 100.0)
+    return ObservedTerm(observation.station, observed_cloud(observation), forecast)
 
 
 def confidence(
