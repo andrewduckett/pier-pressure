@@ -199,11 +199,11 @@ conditions:
 | `go_threshold` | The score a night needs for `GO`. |
 | `max_gust` | Turns on the wind gate. Leave it out to ignore wind gusts. |
 | `dew_margin` | When the air temperature is less than this many °C above the dew point, the reasons say from which hour dew is likely, or frost at 0 °C or below. The default is 4. Set 0 to turn the line off. It never changes the verdict, score or confidence. |
-| `metar_station` | Optional. The code of an airport weather station near the pier, such as `EGLL` or `KBOS`: four letters or digits, starting with a letter, in any case. PierPressure then fetches that station's latest METAR report from aviationweather.gov on every recompute, and the reasons end with what it reported, such as `At 2026-11-14T20:54:00Z, KBOS reported few cloud at 3,000 ft and broken cloud at 4,200 ft.` A report more than 90 minutes old is not quoted. When the report shows more cloud than this hour's low and mid cloud forecast, it lowers confidence, and a reason line says by how much. This check needs a cloud forecast with low and mid layers, which the Open-Meteo providers give and NWS and 7Timer! do not. The report never changes the verdict or score. Choose a station whose sky is close to yours. |
+| `metar_station` | Optional. The code of an airport weather station near the pier, such as `EGLL` or `KBOS`: four letters or digits, starting with a letter, in any case. PierPressure then fetches that station's latest METAR report from aviationweather.gov on every recompute, and the reasons end with what it reported, such as `At 2026-11-14T20:54:00Z, KBOS reported few cloud at 3,000 ft and broken cloud at 4,200 ft.` A report more than 90 minutes old is not quoted. When the report shows more cloud than this hour's low and mid cloud forecast, it lowers confidence, and a reason line says by how much. This check needs a cloud forecast with low and mid layers, which the Open-Meteo providers and MET Norway give and NWS and 7Timer! do not. The report never changes the verdict or score. Choose a station whose sky is close to yours. |
 | `horizon` | Exactly one of: `points` (a list of `[azimuth, altitude]` pairs), `min_altitude` (a flat floor in degrees), or `file` + `format`. Without it the horizon is flat at 0°. The only file format supported today is `nina` (a NINA `.hrz` export). `stellarium` and `telescopius` are recognised but rejected as not yet supported. |
 | `equipment` | Your telescope and camera. With equipment, targets are also ranked on how well they fit the field of view. |
 | `explainer` | The optional LLM summary. See [docs/llm-explainer.md](docs/llm-explainer.md). |
-| `conditions` | Optional. `providers` lists the weather providers, preferred first. The default is `[open_meteo, seven_timer, open_meteo_air_quality, computed]`. Each forecast variable, such as cloud cover or seeing, comes from the first provider in the list that returned it. PierPressure will not start if the list is empty, names an unknown provider, names a provider more than once, or has no provider that needs no key and supplies cloud cover. The providers are `open_meteo`, the six Open-Meteo models below, `open_meteo_air_quality` for the air-quality forecast, `nws` for the National Weather Service, `seven_timer`, and `computed`, which computes transparency and seeing from other providers' values. |
+| `conditions` | Optional. `providers` lists the weather providers, preferred first. The default is `[open_meteo, seven_timer, open_meteo_air_quality, computed]`. Each forecast variable, such as cloud cover or seeing, comes from the first provider in the list that returned it. PierPressure will not start if the list is empty, names an unknown provider, names a provider more than once, or has no provider that needs no key and supplies cloud cover. The providers are `open_meteo`, the six Open-Meteo models below, `open_meteo_air_quality` for the air-quality forecast, `nws` for the National Weather Service, `met_norway` for MET Norway, `seven_timer`, and `computed`, which computes transparency and seeing from other providers' values. |
 
 ### Choosing Open-Meteo models
 
@@ -301,6 +301,53 @@ Before you choose, know these limits:
   `ok`. Look for the empty value on the timeline.
 - **It reaches 72 hours.** NWS forecasts about 7 days ahead. PierPressure keeps
   the first 72 hours, so listing NWS never lengthens the timeline.
+
+### Adding MET Norway
+
+`met_norway` reads the Locationforecast from MET Norway, the Norwegian
+Meteorological Institute. It covers the whole world, needs no API key, and does
+not depend on Open-Meteo, so it keeps a cloud forecast coming when Open-Meteo
+fails. It gives total cloud cover with low, mid and high layers, wind speed,
+gust and direction, temperature, dew point, humidity and precipitation
+probability.
+
+To keep it as a fallback, list it after an Open-Meteo provider:
+
+```yaml
+conditions:
+  providers: [open_meteo, met_norway, seven_timer, open_meteo_air_quality, computed]
+```
+
+Open-Meteo then fills cloud cover, and MET Norway's cloud cover is kept beside
+it to measure how well the forecasts agree. If Open-Meteo fails, MET Norway
+fills cloud cover and its layers.
+
+Before you choose, know these limits:
+
+- **Gust and rain chance come only near the Nordic countries.** Elsewhere MET
+  Norway leaves them out. The fetch still succeeds, and the next provider in the
+  list that has them fills them. If you rely on the gust gate, list another
+  provider with gust after `met_norway`.
+- **Wind is converted from m/s.** MET Norway gives wind speed and gust in metres
+  per second. PierPressure multiplies them by 3.6 to give km/h, like every other
+  provider's wind. A value in any other unit is left empty rather than
+  converted, and the health sensor stays `ok`.
+- **It keeps only the hourly part.** MET Norway forecasts hourly for about two
+  and a half days, then 6-hourly. PierPressure drops the 6-hourly steps and
+  keeps at most 72 hours, so listing MET Norway never lengthens the timeline.
+  Its last hours may end sooner than Open-Meteo's.
+- **It is asked again only when its forecast expires.** MET Norway's terms
+  forbid asking again before the time in a response's `Expires` header. Until
+  then PierPressure reuses the last forecast it got for that pier, even when
+  you press **Refresh**. After that, it asks with
+  an `If-Modified-Since` header, and MET Norway answers "not modified" when
+  nothing changed. Either way the health sensor shows a success, with the
+  forecast's own issue time. The forecast is kept in memory until PierPressure
+  restarts, and a failed fetch forgets it.
+- **Every request names PierPressure.** MET Norway asks callers to identify
+  themselves, so each request carries the same fixed `User-Agent` header as
+  NWS requests. There is nothing to set. The pier's coordinates are sent
+  rounded to 4 decimal places, as the terms ask.
 
 ### Adding the air-quality forecast
 
@@ -457,7 +504,7 @@ connection, the broker sends PierPressure's last-will message instead.
 | Purpose | Topic | Retained |
 |---|---|---|
 | Discovery configs | `homeassistant/<sensor\|button>/pierpressure_<pier>/<verdict\|score\|top_target\|target_<n>\|cloud_cover\|cloud_low\|cloud_mid\|cloud_high\|wind_gust\|seeing\|transparency\|sun_altitude\|moon_altitude\|temperature\|dew_point\|humidity\|wind_speed\|wind_direction\|precipitation_probability\|cloud_cover_min\|cloud_cover_max\|narrative\|refresh>/config` | yes |
-| Health discovery configs | `homeassistant/sensor/pierpressure_<pier>/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|open_meteo_ecmwf\|open_meteo_air_quality\|nws\|seven_timer\|computed\|metar>_health/config` | yes |
+| Health discovery configs | `homeassistant/sensor/pierpressure_<pier>/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|open_meteo_ecmwf\|open_meteo_air_quality\|nws\|met_norway\|seven_timer\|computed\|metar>_health/config` | yes |
 | Verdict state | `pierpressure/<pier>/verdict/state` | yes |
 | Verdict attributes (the document without `timeline`) | `pierpressure/<pier>/verdict/attributes` | yes |
 | Top target state and list | `pierpressure/<pier>/top_target/state`, `.../top_target/attributes` | yes |
@@ -465,7 +512,7 @@ connection, the broker sends PierPressure's last-will message instead.
 | Cloud cover state and forecast | `pierpressure/<pier>/cloud_cover/state`, `.../cloud_cover/attributes` | yes |
 | Timeline sensor state and forecast, where `<var>` is `cloud_low`, `cloud_mid`, `cloud_high`, `wind_gust`, `seeing`, `transparency`, `sun_altitude`, `moon_altitude`, `temperature`, `dew_point`, `humidity`, `wind_speed`, `wind_direction`, `precipitation_probability`, `cloud_cover_min` or `cloud_cover_max` | `pierpressure/<pier>/<var>/state`, `.../<var>/attributes` | yes |
 | Narrative state and text | `pierpressure/<pier>/narrative/state`, `.../narrative/attributes` | yes |
-| Provider health state and details | `pierpressure/<pier>/health/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|open_meteo_ecmwf\|open_meteo_air_quality\|nws\|seven_timer\|computed\|metar>/state`, `.../attributes` | yes |
+| Provider health state and details | `pierpressure/<pier>/health/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|open_meteo_ecmwf\|open_meteo_air_quality\|nws\|met_norway\|seven_timer\|computed\|metar>/state`, `.../attributes` | yes |
 | Refresh command | `pierpressure/<pier>/refresh/command` | no |
 | Availability | `pierpressure/status` | yes |
 
@@ -579,7 +626,8 @@ easy to miss. The health sensors show each failure as it happens.
 Each pier has one diagnostic sensor per configured provider: **Open-Meteo
 health**, **7Timer! health**, **Open-Meteo air quality health** and **Computed
 health** by default. Each Open-Meteo model you list adds
-its own, such as **Open-Meteo HRRR health**, and `nws` adds **NWS health**. A
+its own, such as **Open-Meteo HRRR health**, `nws` adds **NWS health**, and
+`met_norway` adds **MET Norway health**. A
 pier with a `metar_station` also has **METAR health**. Its `variables` is `[]`,
 because a report fills no forecast variable, and its `issued_at` is when the
 station measured. A fetch that returns no report fails with `no report
@@ -700,10 +748,10 @@ for e in sensor/pierpressure_backyard/verdict sensor/pierpressure_backyard/score
 done
 ```
 
-If you listed Open-Meteo models or NWS, add each one's health sensor to the list,
-such as `sensor/pierpressure_backyard/open_meteo_hrrr_health`. The keys are
-`open_meteo_hrrr`, `open_meteo_hrdps`, `open_meteo_rdps`, `open_meteo_icon`,
-`open_meteo_gfs`, `open_meteo_ecmwf` and `nws`. If the pier has a
+If you listed Open-Meteo models, NWS or MET Norway, add each one's health sensor
+to the list, such as `sensor/pierpressure_backyard/open_meteo_hrrr_health`. The
+keys are `open_meteo_hrrr`, `open_meteo_hrdps`, `open_meteo_rdps`,
+`open_meteo_icon`, `open_meteo_gfs`, `open_meteo_ecmwf`, `nws` and `met_norway`. If the pier has a
 `metar_station`, also add `sensor/pierpressure_backyard/metar_health`.
 
 **Removing one provider.** When you take a provider out of the `conditions` list,

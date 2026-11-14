@@ -435,3 +435,53 @@ def test_the_confidence_row_names_disagreement_and_the_airport_report() -> None:
     [row] = [line for line in document.splitlines() if line.startswith("| `confidence`")]
     assert "disagree" in row
     assert "airport reports more cloud" in row
+
+
+# --------------------------------------------------------------------------- #
+# met-norway-provider 1.10: the README documents the MET Norway provider
+# --------------------------------------------------------------------------- #
+
+
+def test_the_configuration_table_names_met_norway() -> None:
+    assert "`met_norway`" in _conditions_row()
+
+
+def test_the_health_topic_list_names_met_norway() -> None:
+    entities = _section(_README.read_text(encoding="utf-8"), "## 🏠 Home Assistant entities")
+    health_rows = [line for line in entities.splitlines() if "_health" in line]
+    assert health_rows
+    assert all("met_norway" in row for row in health_rows)
+
+
+def test_the_health_sensor_list_names_met_norway_health() -> None:
+    section = _section(_README.read_text(encoding="utf-8"), "### Watching provider health")
+    assert "**MET Norway health**" in section
+
+
+def test_the_clean_up_key_list_names_met_norway() -> None:
+    section = _section(_README.read_text(encoding="utf-8"), "### Removing the entities")
+    [paragraph] = [p for p in section.split("\n\n") if p.startswith("If you listed")]
+    assert "`met_norway`" in paragraph
+
+
+def test_the_metar_station_row_names_met_norway_among_the_layered_forecasts() -> None:
+    row = _metar_station_row()
+    assert "the Open-Meteo providers and MET Norway give" in row
+
+
+@pytest.mark.parametrize(
+    "fact",
+    [
+        "Nordic",
+        "m/s",
+        "km/h",
+        "6-hourly",
+        "72 hours",
+        "`Expires`",
+        "If-Modified-Since",
+        "User-Agent",
+    ],
+)
+def test_the_met_norway_section_explains_its_limits(fact: str) -> None:
+    section = _section(_README.read_text(encoding="utf-8"), "### Adding MET Norway")
+    assert fact in section
