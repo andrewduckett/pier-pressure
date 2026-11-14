@@ -10,9 +10,10 @@ network.
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
+from email.utils import parsedate_to_datetime
 from typing import Any, ClassVar
 
 import httpx
@@ -125,25 +126,81 @@ def parse_met_norway(payload: dict[str, Any]) -> SourceForecast:
     )
 
 
+def _utcnow() -> datetime:
+    return datetime.now(UTC)
+
+
+def _expires(response: httpx.Response) -> datetime | None:
+    """The response's ``Expires`` time, or ``None`` when it is missing or unreadable."""
+    try:
+        return parsedate_to_datetime(response.headers["Expires"]).astimezone(UTC)
+    except KeyError, TypeError, ValueError:
+        return None
+
+
+@dataclass(frozen=True)
+class _Remembered:
+    """The last good forecast for one pair of coordinates, and when it goes stale."""
+
+    forecast: SourceForecast
+    expires: datetime | None
+    last_modified: str | None
+
+
 @dataclass
 class MetNorwayProvider:
-    """Fetches MET Norway's complete Locationforecast for a pier."""
+    """Fetches MET Norway's complete Locationforecast for a pier.
+
+    The terms forbid asking again before a response's ``Expires`` time, so the
+    last good forecast is remembered per rounded coordinates for as long as
+    this instance lives (D12). Until it expires a fetch returns it with no
+    request; after that the request asks with ``If-Modified-Since``, and a 304
+    returns it again. Any failed request forgets it. ``now`` is the clock the
+    expiry is read against; tests pass a fixed one.
+    """
 
     spec: ClassVar[ProviderSpec] = MET_NORWAY
 
     client: httpx.Client | None = None
+    now: Callable[[], datetime] = _utcnow
+    _remembered: dict[tuple[float, float], _Remembered] = field(
+        default_factory=dict, init=False, repr=False
+    )
 
     def fetch(self, pier: PierConfig) -> SourceForecast:
+        # MET Norway answers 403 for coordinates with more than four decimal
+        # places (D10).
+        coordinates = (round(pier.latitude, 4), round(pier.longitude, 4))
+        remembered = self._remembered.get(coordinates)
+        if (
+            remembered is not None
+            and remembered.expires is not None
+            and self.now() < remembered.expires
+        ):
+            return remembered.forecast
+        headers = dict(_HEADERS)
+        if remembered is not None and remembered.last_modified is not None:
+            headers["If-Modified-Since"] = remembered.last_modified
         client = self.client or httpx.Client(timeout=_TIMEOUT_SECONDS)
         try:
-            # MET Norway answers 403 for coordinates with more than four
-            # decimal places (D10).
-            params = {"lat": round(pier.latitude, 4), "lon": round(pier.longitude, 4)}
-            response = client.get(MET_NORWAY_URL, params=params, headers=_HEADERS)
-            response.raise_for_status()
-            if response.status_code == httpx.codes.NON_AUTHORITATIVE_INFORMATION:
-                logger.warning("MET Norway says this Locationforecast version is deprecated")
-            return parse_met_norway(response.json())
+            lat, lon = coordinates
+            response = client.get(MET_NORWAY_URL, params={"lat": lat, "lon": lon}, headers=headers)
+            if remembered is not None and response.status_code == httpx.codes.NOT_MODIFIED:
+                remembered = replace(remembered, expires=_expires(response))
+            else:
+                response.raise_for_status()
+                if response.status_code == httpx.codes.NON_AUTHORITATIVE_INFORMATION:
+                    logger.warning("MET Norway says this Locationforecast version is deprecated")
+                remembered = _Remembered(
+                    forecast=parse_met_norway(response.json()),
+                    expires=_expires(response),
+                    last_modified=response.headers.get("Last-Modified"),
+                )
+        except Exception:
+            self._remembered.pop(coordinates, None)
+            raise
         finally:
             if self.client is None:
                 client.close()
+        self._remembered[coordinates] = remembered
+        return remembered.forecast

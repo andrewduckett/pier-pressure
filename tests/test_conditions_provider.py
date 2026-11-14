@@ -2001,6 +2001,130 @@ def test_met_norway_203_logs_that_the_product_version_is_deprecated(
     assert "deprecated" in record.getMessage()
 
 
+_BERGEN = PierConfig(id="bergen", latitude=60.3913, longitude=5.3221, elevation_m=12.0)
+_LAST_MODIFIED = "Sat, 14 Nov 2026 23:20:27 GMT"
+
+
+def _at_nov_14(h: int, m: int = 0) -> datetime:
+    return datetime(2026, 11, 14, h, m, tzinfo=UTC)
+
+
+def _met_response(
+    status: int = 200,
+    *,
+    expires: str | None = "Sat, 14 Nov 2026 20:30:00 GMT",
+    last_modified: str | None = _LAST_MODIFIED,
+    payload: dict[str, Any] | None = None,
+) -> httpx.Response:
+    headers = {}
+    if expires is not None:
+        headers["Expires"] = expires
+    if last_modified is not None:
+        headers["Last-Modified"] = last_modified
+    if status == 304:
+        return httpx.Response(304, headers=headers)
+    return httpx.Response(status, headers=headers, json=payload or _MET_FORECAST)
+
+
+class _Clock:
+    def __init__(self, at: datetime) -> None:
+        self.at = at
+
+    def __call__(self) -> datetime:
+        return self.at
+
+
+def _remembering(*responses: httpx.Response) -> tuple[MetNorwayProvider, _FakeMetNorway, _Clock]:
+    """A provider on a fake server, with a clock at 20:00 UTC, before the 20:30 expiry."""
+    server = _FakeMetNorway(*responses)
+    clock = _Clock(_at_nov_14(20))
+    return MetNorwayProvider(client=server.client(), now=clock), server, clock
+
+
+def test_met_norway_fetch_before_expires_makes_no_request() -> None:
+    provider, server, clock = _remembering(_met_response())
+    first = provider.fetch(_OSLO)
+    clock.at = _at_nov_14(20, 10)
+    second = provider.fetch(_OSLO)
+    assert len(server.requests) == 1
+    assert second == first
+
+
+def test_met_norway_remembers_two_piers_separately() -> None:
+    bergen = _met(_met_step(_hour(21), cloud_area_fraction=20.0))
+    provider, server, _ = _remembering(_met_response(), _met_response(payload=bergen))
+    forecasts = [provider.fetch(pier) for pier in (_OSLO, _BERGEN, _OSLO, _BERGEN)]
+    assert [r.url.params["lat"] for r in server.requests] == ["59.9139", "60.3913"]
+    assert forecasts == [parse_met_norway(_MET_FORECAST), parse_met_norway(bergen)] * 2
+
+
+def test_met_norway_first_request_carries_no_if_modified_since() -> None:
+    provider, server, _ = _remembering(_met_response())
+    provider.fetch(_OSLO)
+    assert "If-Modified-Since" not in server.requests[0].headers
+
+
+def test_met_norway_fetch_at_expires_asks_with_if_modified_since() -> None:
+    provider, server, clock = _remembering(_met_response(), _met_response())
+    provider.fetch(_OSLO)
+    clock.at = _at_nov_14(20, 30)
+    provider.fetch(_OSLO)
+    assert len(server.requests) == 2
+    assert server.requests[1].headers["If-Modified-Since"] == _LAST_MODIFIED
+
+
+def test_met_norway_304_returns_the_remembered_forecast() -> None:
+    provider, _, clock = _remembering(_met_response(), _met_response(304))
+    first = provider.fetch(_OSLO)
+    clock.at = _at_nov_14(20, 30)
+    assert provider.fetch(_OSLO) == first
+
+
+def test_met_norway_304_takes_the_new_expires() -> None:
+    provider, server, clock = _remembering(
+        _met_response(), _met_response(304, expires="Sat, 14 Nov 2026 21:00:00 GMT")
+    )
+    provider.fetch(_OSLO)
+    clock.at = _at_nov_14(20, 30)
+    provider.fetch(_OSLO)
+    clock.at = _at_nov_14(20, 45)
+    provider.fetch(_OSLO)
+    assert len(server.requests) == 2
+
+
+def test_met_norway_response_without_expires_lets_the_next_fetch_request() -> None:
+    provider, server, _ = _remembering(_met_response(expires=None))
+    provider.fetch(_OSLO)
+    provider.fetch(_OSLO)
+    assert len(server.requests) == 2
+
+
+def test_met_norway_response_with_an_unreadable_expires_lets_the_next_fetch_request() -> None:
+    provider, server, _ = _remembering(_met_response(expires="soon"))
+    provider.fetch(_OSLO)
+    provider.fetch(_OSLO)
+    assert len(server.requests) == 2
+
+
+def test_met_norway_response_without_last_modified_sends_no_if_modified_since() -> None:
+    provider, server, clock = _remembering(_met_response(last_modified=None))
+    provider.fetch(_OSLO)
+    clock.at = _at_nov_14(20, 30)
+    provider.fetch(_OSLO)
+    assert "If-Modified-Since" not in server.requests[1].headers
+
+
+def test_met_norway_failed_request_forgets_the_remembered_response() -> None:
+    provider, server, clock = _remembering(_met_response(), _met_response(500))
+    provider.fetch(_OSLO)
+    clock.at = _at_nov_14(20, 30)
+    with pytest.raises(httpx.HTTPStatusError):
+        provider.fetch(_OSLO)
+    provider.fetch(_OSLO)
+    assert len(server.requests) == 3
+    assert "If-Modified-Since" not in server.requests[2].headers
+
+
 # --------------------------------------------------------------------------- #
 # computed-transparency 3.1: the computed source fills at its place in the order
 # --------------------------------------------------------------------------- #
