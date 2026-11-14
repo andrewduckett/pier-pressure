@@ -501,6 +501,7 @@ def build_provider(
     stack without the network. ``now`` stamps each fetch outcome, and the issue
     time of plain ``open_meteo`` and air quality, so the two always come from the
     same clock. A model provider's issue time is its model's run start instead.
+    MET Norway reads its response's expiry against the same clock.
     ``metar`` replaces the real METAR fetcher, as ``fetchers`` replaces a provider.
     """
     from .met_norway import MetNorwayProvider
@@ -513,7 +514,7 @@ def build_provider(
         OpenMeteoProvider.spec.key: lambda: OpenMeteoProvider(now=now),
         SevenTimerProvider.spec.key: SevenTimerProvider,
         NwsProvider.spec.key: NwsProvider,
-        MetNorwayProvider.spec.key: MetNorwayProvider,
+        MetNorwayProvider.spec.key: lambda: MetNorwayProvider(now=now),
         COMPUTED.key: ComputedSource,
     }
     for key, model in MODELS.items():

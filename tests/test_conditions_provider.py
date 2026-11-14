@@ -2125,6 +2125,86 @@ def test_met_norway_failed_request_forgets_the_remembered_response() -> None:
     assert "If-Modified-Since" not in server.requests[2].headers
 
 
+def test_build_provider_passes_its_clock_to_met_norway() -> None:
+    def clock() -> datetime:
+        return _FETCHED
+
+    [met_norway] = build_provider(["met_norway"], now=clock).fetchers
+    assert isinstance(met_norway, MetNorwayProvider)
+    assert met_norway.now is clock
+
+
+_LAYERED = _met(
+    _met_step(
+        _hour(21),
+        rain_chance=40.0,
+        cloud_area_fraction=80.0,
+        cloud_area_fraction_low=10.0,
+        cloud_area_fraction_medium=30.0,
+        cloud_area_fraction_high=75.0,
+        wind_speed_of_gust=10.0,
+    ),
+    _met_step(_hour(22), cloud_area_fraction=70.0, wind_speed_of_gust=8.0),
+)
+_OPEN_METEO_DARK = SourceForecast(
+    issued_at=_hour(18),
+    readings={
+        t: SourceReading(
+            cloud_cover=30.0,
+            cloud_low=5.0,
+            cloud_mid=5.0,
+            cloud_high=20.0,
+            wind_gust=12.0,
+            precipitation_probability=10.0,
+        )
+        for t in (_hour(21), _hour(22))
+    },
+)
+
+
+def _met_first(*responses: httpx.Response) -> CompositeProvider:
+    """``met_norway`` on a fake server, then a stub ``open_meteo``, through the real stack."""
+    return build_provider(
+        ["met_norway", "open_meteo"],
+        now=lambda: _FETCHED,
+        fetchers={
+            "met_norway": MetNorwayProvider(client=_FakeMetNorway(*responses).client()),
+            "open_meteo": _StubProvider(_OPEN_METEO_DARK),
+        },
+    )
+
+
+def test_met_norway_listed_first_fills_the_cloud_bundle() -> None:
+    result = _met_first(httpx.Response(200, json=_LAYERED)).get(_OSLO)
+    for variable in ("cloud_cover", "cloud_low", "cloud_mid", "cloud_high"):
+        assert result.conditions.series[variable].provider == "met_norway"
+
+
+def test_met_norway_without_gust_or_rain_chance_succeeds() -> None:
+    result = _met_first(httpx.Response(200, json=_MET_FORECAST)).get(_OSLO)
+    met_norway, _ = result.outcomes
+    assert met_norway.ok
+    assert result.conditions.series["cloud_cover"].provider == "met_norway"
+
+
+def test_met_norway_without_gust_or_rain_chance_leaves_them_to_the_next_provider() -> None:
+    result = _met_first(httpx.Response(200, json=_MET_FORECAST)).get(_OSLO)
+    assert result.conditions.series["wind_gust"].provider == "open_meteo"
+    assert result.conditions.series["precipitation_probability"].provider == "open_meteo"
+
+
+def test_met_norway_429_fails_its_outcome() -> None:
+    result = _met_first(httpx.Response(429)).get(_OSLO)
+    met_norway, _ = result.outcomes
+    assert not met_norway.ok
+    assert met_norway.error == "HTTPStatusError: 429 Too Many Requests"
+
+
+def test_met_norway_429_leaves_cloud_to_the_next_provider() -> None:
+    result = _met_first(httpx.Response(429)).get(_OSLO)
+    assert result.conditions.series["cloud_cover"].provider == "open_meteo"
+
+
 # --------------------------------------------------------------------------- #
 # computed-transparency 3.1: the computed source fills at its place in the order
 # --------------------------------------------------------------------------- #
