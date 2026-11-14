@@ -4,7 +4,15 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from pierpressure.core.observation import CloudLayer, Observation, observation_reason, usable
+import pytest
+
+from pierpressure.core.observation import (
+    CloudLayer,
+    Observation,
+    observation_reason,
+    observed_cloud,
+    usable,
+)
 
 OBSERVED_AT = datetime(2026, 11, 14, 20, 54, tzinfo=UTC)
 
@@ -108,3 +116,22 @@ def test_the_reason_for_a_cavok_report_says_no_cloud_below_5000_ft() -> None:
     assert observation_reason(observation) == (
         "At 2026-11-14T21:00:00Z, LFPG reported no cloud below 5,000 ft."
     )
+
+
+@pytest.mark.parametrize(
+    ("clouds", "expected"),
+    [
+        pytest.param((CloudLayer("FEW", 3000), CloudLayer("BKN", 4200)), 62, id="largest-layer"),
+        pytest.param((CloudLayer("FEW", 3000), CloudLayer("OVC", 25000)), 12, id="above-12000ft"),
+        pytest.param((CloudLayer("BKN", None),), 0, id="no-base"),
+        pytest.param((CloudLayer("VV", 200),), 100, id="obscured"),
+        pytest.param((CloudLayer("VV", None),), 100, id="obscured-no-base"),
+        pytest.param((CloudLayer("OVX", None),), 100, id="ovx-no-base"),
+        pytest.param((CloudLayer("SCT", 12000),), 37, id="at-12000ft"),
+        pytest.param((), 0, id="no-layers"),
+    ],
+)
+def test_observed_cloud_is_the_most_cloud_the_counted_layers_prove(
+    clouds: tuple[CloudLayer, ...], expected: int
+) -> None:
+    assert observed_cloud(_observation(*clouds)) == expected
