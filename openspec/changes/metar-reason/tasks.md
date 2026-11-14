@@ -30,3 +30,8 @@
   ha-delivery delta adds the sensor, and the topic lists would otherwise be wrong.
 - 4.1: `_reset_health` seeds METAR health only when the service reports provider
   health at all, as DD8 says. A test covers a station pier with no providers.
+- 3.1: the recorded fixture is KBOS at `2026-11-14T21:54:00Z` with `BKN` 4000,
+  `BKN` 4900 and `OVC` 9500, as the live API returned it. The conditions
+  scenario's example values (20:54Z; `FEW` 3000, `BKN` 4200, `OVC` 9500) differ,
+  but the test checks the same behavior: observation time over report time, and
+  layers in the order reported.
