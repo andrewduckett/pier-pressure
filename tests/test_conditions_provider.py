@@ -1893,6 +1893,38 @@ def test_met_norway_drops_hourly_steps_past_72_hours() -> None:
     assert max(forecast.readings) == _at(10, 23)
 
 
+def test_met_norway_rain_chance_is_held_on_the_hour_after_its_step() -> None:
+    forecast = parse_met_norway(
+        _met(
+            _met_step(_hour(21), rain_chance=40.0, cloud_area_fraction=80.0),
+            _met_step(_hour(22), cloud_area_fraction=70.0),
+        )
+    )
+    assert forecast.readings[_hour(21)] == SourceReading(cloud_cover=80.0)
+    assert forecast.readings[_hour(22)] == SourceReading(
+        cloud_cover=70.0, precipitation_probability=40.0
+    )
+
+
+def test_met_norway_rain_chance_on_the_last_kept_step_is_dropped() -> None:
+    steps = _hourly_steps(_at(8, 0), 13)
+    steps[-1]["data"]["next_1_hours"] = {"details": {"probability_of_precipitation": 30.0}}
+    steps.append(_met_step(_at(8, 18), rain_chance=10.0, cloud_area_fraction=50.0))
+    forecast = parse_met_norway(_met(*steps))
+    assert list(forecast.readings) == [_at(8, h) for h in range(13)]
+    assert all(r.precipitation_probability is None for r in forecast.readings.values())
+
+
+def test_met_norway_rain_chance_in_an_unexpected_unit_is_absent() -> None:
+    payload = _met(
+        _met_step(_hour(21), rain_chance=40.0, cloud_area_fraction=80.0),
+        _met_step(_hour(22), cloud_area_fraction=70.0),
+    )
+    payload["properties"]["meta"]["units"]["probability_of_precipitation"] = "1"
+    forecast = parse_met_norway(payload)
+    assert forecast.readings[_hour(22)].precipitation_probability is None
+
+
 # --------------------------------------------------------------------------- #
 # computed-transparency 3.1: the computed source fills at its place in the order
 # --------------------------------------------------------------------------- #
