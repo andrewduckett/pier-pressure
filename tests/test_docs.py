@@ -230,6 +230,10 @@ def test_the_model_table_says_ecmwf_covers_the_whole_world() -> None:
     assert "| `open_meteo_ecmwf` | `ecmwf_ifs` | The whole world | More than 3 days |" in section
 
 
+def test_the_configuration_table_counts_six_open_meteo_models() -> None:
+    assert "the six Open-Meteo models below" in _conditions_row()
+
+
 def test_the_water_vapour_sources_name_ecmwf() -> None:
     section = _section(_README.read_text(encoding="utf-8"), "### Computing transparency")
     [row] = [line for line in section.splitlines() if line.startswith("| `column_water_vapour`")]
