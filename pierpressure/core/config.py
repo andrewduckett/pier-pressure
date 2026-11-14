@@ -44,6 +44,7 @@ logger = logging.getLogger(__name__)
 SKIP_PIER_MESSAGE = "Skipping invalid pier %r: %s"
 
 _ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+_METAR_STATION = re.compile(r"[A-Z][A-Z0-9]{3}")
 
 # The system-wide go-threshold applied when a pier omits its own (design D8, and
 # the tuning value locked in task 5.1). A gate-passing night scores GO at or
@@ -285,8 +286,21 @@ class PierConfig(BaseModel):
     # The optional imaging equipment (design D1). Absent -> the field-of-view ranking
     # term does not contribute; the pier still ranks on placement and brightness.
     equipment: Equipment | None = None
+    # The airport whose METAR the verdict quotes (metar-reason DD7). It describes
+    # the site, like the horizon, so it is not a tuning knob.
+    metar_station: str | None = None
 
     _horizon_mask: Horizon = PrivateAttr()
+
+    @field_validator("metar_station")
+    @classmethod
+    def _check_metar_station(cls, station: str | None) -> str | None:
+        if station is None:
+            return None
+        station = station.upper()
+        if not _METAR_STATION.fullmatch(station):
+            raise ValueError("must be four letters or digits, starting with a letter")
+        return station
 
     @property
     def horizon_mask(self) -> Horizon:

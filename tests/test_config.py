@@ -197,6 +197,31 @@ def test_a_bad_dew_margin_in_yaml_skips_the_pier_naming_the_field(
     assert "dew_margin" in caplog.text
 
 
+def test_a_lower_case_metar_station_is_stored_in_upper_case() -> None:
+    pier = PierConfig(
+        id="p", latitude=51.5, longitude=-0.12, elevation_m=30.0, metar_station="kbos"
+    )
+    assert pier.metar_station == "KBOS"
+
+
+def test_a_metar_station_with_a_digit_is_accepted() -> None:
+    pier = PierConfig(
+        id="p", latitude=51.5, longitude=-0.12, elevation_m=30.0, metar_station="K1V4"
+    )
+    assert pier.metar_station == "K1V4"
+
+
+def test_an_omitted_metar_station_is_none() -> None:
+    pier = PierConfig(id="p", latitude=51.5, longitude=-0.12, elevation_m=30.0)
+    assert pier.metar_station is None
+
+
+@pytest.mark.parametrize("bad", ["KBO", "1BOS", "K BOS"])
+def test_an_invalid_metar_station_is_rejected_naming_the_field(bad: str) -> None:
+    with pytest.raises(ValidationError, match="metar_station"):
+        PierConfig(id="p", latitude=51.5, longitude=-0.12, elevation_m=30.0, metar_station=bad)
+
+
 def test_validate_piers_isolates_each_entry() -> None:
     raw = [
         {"id": "good", "latitude": 51.5, "longitude": -0.12, "elevation_m": 30},
