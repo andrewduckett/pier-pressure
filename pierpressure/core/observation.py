@@ -11,9 +11,26 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+from .model import iso_z
+
 # The oldest observation the verdict quotes (metar-reason D7). Airports report
 # hourly, so this allows one missed report before the line drops.
 MAX_AGE = timedelta(minutes=90)
+
+# How the reason line words each cover code (metar-reason DD4). Any other code,
+# such as ``VV``, is given as reported.
+COVER_WORDS: dict[str, str] = {
+    "FEW": "few cloud",
+    "SCT": "scattered cloud",
+    "BKN": "broken cloud",
+    "OVC": "overcast cloud",
+    "OVX": "an obscured sky",
+}
+
+# The height a report with no layers vouches for. An automated station sees no
+# higher than 12,000 ft; CAVOK promises only 5,000 ft (metar-reason D10).
+CLEAR_BELOW_FT = 12000
+CAVOK_CLEAR_BELOW_FT = 5000
 
 
 @dataclass(frozen=True)
@@ -49,3 +66,26 @@ def usable(observation: Observation, instant: datetime) -> bool:
     """
     age = instant - observation.observed_at
     return timedelta(0) <= age <= MAX_AGE
+
+
+def observation_reason(observation: Observation) -> str:
+    """The reason line that quotes ``observation``, its layers in the order reported."""
+    if observation.clouds:
+        sky = _join([_layer(layer) for layer in observation.clouds])
+    else:
+        below = CAVOK_CLEAR_BELOW_FT if observation.cover == "CAVOK" else CLEAR_BELOW_FT
+        sky = f"no cloud below {below:,} ft"
+    return f"At {iso_z(observation.observed_at)}, {observation.station} reported {sky}."
+
+
+def _layer(layer: CloudLayer) -> str:
+    cover = COVER_WORDS.get(layer.cover, layer.cover)
+    if layer.base_ft is None:
+        return f"{cover} at an unknown height"
+    return f"{cover} at {layer.base_ft:,} ft"
+
+
+def _join(parts: list[str]) -> str:
+    if len(parts) == 1:
+        return parts[0]
+    return f"{', '.join(parts[:-1])} and {parts[-1]}"

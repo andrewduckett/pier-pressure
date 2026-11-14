@@ -6,7 +6,7 @@
 
 ## 2. The observation in the verdict [depends-on: 1]
 
-- [ ] 2.1 [medium] `observation_reason` words a report as the night-verdict spec says: layers in their stored order, joined by `, ` and ` and `, thousands with a comma, `FEW`/`SCT`/`BKN`/`OVC`/`OVX` worded and any other code as reported, a null base as `at an unknown height` (never sorted), and no layers as `no cloud below 12,000 ft` or, for `CAVOK`, `5,000 ft` (design DD4) (verify: uv run pytest tests/test_observation.py -q -k reason)
+- [x] 2.1 [medium] `observation_reason` words a report as the night-verdict spec says: layers in their stored order, joined by `, ` and ` and `, thousands with a comma, `FEW`/`SCT`/`BKN`/`OVC`/`OVX` worded and any other code as reported, a null base as `at an unknown height` (never sorted), and no layers as `no cloud below 12,000 ft` or, for `CAVOK`, `5,000 ft` (design DD4) (verify: uv run pytest tests/test_observation.py -q -k reason) (✓ uv run pytest tests/test_observation.py -q -k reason passed)
 - [ ] 2.2 [medium] `produce_verdict(pier, clock, conditions, observation=...)` fills `observation` from a usable observation and leaves it null for none or an unusable one; with an observation, `verdict`, `score`, `confidence`, `agreement` and `timeline` equal those of the same call without one (design DD1) (verify: uv run pytest tests/test_producer.py -q -k observation)
 - [ ] 2.3 [easy] The observation line comes after the dew line and before every equipment note, and a gated `NO-GO` and a night with no dark window both end with it (design DD6) (verify: uv run pytest tests/test_producer.py -q -k observation)
 
