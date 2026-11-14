@@ -9,16 +9,28 @@ network.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, ClassVar
 
+import httpx
+
 from pierpressure.core.conditions import Variable
 from pierpressure.core.config import PierConfig
 from pierpressure.core.providers import MET_NORWAY, ProviderSpec
 
+from .nws import USER_AGENT
 from .provider import SourceForecast, SourceReading
+
+logger = logging.getLogger(__name__)
+
+MET_NORWAY_URL = "https://api.met.no/weatherapi/locationforecast/2.0/complete"
+_TIMEOUT_SECONDS = 10.0
+# The terms ask for a User-Agent naming the client and a way to reach its
+# owner; the repository URL is that way (D11).
+_HEADERS = {"User-Agent": USER_AGENT}
 
 INSTANT: Mapping[Variable, str] = {
     "cloud_cover": "cloud_area_fraction",
@@ -119,5 +131,19 @@ class MetNorwayProvider:
 
     spec: ClassVar[ProviderSpec] = MET_NORWAY
 
+    client: httpx.Client | None = None
+
     def fetch(self, pier: PierConfig) -> SourceForecast:
-        raise NotImplementedError
+        client = self.client or httpx.Client(timeout=_TIMEOUT_SECONDS)
+        try:
+            # MET Norway answers 403 for coordinates with more than four
+            # decimal places (D10).
+            params = {"lat": round(pier.latitude, 4), "lon": round(pier.longitude, 4)}
+            response = client.get(MET_NORWAY_URL, params=params, headers=_HEADERS)
+            response.raise_for_status()
+            if response.status_code == httpx.codes.NON_AUTHORITATIVE_INFORMATION:
+                logger.warning("MET Norway says this Locationforecast version is deprecated")
+            return parse_met_norway(response.json())
+        finally:
+            if self.client is None:
+                client.close()

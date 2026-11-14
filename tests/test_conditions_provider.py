@@ -15,7 +15,7 @@ import pytest
 from pydantic import ValidationError
 
 from pierpressure import __version__
-from pierpressure.conditions.met_norway import parse_met_norway
+from pierpressure.conditions.met_norway import MetNorwayProvider, parse_met_norway
 from pierpressure.conditions.metar import MetarFetcher, NoReport
 from pierpressure.conditions.nws import NwsProvider, parse_nws
 from pierpressure.conditions.open_meteo import COLUMNS, OpenMeteoProvider, parse_open_meteo
@@ -1923,6 +1923,82 @@ def test_met_norway_rain_chance_in_an_unexpected_unit_is_absent() -> None:
     payload["properties"]["meta"]["units"]["probability_of_precipitation"] = "1"
     forecast = parse_met_norway(payload)
     assert forecast.readings[_hour(22)].precipitation_probability is None
+
+
+_OSLO = PierConfig(id="oslo", latitude=59.913868, longitude=10.752245, elevation_m=20.0)
+_MET_FORECAST = _met(_met_step(_hour(21), cloud_area_fraction=80.0))
+
+
+class _FakeMetNorway:
+    """Answers each request with the next queued response and records every request.
+
+    With the queue empty it answers 200 with ``_MET_FORECAST``.
+    """
+
+    def __init__(self, *responses: httpx.Response) -> None:
+        self.responses = list(responses)
+        self.requests: list[httpx.Request] = []
+
+    def client(self) -> httpx.Client:
+        return httpx.Client(transport=httpx.MockTransport(self._handle))
+
+    def _handle(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        if self.responses:
+            return self.responses.pop(0)
+        return httpx.Response(200, json=_MET_FORECAST)
+
+
+def test_met_norway_fetch_asks_the_complete_forecast_endpoint() -> None:
+    server = _FakeMetNorway()
+    MetNorwayProvider(client=server.client()).fetch(_OSLO)
+    [request] = server.requests
+    url = request.url.copy_with(query=None)
+    assert str(url) == "https://api.met.no/weatherapi/locationforecast/2.0/complete"
+
+
+def test_met_norway_fetch_sends_only_the_coordinates_rounded_to_4_decimals() -> None:
+    server = _FakeMetNorway()
+    MetNorwayProvider(client=server.client()).fetch(_OSLO)
+    [request] = server.requests
+    assert dict(request.url.params) == {"lat": "59.9139", "lon": "10.7522"}
+
+
+def test_met_norway_fetch_parses_the_forecast() -> None:
+    forecast = MetNorwayProvider(client=_FakeMetNorway().client()).fetch(_OSLO)
+    assert forecast == parse_met_norway(_MET_FORECAST)
+
+
+def test_met_norway_user_agent_names_the_project_version_and_repository() -> None:
+    server = _FakeMetNorway()
+    MetNorwayProvider(client=server.client()).fetch(_OSLO)
+    [request] = server.requests
+    expected = f"PierPressure/{__version__} (https://github.com/andrewduckett/pier-pressure)"
+    assert request.headers["User-Agent"] == expected
+    assert "@" not in request.headers["User-Agent"]
+
+
+@pytest.mark.parametrize("status", [403, 429, 500])
+def test_met_norway_error_status_fails_the_fetch(status: int) -> None:
+    provider = MetNorwayProvider(client=_FakeMetNorway(httpx.Response(status)).client())
+    with pytest.raises(httpx.HTTPStatusError):
+        provider.fetch(_OSLO)
+
+
+def test_met_norway_203_is_a_success() -> None:
+    server = _FakeMetNorway(httpx.Response(203, json=_MET_FORECAST))
+    forecast = MetNorwayProvider(client=server.client()).fetch(_OSLO)
+    assert forecast == parse_met_norway(_MET_FORECAST)
+
+
+def test_met_norway_203_logs_that_the_product_version_is_deprecated(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    server = _FakeMetNorway(httpx.Response(203, json=_MET_FORECAST))
+    MetNorwayProvider(client=server.client()).fetch(_OSLO)
+    [record] = [r for r in caplog.records if r.name == "pierpressure.conditions.met_norway"]
+    assert record.levelname == "WARNING"
+    assert "deprecated" in record.getMessage()
 
 
 # --------------------------------------------------------------------------- #
