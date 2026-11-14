@@ -768,7 +768,9 @@ class Decision:
     the span the gates and score judged: the dark window from the scoring instant on
     (score-remaining-night design D1), or ``(None, None)`` without a dark window.
     ``agreement`` is the cloud agreement confidence used, or ``None`` when fewer
-    than two providers shared a scored hour.
+    than two providers shared a scored hour. ``observed`` is the observed term only
+    when it lowered the confidence, so it is exactly "the observed-cloud line is
+    due" (metar-confidence DD5).
     """
 
     verdict: Verdict
@@ -778,6 +780,7 @@ class Decision:
     reasons: list[str]
     scored_window: tuple[datetime, datetime] | tuple[None, None]
     agreement: AgreementTerm | None = None
+    observed: ObservedTerm | None = None
 
 
 # The shortest span of dark time worth setting up for. A scored window under it
@@ -962,6 +965,10 @@ def evaluate(
     agreement = cloud_agreement(scored, conditions)
     observed = observed_term(instant, conditions, observation)
     band, conf_value = confidence(pier, instant, scored, conditions, agreement, observed)
+    # A factor below 1 is not enough: the MEDIUM clamp can hold the value, and the
+    # line must not claim a fall that did not happen.
+    unobserved = confidence(pier, instant, scored, conditions, agreement)[1]
+    lowered = observed if conf_value < unobserved else None
     agreed = [_agreement_reason(agreement)] if agreement is not None else []
     # Advice for a night worth judging, so only gate-passing paths carry it, and
     # after the agreement line so no earlier line moves (dew-spread-reason D2).
@@ -976,7 +983,9 @@ def evaluate(
     if pier.max_gust is not None:
         if wind_exceeds_limit(scored, conditions, pier.max_gust):
             reasons = [*span, _wind_reason(pier.max_gust, narrowed), *agreed]
-            return Decision(Verdict.NO_GO, None, band, conf_value, reasons, scored, agreement)
+            return Decision(
+                Verdict.NO_GO, None, band, conf_value, reasons, scored, agreement, lowered
+            )
         if not wind_fully_covered(scored, conditions):
             wind_capped = True
 
@@ -997,7 +1006,7 @@ def evaluate(
     if is_overcast(scored, conditions):
         overcast = _REASON_OVERCAST_REST if narrowed else _REASON_OVERCAST
         reasons = [*span, overcast, *agreed]
-        return Decision(Verdict.NO_GO, None, band, conf_value, reasons, scored, agreement)
+        return Decision(Verdict.NO_GO, None, band, conf_value, reasons, scored, agreement, lowered)
 
     terms = score_terms(scored, conditions, moon)
     score = terms.score
@@ -1012,4 +1021,4 @@ def evaluate(
     reasons.extend(dew)
     is_go = score >= pier.go_threshold and not wind_capped and not short
     verdict = Verdict.GO if is_go else Verdict.MAYBE
-    return Decision(verdict, score, band, conf_value, reasons, scored, agreement)
+    return Decision(verdict, score, band, conf_value, reasons, scored, agreement, lowered)

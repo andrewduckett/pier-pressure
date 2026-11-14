@@ -367,12 +367,13 @@ def _sky(
     high: float | None = None,
     wind: float = 10.0,
     hours: list[datetime] = _NOVEMBER_NIGHT,
+    issued: datetime = _FRESH,
 ) -> Conditions:
-    """A fresh, complete forecast that gives full confidence at the evening instant."""
+    """A complete forecast; fresh, it gives full confidence at the evening instant."""
     series = provider_series(
         OPEN_METEO,
         hours,
-        issued_at=_FRESH,
+        issued_at=issued,
         cloud_cover=20.0,
         cloud_low=low,
         cloud_mid=mid,
@@ -381,7 +382,7 @@ def _sky(
     )
     for variable in ("seeing", "transparency"):
         series[variable] = Series(  # type: ignore[index]
-            provider="computed", issued_at=_FRESH, values=dict.fromkeys(hours, 0.7)
+            provider="computed", issued_at=issued, values=dict.fromkeys(hours, 0.7)
         )
     return Conditions(series=series)
 
@@ -468,3 +469,80 @@ def test_an_observed_report_changes_no_verdict_score_agreement_or_timeline() -> 
         plain.agreement,
         plain.timeline,
     )
+
+
+_BROKEN_LINE = "At 2026-11-14T20:54:00Z, KBOS reported broken cloud at 4,200 ft."
+_OBSERVED_LINE = (
+    "Observed cloud above this hour's forecast: KBOS reported at least 62%, the forecast"
+    " gave 20% low and mid cloud, a gap of 42 points. Confidence lowered."
+)
+
+
+def _observed_lines(doc: VerdictDocument) -> list[str]:
+    return [line for line in doc.reasons if line.startswith("Observed cloud")]
+
+
+def test_an_observed_report_that_lowers_confidence_names_the_gap() -> None:
+    doc = _produce_at(_EVENING, _BROKEN, conditions=_sky(20.0, 0.0))
+    assert _observed_lines(doc) == [_OBSERVED_LINE]
+
+
+def test_the_observed_cloud_line_follows_the_observation_line() -> None:
+    conditions = _sky(20.0, 0.0)
+    plain = _produce_at(_EVENING, None, conditions=conditions)
+    observed = _produce_at(_EVENING, _BROKEN, conditions=conditions)
+    assert observed.reasons == [*plain.reasons, _BROKEN_LINE, _OBSERVED_LINE]
+
+
+def test_the_observed_cloud_line_follows_the_observation_line_on_a_gated_no_go() -> None:
+    pier = PierConfig(
+        id="backyard", latitude=51.5, longitude=-0.12, elevation_m=30.0, max_gust=30.0
+    )
+    doc = _produce_at(_EVENING, _BROKEN, conditions=_sky(20.0, 0.0, wind=50.0), pier=pier)
+    assert doc.verdict is Verdict.NO_GO
+    assert doc.reasons[-2:] == [_BROKEN_LINE, _OBSERVED_LINE]
+
+
+def test_the_observed_cloud_line_precedes_the_equipment_notes() -> None:
+    # The Cave Nebula tops the September night and frames well at 600 mm.
+    instant = datetime(2026, 9, 8, 18, tzinfo=UTC)
+    pier = PierConfig(
+        id="backyard",
+        latitude=51.5,
+        longitude=-0.12,
+        elevation_m=30.0,
+        equipment={"focal_length_mm": 600.0, "sensor_width_mm": 23.5, "sensor_height_mm": 15.7},  # type: ignore[arg-type]
+    )
+    conditions = _sky(0.0, 0.0, hours=_NIGHT, issued=instant - timedelta(minutes=30))
+    report = _report(
+        CloudLayer("OVC", 1500), cover="OVC", observed_at=instant - timedelta(minutes=20)
+    )
+    doc = _produce_at(instant, report, conditions=conditions, pier=pier)
+    line = doc.reasons.index(next(iter(_observed_lines(doc))))
+    notes = [i for i, r in enumerate(doc.reasons) if r.startswith("Top pick")]
+    assert doc.verdict is Verdict.GO
+    assert notes
+    assert line < min(notes)
+
+
+def test_an_observed_report_under_15_points_adds_no_line() -> None:
+    report = _report(CloudLayer("FEW", 3000), cover="FEW")
+    assert _observed_lines(_produce_at(_EVENING, report, conditions=_sky(0.0, 0.0))) == []
+
+
+def test_an_observed_report_the_medium_clamp_absorbs_adds_no_line() -> None:
+    stale = _FRESH - timedelta(days=1)
+    alone = _sky(0.0, 0.0, issued=stale)
+    hrrr = provider_series(OPEN_METEO_HRRR, _NOVEMBER_NIGHT, issued_at=stale, cloud_cover=80.0)
+    paired = Conditions(series=alone.series, alternates={"cloud_cover": (hrrr["cloud_cover"],)})
+    assert _produce_at(_EVENING, None, conditions=alone).confidence.value == 50
+    doc = _produce_at(_EVENING, _OVERCAST, conditions=paired)
+    assert doc.agreement["cloud_cover"].band is AgreementBand.DISAGREE
+    assert doc.confidence.value == 40
+    assert _observed_lines(doc) == []
+
+
+def test_an_observed_report_adds_no_line_without_a_cloud_cover_series() -> None:
+    sky = _sky(0.0, 0.0)
+    conditions = Conditions(series={k: v for k, v in sky.series.items() if k != "cloud_cover"})
+    assert _observed_lines(_produce_at(_EVENING, _OVERCAST, conditions=conditions)) == []

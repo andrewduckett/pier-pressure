@@ -31,7 +31,7 @@ from .model import (
 )
 from .observation import Observation, observation_reason, usable
 from .ranking import equipment_reasons, rank_targets
-from .scoring import MIN_USABLE_WINDOW, AgreementTerm, evaluate
+from .scoring import MIN_USABLE_WINDOW, AgreementTerm, ObservedTerm, evaluate
 from .sky import altitudes_at, dark_window, moon_info
 
 
@@ -78,6 +78,10 @@ def produce_verdict(
     # On every verdict, after the core's own lines and before the notes (DD6).
     if observation is not None:
         reasons.append(observation_reason(observation))
+    # Straight after the report it reads from, so the two read together
+    # (metar-confidence DD5).
+    if decision.observed is not None:
+        reasons.append(_observed_reason(decision.observed))
     scored_start, scored_end = decision.scored_window
     worth_setting_up = (
         scored_start is not None
@@ -103,6 +107,15 @@ def produce_verdict(
         timeline=_timeline(pier, conditions),
         agreement=_agreement(decision.agreement),
         observation=_observation_entry(observation),
+    )
+
+
+def _observed_reason(term: ObservedTerm) -> str:
+    """The line for a report that lowered confidence; "at least" is the code's lower bound."""
+    return (
+        f"Observed cloud above this hour's forecast: {term.station} reported at least"
+        f" {term.observed}%, the forecast gave {term.forecast}% low and mid cloud,"
+        f" a gap of {term.gap} points. Confidence lowered."
     )
 
 

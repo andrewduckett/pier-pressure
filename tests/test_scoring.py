@@ -1222,3 +1222,59 @@ def test_observed_term_is_none_without_low_and_mid_cloud_for_the_hour(
 )
 def test_observed_factor_follows_the_gap_bands(observed: int, forecast: int, factor: float) -> None:
     assert ObservedTerm("KBOS", observed, forecast).factor == factor
+
+
+# The decision carries the observed term only when it lowered confidence (DD5)
+
+
+def _observed_sky(window: tuple[datetime, datetime], *, cloud: bool = True) -> Conditions:
+    """Fresh, complete low and mid cloud of 0, with total cloud of 20 unless ``cloud`` is off."""
+    slots = hour_slots(window[0] - timedelta(hours=1), window[1])
+    issued = window[0]
+    variables: dict[Variable, float] = {
+        "cloud_low": 0.0,
+        "cloud_mid": 0.0,
+        "seeing": 0.7,
+        "transparency": 0.7,
+    }
+    if cloud:
+        variables["cloud_cover"] = 20.0
+    return Conditions(
+        series={
+            variable: Series(provider="a", issued_at=issued, values=dict.fromkeys(slots, value))
+            for variable, value in variables.items()
+        }
+    )
+
+
+_OVERCAST_REPORT = Observation(
+    station="KBOS",
+    observed_at=datetime(2026, 9, 8, 21, 0, tzinfo=UTC),
+    cover="OVC",
+    clouds=(CloudLayer("OVC", 1500),),
+)
+
+
+def test_the_decision_carries_the_observed_term_that_lowered_confidence() -> None:
+    window = _window(6)
+    instant = window[0] + timedelta(minutes=30)
+    decision = evaluate(
+        make_pier(), instant, window, _observed_sky(window), _moon(), _OVERCAST_REPORT
+    )
+    assert (decision.confidence, decision.observed) == (67, ObservedTerm("KBOS", 100, 0))
+
+
+@pytest.mark.parametrize(
+    ("window", "instant", "cloud"),
+    [
+        pytest.param((None, None), _window(6)[0], True, id="no-dark-window"),
+        pytest.param(_window(6), _window(6)[1], True, id="no-dark-time"),
+        pytest.param(_window(6), _window(6)[0] + timedelta(minutes=30), False, id="no-cloud"),
+    ],
+)
+def test_a_fixed_confidence_carries_no_observed_term(
+    window: tuple[datetime, datetime] | tuple[None, None], instant: datetime, cloud: bool
+) -> None:
+    conditions = _observed_sky(_window(6), cloud=cloud)
+    decision = evaluate(make_pier(), instant, window, conditions, _moon(), _OVERCAST_REPORT)
+    assert decision.observed is None
