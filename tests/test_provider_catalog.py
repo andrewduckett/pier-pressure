@@ -13,6 +13,7 @@ from pierpressure.core.providers import (
     NWS,
     OPEN_METEO,
     OPEN_METEO_AIR_QUALITY,
+    OPEN_METEO_ECMWF,
     OPEN_METEO_GFS,
     OPEN_METEO_HRDPS,
     OPEN_METEO_HRRR,
@@ -93,6 +94,7 @@ _NO_WATER_VAPOUR = tuple(
     v for v in OPEN_METEO.variables if v != "column_water_vapour" and v not in SEEING_COLUMN
 )
 _NO_PRECIPITATION = tuple(v for v in _NO_WATER_VAPOUR if v != "precipitation_probability")
+_NO_SEEING = tuple(v for v in OPEN_METEO.variables if v not in SEEING_COLUMN)
 _BOTH = (_CLOUD_BUNDLE, _SEEING_BUNDLE)
 _CLOUD = (_CLOUD_BUNDLE,)
 
@@ -105,6 +107,7 @@ _CLOUD = (_CLOUD_BUNDLE,)
         (OPEN_METEO_RDPS, "open_meteo_rdps", "Open-Meteo RDPS", _NO_PRECIPITATION, _CLOUD),
         (OPEN_METEO_ICON, "open_meteo_icon", "Open-Meteo ICON", _NO_WATER_VAPOUR, _CLOUD),
         (OPEN_METEO_GFS, "open_meteo_gfs", "Open-Meteo GFS", OPEN_METEO.variables, _BOTH),
+        (OPEN_METEO_ECMWF, "open_meteo_ecmwf", "Open-Meteo ECMWF", _NO_SEEING, _CLOUD),
     ],
 )
 def test_each_open_meteo_model_declares_what_its_model_returns(
@@ -121,8 +124,12 @@ def test_each_open_meteo_model_declares_what_its_model_returns(
     assert not spec.needs_key
 
 
-@pytest.mark.parametrize("spec", [OPEN_METEO_HRDPS, OPEN_METEO_RDPS, OPEN_METEO_ICON])
-def test_hrdps_rdps_and_icon_declare_no_seeing_column_variable(spec: ProviderSpec) -> None:
+@pytest.mark.parametrize(
+    "spec", [OPEN_METEO_HRDPS, OPEN_METEO_RDPS, OPEN_METEO_ICON, OPEN_METEO_ECMWF]
+)
+def test_models_without_the_whole_column_declare_no_seeing_column_variable(
+    spec: ProviderSpec,
+) -> None:
     assert not set(SEEING_COLUMN) & set(spec.variables)
 
 
@@ -133,6 +140,10 @@ def test_hrdps_declares_no_precipitation_probability() -> None:
 
 def test_hrdps_declares_no_column_water_vapour() -> None:
     assert "column_water_vapour" not in OPEN_METEO_HRDPS.variables
+
+
+def test_ecmwf_declares_column_water_vapour_last() -> None:
+    assert OPEN_METEO_ECMWF.variables[-2:] == ("precipitation_probability", "column_water_vapour")
 
 
 def test_icon_declares_precipitation_but_no_column_water_vapour() -> None:
@@ -155,6 +166,7 @@ def test_catalog_maps_each_key_to_its_spec_in_order() -> None:
         ("open_meteo_rdps", OPEN_METEO_RDPS),
         ("open_meteo_icon", OPEN_METEO_ICON),
         ("open_meteo_gfs", OPEN_METEO_GFS),
+        ("open_meteo_ecmwf", OPEN_METEO_ECMWF),
         ("open_meteo_air_quality", OPEN_METEO_AIR_QUALITY),
         ("nws", NWS),
         ("seven_timer", SEVEN_TIMER),

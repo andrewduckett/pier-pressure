@@ -94,6 +94,15 @@ OPEN_METEO_ICON = replace(
     bundles=(_CLOUD_BUNDLE,),
 )
 OPEN_METEO_GFS = replace(OPEN_METEO, key="open_meteo_gfs", name="Open-Meteo GFS")
+# ECMWF sends column water vapour, but no pressure-level temperatures or heights,
+# so it can't supply the seeing column bundle.
+OPEN_METEO_ECMWF = replace(
+    OPEN_METEO,
+    key="open_meteo_ecmwf",
+    name="Open-Meteo ECMWF",
+    variables=tuple(variable for variable in OPEN_METEO.variables if variable not in SEEING_COLUMN),
+    bundles=(_CLOUD_BUNDLE,),
+)
 
 # The air-quality forecast is a different Open-Meteo endpoint. The timeline does
 # not show its variables; only the computed source reads its aerosol.
@@ -147,6 +156,7 @@ CATALOG: Mapping[str, ProviderSpec] = {
         OPEN_METEO_RDPS,
         OPEN_METEO_ICON,
         OPEN_METEO_GFS,
+        OPEN_METEO_ECMWF,
         OPEN_METEO_AIR_QUALITY,
         NWS,
         SEVEN_TIMER,
