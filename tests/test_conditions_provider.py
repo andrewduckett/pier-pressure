@@ -1838,6 +1838,41 @@ def test_met_norway_issue_time_is_none_without_an_update_time() -> None:
     assert parse_met_norway(payload).issued_at is None
 
 
+def test_met_norway_wind_in_metres_per_second_is_carried_in_kmh() -> None:
+    forecast = parse_met_norway(_met(_met_step(_hour(21), wind_speed=5.0, wind_speed_of_gust=10.0)))
+    assert forecast.readings[_hour(21)].wind_speed == 18.0
+    assert forecast.readings[_hour(21)].wind_gust == 36.0
+
+
+def test_met_norway_wind_conversion_is_not_rounded() -> None:
+    forecast = parse_met_norway(_met(_met_step(_hour(21), wind_speed=3.3)))
+    assert forecast.readings[_hour(21)].wind_speed == 3.3 * 3.6
+
+
+def test_met_norway_values_in_their_expected_units_are_carried_unrounded() -> None:
+    forecast = parse_met_norway(
+        _met(_met_step(_hour(21), air_temperature=12.34, cloud_area_fraction=80.25))
+    )
+    assert forecast.readings[_hour(21)].temperature == 12.34
+    assert forecast.readings[_hour(21)].cloud_cover == 80.25
+
+
+@pytest.mark.parametrize("unit", ["knots", None])
+def test_met_norway_unexpected_unit_leaves_the_variable_absent(unit: str | None) -> None:
+    payload = _met(
+        _met_step(_hour(21), wind_speed=5.0, air_temperature=4.8),
+        _met_step(_hour(22), wind_speed=6.0, air_temperature=4.5),
+    )
+    units = payload["properties"]["meta"]["units"]
+    if unit is None:
+        del units["wind_speed"]
+    else:
+        units["wind_speed"] = unit
+    forecast = parse_met_norway(payload)
+    assert all(r.wind_speed is None for r in forecast.readings.values())
+    assert forecast.readings[_hour(22)].temperature == 4.5
+
+
 # --------------------------------------------------------------------------- #
 # computed-transparency 3.1: the computed source fills at its place in the order
 # --------------------------------------------------------------------------- #
