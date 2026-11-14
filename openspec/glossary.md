@@ -52,6 +52,16 @@ another provider.
 
 Scope: the conditions snapshot.
 
+## Observation
+
+A report of what the sky or weather was at one moment, measured at one place,
+such as the METAR from the airport a pier names. An observation is not a
+forecast: unlike a series it covers no hours, comes from no provider in the
+provider order and never fills a variable. Its time is when it was measured,
+not when it was issued or fetched.
+
+Scope: conditions, the verdict document and provider health.
+
 ## Bundle
 
 Variables a provider declares travel together, so they are filled from the same
