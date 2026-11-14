@@ -365,3 +365,21 @@ def test_the_health_section_says_only_best_match_and_air_quality_stamp_the_fetch
     assert "Only `open_meteo` and `open_meteo_air_quality` stamp the fetch time" in health
     assert "This is true for each Open-Meteo model too" not in health
     assert "each Open-Meteo model" in health
+
+
+# --------------------------------------------------------------------------- #
+# open-meteo-ecmwf 1.8: the night-card Cloud range tip names ECMWF
+# --------------------------------------------------------------------------- #
+
+_NIGHT_CARD = _ROOT / "docs" / "night-card.md"
+
+
+def _cloud_range_tip() -> str:
+    text = _NIGHT_CARD.read_text(encoding="utf-8")
+    start = text.index("- **The strip has no Cloud range row.**")
+    return text[start : text.index("\n- **", start + 1)]
+
+
+@pytest.mark.parametrize("example", ["`open_meteo_ecmwf`", "**Open-Meteo ECMWF health**"])
+def test_the_night_card_cloud_range_tip_gives_ecmwf_as_its_example(example: str) -> None:
+    assert example in _cloud_range_tip()
