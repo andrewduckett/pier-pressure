@@ -12,10 +12,12 @@ from pierpressure.core.model import (
     Agreement,
     AgreementBand,
     Band,
+    CloudLayerEntry,
     Confidence,
     DarkWindow,
     Moon,
     MoonPhase,
+    ObservationEntry,
     TimelineEntry,
     Verdict,
     VerdictDocument,
@@ -34,6 +36,7 @@ EXPECTED_KEY_ORDER = [
     "moon",
     "timeline",
     "agreement",
+    "observation",
 ]
 
 TIMELINE_ENTRY_KEY_ORDER = [
@@ -268,10 +271,10 @@ def _entry(**overrides: object) -> TimelineEntry:
     return TimelineEntry.model_validate(fields)
 
 
-def test_timeline_defaults_to_an_empty_list_and_precedes_only_agreement() -> None:
+def test_timeline_defaults_to_an_empty_list_and_precedes_only_agreement_and_observation() -> None:
     payload = json.loads(_gated_no_go().to_json())
     assert payload["timeline"] == []
-    assert list(payload)[-2:] == ["timeline", "agreement"]
+    assert list(payload)[-3:] == ["timeline", "agreement", "observation"]
 
 
 def test_agreement_defaults_to_the_empty_object() -> None:
@@ -301,6 +304,59 @@ def test_agreement_round_trips_through_json() -> None:
 def test_agreement_rejects_an_unknown_band() -> None:
     with pytest.raises(ValidationError):
         Agreement.model_validate({"band": "UNSURE", "spread": 3, "providers": ["a", "b"]})
+
+
+def _observation_entry(**overrides: object) -> ObservationEntry:
+    fields: dict[str, object] = {
+        "station": "KBOS",
+        "observed_at": datetime(2026, 11, 14, 20, 54, tzinfo=UTC),
+        "cover": "BKN",
+        "clouds": [
+            CloudLayerEntry(cover="FEW", base_ft=3000),
+            CloudLayerEntry(cover="BKN", base_ft=None),
+        ],
+    }
+    fields.update(overrides)
+    return ObservationEntry.model_validate(fields)
+
+
+def test_observation_defaults_to_null() -> None:
+    assert json.loads(_gated_no_go().to_json())["observation"] is None
+
+
+def test_observation_serializes_its_keys_in_order_with_a_z_time() -> None:
+    doc = _gated_no_go().model_copy(update={"observation": _observation_entry()})
+    assert json.dumps(json.loads(doc.to_json())["observation"]) == json.dumps(
+        {
+            "station": "KBOS",
+            "observed_at": "2026-11-14T20:54:00Z",
+            "cover": "BKN",
+            "clouds": [
+                {"cover": "FEW", "base_ft": 3000},
+                {"cover": "BKN", "base_ft": None},
+            ],
+        }
+    )
+
+
+def test_observation_round_trips_through_json() -> None:
+    doc = _gated_no_go().model_copy(update={"observation": _observation_entry()})
+    assert VerdictDocument.model_validate_json(doc.to_json()) == doc
+
+
+def test_observation_rejects_a_naive_time() -> None:
+    with pytest.raises(ValidationError):
+        _observation_entry(observed_at=datetime(2026, 11, 14, 20, 54))
+
+
+def test_observation_rejects_unknown_keys() -> None:
+    with pytest.raises(ValidationError):
+        _observation_entry(report_time="2026-11-14T21:00:00Z")
+
+
+def test_cloud_layer_entry_rejects_unknown_keys() -> None:
+    with pytest.raises(ValidationError):
+        CloudLayerEntry.model_validate({"cover": "FEW", "base_ft": 3000, "type": "CB"})
 
 
 def test_timeline_entry_keys_are_in_the_spec_order() -> None:

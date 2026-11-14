@@ -331,6 +331,42 @@ class Agreement(BaseModel):
     providers: list[str]
 
 
+class CloudLayerEntry(BaseModel):
+    """One reported cloud layer: its cover code and base in feet above ground.
+
+    ``base_ft`` is null when the report gives no base (metar-reason DD5).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    cover: str
+    base_ft: int | None
+
+
+class ObservationEntry(BaseModel):
+    """The station's latest usable report (metar-reason DD5).
+
+    ``observed_at`` is when the station measured. ``cover`` is the report's
+    overall code, and ``clouds`` keeps the layers in the order reported.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    station: str
+    observed_at: datetime
+    cover: str
+    clouds: list[CloudLayerEntry]
+
+    @field_validator("observed_at")
+    @classmethod
+    def _aware_utc(cls, value: datetime) -> datetime:
+        return _require_aware_utc(value)
+
+    @field_serializer("observed_at")
+    def _serialize_observed_at(self, value: datetime) -> str:
+        return iso_z(value)
+
+
 class VerdictDocument(BaseModel):
     """The one JSON document the whole system is built around.
 
@@ -356,6 +392,9 @@ class VerdictDocument(BaseModel):
     # Keyed by variable, empty when fewer than two providers shared a scored hour.
     # After ``timeline``, so every earlier key keeps its position.
     agreement: dict[str, Agreement] = Field(default_factory=dict)
+    # Null unless the pier's station gave a usable report. Last, so every
+    # earlier key keeps its position.
+    observation: ObservationEntry | None = None
 
     @field_validator("generated_at")
     @classmethod
