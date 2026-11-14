@@ -31,11 +31,11 @@ constants fixed in code with their justification.
 
 ### Requirement: The observed cloud is the most cloud a report's layers prove up to 12,000 ft
 
-The observed cloud SHALL be the largest cover of any layer whose base is known
-and at most 12,000 ft, in points: `FEW` 12, `SCT` 37, `BKN` 62, and `OVC`,
-`OVX` and `VV` 100, the least each code allows. A layer above 12,000 ft, with
-no base or with another code SHALL count for nothing. A report with no counted
-layer SHALL have an observed cloud of 0.
+The observed cloud SHALL be the largest cover of any counted layer, in points:
+`FEW` 12, `SCT` 37, `BKN` 62 and `OVC` 100, the least each code allows, for a
+layer whose base is known and at most 12,000 ft. An `OVX` or `VV` layer SHALL
+count as 100 whatever its base. Any other layer SHALL count for nothing. A
+report with no counted layer SHALL have an observed cloud of 0.
 
 #### Scenario: The largest layer counts
 
@@ -55,6 +55,11 @@ layer SHALL have an observed cloud of 0.
 #### Scenario: An obscured sky counts as full cover
 
 - **WHEN** an observation has one layer `VV` at 200 ft
+- **THEN** its observed cloud is `100`
+
+#### Scenario: An obscured sky with no base counts as full cover
+
+- **WHEN** an observation has one layer `VV` whose `base_ft` is null
 - **THEN** its observed cloud is `100`
 
 ### Requirement: The forecast's low and mid cloud combine as independent layers
@@ -91,9 +96,9 @@ report or a report of less cloud never raises or lowers confidence.
 
 ### Requirement: The observation factor needs a usable observation and this hour's low and mid cloud
 
-The observation factor SHALL be 1 when the pier has no usable observation, or
-when the filled cloud forecast has no low or no mid value for the clock hour
-that holds the evaluation instant.
+The observation factor SHALL be 1 when the pier has no usable observation. It
+SHALL also be 1 when the filled cloud forecast lacks a low or a mid value for
+the clock hour that holds the evaluation instant.
 
 #### Scenario: No mid cloud for the hour
 
@@ -115,6 +120,7 @@ at least that threshold.
 
 - **WHEN** a verdict a day before dusk, with a fresh and complete forecast, would have a confidence of `50` without alternates or the observation, and is produced with an alternate that makes the agreement band `DISAGREE` and a usable observation whose gap is over 35
 - **THEN** `confidence.value` is `40` and `confidence.band` is `MEDIUM`
+- **AND** no reason line begins with `Observed cloud`, because the value is the same as without the observation
 
 ### Requirement: The observation factor applies only where confidence comes from the forecast
 
@@ -135,7 +141,8 @@ data.
 
 ### Requirement: A lowered confidence adds one observed-cloud line
 
-When the observation factor is below 1, `reasons` SHALL carry exactly one line
+When the observation makes `confidence.value` lower than it would be without
+the observation, `reasons` SHALL carry exactly one line
 `Observed cloud above this hour's forecast: <station> reported at least <obs>%,
 the forecast gave <fc>% low and mid cloud, a gap of <gap> points. Confidence
 lowered.`, with `<obs>` the observed cloud, `<fc>` the forecast low and mid

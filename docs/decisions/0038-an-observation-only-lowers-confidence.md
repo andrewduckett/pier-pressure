@@ -15,8 +15,8 @@ Builds on ADR-0029.
 A pier can name an airport weather station, and the verdict quotes that
 station's latest METAR. The report is a measurement, not a forecast: one moment,
 at an airport that may be several kilometres from the pier. An automated station
-sees cloud only up to 12,000 ft, and a CAVOK report vouches only for 5,000 ft,
-so a report of no cloud does not show a clear sky: high cloud, and much of the
+sees cloud only up to 12,000 ft, and a CAVOK report vouches only for 5,000 ft.
+So a report of no cloud does not show a clear sky. High cloud, and much of the
 mid layer, can sit above what the station sees. When the report shows more
 cloud than the forecast for the same hour, though, the forecast is already
 wrong. The verdict has hard gates, a score when the gates pass, and a confidence

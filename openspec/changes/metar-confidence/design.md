@@ -54,8 +54,10 @@
 ### DD1. The observed cloud is a function in `observation.py`
 
 `observed_cloud(observation) -> int` returns the spec's points: the largest of
-`FEW` 12, `SCT` 37, `BKN` 62, `OVC`, `OVX` and `VV` 100 over layers with a known
-base at most `CLEAR_BELOW_FT`, else 0. It sits beside `COVER_WORDS` and
+`FEW` 12, `SCT` 37, `BKN` 62 and `OVC` 100 over layers with a known base at most
+`CLEAR_BELOW_FT`, and 100 for any `OVX` or `VV` layer, whatever its base, else
+0. An obscured sky starts at the surface, so a missing vertical visibility
+does not make it clear. It sits beside `COVER_WORDS` and
 `CLEAR_BELOW_FT`, because it reads the report's own codes.
 
 *Alternative:* compute it in `scoring.py`. Rejected: scoring would learn METAR
@@ -103,10 +105,17 @@ call and test as it is.
 
 ### DD5. `evaluate()` takes the observation; the producer places the line
 
-`evaluate(..., observation=None)` measures the term once beside the agreement,
-passes it to `confidence()` and stores it in a new `Decision.observed` field
-only when its factor is below 1, so the field is exactly "the line is due". The
-three fixed-confidence paths never measure it (D9).
+`evaluate(..., observation=None)` measures the term once beside the agreement
+and passes it to `confidence()`. It also calls `confidence()` without the term.
+A new `Decision.observed` field holds the term only when the value with it is
+lower than the value without it, so the field is exactly "the line is due". A
+factor below 1 is not enough: the MEDIUM clamp can leave the value unchanged,
+and the line must not claim a fall that did not happen.
+
+The three fixed-confidence paths (no dark window, no dark time, no cloud data)
+return a `Decision` with `observed=None`, whatever the term measured. The
+no-cloud path matters most: the instant's hour can carry low and mid cloud while
+the scored window has none (D9).
 
 The producer builds the line with `_observed_reason(term)` and appends it right
 after the observation line (D11). The line needs the observation line before
@@ -127,7 +136,9 @@ bound.
 ### DD7. Docs
 
 The README's `metar_station` row says the observation lowers confidence when
-the report shows more cloud than this hour's forecast. Its `confidence` row
+the report shows more cloud than this hour's forecast. It also says the check
+needs a cloud forecast with low and mid layers, which the Open-Meteo providers
+give and NWS and 7Timer! do not. Its `confidence` row
 adds "and falls when the forecasts disagree or the airport reports more cloud
 than forecast". `produce_verdict`'s docstring drops "changes no confidence".
 
