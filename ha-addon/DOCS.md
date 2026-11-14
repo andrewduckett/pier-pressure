@@ -164,6 +164,29 @@ piers:
     dew_margin: 3
 ```
 
+## Set a pier's METAR station
+
+A pier can name an airport weather station near it. The verdict's reasons
+then end with what that station last reported, such as `At
+2026-11-14T20:54:00Z, KBOS reported few cloud at 3,000 ft and broken cloud at
+4,200 ft.` A report more than 90 minutes old is not quoted. The line never
+changes the verdict, score or confidence.
+
+The Configuration tab has no field for it. To set it, add `metar_station` to
+the pier in the add-on's `config.yaml` file, as
+[Add settings with config.yaml](#add-settings-with-configyaml) describes. The
+code is four letters or digits, starting with a letter, such as `EGLL` or
+`KBOS`. Any other value skips the pier, and the log names `metar_station`.
+
+```yaml
+piers:
+  - id: backyard
+    metar_station: KBOS
+```
+
+The pier's device then also has a **METAR health** sensor, which shows when
+the station's report was last fetched.
+
 ## Add settings with config.yaml
 
 The Configuration tab lists your piers. A `config.yaml` file can add the

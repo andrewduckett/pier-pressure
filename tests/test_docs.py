@@ -387,3 +387,22 @@ def _cloud_range_tip() -> str:
 @pytest.mark.parametrize("example", ["`open_meteo_ecmwf`", "**Open-Meteo ECMWF health**"])
 def test_the_night_card_cloud_range_tip_gives_ecmwf_as_its_example(example: str) -> None:
     assert example in _cloud_range_tip()
+
+
+# --------------------------------------------------------------------------- #
+# metar-reason 4.2: the README documents the METAR station and the observation
+# --------------------------------------------------------------------------- #
+
+
+def test_the_pier_settings_table_documents_metar_station() -> None:
+    table = _section(_README.read_text(encoding="utf-8"), "## ⚙️ Configuration")
+    [row] = [line for line in table.splitlines() if line.startswith("| `metar_station`")]
+    assert "four" in row
+    assert "reasons" in row
+
+
+def test_the_verdict_document_table_documents_observation() -> None:
+    document = _section(_README.read_text(encoding="utf-8"), "### The verdict document")
+    [row] = [line for line in document.splitlines() if line.startswith("| `observation`")]
+    for field in ("station", "observed_at", "cover", "clouds", "base_ft", "90 minutes"):
+        assert field in row

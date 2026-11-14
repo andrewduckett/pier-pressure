@@ -175,6 +175,7 @@ piers:
     go_threshold: 65          # score needed for GO (default 65)
     max_gust: 30              # km/h; a higher forecast gust means NO-GO (off by default)
     dew_margin: 4             # °C; a smaller spread means dew or frost is likely (default 4)
+    metar_station: EGLL       # optional; the airport whose latest report the reasons quote
     horizon:
       file: horizons/backyard.hrz   # relative to this config file
       format: nina
@@ -198,6 +199,7 @@ conditions:
 | `go_threshold` | The score a night needs for `GO`. |
 | `max_gust` | Turns on the wind gate. Leave it out to ignore wind gusts. |
 | `dew_margin` | When the air temperature is less than this many °C above the dew point, the reasons say from which hour dew is likely, or frost at 0 °C or below. The default is 4. Set 0 to turn the line off. It never changes the verdict, score or confidence. |
+| `metar_station` | Optional. The code of an airport weather station near the pier, such as `EGLL` or `KBOS`: four letters or digits, starting with a letter, in any case. PierPressure then fetches that station's latest METAR report from aviationweather.gov on every recompute, and the reasons end with what it reported, such as `At 2026-11-14T20:54:00Z, KBOS reported few cloud at 3,000 ft and broken cloud at 4,200 ft.` A report more than 90 minutes old is not quoted. It never changes the verdict, score or confidence. Choose a station whose sky is close to yours. |
 | `horizon` | Exactly one of: `points` (a list of `[azimuth, altitude]` pairs), `min_altitude` (a flat floor in degrees), or `file` + `format`. Without it the horizon is flat at 0°. The only file format supported today is `nina` (a NINA `.hrz` export). `stellarium` and `telescopius` are recognised but rejected as not yet supported. |
 | `equipment` | Your telescope and camera. With equipment, targets are also ranked on how well they fit the field of view. |
 | `explainer` | The optional LLM summary. See [docs/llm-explainer.md](docs/llm-explainer.md). |
@@ -439,6 +441,7 @@ Each pier becomes one device, `PierPressure <pier>`, with these entities:
 | **Refresh** (button) | — | "Show me now": recomputes and republishes straight away. |
 | **Narrative** (sensor) | `ready` or unavailable | Only when the explainer is on. The text is in its attributes. |
 | **Open-Meteo health**, **7Timer! health**, **Computed health**, and **Open-Meteo HRRR health** and so on for each listed model (diagnostic sensors) | When that weather source last succeeded, or unknown | One per provider in the `conditions` list. See [Watching provider health](#watching-provider-health). |
+| **METAR health** (diagnostic sensor) | When the METAR fetch last succeeded, or unknown | Only for a pier with a `metar_station`. See [Watching provider health](#watching-provider-health). |
 
 To see these together on a dashboard, install the PierPressure card through
 HACS. It shows tonight's verdict, the moon, an hour-by-hour night strip and a
@@ -454,7 +457,7 @@ connection, the broker sends PierPressure's last-will message instead.
 | Purpose | Topic | Retained |
 |---|---|---|
 | Discovery configs | `homeassistant/<sensor\|button>/pierpressure_<pier>/<verdict\|score\|top_target\|target_<n>\|cloud_cover\|cloud_low\|cloud_mid\|cloud_high\|wind_gust\|seeing\|transparency\|sun_altitude\|moon_altitude\|temperature\|dew_point\|humidity\|wind_speed\|wind_direction\|precipitation_probability\|cloud_cover_min\|cloud_cover_max\|narrative\|refresh>/config` | yes |
-| Health discovery configs | `homeassistant/sensor/pierpressure_<pier>/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|open_meteo_ecmwf\|open_meteo_air_quality\|nws\|seven_timer\|computed>_health/config` | yes |
+| Health discovery configs | `homeassistant/sensor/pierpressure_<pier>/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|open_meteo_ecmwf\|open_meteo_air_quality\|nws\|seven_timer\|computed\|metar>_health/config` | yes |
 | Verdict state | `pierpressure/<pier>/verdict/state` | yes |
 | Verdict attributes (the document without `timeline`) | `pierpressure/<pier>/verdict/attributes` | yes |
 | Top target state and list | `pierpressure/<pier>/top_target/state`, `.../top_target/attributes` | yes |
@@ -462,7 +465,7 @@ connection, the broker sends PierPressure's last-will message instead.
 | Cloud cover state and forecast | `pierpressure/<pier>/cloud_cover/state`, `.../cloud_cover/attributes` | yes |
 | Timeline sensor state and forecast, where `<var>` is `cloud_low`, `cloud_mid`, `cloud_high`, `wind_gust`, `seeing`, `transparency`, `sun_altitude`, `moon_altitude`, `temperature`, `dew_point`, `humidity`, `wind_speed`, `wind_direction`, `precipitation_probability`, `cloud_cover_min` or `cloud_cover_max` | `pierpressure/<pier>/<var>/state`, `.../<var>/attributes` | yes |
 | Narrative state and text | `pierpressure/<pier>/narrative/state`, `.../narrative/attributes` | yes |
-| Provider health state and details | `pierpressure/<pier>/health/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|open_meteo_ecmwf\|open_meteo_air_quality\|nws\|seven_timer\|computed>/state`, `.../attributes` | yes |
+| Provider health state and details | `pierpressure/<pier>/health/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|open_meteo_ecmwf\|open_meteo_air_quality\|nws\|seven_timer\|computed\|metar>/state`, `.../attributes` | yes |
 | Refresh command | `pierpressure/<pier>/refresh/command` | no |
 | Availability | `pierpressure/status` | yes |
 
@@ -489,6 +492,7 @@ hold every key except `timeline`, which would push them past Home Assistant's
 | `scored_window` | object | The part of `dark_window` that the verdict judged: `{ start, end }`. |
 | `moon` | object | The moon's illumination, phase, and behaviour during the dark window. |
 | `timeline` | list | One entry per hour of weather the sources returned, with the sun and moon altitude. Evidence beside the verdict, not part of it. Delivered on the timeline sensors, one per variable; see [docs/night-timeline.md](docs/night-timeline.md). |
+| `observation` | object or `null` | The latest report from the pier's `metar_station`: `{ station, observed_at, cover, clouds }`. `observed_at` is when the station measured. `cover` is the report's overall code, such as `BKN` or `CLR`. `clouds` lists each layer as reported, `{ cover, base_ft }`, with `base_ft` in feet above ground or `null` when the report gives none. `null` when the pier names no station, the fetch failed, or the report was measured more than 90 minutes before `generated_at`. Evidence beside the verdict, not part of it. |
 
 **`dark_window`** is when the sun's centre is more than 18° below the horizon.
 "Tonight" is the night whose dawn is the first one at or after `generated_at`, so
@@ -575,8 +579,12 @@ easy to miss. The health sensors show each failure as it happens.
 Each pier has one diagnostic sensor per configured provider: **Open-Meteo
 health**, **7Timer! health**, **Open-Meteo air quality health** and **Computed
 health** by default. Each Open-Meteo model you list adds
-its own, such as **Open-Meteo HRRR health**, and `nws` adds **NWS health**. You
-find them under the pier's device, in the diagnostic section.
+its own, such as **Open-Meteo HRRR health**, and `nws` adds **NWS health**. A
+pier with a `metar_station` also has **METAR health**. Its `variables` is `[]`,
+because a report fills no forecast variable, and its `issued_at` is when the
+station measured. A fetch that returns no report fails with `no report
+returned`. A report too old to quote still counts as a success. You find them
+under the pier's device, in the diagnostic section.
 
 **State.** The time of that provider's last successful fetch for this pier. It is
 **unknown** until the provider succeeds after PierPressure starts, because health
@@ -695,11 +703,13 @@ done
 If you listed Open-Meteo models or NWS, add each one's health sensor to the list,
 such as `sensor/pierpressure_backyard/open_meteo_hrrr_health`. The keys are
 `open_meteo_hrrr`, `open_meteo_hrdps`, `open_meteo_rdps`, `open_meteo_icon`,
-`open_meteo_gfs`, `open_meteo_ecmwf` and `nws`.
+`open_meteo_gfs`, `open_meteo_ecmwf` and `nws`. If the pier has a
+`metar_station`, also add `sensor/pierpressure_backyard/metar_health`.
 
 **Removing one provider.** When you take a provider out of the `conditions` list,
-its health sensor stays in Home Assistant, showing its last success. Clear its
-discovery topic to remove it. For HRRR on the `backyard` pier:
+or a `metar_station` off a pier, its health sensor stays in Home Assistant,
+showing its last success. Clear its discovery topic to remove it. For HRRR on
+the `backyard` pier:
 
 ```bash
 mosquitto_pub -r -n -t "homeassistant/sensor/pierpressure_backyard/open_meteo_hrrr_health/config"
