@@ -14,6 +14,7 @@ from datetime import UTC, datetime, timedelta, timezone
 import jsonschema
 import pytest
 
+from pierpressure.conditions.metar import METAR
 from pierpressure.core.providers import (
     COMPUTED,
     OPEN_METEO,
@@ -309,3 +310,65 @@ def test_a_time_with_no_time_zone_is_rejected() -> None:
     )
     with pytest.raises(ValueError, match="time zone"):
         health_attributes(health)
+
+
+# --------------------------------------------------------------------------- #
+# METAR health (metar-reason DD8)
+# --------------------------------------------------------------------------- #
+
+_METAR_FETCHED = datetime(2026, 11, 14, 21, 30, 5, tzinfo=UTC)
+_METAR_OBSERVED = datetime(2026, 11, 14, 20, 54, tzinfo=UTC)
+
+
+def _metar_health() -> ProviderHealth:
+    empty = ProviderHealth.empty(
+        key=METAR.key, name=METAR.name, variables=METAR.variables, tracking_since=_START
+    )
+    return fold(
+        empty,
+        FetchOutcome(
+            key=METAR.key,
+            name=METAR.name,
+            variables=METAR.variables,
+            fetched_at=_METAR_FETCHED,
+            ok=True,
+            issued_at=_METAR_OBSERVED,
+        ),
+    )
+
+
+def test_metar_health_discovery_is_named_and_keyed_metar() -> None:
+    payload = build_health_discovery("backyard", BASE, METAR.key, METAR.name)
+    jsonschema.validate(payload, SENSOR_SCHEMA)
+    assert payload["name"] == "METAR health"
+    assert payload["unique_id"] == "pierpressure_backyard_metar_health"
+    assert payload["state_topic"] == "pierpressure/backyard/health/metar/state"
+
+
+def test_metar_health_state_is_the_fetch_time() -> None:
+    assert health_state(_metar_health()) == "2026-11-14T21:30:05+00:00"
+
+
+def test_metar_health_attributes_list_no_variables_and_the_observation_time() -> None:
+    attributes = health_attributes(_metar_health())
+    assert (attributes["status"], attributes["variables"], attributes["issued_at"]) == (
+        "ok",
+        [],
+        "2026-11-14T20:54:00+00:00",
+    )
+
+
+def test_a_metar_fetch_with_no_report_shows_as_failed() -> None:
+    failed = fold(
+        _metar_health(),
+        FetchOutcome(
+            key=METAR.key,
+            name=METAR.name,
+            variables=METAR.variables,
+            fetched_at=_METAR_FETCHED + timedelta(minutes=15),
+            ok=False,
+            error="no report returned",
+        ),
+    )
+    attributes = health_attributes(failed)
+    assert (attributes["status"], attributes["last_error"]) == ("failed", "no report returned")

@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import queue
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from pierpressure.conditions import FetchResult
+from pierpressure.conditions.metar import METAR
 from pierpressure.core.clock import FixedClock
 from pierpressure.core.config import AppConfig, PierConfig, RecomputeConfig
+from pierpressure.core.observation import Observation
 from pierpressure.core.providers import OPEN_METEO, SEVEN_TIMER
 from pierpressure.delivery.mqtt import MqttDelivery, refresh_command_topic
 from pierpressure.health import FetchOutcome, ProviderHealth, ProviderInfo
@@ -298,3 +301,126 @@ def test_an_outcome_from_an_unconfigured_provider_is_logged(
     assert "seven_timer" in caplog.text
     _, healths = delivery.healths[-1]
     assert [h.key for h in healths] == ["open_meteo"]
+
+
+# --------------------------------------------------------------------------- #
+# METAR health and the observation (metar-reason DD8)
+# --------------------------------------------------------------------------- #
+
+_OBSERVED_AT = _START - timedelta(minutes=36)
+
+
+def _metar_outcome(fetched_at: datetime, *, ok: bool = True) -> FetchOutcome:
+    return FetchOutcome(
+        key=METAR.key,
+        name=METAR.name,
+        variables=METAR.variables,
+        fetched_at=fetched_at,
+        ok=ok,
+        error=None if ok else "no report returned",
+        issued_at=_OBSERVED_AT if ok else None,
+    )
+
+
+class _MetarFetch:
+    """Answer each fetch with an observation and a METAR outcome for a pier with a station."""
+
+    def __init__(self, events: list[tuple[str, ...]], observed_at: datetime = _OBSERVED_AT) -> None:
+        self._events = events
+        self._observed_at = observed_at
+
+    def __call__(self, pier: PierConfig) -> FetchResult:
+        self._events.append(("fetch", pier.id))
+        if pier.metar_station is None:
+            return FetchResult(make_conditions())
+        observation = Observation(
+            station=pier.metar_station, observed_at=self._observed_at, cover="CLR", clouds=()
+        )
+        outcome = replace(_metar_outcome(_START), issued_at=self._observed_at)
+        return FetchResult(make_conditions(), (outcome,), observation)
+
+
+def _metar_service(
+    delivery: RecordingDelivery, *, clock: datetime = _START, observed_at: datetime = _OBSERVED_AT
+) -> Service:
+    config = AppConfig(
+        mqtt=make_mqtt_config(),
+        recompute=RecomputeConfig(interval_seconds=10),
+        piers=[
+            make_pier("a").model_copy(update={"metar_station": "KBOS"}),
+            make_pier("b"),
+        ],
+    )
+    return Service(
+        config,
+        delivery,  # type: ignore[arg-type]
+        FixedClock(clock),
+        conditions_provider=_MetarFetch(delivery.events, observed_at),
+        providers=_PROVIDERS,
+    )
+
+
+def test_startup_seeds_metar_health_only_for_a_pier_with_a_station() -> None:
+    delivery = RecordingDelivery()
+    _metar_service(delivery).run(monotonic=ScriptedMonotonic([0.0]), max_iterations=0)
+
+    assert delivery.events[:3] == [("health", "a"), ("health", "b"), ("online",)]
+    seeded = dict(delivery.healths[:2])
+    assert seeded["a"][-1] == ProviderHealth.empty(
+        key="metar", name="METAR", variables=(), tracking_since=_START
+    )
+    assert [h.key for h in seeded["b"]] == ["open_meteo", "seven_timer"]
+
+
+def test_a_metar_outcome_folds_with_the_observation_time_as_its_issue_time() -> None:
+    delivery = RecordingDelivery()
+    _metar_service(delivery).run(monotonic=ScriptedMonotonic([0.0]), max_iterations=0)
+
+    latest = dict(delivery.healths)
+    metar = latest["a"][-1]
+    assert (metar.key, metar.status, metar.last_success, metar.issued_at) == (
+        "metar",
+        "ok",
+        _START,
+        _OBSERVED_AT,
+    )
+
+
+def test_the_service_passes_the_observation_to_the_verdict() -> None:
+    delivery = RecordingDelivery()
+    _metar_service(delivery).run(monotonic=ScriptedMonotonic([0.0]), max_iterations=0)
+
+    documents = {doc.pier: doc for doc in delivery.documents}
+    assert documents["a"].observation is not None
+    assert documents["a"].observation.observed_at == _OBSERVED_AT
+    assert documents["b"].observation is None
+
+
+def test_an_old_metar_report_is_ok_in_health_and_null_in_the_verdict() -> None:
+    delivery = RecordingDelivery()
+    old = _START - timedelta(hours=3)
+    _metar_service(delivery, observed_at=old).run(
+        monotonic=ScriptedMonotonic([0.0]), max_iterations=0
+    )
+
+    metar = dict(delivery.healths)["a"][-1]
+    assert (metar.status, metar.issued_at) == ("ok", old)
+    assert {doc.pier: doc for doc in delivery.documents}["a"].observation is None
+
+
+def test_with_no_providers_a_pier_with_a_station_publishes_no_metar_health() -> None:
+    delivery = RecordingDelivery()
+    config = AppConfig(
+        mqtt=make_mqtt_config(),
+        recompute=RecomputeConfig(interval_seconds=10),
+        piers=[make_pier("a").model_copy(update={"metar_station": "KBOS"})],
+    )
+    service = Service(
+        config,
+        delivery,  # type: ignore[arg-type]
+        FixedClock(_START),
+        conditions_provider=_MetarFetch(delivery.events),
+    )
+    service.run(monotonic=ScriptedMonotonic([0.0]), max_iterations=0)
+
+    assert delivery.healths == []

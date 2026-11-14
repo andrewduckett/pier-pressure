@@ -18,7 +18,7 @@
 
 ## 4. Health, docs and the gate [depends-on: 2, 3]
 
-- [ ] 4.1 [medium] The service seeds a `METAR` health record keyed `metar` with `variables` `()` only for piers with a station, before going online; it folds the `metar` outcome with the observation time as the issue time, and passes `result.observation` to `produce_verdict` (design DD8) (verify: uv run pytest tests/test_service.py tests/test_health_delivery.py -q -k metar)
+- [x] 4.1 [medium] The service seeds a `METAR` health record keyed `metar` with `variables` `()` only for piers with a station, before going online; it folds the `metar` outcome with the observation time as the issue time, and passes `result.observation` to `produce_verdict` (design DD8) (verify: uv run pytest tests/test_service.py tests/test_health_delivery.py -q -k metar) (✓ uv run pytest tests/test_service.py tests/test_health_delivery.py -q -k metar passed)
 - [ ] 4.2 [easy] The README documents `metar_station` in its pier settings table and `observation` in its verdict-document section, and `ha-addon/DOCS.md` says to set `metar_station` in `config.yaml`, as it does `dew_margin` (verify: uv run pytest tests/test_docs.py tests/test_ha_addon.py -q)
 - [ ] 4.3 [easy] The whole project gate is green (verify: mise run check)
 

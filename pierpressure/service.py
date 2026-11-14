@@ -39,6 +39,7 @@ from enum import Enum
 from typing import Final
 
 from pierpressure.conditions import FetchResult
+from pierpressure.conditions.metar import METAR
 from pierpressure.core.clock import Clock
 from pierpressure.core.conditions import Conditions
 from pierpressure.core.config import AppConfig, PierConfig
@@ -141,8 +142,11 @@ class Service:
         to a partial snapshot rather than skipping a publish.
         """
         result = self._conditions_provider(pier)
-        # Only the conditions reach the core; the fetch outcomes feed health alone.
-        document = produce_verdict(pier, self._clock, result.conditions)
+        # The conditions and the observation reach the core; the fetch outcomes
+        # feed health alone.
+        document = produce_verdict(
+            pier, self._clock, result.conditions, observation=result.observation
+        )
         narrative = self._explainer(document)  # never raises; may be None
         self._delivery.publish_verdict(document, narrative=narrative)
 
@@ -166,6 +170,11 @@ class Service:
         """
         tracking_since = self._clock.now()
         for pier in self._config.piers:
+            # METAR health only for a pier that names a station, and only when the
+            # service reports health at all (metar-reason DD8).
+            sources = self._providers
+            if sources and pier.metar_station is not None:
+                sources = (*sources, METAR)
             self._health[pier.id] = {
                 info.key: ProviderHealth.empty(
                     key=info.key,
@@ -173,7 +182,7 @@ class Service:
                     variables=info.variables,
                     tracking_since=tracking_since,
                 )
-                for info in self._providers
+                for info in sources
             }
             if self._providers:
                 self._delivery.publish_health(pier.id, self._health[pier.id].values())
