@@ -29,7 +29,7 @@ from .model import (
     TimelineEntry,
     VerdictDocument,
 )
-from .observation import Observation, usable
+from .observation import Observation, observation_reason, usable
 from .ranking import equipment_reasons, rank_targets
 from .scoring import MIN_USABLE_WINDOW, AgreementTerm, evaluate
 from .sky import altitudes_at, dark_window, moon_info
@@ -75,6 +75,9 @@ def produce_verdict(
     # for: a NO-GO night has been ruled out, and a span under MIN_USABLE_WINDOW has
     # just said "not worth setting up", so neither advertises a target.
     reasons = list(decision.reasons)
+    # On every verdict, after the core's own lines and before the notes (DD6).
+    if observation is not None:
+        reasons.append(observation_reason(observation))
     scored_start, scored_end = decision.scored_window
     worth_setting_up = (
         scored_start is not None

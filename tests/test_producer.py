@@ -219,7 +219,7 @@ def _november_conditions(cloud: float = 20.0) -> Conditions:
         cloud_cover=cloud,
         wind_gust=10.0,
         temperature=8.0,
-        dew_point=2.0,
+        dew_point=6.0,
     )
     return Conditions(series=series)
 
@@ -281,3 +281,72 @@ def test_an_observation_changes_no_decision_field() -> None:
         observed.agreement,
         observed.timeline,
     ) == (plain.verdict, plain.score, plain.confidence, plain.agreement, plain.timeline)
+
+
+_OBSERVATION_LINE = (
+    "At 2026-11-14T20:54:00Z, KBOS reported few cloud at 3,000 ft and broken cloud at 4,200 ft."
+)
+
+
+def test_an_observation_adds_only_its_reason_line() -> None:
+    plain = _produce_at(_EVENING, None)
+    observed = _produce_at(_EVENING, _observation())
+    assert observed.reasons == [*plain.reasons, _OBSERVATION_LINE]
+
+
+def test_an_unusable_observation_adds_no_reason_line() -> None:
+    doc = _produce_at(_OBSERVED_AT + timedelta(minutes=91), _observation())
+    assert not any(line.startswith("At 2026-11-14T20:54:00Z") for line in doc.reasons)
+
+
+def test_the_observation_line_follows_the_dew_line() -> None:
+    doc = _produce_at(_EVENING, _observation())
+    assert doc.verdict is Verdict.GO
+    assert doc.reasons[-2].startswith("Dew likely from")
+    assert doc.reasons[-1] == _OBSERVATION_LINE
+
+
+def test_the_observation_line_precedes_the_equipment_notes() -> None:
+    # The Cave Nebula tops the September night and frames well at 600 mm.
+    instant = datetime(2026, 9, 8, 18, tzinfo=UTC)
+    pier = PierConfig(
+        id="backyard",
+        latitude=51.5,
+        longitude=-0.12,
+        elevation_m=30.0,
+        equipment={"focal_length_mm": 600.0, "sensor_width_mm": 23.5, "sensor_height_mm": 15.7},  # type: ignore[arg-type]
+    )
+    conditions = Conditions(
+        series=provider_series(OPEN_METEO, _NIGHT, issued_at=_ISSUED, cloud_cover=20.0)
+    )
+    doc = _produce_at(
+        instant,
+        _observation(observed_at=instant - timedelta(minutes=20)),
+        conditions=conditions,
+        pier=pier,
+    )
+    line = next(i for i, r in enumerate(doc.reasons) if r.startswith("At "))
+    notes = [i for i, r in enumerate(doc.reasons) if r.startswith("Top pick")]
+    assert notes
+    assert line < min(notes)
+
+
+def test_a_gated_no_go_ends_with_the_observation_line() -> None:
+    before_dusk = datetime(2026, 11, 14, 15, tzinfo=UTC)
+    doc = _produce_at(
+        before_dusk,
+        _observation(observed_at=before_dusk - timedelta(minutes=30)),
+        conditions=_november_conditions(cloud=100.0),
+    )
+    assert doc.verdict is Verdict.NO_GO
+    assert doc.reasons[0].startswith("Overcast")
+    assert doc.reasons[-1].startswith("At 2026-11-14T14:30:00Z, KBOS reported")
+
+
+def test_a_night_with_no_dark_window_ends_with_the_observation_line() -> None:
+    midsummer = datetime(2026, 6, 21, 22, tzinfo=UTC)
+    pier = PierConfig(id="north", latitude=60.0, longitude=10.0, elevation_m=0.0)
+    observation = _observation(observed_at=midsummer - timedelta(minutes=20))
+    doc = _produce_at(midsummer, observation, conditions=Conditions(), pier=pier)
+    assert doc.dark_window.start is None
+    assert doc.reasons[-1].startswith("At 2026-06-21T21:40:00Z, KBOS reported")
