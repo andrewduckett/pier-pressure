@@ -1117,7 +1117,8 @@ def test_a_composite_air_quality_fetch_fills_both_series() -> None:
 
 # --------------------------------------------------------------------------- #
 # open-meteo-models 3.1: each model's real response parses (design D6)
-# Trimmed live recordings at Toronto (43.65, -79.38), fetched 2026-11-02 UTC.
+# Trimmed live recordings at Toronto (43.65, -79.38), fetched 2026-11-02 UTC;
+# ECMWF's was fetched 2026-11-14 UTC (open-meteo-ecmwf D7).
 # --------------------------------------------------------------------------- #
 
 
@@ -1125,13 +1126,30 @@ def _recording(model: str) -> SourceForecast:
     return parse_open_meteo(_load(f"open_meteo_{model}.json"), issued_at=_ISSUED)
 
 
-@pytest.mark.parametrize("model", ["hrrr", "hrdps", "rdps", "icon", "gfs"])
+@pytest.mark.parametrize("model", ["hrrr", "hrdps", "rdps", "icon", "gfs", "ecmwf"])
 def test_each_models_recording_parses_into_four_hours_of_readings(model: str) -> None:
     forecast = _recording(model)
     assert len(forecast.readings) == 4
     first = forecast.readings[min(forecast.readings)]
     for variable in ("cloud_cover", "cloud_low", "wind_gust", "temperature", "wind_direction"):
         assert getattr(first, variable) is not None, variable
+
+
+def test_every_hour_of_the_ecmwf_recording_has_cloud_weather_and_water_vapour() -> None:
+    forecast = _recording("ecmwf")
+    assert len(forecast.readings) == 4
+    for reading in forecast.readings.values():
+        for variable in (
+            "cloud_cover",
+            "cloud_low",
+            "cloud_mid",
+            "cloud_high",
+            "wind_gust",
+            "temperature",
+            "precipitation_probability",
+            "column_water_vapour",
+        ):
+            assert getattr(reading, variable) is not None, variable
 
 
 @pytest.mark.parametrize("model", ["hrdps", "rdps"])
