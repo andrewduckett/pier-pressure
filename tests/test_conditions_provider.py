@@ -1037,6 +1037,7 @@ def test_each_model_provider_names_exactly_its_own_model(key: str, model: str) -
         ("open_meteo_rdps", "cmc_gem_rdps_10km"),
         ("open_meteo_icon", "dwd_icon"),
         ("open_meteo_gfs", "ncep_gfs013"),
+        ("open_meteo_ecmwf", "ecmwf_ifs"),
     ],
 )
 def test_each_model_provider_reads_its_own_metadata_file_before_the_forecast(
@@ -1066,15 +1067,15 @@ _RUN_START = datetime(2026, 11, 5, 18, 0, tzinfo=UTC)
 available at 21:55 the same day."""
 
 
-def test_a_model_provider_carries_its_run_start_as_the_issue_time() -> None:
-    stack = _open_meteo_stack(
-        ["open_meteo_rdps"],
-        {"gem_regional": httpx.Response(200, json=_load("open_meteo.json"))},
-    )
+@pytest.mark.parametrize(
+    ("key", "model"), [("open_meteo_rdps", "gem_regional"), ("open_meteo_ecmwf", "ecmwf_ifs")]
+)
+def test_a_model_provider_carries_its_run_start_as_the_issue_time(key: str, model: str) -> None:
+    stack = _open_meteo_stack([key], {model: httpx.Response(200, json=_load("open_meteo.json"))})
     result = stack.get(make_pier())
     assert result.conditions.series
     for series in result.conditions.series.values():
-        assert series.provider == "open_meteo_rdps"
+        assert series.provider == key
         assert series.issued_at == _RUN_START
     (outcome,) = result.outcomes
     assert outcome.ok

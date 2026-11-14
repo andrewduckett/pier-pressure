@@ -78,6 +78,7 @@ RUN_METADATA: Mapping[str, str] = {
     "open_meteo_rdps": "cmc_gem_rdps_10km",
     "open_meteo_icon": "dwd_icon",
     "open_meteo_gfs": "ncep_gfs013",
+    "open_meteo_ecmwf": "ecmwf_ifs",
 }
 """The Open-Meteo metadata file behind each model provider's key. The forecast
 response carries no run time, so a model provider reads its run start from this
