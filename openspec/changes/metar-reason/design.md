@@ -86,6 +86,9 @@ base_ft)`. `base_ft` is `int | None`.
 station, `get` calls it after the providers, through a guarded
 `_safe_observe` that mirrors `_safe_fetch`, and appends a `metar` outcome to
 `outcomes`. The service passes `result.observation` to `produce_verdict`.
+`build_provider` constructs the real `MetarFetcher` and passes it to
+`CompositeProvider`. A `metar` keyword on `build_provider` replaces it, as
+`fetchers` replaces a provider, so tests run the production stack offline.
 
 - *Alternative:* the service calls a separate METAR fetcher. Rejected: the
   service would need a second fetch path, and the "one call per pier returns
@@ -93,9 +96,11 @@ station, `get` calls it after the providers, through a guarded
 
 ### DD3. `pierpressure/conditions/metar.py` fetches and parses
 
-- `parse_metar(payload: list[dict]) -> Observation`: picks the report whose
-  `icaoId` matches, takes `obsTime` as aware UTC, keeps `cover` and each layer
-  as reported. A layer with a missing base keeps `base_ft=None`.
+- `parse_metar(payload: list[dict], station: str) -> Observation`: picks the
+  report whose `icaoId` is `station`, takes `obsTime` as aware UTC, keeps
+  `cover` and each layer in the order reported. A layer with a missing base
+  keeps `base_ft=None`. A layer whose cover is `CLR`, `SKC`, `NCD` or `NSC` is
+  dropped. No report for `station` raises `NoReport`.
 - `MetarFetcher.fetch(station) -> Observation`: one `GET` to
   `https://aviationweather.gov/api/data/metar` with `ids` and `format=json`,
   the `USER_AGENT` from `nws.py`, and the same 10-second timeout.
@@ -110,7 +115,8 @@ station, `get` calls it after the providers, through a guarded
 
 `pierpressure/core/observation.py` also holds `usable(observation, instant)`
 (measured at most 90 minutes before the instant and not after it) and
-`observation_reason(observation)`. The producer calls both. The cover wording
+`observation_reason(observation)`, which names the layers in their stored
+order and never sorts them. The producer calls both. The cover wording
 map and the two no-layer heights are module constants beside them.
 
 ### DD5. The document models mirror `TimelineEntry`

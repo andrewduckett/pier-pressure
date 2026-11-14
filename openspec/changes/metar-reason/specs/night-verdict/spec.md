@@ -84,12 +84,12 @@ SHALL give a null `observation` and no observation reason line.
 
 When `observation` is not null, `reasons` SHALL carry exactly one line `At
 <time>, <station> reported <layers>.`. `<time>` is `observed_at`. `<layers>`
-names each layer lowest first as `<cover> at <base> ft`, joined by `, ` with
-` and ` before the last. `<base>` has a comma between thousands, or the layer
+names each layer in the order reported as `<cover> at <base> ft`, joined by
+`, ` with ` and ` before the last. `<base>` has a comma between thousands, or the layer
 says `at an unknown height`. When `observation` is null, no such line SHALL
 appear.
 
-#### Scenario: Two layers are named lowest first
+#### Scenario: Two layers are named in the order reported
 
 - **WHEN** `observation` is from `KBOS` at `2026-11-14T20:54:00Z` with layers `FEW` at 3000 ft and `BKN` at 4200 ft
 - **THEN** `reasons` contains `At 2026-11-14T20:54:00Z, KBOS reported few cloud at 3,000 ft and broken cloud at 4,200 ft.`
@@ -103,6 +103,11 @@ appear.
 
 - **WHEN** `observation` is from `KBOS` at `2026-11-14T20:54:00Z` with one layer `BKN` whose `base_ft` is null
 - **THEN** `reasons` contains `At 2026-11-14T20:54:00Z, KBOS reported broken cloud at an unknown height.`
+
+#### Scenario: A layer with no base keeps its place among known bases
+
+- **WHEN** `observation` is from `KBOS` at `2026-11-14T20:54:00Z` with layers `FEW` at 3000 ft and then `BKN` whose `base_ft` is null
+- **THEN** `reasons` contains `At 2026-11-14T20:54:00Z, KBOS reported few cloud at 3,000 ft and broken cloud at an unknown height.`
 
 ### Requirement: The observation line words each cover code
 

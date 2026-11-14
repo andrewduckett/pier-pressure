@@ -64,8 +64,9 @@ in the order reported.
 
 An observation SHALL keep every cover code as the report gives it, including a
 code it has no wording for. A layer with no base SHALL be kept, with its base
-unknown. A report with no layers SHALL give an observation with an empty list
-of layers.
+unknown. A layer whose cover says there is no cloud (`CLR`, `SKC`, `NCD` or
+`NSC`) SHALL be left out. A report with no other layers SHALL give an
+observation with an empty list of layers.
 
 #### Scenario: A layer with no base is kept
 
@@ -75,6 +76,11 @@ of layers.
 #### Scenario: A clear report has no layers
 
 - **WHEN** a report has cover `CLR` and no layers
+- **THEN** the observation's cover is `CLR` and its list of layers is empty
+
+#### Scenario: A clear layer entry is left out
+
+- **WHEN** a report has cover `CLR` and one layer `CLR` with no base
 - **THEN** the observation's cover is `CLR` and its list of layers is empty
 
 ### Requirement: A failed METAR fetch leaves the pier with no observation
@@ -94,6 +100,12 @@ provider.
 #### Scenario: An unknown station returns no report
 
 - **WHEN** the METAR request for `KZZZ` answers with an empty list
+- **THEN** the pier has no observation for that fetch
+- **AND** the METAR fetch is reported as failed with the error `no report returned`
+
+#### Scenario: A 204 response returns no report
+
+- **WHEN** the METAR request for `KZZZ` answers with status 204 and an empty body
 - **THEN** the pier has no observation for that fetch
 - **AND** the METAR fetch is reported as failed with the error `no report returned`
 

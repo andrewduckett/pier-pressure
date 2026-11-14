@@ -6,10 +6,10 @@
 ## Review Summary
 
 ADR review completed for this change. Of design.md's decisions, DD1 and DD2
-together pass the test: someone could fold the observation into the
-conditions or the provider order, and undoing that later would touch the
-document contract and the confidence work that builds on it. The rest (DD3 to
-DD8) are recoverable from code or follow existing records.
+together pass the test. Someone could fold the observation into the conditions
+or the provider order. Undoing that later would touch the document contract
+and the confidence work that builds on it. The rest (DD3 to DD8) are
+recoverable from code or follow existing records.
 
 ## In-Force ADRs Reviewed
 
