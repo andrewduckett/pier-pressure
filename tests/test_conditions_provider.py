@@ -15,6 +15,7 @@ import pytest
 from pydantic import ValidationError
 
 from pierpressure import __version__
+from pierpressure.conditions.met_norway import parse_met_norway
 from pierpressure.conditions.metar import MetarFetcher, NoReport
 from pierpressure.conditions.nws import NwsProvider, parse_nws
 from pierpressure.conditions.open_meteo import COLUMNS, OpenMeteoProvider, parse_open_meteo
@@ -1748,6 +1749,93 @@ def test_nws_user_agent_names_the_project_version_and_repository() -> None:
     for request in server.requests:
         assert request.headers["User-Agent"] == expected
         assert "@" not in request.headers["User-Agent"]
+
+
+# --------------------------------------------------------------------------- #
+# met-norway-provider: MET Norway's complete Locationforecast
+# --------------------------------------------------------------------------- #
+
+_MET_UNITS = {
+    "cloud_area_fraction": "%",
+    "cloud_area_fraction_low": "%",
+    "cloud_area_fraction_medium": "%",
+    "cloud_area_fraction_high": "%",
+    "wind_speed_of_gust": "m/s",
+    "wind_speed": "m/s",
+    "wind_from_direction": "degrees",
+    "air_temperature": "celsius",
+    "dew_point_temperature": "celsius",
+    "relative_humidity": "%",
+    "probability_of_precipitation": "%",
+}
+
+
+def _met_step(time: datetime, rain_chance: float | None = None, **instant: float) -> dict[str, Any]:
+    """One timeseries step with ``instant`` details and an optional next-hour rain chance."""
+    data: dict[str, Any] = {"instant": {"details": instant}}
+    if rain_chance is not None:
+        data["next_1_hours"] = {"details": {"probability_of_precipitation": rain_chance}}
+    return {"time": time.strftime("%Y-%m-%dT%H:%M:%SZ"), "data": data}
+
+
+def _met(*steps: dict[str, Any]) -> dict[str, Any]:
+    """A ``complete`` payload holding ``steps``, with the expected units."""
+    return {
+        "type": "Feature",
+        "properties": {
+            "meta": {"updated_at": "2026-09-08T19:17:36Z", "units": dict(_MET_UNITS)},
+            "timeseries": list(steps),
+        },
+    }
+
+
+def test_met_norway_step_instant_values_fill_its_hour() -> None:
+    forecast = parse_met_norway(
+        _met(
+            _met_step(
+                _hour(21),
+                cloud_area_fraction=80.0,
+                cloud_area_fraction_low=10.0,
+                cloud_area_fraction_medium=30.0,
+                cloud_area_fraction_high=75.0,
+                wind_from_direction=160.0,
+                air_temperature=4.8,
+                dew_point_temperature=3.3,
+                relative_humidity=90.3,
+            )
+        )
+    )
+    assert forecast.readings == {
+        _hour(21): SourceReading(
+            cloud_cover=80.0,
+            cloud_low=10.0,
+            cloud_mid=30.0,
+            cloud_high=75.0,
+            wind_direction=160.0,
+            temperature=4.8,
+            dew_point=3.3,
+            humidity=90.3,
+        )
+    }
+
+
+def test_met_norway_missing_field_leaves_its_variable_absent() -> None:
+    forecast = parse_met_norway(
+        _met(_met_step(_hour(21), cloud_area_fraction=80.0), _met_step(_hour(22)))
+    )
+    assert forecast.readings[_hour(21)].cloud_low is None
+    assert forecast.readings[_hour(22)] == SourceReading()
+
+
+def test_met_norway_issue_time_is_the_update_time() -> None:
+    forecast = parse_met_norway(_met(_met_step(_hour(21), cloud_area_fraction=80.0)))
+    assert forecast.issued_at == datetime(2026, 9, 8, 19, 17, 36, tzinfo=UTC)
+
+
+def test_met_norway_issue_time_is_none_without_an_update_time() -> None:
+    payload = _met(_met_step(_hour(21), cloud_area_fraction=80.0))
+    del payload["properties"]["meta"]["updated_at"]
+    assert parse_met_norway(payload).issued_at is None
 
 
 # --------------------------------------------------------------------------- #
