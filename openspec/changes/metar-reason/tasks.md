@@ -1,0 +1,25 @@
+## 1. Shared contracts
+
+- [ ] 1.1 [easy] A pier configuration with `metar_station: kbos` loads with station `KBOS`, `K1V4` is accepted, and `KBO`, `1BOS` and `K BOS` fail with an error that names `metar_station`; a pier that omits it has `metar_station is None` (design DD7) (verify: uv run pytest tests/test_config.py -q -k metar)
+- [ ] 1.2 [medium] `pierpressure/core/observation.py` holds the frozen `Observation(station, observed_at, cover, clouds)` and `CloudLayer(cover, base_ft)`, and `usable(observation, instant)` is true for an observation measured exactly 90 minutes before the instant, false at 91 minutes and false for one measured after the instant (design DD1, DD4) (verify: uv run pytest tests/test_observation.py -q -k usable)
+- [ ] 1.3 [medium] `VerdictDocument` gains `observation: ObservationEntry | None = None` as its last key, with `ObservationEntry(station, observed_at, cover, clouds)` and `CloudLayerEntry(cover, base_ft)` serialized in that key order and `observed_at` in the `Z` format; regenerate the goldens with `PP_WRITE_GOLDENS=1`, so each differs from the committed one only by a trailing `"observation": null` (design DD5) (verify: uv run pytest tests/test_model.py tests/test_golden_verdict.py -q)
+
+## 2. The observation in the verdict [depends-on: 1]
+
+- [ ] 2.1 [medium] `observation_reason` words a report as the night-verdict spec says: layers in their stored order, joined by `, ` and ` and `, thousands with a comma, `FEW`/`SCT`/`BKN`/`OVC`/`OVX` worded and any other code as reported, a null base as `at an unknown height` (never sorted), and no layers as `no cloud below 12,000 ft` or, for `CAVOK`, `5,000 ft` (design DD4) (verify: uv run pytest tests/test_observation.py -q -k reason)
+- [ ] 2.2 [medium] `produce_verdict(pier, clock, conditions, observation=...)` fills `observation` from a usable observation and leaves it null for none or an unusable one; with an observation, `verdict`, `score`, `confidence`, `agreement` and `timeline` equal those of the same call without one (design DD1) (verify: uv run pytest tests/test_producer.py -q -k observation)
+- [ ] 2.3 [easy] The observation line comes after the dew line and before every equipment note, and a gated `NO-GO` and a night with no dark window both end with it (design DD6) (verify: uv run pytest tests/test_producer.py -q -k observation)
+
+## 3. Fetching the METAR [depends-on: 1]
+
+- [ ] 3.1 [parallel] [medium] Record a live response with several layers as `tests/fixtures/metar.json`; `parse_metar(payload, station)` returns the matching station's `Observation` with `obsTime` as aware UTC, the overall `cover` and the layers in reported order, keeps a null base, drops `CLR`/`SKC`/`NCD`/`NSC` layers, and raises `NoReport` when no report matches (design DD3) (verify: uv run pytest tests/test_metar.py -q -k parse)
+- [ ] 3.2 [parallel] [medium] `MetarFetcher.fetch("KBOS")` sends one `GET` to `https://aviationweather.gov/api/data/metar?ids=KBOS&format=json` with the NWS `USER_AGENT`, and a 204 with an empty body or a `[]` body raises `NoReport`, whose description is `no report returned` (design DD3) (verify: uv run pytest tests/test_metar.py -q -k fetch)
+- [ ] 3.3 [medium] `CompositeProvider.get` for a pier with a station returns the observation on `FetchResult` and a `metar` outcome after the provider outcomes; a failing fetch gives no observation and a failed outcome, and leaves the snapshot unchanged; a pier with no station makes no METAR call; `build_provider` wires the real fetcher, and its `metar` keyword replaces it (design DD2) (verify: uv run pytest tests/test_conditions_provider.py -q -k metar)
+
+## 4. Health, docs and the gate [depends-on: 2, 3]
+
+- [ ] 4.1 [medium] The service seeds a `METAR` health record keyed `metar` with `variables` `()` only for piers with a station, before going online; it folds the `metar` outcome with the observation time as the issue time, and passes `result.observation` to `produce_verdict` (design DD8) (verify: uv run pytest tests/test_service.py tests/test_health_delivery.py -q -k metar)
+- [ ] 4.2 [easy] The README documents `metar_station` in its pier settings table and `observation` in its verdict-document section, and `ha-addon/DOCS.md` says to set `metar_station` in `config.yaml`, as it does `dew_margin` (verify: uv run pytest tests/test_docs.py tests/test_ha_addon.py -q)
+- [ ] 4.3 [easy] The whole project gate is green (verify: mise run check)
+
+## Deviations Ledger
