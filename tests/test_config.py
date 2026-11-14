@@ -616,6 +616,19 @@ def test_a_model_provider_alone_satisfies_the_cloud_rule(tmp_path: Path) -> None
     assert config.conditions.providers == ["open_meteo_hrdps"]
 
 
+def test_the_ecmwf_model_key_is_kept_in_its_configured_order(tmp_path: Path) -> None:
+    block = "conditions:\n  providers: [open_meteo_hrrr, open_meteo_ecmwf, seven_timer]\n"
+    config = load_config(_with_conditions(tmp_path, block))
+    assert config.conditions.providers == ["open_meteo_hrrr", "open_meteo_ecmwf", "seven_timer"]
+
+
+def test_the_ecmwf_model_alone_satisfies_the_cloud_rule(tmp_path: Path) -> None:
+    config = load_config(
+        _with_conditions(tmp_path, "conditions:\n  providers: [open_meteo_ecmwf]\n")
+    )
+    assert config.conditions.providers == ["open_meteo_ecmwf"]
+
+
 def test_a_model_outside_its_area_does_not_stop_startup(tmp_path: Path) -> None:
     # The base pier sits at 51.5, -0.12 (London), outside HRRR's area.
     config = load_config(
