@@ -1232,6 +1232,35 @@ def test_water_vapour_comes_from_the_next_provider_that_declares_it() -> None:
     assert series["column_water_vapour"].provider == "open_meteo_gfs"
 
 
+def test_water_vapour_can_come_from_ecmwf() -> None:
+    stack = _open_meteo_stack(
+        ["open_meteo_hrdps", "open_meteo_ecmwf"],
+        {
+            "gem_hrdps_continental": httpx.Response(200, json=_load("open_meteo.json")),
+            "ecmwf_ifs": httpx.Response(200, json=_load("open_meteo.json")),
+        },
+    )
+    series = stack.get(make_pier()).conditions.series
+    assert series["column_water_vapour"].provider == "open_meteo_ecmwf"
+
+
+def test_the_seeing_column_comes_from_a_later_model_than_ecmwf() -> None:
+    # ECMWF is answered with the whole column, so only its declaration keeps it
+    # from filling the bundle.
+    answer = _with_seeing_column(_load("open_meteo.json"))
+    stack = _open_meteo_stack(
+        ["open_meteo_ecmwf", "open_meteo_gfs"],
+        {
+            "ecmwf_ifs": httpx.Response(200, json=answer),
+            "gfs_global": httpx.Response(200, json=answer),
+        },
+    )
+    series = stack.get(make_pier()).conditions.series
+    for variable in ("cloud_cover", "cloud_low", "cloud_mid", "cloud_high"):
+        assert series[variable].provider == "open_meteo_ecmwf"
+    assert {series[variable].provider for variable in SEEING_COLUMN} == {"open_meteo_gfs"}
+
+
 def _model_answer(payload: dict, **seeing: float | None) -> httpx.Response:
     """``payload`` answered with the named seeing-column variables set in every hour."""
     hours = len(payload["hourly"]["time"])
