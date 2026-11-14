@@ -64,7 +64,7 @@ def produce_verdict(
         observation = None
     window = dark_window(pier, instant)
     moon = moon_info(pier, window, instant)
-    decision = evaluate(pier, instant, window, conditions, moon)
+    decision = evaluate(pier, instant, window, conditions, moon, observation)
     targets = rank_targets(pier, instant, window, moon)
 
     # The verdict's own itemised terms, then additive equipment-aware notes about

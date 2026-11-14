@@ -919,6 +919,7 @@ def evaluate(
     window: tuple[datetime, datetime] | tuple[None, None],
     conditions: Conditions,
     moon: Moon,
+    observation: Observation | None = None,
 ) -> Decision:
     """Decide the verdict from astronomy, the conditions groups, and the moon.
 
@@ -933,6 +934,9 @@ def evaluate(
     entirely missing → cloud present (overcast gate, else score). A NO-GO is only
     ever a failed hard gate; a missing observation or a scored window under
     ``MIN_USABLE_WINDOW`` caps the verdict at MAYBE but never fails one.
+
+    ``observation`` is a report the caller has already found usable. It can only
+    lower the confidence, never a gate or the score (metar-confidence DD5).
     """
     dusk = window[0]
     start, end = scored_window(instant, window)
@@ -956,7 +960,8 @@ def evaluate(
     # Measured once, so confidence and the reason line read the same agreement.
     # It always comes last, so every gate and score line keeps its position.
     agreement = cloud_agreement(scored, conditions)
-    band, conf_value = confidence(pier, instant, scored, conditions, agreement)
+    observed = observed_term(instant, conditions, observation)
+    band, conf_value = confidence(pier, instant, scored, conditions, agreement, observed)
     agreed = [_agreement_reason(agreement)] if agreement is not None else []
     # Advice for a night worth judging, so only gate-passing paths carry it, and
     # after the agreement line so no earlier line moves (dew-spread-reason D2).
