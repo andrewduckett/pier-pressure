@@ -35,6 +35,7 @@ from pierpressure.core.config import DEFAULT_PROVIDERS, ConditionsConfig, PierCo
 from pierpressure.core.observation import CloudLayer, Observation
 from pierpressure.core.providers import (
     CATALOG,
+    MET_NORWAY,
     NWS,
     OPEN_METEO,
     OPEN_METEO_AIR_QUALITY,
@@ -1923,6 +1924,20 @@ def test_met_norway_rain_chance_in_an_unexpected_unit_is_absent() -> None:
     payload["properties"]["meta"]["units"]["probability_of_precipitation"] = "1"
     forecast = parse_met_norway(payload)
     assert forecast.readings[_hour(22)].precipitation_probability is None
+
+
+def test_met_norway_oslo_recording_has_every_declared_variable_in_each_hour() -> None:
+    forecast = parse_met_norway(_load("met_norway.json"))
+    instant = [v for v in MET_NORWAY.variables if v != "precipitation_probability"]
+    assert len(forecast.readings) == 4
+    for reading in forecast.readings.values():
+        assert all(getattr(reading, variable) is not None for variable in instant)
+
+
+def test_met_norway_oslo_recording_has_a_rain_chance_in_each_hour_after_the_first() -> None:
+    readings = list(parse_met_norway(_load("met_norway.json")).readings.values())
+    assert readings[0].precipitation_probability is None
+    assert all(r.precipitation_probability is not None for r in readings[1:])
 
 
 _OSLO = PierConfig(id="oslo", latitude=59.913868, longitude=10.752245, elevation_m=20.0)
