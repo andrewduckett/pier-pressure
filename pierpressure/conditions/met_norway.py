@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, ClassVar
 
 from pierpressure.core.conditions import Variable
@@ -51,9 +51,29 @@ unit leaves the field's variable absent rather than converted (D5)."""
 # MET Norway gives wind only in m/s; the snapshot carries km/h (D6).
 _SCALE: Mapping[str, float] = {"wind_speed": 3.6, "wind_speed_of_gust": 3.6}
 
+# The same reach as NWS and 7Timer!, so listing MET Norway never lengthens the
+# timeline (D7).
+_HORIZON = timedelta(hours=72)
+_AN_HOUR = timedelta(hours=1)
+
 
 def _time(value: str) -> datetime:
     return datetime.fromisoformat(value).astimezone(UTC)
+
+
+def _hourly(timeseries: list[dict[str, Any]]) -> list[tuple[datetime, dict[str, Any]]]:
+    """The leading run of steps an hour apart, within 72 hours of the first (D7).
+
+    The forecast turns 6-hourly after two or three days, and the snapshot is
+    hourly, so the first step that is not an hour on ends the run.
+    """
+    kept: list[tuple[datetime, dict[str, Any]]] = []
+    for step in timeseries:
+        time = _time(step["time"])
+        if kept and (time - kept[-1][0] != _AN_HOUR or time >= kept[0][0] + _HORIZON):
+            break
+        kept.append((time, step))
+    return kept
 
 
 def parse_met_norway(payload: dict[str, Any]) -> SourceForecast:
@@ -67,9 +87,9 @@ def parse_met_norway(payload: dict[str, Any]) -> SourceForecast:
         variable: name for variable, name in INSTANT.items() if units.get(name) == UNITS[name]
     }
     readings: dict[datetime, SourceReading] = {}
-    for step in properties.get("timeseries") or []:
+    for time, step in _hourly(properties.get("timeseries") or []):
         details = ((step.get("data") or {}).get("instant") or {}).get("details") or {}
-        readings[_time(step["time"])] = SourceReading(
+        readings[time] = SourceReading(
             **{
                 variable: float(details[name]) * _SCALE.get(name, 1.0)
                 for variable, name in instant.items()

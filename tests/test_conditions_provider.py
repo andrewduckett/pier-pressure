@@ -1873,6 +1873,26 @@ def test_met_norway_unexpected_unit_leaves_the_variable_absent(unit: str | None)
     assert forecast.readings[_hour(22)].temperature == 4.5
 
 
+def _hourly_steps(start: datetime, count: int) -> list[dict[str, Any]]:
+    return [_met_step(start + timedelta(hours=n), cloud_area_fraction=50.0) for n in range(count)]
+
+
+def test_met_norway_drops_every_step_from_the_first_that_is_not_an_hour_on() -> None:
+    steps = [
+        *_hourly_steps(_at(8, 0), 13),
+        _met_step(_at(8, 18), cloud_area_fraction=50.0),
+        _met_step(_at(9, 0), cloud_area_fraction=50.0),
+        _met_step(_at(9, 1), cloud_area_fraction=50.0),
+    ]
+    forecast = parse_met_norway(_met(*steps))
+    assert list(forecast.readings) == [_at(8, h) for h in range(13)]
+
+
+def test_met_norway_drops_hourly_steps_past_72_hours() -> None:
+    forecast = parse_met_norway(_met(*_hourly_steps(_at(8, 0), 79)))
+    assert max(forecast.readings) == _at(10, 23)
+
+
 # --------------------------------------------------------------------------- #
 # computed-transparency 3.1: the computed source fills at its place in the order
 # --------------------------------------------------------------------------- #
