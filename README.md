@@ -217,6 +217,7 @@ variable fills it. None needs an API key.
 | `open_meteo_rdps` | `gem_regional` | North America | 84 hours |
 | `open_meteo_icon` | `icon_seamless` | The whole world, finest in Europe | More than 3 days |
 | `open_meteo_gfs` | `gfs_global` | The whole world | More than 3 days |
+| `open_meteo_ecmwf` | `ecmwf_ifs` | The whole world | More than 3 days |
 
 For a pier near the Great Lakes, list the finest models first, then 7Timer! for
 seeing and transparency:
@@ -336,7 +337,7 @@ from two values the other providers filled:
 
 | Variable | Where it comes from | Unit |
 |---|---|---|
-| `column_water_vapour` | `open_meteo`, `open_meteo_hrrr` or `open_meteo_gfs`. ICON, HRDPS and RDPS don't supply it. | kg/m² |
+| `column_water_vapour` | `open_meteo`, `open_meteo_hrrr`, `open_meteo_gfs` or `open_meteo_ecmwf`. ICON, HRDPS and RDPS don't supply it. | kg/m² |
 | `aerosol_optical_depth` | `open_meteo_air_quality` | no unit |
 
 An hour gets a value only when both inputs have one. Like the air-quality
@@ -394,8 +395,10 @@ values shows on the timeline.
 
 **Which models can feed it.** The seeing column comes only from
 `open_meteo`, `open_meteo_hrrr` or `open_meteo_gfs`. HRDPS, RDPS and ICON send
-no boundary-layer height, so they don't declare the column, and the next model
-in the list that does fills it. The whole column always comes from one model.
+no boundary-layer height, so they don't declare the column.
+ECMWF sends no pressure-level temperatures or heights, so it doesn't declare
+the column either. The next model in the list that does declare it fills it.
+The whole column always comes from one model.
 
 Where you list `computed` works for seeing as it does for transparency. In the
 default list, 7Timer! fills seeing, and `computed` fills it only when 7Timer! returned none. To prefer
@@ -451,7 +454,7 @@ connection, the broker sends PierPressure's last-will message instead.
 | Purpose | Topic | Retained |
 |---|---|---|
 | Discovery configs | `homeassistant/<sensor\|button>/pierpressure_<pier>/<verdict\|score\|top_target\|target_<n>\|cloud_cover\|cloud_low\|cloud_mid\|cloud_high\|wind_gust\|seeing\|transparency\|sun_altitude\|moon_altitude\|temperature\|dew_point\|humidity\|wind_speed\|wind_direction\|precipitation_probability\|cloud_cover_min\|cloud_cover_max\|narrative\|refresh>/config` | yes |
-| Health discovery configs | `homeassistant/sensor/pierpressure_<pier>/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|open_meteo_air_quality\|nws\|seven_timer\|computed>_health/config` | yes |
+| Health discovery configs | `homeassistant/sensor/pierpressure_<pier>/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|open_meteo_ecmwf\|open_meteo_air_quality\|nws\|seven_timer\|computed>_health/config` | yes |
 | Verdict state | `pierpressure/<pier>/verdict/state` | yes |
 | Verdict attributes (the document without `timeline`) | `pierpressure/<pier>/verdict/attributes` | yes |
 | Top target state and list | `pierpressure/<pier>/top_target/state`, `.../top_target/attributes` | yes |
@@ -459,7 +462,7 @@ connection, the broker sends PierPressure's last-will message instead.
 | Cloud cover state and forecast | `pierpressure/<pier>/cloud_cover/state`, `.../cloud_cover/attributes` | yes |
 | Timeline sensor state and forecast, where `<var>` is `cloud_low`, `cloud_mid`, `cloud_high`, `wind_gust`, `seeing`, `transparency`, `sun_altitude`, `moon_altitude`, `temperature`, `dew_point`, `humidity`, `wind_speed`, `wind_direction`, `precipitation_probability`, `cloud_cover_min` or `cloud_cover_max` | `pierpressure/<pier>/<var>/state`, `.../<var>/attributes` | yes |
 | Narrative state and text | `pierpressure/<pier>/narrative/state`, `.../narrative/attributes` | yes |
-| Provider health state and details | `pierpressure/<pier>/health/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|open_meteo_air_quality\|nws\|seven_timer\|computed>/state`, `.../attributes` | yes |
+| Provider health state and details | `pierpressure/<pier>/health/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|open_meteo_ecmwf\|open_meteo_air_quality\|nws\|seven_timer\|computed>/state`, `.../attributes` | yes |
 | Refresh command | `pierpressure/<pier>/refresh/command` | no |
 | Availability | `pierpressure/status` | yes |
 
@@ -692,7 +695,7 @@ done
 If you listed Open-Meteo models or NWS, add each one's health sensor to the list,
 such as `sensor/pierpressure_backyard/open_meteo_hrrr_health`. The keys are
 `open_meteo_hrrr`, `open_meteo_hrdps`, `open_meteo_rdps`, `open_meteo_icon`,
-`open_meteo_gfs` and `nws`.
+`open_meteo_gfs`, `open_meteo_ecmwf` and `nws`.
 
 **Removing one provider.** When you take a provider out of the `conditions` list,
 its health sensor stays in Home Assistant, showing its last success. Clear its
