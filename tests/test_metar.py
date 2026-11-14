@@ -7,9 +7,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
 
-from pierpressure.conditions.metar import NoReport, parse_metar
+from pierpressure import __version__
+from pierpressure.conditions.metar import MetarFetcher, NoReport, parse_metar
 from pierpressure.core.observation import CloudLayer, Observation
 
 _FIXTURE = Path(__file__).parent / "fixtures" / "metar.json"
@@ -77,3 +79,52 @@ def test_parse_keeps_an_unworded_cover_code() -> None:
 def test_parse_raises_no_report_without_the_station() -> None:
     with pytest.raises(NoReport):
         parse_metar([_report("KJFK")], "KBOS")
+
+
+def _fetcher(handle: Any, requests: list[httpx.Request] | None = None) -> MetarFetcher:
+    def record(request: httpx.Request) -> httpx.Response:
+        if requests is not None:
+            requests.append(request)
+        response: httpx.Response = handle(request)
+        return response
+
+    return MetarFetcher(client=httpx.Client(transport=httpx.MockTransport(record)))
+
+
+def test_fetch_sends_one_get_for_the_station() -> None:
+    requests: list[httpx.Request] = []
+    _fetcher(lambda _: httpx.Response(200, json=_recorded()), requests).fetch("KBOS")
+    (request,) = requests
+    assert request.method == "GET"
+    assert str(request.url) == "https://aviationweather.gov/api/data/metar?ids=KBOS&format=json"
+
+
+def test_fetch_sends_the_fixed_user_agent() -> None:
+    requests: list[httpx.Request] = []
+    _fetcher(lambda _: httpx.Response(200, json=_recorded()), requests).fetch("KBOS")
+    agent = requests[0].headers["User-Agent"]
+    assert "PierPressure" in agent
+    assert __version__ in agent
+    assert "https://github.com/andrewduckett/pier-pressure" in agent
+    assert "@" not in agent
+
+
+def test_fetch_returns_the_parsed_observation() -> None:
+    observation = _fetcher(lambda _: httpx.Response(200, json=_recorded())).fetch("KBOS")
+    assert observation.observed_at == datetime(2026, 11, 14, 21, 54, tzinfo=UTC)
+
+
+@pytest.mark.parametrize(
+    "response",
+    [httpx.Response(204, content=b""), httpx.Response(200, json=[])],
+    ids=["204-empty-body", "empty-list"],
+)
+def test_fetch_with_no_report_raises_no_report(response: httpx.Response) -> None:
+    with pytest.raises(NoReport) as raised:
+        _fetcher(lambda _: response).fetch("KZZZ")
+    assert raised.value.description == "no report returned"
+
+
+def test_fetch_raises_on_a_server_error() -> None:
+    with pytest.raises(httpx.HTTPStatusError):
+        _fetcher(lambda _: httpx.Response(503)).fetch("KBOS")
