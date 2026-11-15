@@ -2,12 +2,12 @@
 
 ### Requirement: The error for both horizon fields on the form names their labels
 
-Inside an add-on, when a pier on the Configuration form sets both
-`min_altitude` and `horizon_points`, the logged error that skips the pier SHALL
-name the labels `Horizon: floor` and `Horizon: points`, and SHALL say to fill in
-one of them at most. It SHALL NOT name `min_altitude`. The core SHALL still
-decide that the pier is invalid. An error the core reports for another setting
-of the same pier SHALL be logged as the core words it.
+Inside an add-on, a pier on the Configuration form can set both `min_altitude`
+and `horizon_points`. The logged error that skips that pier SHALL name the
+labels `Horizon: floor` and `Horizon: points`. It SHALL say to fill in one of
+them at most. It SHALL NOT contain `min_altitude`. Any other error the service
+logs for a form pier SHALL be the error a `config.yaml` pier with the same
+values gets.
 
 #### Scenario: Both horizon fields on the form name their labels
 
@@ -19,21 +19,21 @@ of the same pier SHALL be logged as the core words it.
 - **AND** the error does not contain `min_altitude`
 - **AND** it publishes a verdict for the other pier
 
-#### Scenario: Another error in the same pier keeps the core's wording
+#### Scenario: A field error comes before the horizon error
 
 - **WHEN** a form pier sets both `min_altitude` and `horizon_points`
 - **AND** the same pier has a latitude of 95
-- **THEN** the logged error names `Horizon: floor` and `Horizon: points`
-- **AND** it names `latitude`, as the error for a `config.yaml` pier with that
-  latitude does
+- **THEN** the logged error names `latitude`, as the error for a `config.yaml`
+  pier with that latitude does
+- **AND** it does not contain `Horizon: floor`
 
 ### Requirement: A horizon from config.yaml with two sources keeps the file's names
 
-Inside an add-on, when a form pier sets neither horizon field and its entry in
-`config.yaml` gives a `horizon` block with both `points` and `min_altitude`, the
-logged error that skips the pier SHALL be the one a `config.yaml` pier outside
-an add-on gets. It SHALL name `points` and `min_altitude`, and SHALL NOT name a
-form label.
+Inside an add-on, a form pier can set neither horizon field while its entry in
+`config.yaml` gives a `horizon` block with both `points` and `min_altitude`.
+The logged error that skips that pier SHALL be the error a `config.yaml` pier
+outside an add-on gets. It SHALL name `points` and `min_altitude`. It SHALL NOT
+name a form label.
 
 #### Scenario: Two horizon sources in config.yaml name the file's keys
 
