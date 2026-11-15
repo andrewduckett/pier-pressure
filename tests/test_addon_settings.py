@@ -455,3 +455,26 @@ def test_horizon_error_in_labels_for_both_form_fields() -> None:
         "Horizon: floor and Horizon: points are both filled in on the Configuration tab. "
         "Fill in one of them at most."
     )
+
+
+def _core_error(form: dict[str, Any], file: dict[str, Any] | None = None) -> str:
+    [raw_pier] = combine_settings(form, file).raw["piers"]
+    with pytest.raises(ValidationError) as error:
+        PierConfig.model_validate(raw_pier)
+    return str(error.value)
+
+
+def test_horizon_error_keeps_file_names_for_a_config_yaml_horizon() -> None:
+    form = _form(PIER)
+    file = {"piers": [{"id": "backyard", "horizon": {"min_altitude": 10, "points": [[0, 5]]}}]}
+
+    written = _written_error(form, file)
+
+    assert written == _core_error(form, file)
+    assert "points, min_altitude" in written
+
+
+def test_horizon_error_keeps_file_names_for_a_field_error() -> None:
+    form = _form({**PIER, **BOTH_HORIZON_FIELDS, "latitude": 95})
+
+    assert _written_error(form) == _core_error(form)
