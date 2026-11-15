@@ -1,7 +1,7 @@
 ## 1. Explainer key on the Configuration form
 
 - [x] 1.1 [easy] The add-on config declares an `explainer` block with exactly one field, an optional `api_key` of the password type, listed after `mqtt`, and `options` set `explainer` to an empty block (verify: uv run pytest tests/test_ha_addon.py -k "explainer and schema") (✓ uv run pytest tests/test_ha_addon.py -k "explainer and schema" passed)
-- [ ] 1.2 [easy] The English translation gives `explainer` and its `api_key` a name and a description, and the `api_key` description says `Optional.` (verify: uv run pytest tests/test_ha_addon.py -k "label or optional")
+- [x] 1.2 [easy] The English translation gives `explainer` and its `api_key` a name and a description, and the `api_key` description says `Optional.` (verify: uv run pytest tests/test_ha_addon.py -k "label or optional") (✓ uv run pytest tests/test_ha_addon.py -k "label or optional" passed)
 - [ ] 1.3 [easy] The description of `explainer` says that `explainer.enabled` in `config.yaml` turns the explainer on (verify: uv run pytest tests/test_ha_addon.py -k explainer_section)
 - [ ] 1.4 [easy] The form translation puts a set `explainer.api_key` into the config's `explainer` block, and leaves out the block when the key is absent, null, empty or blank (verify: uv run pytest tests/test_addon_options.py -k explainer)
 - [ ] 1.5 [medium] Combining the form with `config.yaml` adds the file's other explainer settings to the form's key, and a key in both is a combine error that names `explainer.api_key` and contains neither key (verify: uv run pytest tests/test_addon_settings.py -k explainer)

@@ -178,7 +178,12 @@ def test_every_form_field_has_a_label(addon: dict[str, Any]) -> None:
     for key in schema:
         assert labels[key]["name"], f"{key} has no name"
         assert labels[key]["description"], f"{key} has no description"
-    for block, fields in (("piers", schema["piers"][0]), ("mqtt", schema["mqtt"])):
+    blocks = (
+        ("piers", schema["piers"][0]),
+        ("mqtt", schema["mqtt"]),
+        ("explainer", schema["explainer"]),
+    )
+    for block, fields in blocks:
         for field in fields:
             entry = labels[block]["fields"][field]
             assert entry["name"], f"{block}.{field} has no name"
@@ -310,6 +315,7 @@ def _form_fields(addon: dict[str, Any]) -> list[tuple[tuple[str, ...], str]]:
         (("interval_seconds",), schema["interval_seconds"]),
         *((("piers", "fields", name), kind) for name, kind in pier.items()),
         *((("mqtt", "fields", name), kind) for name, kind in schema["mqtt"].items()),
+        *((("explainer", "fields", name), kind) for name, kind in schema["explainer"].items()),
     ]
 
 
