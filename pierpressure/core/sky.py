@@ -14,6 +14,8 @@ The exposed engine is:
   usable astronomical darkness;
 - :func:`moon_info` — the moon's illumination, phase, and behaviour across a
   given dark window;
+- :func:`night_solar_day` — the selected night's local solar day, noon to noon;
+- :func:`night_hours` — the clock hours the timeline always carries for that night;
 - :func:`altitudes_at` — the sun's and the moon's altitude at each timeline hour.
 """
 
@@ -199,6 +201,57 @@ def dark_window(
     start = dusks[-1]
 
     return _second_floor_window(start, end)
+
+
+def night_solar_day(
+    pier: PierConfig,
+    instant: datetime,
+    window: tuple[datetime, datetime] | tuple[None, None],
+) -> tuple[datetime, datetime]:
+    """The selected night's local solar day, noon to noon, at whole-second precision.
+
+    With a dark window it is the solar day that holds the window. Without one it
+    is the first solar day whose midpoint is at or after ``instant``, so the
+    morning after a bright night already looks ahead to tonight.
+    """
+    start, end = window
+    if start is not None and end is not None:
+        # The window's midpoint, not its start: in polar night the start is the
+        # floored noon, a fraction of a second inside the day before.
+        day_start, day_end = _local_solar_day(pier, start + (end - start) / 2)
+    else:
+        day_start, day_end = _local_solar_day(pier, instant)
+        half = (day_end - day_start) / 2
+        if day_start + half < instant:
+            # Searching from the next day's midpoint, not from its noon: Skyfield
+            # finds a noon to about a millisecond, so a search from it can land
+            # on either side.
+            day_start, day_end = _local_solar_day(pier, day_end + half)
+    return (day_start.replace(microsecond=0), day_end.replace(microsecond=0))
+
+
+def night_hours(
+    pier: PierConfig,
+    instant: datetime,
+    window: tuple[datetime, datetime] | tuple[None, None],
+) -> list[datetime]:
+    """The top-of-hour UTC times the timeline always carries for the selected night.
+
+    Every hour that starts inside :func:`night_solar_day`, preceded by the hours
+    from the one holding ``instant`` when that starts earlier, so the current
+    hour always has an entry.
+    """
+    day_start, day_end = night_solar_day(pier, instant, window)
+    first = day_start.replace(minute=0, second=0)
+    if first < day_start:
+        first += timedelta(hours=1)
+    first = min(first, instant.replace(minute=0, second=0, microsecond=0))
+    hours: list[datetime] = []
+    hour = first
+    while hour < day_end:
+        hours.append(hour)
+        hour += timedelta(hours=1)
+    return hours
 
 
 # Phase octants centred on the cardinal points (design D4). Each entry is the

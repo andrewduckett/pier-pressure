@@ -34,7 +34,7 @@ from .model import (
 from .observation import Observation, observation_reason, usable
 from .ranking import equipment_reasons, rank_targets
 from .scoring import MIN_USABLE_WINDOW, AgreementTerm, ObservedTerm, evaluate
-from .sky import altitudes_at, dark_window, moon_info
+from .sky import altitudes_at, dark_window, moon_info, night_hours
 
 
 def produce_verdict(
@@ -54,9 +54,9 @@ def produce_verdict(
 
     When the selected night has no dark window, astronomy alone decides the
     verdict (a NO-GO) and ignores the conditions, matching the rule that no dark
-    window means conditions are not required. The ``timeline`` still carries every
-    hour the providers returned: it is evidence beside the verdict, never an input
-    to it (ADR-0025).
+    window means conditions are not required. The ``timeline`` always holds the
+    selected night's hours, beside every hour the providers returned: it is
+    evidence beside the verdict, never an input to it (ADR-0025).
 
     ``observation`` is the pier's latest METAR, fetched beside ``conditions``. It
     reaches the document when it is usable at the instant (metar-reason DD1), and
@@ -116,7 +116,7 @@ def produce_verdict(
         # The span the gates and score judged (score-remaining-night design D5).
         scored_window=DarkWindow(start=scored_start, end=scored_end),
         moon=moon,
-        timeline=_timeline(pier, conditions),
+        timeline=_timeline(pier, instant, window, conditions),
         agreement=_agreement(decision.agreement),
         observation=_observation_entry(observation),
     )
@@ -151,9 +151,14 @@ def _agreement(term: AgreementTerm | None) -> dict[str, Agreement]:
     }
 
 
-def _timeline(pier: PierConfig, conditions: Conditions) -> list[TimelineEntry]:
-    """One entry per hour a shown variable's filled series covers, sorted, with each reading."""
-    times = list(conditions.hours(TIMELINE_VARIABLES))
+def _timeline(
+    pier: PierConfig,
+    instant: datetime,
+    window: tuple[datetime, datetime] | tuple[None, None],
+    conditions: Conditions,
+) -> list[TimelineEntry]:
+    """One entry per night hour and per hour a shown variable's filled series covers, sorted."""
+    times = sorted({*night_hours(pier, instant, window), *conditions.hours(TIMELINE_VARIABLES)})
     return [
         TimelineEntry(
             time=time,

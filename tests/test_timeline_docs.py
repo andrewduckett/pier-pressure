@@ -213,10 +213,35 @@ def test_page_says_an_altitude_is_for_the_start_of_the_hour(page_text: str) -> N
     assert "one hour plus one recompute interval" in lowered
 
 
-def test_page_says_an_altitude_shows_unknown_with_no_source(page_text: str) -> None:
+def test_page_says_the_altitudes_have_a_state_when_every_provider_fails(page_text: str) -> None:
     section = " ".join(_section(page_text, "## The timeline sensors").lower().split())
-    assert "the altitudes too" in section
-    assert "no weather source returned the current hour" in section
+    assert "the altitudes too" not in section
+    assert "always have a state, even when every provider fails" in section
+
+
+def test_page_says_the_weather_sensors_show_unknown_with_no_provider(page_text: str) -> None:
+    section = " ".join(_section(page_text, "## The timeline sensors").lower().split())
+    assert (
+        "the weather sensors show `unknown` when no provider returned the current hour" in section
+    )
+
+
+def test_page_says_the_timeline_always_holds_the_night_hours(page_text: str) -> None:
+    section = " ".join(_section(page_text, "## What the timeline is").split())
+    assert "from solar noon before the night to the next solar noon" in section
+    assert "from the current hour when that is earlier" in section
+    assert "even when every provider fails" in section
+
+
+def test_page_says_an_hour_no_provider_returned_has_null_weather(page_text: str) -> None:
+    section = " ".join(_section(page_text, "## What the timeline is").split())
+    assert "In an hour no provider returned, every weather value is `null`." in section
+
+
+def test_readme_says_the_timeline_always_holds_the_night_hours(readme_text: str) -> None:
+    [row] = [line for line in readme_text.splitlines() if line.startswith("| `timeline` | list |")]
+    assert "always holds the hours of the night the verdict judges" in row
+    assert "even when every provider fails" in row
 
 
 def test_page_names_every_sensor_in_the_verdict_section(page_text: str) -> None:

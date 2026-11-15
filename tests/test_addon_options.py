@@ -365,6 +365,24 @@ def test_an_explainer_value_that_is_not_a_mapping_reaches_the_core(
     assert _read_with_explainer(tmp_path, explainer)["explainer"] == explainer
 
 
+def test_a_switch_set_to_off_gives_no_explainer_key(tmp_path: Path) -> None:
+    # A switch turned on, then off, saves false; it counts as not set
+    # (addon-explainer-ai-task DD6).
+    assert "explainer" not in _read_with_explainer(tmp_path, {"enabled": False})
+
+
+def test_a_switch_set_to_off_leaves_the_other_explainer_fields(tmp_path: Path) -> None:
+    form = {"enabled": False, "ai_task_entity": "ai_task.openai"}
+
+    assert _read_with_explainer(tmp_path, form)["explainer"] == {"ai_task_entity": "ai_task.openai"}
+
+
+def test_a_switch_set_to_on_becomes_explainer_enabled(tmp_path: Path) -> None:
+    form = {"enabled": True, "ai_task_entity": "ai_task.openai"}
+
+    assert _read_with_explainer(tmp_path, form)["explainer"] == form
+
+
 # --------------------------------------------------------------------------- #
 # addon-form-horizon-file D2: one "set" rule, and the settings a form pier sets
 # --------------------------------------------------------------------------- #
