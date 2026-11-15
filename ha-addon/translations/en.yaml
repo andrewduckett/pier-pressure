@@ -12,9 +12,14 @@ configuration:
   piers:
     name: Piers
     description: >-
-      The places you observe from. Each pier gets its own verdict device. List
-      at least one. For a setting this form does not show, such as a horizon
-      file, add the pier to config.yaml with the same ID and only that setting.
+      The places you observe from. List at least one. Each pier gets its own
+      device in Home Assistant, with its own verdict. A pier's dialog starts with
+      its Pier ID, then four sections: Location, where the pier is; Horizon, what
+      blocks your sky; Equipment, your telescope and camera; and Verdict, how good
+      a night must be for GO. Each field's label starts with its section's name,
+      such as Horizon: floor. Only the Pier ID and the Location fields are
+      required. For a setting this form does not show, such as a horizon file,
+      add the pier to config.yaml with the same ID and only that setting.
     fields:
       id:
         name: Pier ID

@@ -314,6 +314,26 @@ def test_the_interval_names_its_default_and_the_refresh_button(words: str) -> No
     assert words in interval["description"]
 
 
+def _first_out_of_order(text: str, names: list[str]) -> str | None:
+    """The first name that is missing, or first named before the one ahead of it."""
+    previous = -1
+    for name in names:
+        position = text.find(name)
+        if position <= previous:
+            return name
+        previous = position
+    return None
+
+
+def test_the_piers_intro_names_the_sections_in_order() -> None:
+    # The dialog has no headings, so the list's introduction names the sections
+    # the labels start with (addon-form-text D5).
+    intro = _load(ADDON_TRANSLATIONS)["configuration"]["piers"]["description"]
+    sections = list(_section_leaders())
+    assert _first_out_of_order(intro, sections) is None
+    assert "label" in intro
+
+
 @pytest.mark.parametrize(
     ("path", "unit"),
     [
