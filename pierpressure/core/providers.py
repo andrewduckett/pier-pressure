@@ -130,6 +130,28 @@ NWS = ProviderSpec(
     ),
 )
 
+# MET Norway gives gust and rain chance only near the Nordic countries; elsewhere
+# they are blank and the fill passes it over for them.
+MET_NORWAY = ProviderSpec(
+    key="met_norway",
+    name="MET Norway",
+    needs_key=False,
+    variables=(
+        "cloud_cover",
+        "cloud_low",
+        "cloud_mid",
+        "cloud_high",
+        "wind_gust",
+        "wind_speed",
+        "wind_direction",
+        "temperature",
+        "dew_point",
+        "humidity",
+        "precipitation_probability",
+    ),
+    bundles=(_CLOUD_BUNDLE,),
+)
+
 SEVEN_TIMER = ProviderSpec(
     key="seven_timer",
     name="7Timer!",
@@ -159,6 +181,7 @@ CATALOG: Mapping[str, ProviderSpec] = {
         OPEN_METEO_ECMWF,
         OPEN_METEO_AIR_QUALITY,
         NWS,
+        MET_NORWAY,
         SEVEN_TIMER,
         COMPUTED,
     )

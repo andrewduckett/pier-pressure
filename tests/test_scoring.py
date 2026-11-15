@@ -8,11 +8,13 @@ import pytest
 
 from pierpressure.core.conditions import Conditions, Series, Variable
 from pierpressure.core.model import AgreementBand, Band, Moon, MoonPhase, Verdict
+from pierpressure.core.observation import CloudLayer, Observation
 from pierpressure.core.scoring import (
     AGREE_MAX_GAP,
     MIXED_MAX_GAP,
     OVERCAST_EPSILON,
     AgreementTerm,
+    ObservedTerm,
     assemble_score,
     atmosphere_mean,
     clarity_weight,
@@ -27,6 +29,7 @@ from pierpressure.core.scoring import (
     hour_slots,
     moon_penalty,
     moon_up_at,
+    observed_term,
     optional_term_mean,
     score_terms,
 )
@@ -791,6 +794,44 @@ def test_confidence_already_low_still_falls_when_forecasts_disagree() -> None:
     assert _value(instant, window, conditions, _DISAGREE) == 20
 
 
+_CONTRADICTED = ObservedTerm("KBOS", 100, 0)
+
+
+def test_confidence_falls_by_a_third_when_the_report_contradicts_the_forecast() -> None:
+    window = _window(10)
+    instant = window[0] - timedelta(hours=1)
+    conditions = _confident(window, instant, cloud_hours=3)
+    assert _value(instant, window, conditions, None) == 30
+    assert confidence(make_pier(), instant, window, conditions, observed=_CONTRADICTED)[1] == 20
+
+
+def test_confidence_with_disagreement_and_a_contradicting_report_stays_medium() -> None:
+    window = _window(10)
+    instant = window[0] - timedelta(hours=24)
+    conditions = _confident(window, instant)
+    assert _value(instant, window, conditions, None) == 50
+    assert confidence(
+        make_pier(), instant, window, conditions, _DISAGREE, observed=_CONTRADICTED
+    ) == (Band.MEDIUM, 40)
+
+
+def test_confidence_multiplies_the_agreement_and_observed_factors() -> None:
+    window = _window(10)
+    instant = window[0] - timedelta(hours=1)
+    conditions = _confident(window, instant)
+    mixed = ObservedTerm("KBOS", 62, 40)
+    assert confidence(make_pier(), instant, window, conditions, _MIXED, observed=mixed)[1] == 81
+
+
+def test_confidence_without_an_observed_term_is_unchanged() -> None:
+    window = _window(10)
+    instant = window[0] - timedelta(hours=1)
+    conditions = _confident(window, instant)
+    assert confidence(make_pier(), instant, window, conditions, _MIXED, observed=None) == (
+        confidence(make_pier(), instant, window, conditions, _MIXED)
+    )
+
+
 def test_confidence_ignores_an_alternates_issue_time() -> None:
     window = _window(10)
     instant = window[0] - timedelta(hours=1)
@@ -1084,3 +1125,156 @@ def test_temperature_and_dew_point_dew_changes_nothing_else(
     assert after.reasons[: len(before.reasons)] == before.reasons
     assert len(extra) <= 1
     assert all(line.startswith(("Dew likely from ", "Frost likely from ")) for line in extra)
+
+
+# --------------------------------------------------------------------------- #
+# The observed cloud against this hour's forecast (metar-confidence DD2, DD3)
+# --------------------------------------------------------------------------- #
+
+_OBSERVED_INSTANT = datetime(2026, 11, 14, 21, 30, tzinfo=UTC)
+_BKN = Observation(
+    station="KBOS",
+    observed_at=datetime(2026, 11, 14, 20, 54, tzinfo=UTC),
+    cover="BKN",
+    clouds=(CloudLayer("BKN", 4200),),
+)
+
+
+def _layers(per_variable: dict[Variable, dict[datetime, float]]) -> Conditions:
+    """Conditions holding one series per variable, such as ``{"cloud_low": {slot: 20.0}}``."""
+    return Conditions(
+        series={
+            variable: Series(provider="a", issued_at=None, values=values)
+            for variable, values in per_variable.items()
+        }
+    )
+
+
+def _hour(hour: int) -> datetime:
+    return datetime(2026, 11, 14, hour, 0, tzinfo=UTC)
+
+
+def test_observed_term_combines_low_and_mid_cloud_as_independent_layers() -> None:
+    conditions = _layers({"cloud_low": {_hour(21): 10.0}, "cloud_mid": {_hour(21): 10.0}})
+    term = observed_term(_OBSERVED_INSTANT, conditions, _BKN)
+    assert term == ObservedTerm("KBOS", 62, 19)
+
+
+def test_observed_term_reads_the_hour_that_holds_the_instant() -> None:
+    conditions = _layers(
+        {
+            "cloud_low": {_hour(20): 90.0, _hour(21): 20.0},
+            "cloud_mid": {_hour(20): 90.0, _hour(21): 0.0},
+        }
+    )
+    term = observed_term(_OBSERVED_INSTANT, conditions, _BKN)
+    assert term is not None
+    assert term.gap == 42
+
+
+def test_observed_term_ignores_high_cloud() -> None:
+    def with_high(high: float) -> Conditions:
+        return _layers(
+            {
+                "cloud_low": {_hour(21): 20.0},
+                "cloud_mid": {_hour(21): 0.0},
+                "cloud_high": {_hour(21): high},
+            }
+        )
+
+    clear_aloft = observed_term(_OBSERVED_INSTANT, with_high(0.0), _BKN)
+    cirrus = observed_term(_OBSERVED_INSTANT, with_high(100.0), _BKN)
+    assert clear_aloft == cirrus
+
+
+def test_observed_term_is_none_without_an_observation() -> None:
+    conditions = _layers({"cloud_low": {_hour(21): 20.0}, "cloud_mid": {_hour(21): 0.0}})
+    assert observed_term(_OBSERVED_INSTANT, conditions, None) is None
+
+
+@pytest.mark.parametrize(
+    "conditions",
+    [
+        pytest.param(_layers({"cloud_low": {_hour(21): 20.0}}), id="no-mid"),
+        pytest.param(_layers({"cloud_mid": {_hour(21): 20.0}}), id="no-low"),
+        pytest.param(
+            _layers({"cloud_low": {_hour(20): 20.0}, "cloud_mid": {_hour(20): 0.0}}),
+            id="other-hour",
+        ),
+    ],
+)
+def test_observed_term_is_none_without_low_and_mid_cloud_for_the_hour(
+    conditions: Conditions,
+) -> None:
+    assert observed_term(_OBSERVED_INSTANT, conditions, _BKN) is None
+
+
+@pytest.mark.parametrize(
+    ("observed", "forecast", "factor"),
+    [
+        pytest.param(100, 0, 0.67, id="gap-100"),
+        pytest.param(62, 26, 0.67, id="gap-36"),
+        pytest.param(62, 27, 0.90, id="gap-35"),
+        pytest.param(62, 47, 0.90, id="gap-15"),
+        pytest.param(62, 48, 1.0, id="gap-14"),
+        pytest.param(0, 80, 1.0, id="less-cloud"),
+    ],
+)
+def test_observed_factor_follows_the_gap_bands(observed: int, forecast: int, factor: float) -> None:
+    assert ObservedTerm("KBOS", observed, forecast).factor == factor
+
+
+# The decision carries the observed term only when it lowered confidence (DD5)
+
+
+def _observed_sky(window: tuple[datetime, datetime], *, cloud: bool = True) -> Conditions:
+    """Fresh, complete low and mid cloud of 0, with total cloud of 20 unless ``cloud`` is off."""
+    slots = hour_slots(window[0] - timedelta(hours=1), window[1])
+    issued = window[0]
+    variables: dict[Variable, float] = {
+        "cloud_low": 0.0,
+        "cloud_mid": 0.0,
+        "seeing": 0.7,
+        "transparency": 0.7,
+    }
+    if cloud:
+        variables["cloud_cover"] = 20.0
+    return Conditions(
+        series={
+            variable: Series(provider="a", issued_at=issued, values=dict.fromkeys(slots, value))
+            for variable, value in variables.items()
+        }
+    )
+
+
+_OVERCAST_REPORT = Observation(
+    station="KBOS",
+    observed_at=datetime(2026, 9, 8, 21, 0, tzinfo=UTC),
+    cover="OVC",
+    clouds=(CloudLayer("OVC", 1500),),
+)
+
+
+def test_the_decision_carries_the_observed_term_that_lowered_confidence() -> None:
+    window = _window(6)
+    instant = window[0] + timedelta(minutes=30)
+    decision = evaluate(
+        make_pier(), instant, window, _observed_sky(window), _moon(), _OVERCAST_REPORT
+    )
+    assert (decision.confidence, decision.observed) == (67, ObservedTerm("KBOS", 100, 0))
+
+
+@pytest.mark.parametrize(
+    ("window", "instant", "cloud"),
+    [
+        pytest.param((None, None), _window(6)[0], True, id="no-dark-window"),
+        pytest.param(_window(6), _window(6)[1], True, id="no-dark-time"),
+        pytest.param(_window(6), _window(6)[0] + timedelta(minutes=30), False, id="no-cloud"),
+    ],
+)
+def test_a_fixed_confidence_carries_no_observed_term(
+    window: tuple[datetime, datetime] | tuple[None, None], instant: datetime, cloud: bool
+) -> None:
+    conditions = _observed_sky(_window(6), cloud=cloud)
+    decision = evaluate(make_pier(), instant, window, conditions, _moon(), _OVERCAST_REPORT)
+    assert decision.observed is None

@@ -15,11 +15,13 @@ document.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
 
 from .clock import Clock
 from .conditions import TIMELINE_VARIABLES, Conditions
 from .config import PierConfig
+from .fire import FireDetection, counted, fire_reason
 from .model import (
     Agreement,
     CloudLayerEntry,
@@ -31,7 +33,7 @@ from .model import (
 )
 from .observation import Observation, observation_reason, usable
 from .ranking import equipment_reasons, rank_targets
-from .scoring import MIN_USABLE_WINDOW, AgreementTerm, evaluate
+from .scoring import MIN_USABLE_WINDOW, AgreementTerm, ObservedTerm, evaluate
 from .sky import altitudes_at, dark_window, moon_info
 
 
@@ -40,6 +42,7 @@ def produce_verdict(
     clock: Clock,
     conditions: Conditions,
     observation: Observation | None = None,
+    fires: Sequence[FireDetection] = (),
 ) -> VerdictDocument:
     """Produce the verdict document for ``pier`` at the injected clock instant.
 
@@ -47,7 +50,7 @@ def produce_verdict(
     immutable per-variable value the provider layer obtained for this evaluation. The
     single evaluation instant comes from the injected ``clock`` and drives
     ``generated_at``, the astronomy, and the lead-time confidence, so the whole
-    document is a pure function of ``(pier, clock, conditions, observation)``.
+    document is a pure function of ``(pier, clock, conditions, observation, fires)``.
 
     When the selected night has no dark window, astronomy alone decides the
     verdict (a NO-GO) and ignores the conditions, matching the rule that no dark
@@ -55,16 +58,21 @@ def produce_verdict(
     hour the providers returned: it is evidence beside the verdict, never an input
     to it (ADR-0025).
 
-    ``observation`` is the pier's latest METAR, fetched beside ``conditions``. Like
-    the timeline it is evidence only: it reaches the document when it is usable
-    at the instant, and changes no gate, score or confidence (metar-reason DD1).
+    ``observation`` is the pier's latest METAR, fetched beside ``conditions``. It
+    reaches the document when it is usable at the instant (metar-reason DD1), and
+    changes no gate, score, agreement or timeline. It can lower the confidence when
+    it reports more cloud than this hour's forecast (metar-confidence DD5).
+
+    ``fires`` are the pier's fire detections, fetched beside ``conditions``. Those
+    that count at the instant add one reason line and nothing else
+    (firms-nearby-fire DD2).
     """
     instant = clock.now()
     if observation is not None and not usable(observation, instant):
         observation = None
     window = dark_window(pier, instant)
     moon = moon_info(pier, window, instant)
-    decision = evaluate(pier, instant, window, conditions, moon)
+    decision = evaluate(pier, instant, window, conditions, moon, observation)
     targets = rank_targets(pier, instant, window, moon)
 
     # The verdict's own itemised terms, then additive equipment-aware notes about
@@ -78,6 +86,14 @@ def produce_verdict(
     # On every verdict, after the core's own lines and before the notes (DD6).
     if observation is not None:
         reasons.append(observation_reason(observation))
+    # Straight after the report it reads from, so the two read together
+    # (metar-confidence DD5).
+    if decision.observed is not None:
+        reasons.append(_observed_reason(decision.observed))
+    # Last of the core's own lines, on every verdict (firms-nearby-fire DD2).
+    near = counted(fires, pier, instant)
+    if near:
+        reasons.append(fire_reason(near, pier))
     scored_start, scored_end = decision.scored_window
     worth_setting_up = (
         scored_start is not None
@@ -103,6 +119,15 @@ def produce_verdict(
         timeline=_timeline(pier, conditions),
         agreement=_agreement(decision.agreement),
         observation=_observation_entry(observation),
+    )
+
+
+def _observed_reason(term: ObservedTerm) -> str:
+    """The line for a report that lowered confidence; "at least" is the code's lower bound."""
+    return (
+        f"Observed cloud above this hour's forecast: {term.station} reported at least"
+        f" {term.observed}%, the forecast gave {term.forecast}% low and mid cloud,"
+        f" a gap of {term.gap} points. Confidence lowered."
     )
 
 

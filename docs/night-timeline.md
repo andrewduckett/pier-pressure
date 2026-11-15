@@ -25,7 +25,7 @@ Each entry has the same keys, always present:
 | `temperature`, `dew_point` | Air temperature and dew point 2 m above the ground, in °C. |
 | `humidity` | Relative humidity 2 m above the ground, in percent. |
 | `wind_speed`, `wind_direction` | The forecast wind 10 m above the ground: speed in km/h, and the direction it blows from in degrees. |
-| `precipitation_probability` | The chance of rain or snow in the hour that ends at `time`, in percent. Open-Meteo counts more than 0.1 mm; NWS counts at least 0.01 in (about 0.25 mm). Unlike the other values, it is for the hour before `time`, not the hour that starts at it. |
+| `precipitation_probability` | The chance of rain or snow in the hour that ends at `time`, in percent. Open-Meteo counts more than 0.1 mm; NWS counts at least 0.01 in (about 0.25 mm). MET Norway gives it only near the Nordic countries and does not publish its threshold. Unlike the other values, it is for the hour before `time`, not the hour that starts at it. |
 | `cloud_cover_min`, `cloud_cover_max` | The lowest and highest total cloud any provider gave for the hour, in percent. Both are `null` unless two or more providers gave cloud cover for that hour. |
 
 Each weather value comes from the first provider in the pier's `providers` list

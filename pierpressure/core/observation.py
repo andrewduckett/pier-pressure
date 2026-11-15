@@ -32,6 +32,12 @@ COVER_WORDS: dict[str, str] = {
 CLEAR_BELOW_FT = 12000
 CAVOK_CLEAR_BELOW_FT = 5000
 
+# The least cover each code proves, in points: the okta lower bound rounded down,
+# so the observed cloud never claims more than the report does (metar-confidence
+# D5). An obscured sky starts at the surface, so it counts whatever its base.
+_COVER_POINTS: dict[str, int] = {"FEW": 12, "SCT": 37, "BKN": 62, "OVC": 100}
+_OBSCURED = frozenset({"OVX", "VV"})
+
 
 @dataclass(frozen=True)
 class CloudLayer:
@@ -66,6 +72,17 @@ def usable(observation: Observation, instant: datetime) -> bool:
     """
     age = instant - observation.observed_at
     return timedelta(0) <= age <= MAX_AGE
+
+
+def observed_cloud(observation: Observation) -> int:
+    """The most cloud ``observation``'s layers prove up to :data:`CLEAR_BELOW_FT`, in points."""
+    points = [0]
+    for layer in observation.clouds:
+        if layer.cover in _OBSCURED:
+            points.append(100)
+        elif layer.base_ft is not None and layer.base_ft <= CLEAR_BELOW_FT:
+            points.append(_COVER_POINTS.get(layer.cover, 0))
+    return max(points)
 
 
 def observation_reason(observation: Observation) -> str:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import logging
 from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -12,9 +13,11 @@ from typing import Any
 
 import httpx
 import pytest
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 
 from pierpressure import __version__
+from pierpressure.conditions.firms import FirmsFetcher, UnexpectedResponse
+from pierpressure.conditions.met_norway import MetNorwayProvider, parse_met_norway
 from pierpressure.conditions.metar import MetarFetcher, NoReport
 from pierpressure.conditions.nws import NwsProvider, parse_nws
 from pierpressure.conditions.open_meteo import COLUMNS, OpenMeteoProvider, parse_open_meteo
@@ -22,6 +25,7 @@ from pierpressure.conditions.provider import (
     CompositeProvider,
     ComputedSource,
     Derived,
+    FireSource,
     SourceForecast,
     SourceReading,
     assemble_snapshot,
@@ -31,9 +35,11 @@ from pierpressure.conditions.seven_timer import SevenTimerProvider, parse_seven_
 from pierpressure.core.computed import computed_seeing, computed_transparency
 from pierpressure.core.conditions import SEEING_COLUMN, Conditions, Series
 from pierpressure.core.config import DEFAULT_PROVIDERS, ConditionsConfig, PierConfig
+from pierpressure.core.fire import FireDetection
 from pierpressure.core.observation import CloudLayer, Observation
 from pierpressure.core.providers import (
     CATALOG,
+    MET_NORWAY,
     NWS,
     OPEN_METEO,
     OPEN_METEO_AIR_QUALITY,
@@ -46,6 +52,7 @@ from pierpressure.core.providers import (
 from pierpressure.health import FetchOutcome, ProviderInfo, describe_error
 
 from .conftest import make_pier, standard_seeing_column
+from .offline_guard import no_network
 
 _FIXTURES = Path(__file__).parent / "fixtures"
 _ISSUED = datetime(2026, 9, 8, 18, 0, tzinfo=UTC)
@@ -1751,6 +1758,474 @@ def test_nws_user_agent_names_the_project_version_and_repository() -> None:
 
 
 # --------------------------------------------------------------------------- #
+# met-norway-provider: MET Norway's complete Locationforecast
+# --------------------------------------------------------------------------- #
+
+_MET_UNITS = {
+    "cloud_area_fraction": "%",
+    "cloud_area_fraction_low": "%",
+    "cloud_area_fraction_medium": "%",
+    "cloud_area_fraction_high": "%",
+    "wind_speed_of_gust": "m/s",
+    "wind_speed": "m/s",
+    "wind_from_direction": "degrees",
+    "air_temperature": "celsius",
+    "dew_point_temperature": "celsius",
+    "relative_humidity": "%",
+    "probability_of_precipitation": "%",
+}
+
+
+def _met_step(time: datetime, rain_chance: float | None = None, **instant: float) -> dict[str, Any]:
+    """One timeseries step with ``instant`` details and an optional next-hour rain chance."""
+    data: dict[str, Any] = {"instant": {"details": instant}}
+    if rain_chance is not None:
+        data["next_1_hours"] = {"details": {"probability_of_precipitation": rain_chance}}
+    return {"time": time.strftime("%Y-%m-%dT%H:%M:%SZ"), "data": data}
+
+
+def _met(*steps: dict[str, Any]) -> dict[str, Any]:
+    """A ``complete`` payload holding ``steps``, with the expected units."""
+    return {
+        "type": "Feature",
+        "properties": {
+            "meta": {"updated_at": "2026-09-08T19:17:36Z", "units": dict(_MET_UNITS)},
+            "timeseries": list(steps),
+        },
+    }
+
+
+def test_met_norway_step_instant_values_fill_its_hour() -> None:
+    forecast = parse_met_norway(
+        _met(
+            _met_step(
+                _hour(21),
+                cloud_area_fraction=80.0,
+                cloud_area_fraction_low=10.0,
+                cloud_area_fraction_medium=30.0,
+                cloud_area_fraction_high=75.0,
+                wind_from_direction=160.0,
+                air_temperature=4.8,
+                dew_point_temperature=3.3,
+                relative_humidity=90.3,
+            )
+        )
+    )
+    assert forecast.readings == {
+        _hour(21): SourceReading(
+            cloud_cover=80.0,
+            cloud_low=10.0,
+            cloud_mid=30.0,
+            cloud_high=75.0,
+            wind_direction=160.0,
+            temperature=4.8,
+            dew_point=3.3,
+            humidity=90.3,
+        )
+    }
+
+
+def test_met_norway_missing_field_leaves_its_variable_absent() -> None:
+    forecast = parse_met_norway(
+        _met(_met_step(_hour(21), cloud_area_fraction=80.0), _met_step(_hour(22)))
+    )
+    assert forecast.readings[_hour(21)].cloud_low is None
+    assert forecast.readings[_hour(22)] == SourceReading()
+
+
+def test_met_norway_issue_time_is_the_update_time() -> None:
+    forecast = parse_met_norway(_met(_met_step(_hour(21), cloud_area_fraction=80.0)))
+    assert forecast.issued_at == datetime(2026, 9, 8, 19, 17, 36, tzinfo=UTC)
+
+
+def test_met_norway_issue_time_is_none_without_an_update_time() -> None:
+    payload = _met(_met_step(_hour(21), cloud_area_fraction=80.0))
+    del payload["properties"]["meta"]["updated_at"]
+    assert parse_met_norway(payload).issued_at is None
+
+
+def test_met_norway_wind_in_metres_per_second_is_carried_in_kmh() -> None:
+    forecast = parse_met_norway(_met(_met_step(_hour(21), wind_speed=5.0, wind_speed_of_gust=10.0)))
+    assert forecast.readings[_hour(21)].wind_speed == 18.0
+    assert forecast.readings[_hour(21)].wind_gust == 36.0
+
+
+def test_met_norway_wind_conversion_is_not_rounded() -> None:
+    forecast = parse_met_norway(_met(_met_step(_hour(21), wind_speed=3.3)))
+    assert forecast.readings[_hour(21)].wind_speed == 3.3 * 3.6
+
+
+def test_met_norway_values_in_their_expected_units_are_carried_unrounded() -> None:
+    forecast = parse_met_norway(
+        _met(_met_step(_hour(21), air_temperature=12.34, cloud_area_fraction=80.25))
+    )
+    assert forecast.readings[_hour(21)].temperature == 12.34
+    assert forecast.readings[_hour(21)].cloud_cover == 80.25
+
+
+@pytest.mark.parametrize("unit", ["knots", None])
+def test_met_norway_unexpected_unit_leaves_the_variable_absent(unit: str | None) -> None:
+    payload = _met(
+        _met_step(_hour(21), wind_speed=5.0, air_temperature=4.8),
+        _met_step(_hour(22), wind_speed=6.0, air_temperature=4.5),
+    )
+    units = payload["properties"]["meta"]["units"]
+    if unit is None:
+        del units["wind_speed"]
+    else:
+        units["wind_speed"] = unit
+    forecast = parse_met_norway(payload)
+    assert all(r.wind_speed is None for r in forecast.readings.values())
+    assert forecast.readings[_hour(22)].temperature == 4.5
+
+
+def _hourly_steps(start: datetime, count: int) -> list[dict[str, Any]]:
+    return [_met_step(start + timedelta(hours=n), cloud_area_fraction=50.0) for n in range(count)]
+
+
+def test_met_norway_drops_every_step_from_the_first_that_is_not_an_hour_on() -> None:
+    steps = [
+        *_hourly_steps(_at(8, 0), 13),
+        _met_step(_at(8, 18), cloud_area_fraction=50.0),
+        _met_step(_at(9, 0), cloud_area_fraction=50.0),
+        _met_step(_at(9, 1), cloud_area_fraction=50.0),
+    ]
+    forecast = parse_met_norway(_met(*steps))
+    assert list(forecast.readings) == [_at(8, h) for h in range(13)]
+
+
+def test_met_norway_drops_hourly_steps_past_72_hours() -> None:
+    forecast = parse_met_norway(_met(*_hourly_steps(_at(8, 0), 79)))
+    assert max(forecast.readings) == _at(10, 23)
+
+
+def test_met_norway_rain_chance_is_held_on_the_hour_after_its_step() -> None:
+    forecast = parse_met_norway(
+        _met(
+            _met_step(_hour(21), rain_chance=40.0, cloud_area_fraction=80.0),
+            _met_step(_hour(22), cloud_area_fraction=70.0),
+        )
+    )
+    assert forecast.readings[_hour(21)] == SourceReading(cloud_cover=80.0)
+    assert forecast.readings[_hour(22)] == SourceReading(
+        cloud_cover=70.0, precipitation_probability=40.0
+    )
+
+
+def test_met_norway_rain_chance_on_the_last_kept_step_is_dropped() -> None:
+    steps = _hourly_steps(_at(8, 0), 13)
+    steps[-1]["data"]["next_1_hours"] = {"details": {"probability_of_precipitation": 30.0}}
+    steps.append(_met_step(_at(8, 18), rain_chance=10.0, cloud_area_fraction=50.0))
+    forecast = parse_met_norway(_met(*steps))
+    assert list(forecast.readings) == [_at(8, h) for h in range(13)]
+    assert all(r.precipitation_probability is None for r in forecast.readings.values())
+
+
+def test_met_norway_rain_chance_in_an_unexpected_unit_is_absent() -> None:
+    payload = _met(
+        _met_step(_hour(21), rain_chance=40.0, cloud_area_fraction=80.0),
+        _met_step(_hour(22), cloud_area_fraction=70.0),
+    )
+    payload["properties"]["meta"]["units"]["probability_of_precipitation"] = "1"
+    forecast = parse_met_norway(payload)
+    assert forecast.readings[_hour(22)].precipitation_probability is None
+
+
+def test_met_norway_oslo_recording_has_every_declared_variable_in_each_hour() -> None:
+    forecast = parse_met_norway(_load("met_norway.json"))
+    instant = [v for v in MET_NORWAY.variables if v != "precipitation_probability"]
+    assert len(forecast.readings) == 4
+    for reading in forecast.readings.values():
+        assert all(getattr(reading, variable) is not None for variable in instant)
+
+
+def test_met_norway_oslo_recording_has_a_rain_chance_in_each_hour_after_the_first() -> None:
+    readings = list(parse_met_norway(_load("met_norway.json")).readings.values())
+    assert readings[0].precipitation_probability is None
+    assert all(r.precipitation_probability is not None for r in readings[1:])
+
+
+_OSLO = PierConfig(id="oslo", latitude=59.913868, longitude=10.752245, elevation_m=20.0)
+_MET_FORECAST = _met(_met_step(_hour(21), cloud_area_fraction=80.0))
+
+
+class _FakeMetNorway:
+    """Answers each request with the next queued response and records every request.
+
+    With the queue empty it answers 200 with ``_MET_FORECAST``.
+    """
+
+    def __init__(self, *responses: httpx.Response) -> None:
+        self.responses = list(responses)
+        self.requests: list[httpx.Request] = []
+
+    def client(self) -> httpx.Client:
+        return httpx.Client(transport=httpx.MockTransport(self._handle))
+
+    def _handle(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        if self.responses:
+            return self.responses.pop(0)
+        return httpx.Response(200, json=_MET_FORECAST)
+
+
+def test_met_norway_fetch_asks_the_complete_forecast_endpoint() -> None:
+    server = _FakeMetNorway()
+    MetNorwayProvider(client=server.client()).fetch(_OSLO)
+    [request] = server.requests
+    url = request.url.copy_with(query=None)
+    assert str(url) == "https://api.met.no/weatherapi/locationforecast/2.0/complete"
+
+
+def test_met_norway_fetch_sends_only_the_coordinates_rounded_to_4_decimals() -> None:
+    server = _FakeMetNorway()
+    MetNorwayProvider(client=server.client()).fetch(_OSLO)
+    [request] = server.requests
+    assert dict(request.url.params) == {"lat": "59.9139", "lon": "10.7522"}
+
+
+def test_met_norway_fetch_parses_the_forecast() -> None:
+    forecast = MetNorwayProvider(client=_FakeMetNorway().client()).fetch(_OSLO)
+    assert forecast == parse_met_norway(_MET_FORECAST)
+
+
+def test_met_norway_user_agent_names_the_project_version_and_repository() -> None:
+    server = _FakeMetNorway()
+    MetNorwayProvider(client=server.client()).fetch(_OSLO)
+    [request] = server.requests
+    expected = f"PierPressure/{__version__} (https://github.com/andrewduckett/pier-pressure)"
+    assert request.headers["User-Agent"] == expected
+    assert "@" not in request.headers["User-Agent"]
+
+
+@pytest.mark.parametrize("status", [403, 429, 500])
+def test_met_norway_error_status_fails_the_fetch(status: int) -> None:
+    provider = MetNorwayProvider(client=_FakeMetNorway(httpx.Response(status)).client())
+    with pytest.raises(httpx.HTTPStatusError):
+        provider.fetch(_OSLO)
+
+
+def test_met_norway_203_is_a_success() -> None:
+    server = _FakeMetNorway(httpx.Response(203, json=_MET_FORECAST))
+    forecast = MetNorwayProvider(client=server.client()).fetch(_OSLO)
+    assert forecast == parse_met_norway(_MET_FORECAST)
+
+
+def test_met_norway_203_logs_that_the_product_version_is_deprecated(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    server = _FakeMetNorway(httpx.Response(203, json=_MET_FORECAST))
+    MetNorwayProvider(client=server.client()).fetch(_OSLO)
+    [record] = [r for r in caplog.records if r.name == "pierpressure.conditions.met_norway"]
+    assert record.levelname == "WARNING"
+    assert "deprecated" in record.getMessage()
+
+
+_BERGEN = PierConfig(id="bergen", latitude=60.3913, longitude=5.3221, elevation_m=12.0)
+_LAST_MODIFIED = "Sat, 14 Nov 2026 23:20:27 GMT"
+
+
+def _at_nov_14(h: int, m: int = 0) -> datetime:
+    return datetime(2026, 11, 14, h, m, tzinfo=UTC)
+
+
+def _met_response(
+    status: int = 200,
+    *,
+    expires: str | None = "Sat, 14 Nov 2026 20:30:00 GMT",
+    last_modified: str | None = _LAST_MODIFIED,
+    payload: dict[str, Any] | None = None,
+) -> httpx.Response:
+    headers = {}
+    if expires is not None:
+        headers["Expires"] = expires
+    if last_modified is not None:
+        headers["Last-Modified"] = last_modified
+    if status == 304:
+        return httpx.Response(304, headers=headers)
+    return httpx.Response(status, headers=headers, json=payload or _MET_FORECAST)
+
+
+class _Clock:
+    def __init__(self, at: datetime) -> None:
+        self.at = at
+
+    def __call__(self) -> datetime:
+        return self.at
+
+
+def _remembering(*responses: httpx.Response) -> tuple[MetNorwayProvider, _FakeMetNorway, _Clock]:
+    """A provider on a fake server, with a clock at 20:00 UTC, before the 20:30 expiry."""
+    server = _FakeMetNorway(*responses)
+    clock = _Clock(_at_nov_14(20))
+    return MetNorwayProvider(client=server.client(), now=clock), server, clock
+
+
+def test_met_norway_fetch_before_expires_makes_no_request() -> None:
+    provider, server, clock = _remembering(_met_response())
+    first = provider.fetch(_OSLO)
+    clock.at = _at_nov_14(20, 10)
+    second = provider.fetch(_OSLO)
+    assert len(server.requests) == 1
+    assert second == first
+
+
+def test_met_norway_remembers_two_piers_separately() -> None:
+    bergen = _met(_met_step(_hour(21), cloud_area_fraction=20.0))
+    provider, server, _ = _remembering(_met_response(), _met_response(payload=bergen))
+    forecasts = [provider.fetch(pier) for pier in (_OSLO, _BERGEN, _OSLO, _BERGEN)]
+    assert [r.url.params["lat"] for r in server.requests] == ["59.9139", "60.3913"]
+    assert forecasts == [parse_met_norway(_MET_FORECAST), parse_met_norway(bergen)] * 2
+
+
+def test_met_norway_first_request_carries_no_if_modified_since() -> None:
+    provider, server, _ = _remembering(_met_response())
+    provider.fetch(_OSLO)
+    assert "If-Modified-Since" not in server.requests[0].headers
+
+
+def test_met_norway_fetch_at_expires_asks_with_if_modified_since() -> None:
+    provider, server, clock = _remembering(_met_response(), _met_response())
+    provider.fetch(_OSLO)
+    clock.at = _at_nov_14(20, 30)
+    provider.fetch(_OSLO)
+    assert len(server.requests) == 2
+    assert server.requests[1].headers["If-Modified-Since"] == _LAST_MODIFIED
+
+
+def test_met_norway_304_returns_the_remembered_forecast() -> None:
+    provider, _, clock = _remembering(_met_response(), _met_response(304))
+    first = provider.fetch(_OSLO)
+    clock.at = _at_nov_14(20, 30)
+    assert provider.fetch(_OSLO) == first
+
+
+def test_met_norway_304_takes_the_new_expires() -> None:
+    provider, server, clock = _remembering(
+        _met_response(), _met_response(304, expires="Sat, 14 Nov 2026 21:00:00 GMT")
+    )
+    provider.fetch(_OSLO)
+    clock.at = _at_nov_14(20, 30)
+    provider.fetch(_OSLO)
+    clock.at = _at_nov_14(20, 45)
+    provider.fetch(_OSLO)
+    assert len(server.requests) == 2
+
+
+def test_met_norway_response_without_expires_lets_the_next_fetch_request() -> None:
+    provider, server, _ = _remembering(_met_response(expires=None))
+    provider.fetch(_OSLO)
+    provider.fetch(_OSLO)
+    assert len(server.requests) == 2
+
+
+def test_met_norway_response_with_an_unreadable_expires_lets_the_next_fetch_request() -> None:
+    provider, server, _ = _remembering(_met_response(expires="soon"))
+    provider.fetch(_OSLO)
+    provider.fetch(_OSLO)
+    assert len(server.requests) == 2
+
+
+def test_met_norway_response_without_last_modified_sends_no_if_modified_since() -> None:
+    provider, server, clock = _remembering(_met_response(last_modified=None))
+    provider.fetch(_OSLO)
+    clock.at = _at_nov_14(20, 30)
+    provider.fetch(_OSLO)
+    assert "If-Modified-Since" not in server.requests[1].headers
+
+
+def test_met_norway_failed_request_forgets_the_remembered_response() -> None:
+    provider, server, clock = _remembering(_met_response(), _met_response(500))
+    provider.fetch(_OSLO)
+    clock.at = _at_nov_14(20, 30)
+    with pytest.raises(httpx.HTTPStatusError):
+        provider.fetch(_OSLO)
+    provider.fetch(_OSLO)
+    assert len(server.requests) == 3
+    assert "If-Modified-Since" not in server.requests[2].headers
+
+
+def test_build_provider_passes_its_clock_to_met_norway() -> None:
+    def clock() -> datetime:
+        return _FETCHED
+
+    [met_norway] = build_provider(["met_norway"], now=clock).fetchers
+    assert isinstance(met_norway, MetNorwayProvider)
+    assert met_norway.now is clock
+
+
+_LAYERED = _met(
+    _met_step(
+        _hour(21),
+        rain_chance=40.0,
+        cloud_area_fraction=80.0,
+        cloud_area_fraction_low=10.0,
+        cloud_area_fraction_medium=30.0,
+        cloud_area_fraction_high=75.0,
+        wind_speed_of_gust=10.0,
+    ),
+    _met_step(_hour(22), cloud_area_fraction=70.0, wind_speed_of_gust=8.0),
+)
+_OPEN_METEO_DARK = SourceForecast(
+    issued_at=_hour(18),
+    readings={
+        t: SourceReading(
+            cloud_cover=30.0,
+            cloud_low=5.0,
+            cloud_mid=5.0,
+            cloud_high=20.0,
+            wind_gust=12.0,
+            precipitation_probability=10.0,
+        )
+        for t in (_hour(21), _hour(22))
+    },
+)
+
+
+def _met_first(*responses: httpx.Response) -> CompositeProvider:
+    """``met_norway`` on a fake server, then a stub ``open_meteo``, through the real stack."""
+    return build_provider(
+        ["met_norway", "open_meteo"],
+        now=lambda: _FETCHED,
+        fetchers={
+            "met_norway": MetNorwayProvider(client=_FakeMetNorway(*responses).client()),
+            "open_meteo": _StubProvider(_OPEN_METEO_DARK),
+        },
+    )
+
+
+def test_met_norway_listed_first_fills_the_cloud_bundle() -> None:
+    result = _met_first(httpx.Response(200, json=_LAYERED)).get(_OSLO)
+    for variable in ("cloud_cover", "cloud_low", "cloud_mid", "cloud_high"):
+        assert result.conditions.series[variable].provider == "met_norway"
+
+
+def test_met_norway_without_gust_or_rain_chance_succeeds() -> None:
+    result = _met_first(httpx.Response(200, json=_MET_FORECAST)).get(_OSLO)
+    met_norway, _ = result.outcomes
+    assert met_norway.ok
+    assert result.conditions.series["cloud_cover"].provider == "met_norway"
+
+
+def test_met_norway_without_gust_or_rain_chance_leaves_them_to_the_next_provider() -> None:
+    result = _met_first(httpx.Response(200, json=_MET_FORECAST)).get(_OSLO)
+    assert result.conditions.series["wind_gust"].provider == "open_meteo"
+    assert result.conditions.series["precipitation_probability"].provider == "open_meteo"
+
+
+def test_met_norway_429_fails_its_outcome() -> None:
+    result = _met_first(httpx.Response(429)).get(_OSLO)
+    met_norway, _ = result.outcomes
+    assert not met_norway.ok
+    assert met_norway.error == "HTTPStatusError: 429 Too Many Requests"
+
+
+def test_met_norway_429_leaves_cloud_to_the_next_provider() -> None:
+    result = _met_first(httpx.Response(429)).get(_OSLO)
+    assert result.conditions.series["cloud_cover"].provider == "open_meteo"
+
+
+# --------------------------------------------------------------------------- #
 # computed-transparency 3.1: the computed source fills at its place in the order
 # --------------------------------------------------------------------------- #
 
@@ -2238,3 +2713,181 @@ def test_build_provider_metar_keyword_replaces_the_real_fetcher() -> None:
 def test_listing_metar_as_a_provider_is_an_unknown_provider() -> None:
     with pytest.raises(ValidationError, match="metar is not a known provider"):
         ConditionsConfig(providers=["open_meteo", "metar"])
+
+
+# --------------------------------------------------------------------------- #
+# firms-nearby-fire DD4: the composite fetches fire detections after the METAR
+# --------------------------------------------------------------------------- #
+
+_FIRMS_KEY = "abc123secret"
+_FIRMS_URL = (
+    f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{_FIRMS_KEY}/VIIRS_NOAA20_NRT/"
+    "-0.9232,51.0000,0.6832,52.0000/2"
+)
+_FIRES = (
+    FireDetection(
+        latitude=51.6,
+        longitude=-0.1,
+        detected_at=datetime(2026, 10, 5, 5, 54, tzinfo=UTC),
+        confidence="nominal",
+    ),
+    FireDetection(
+        latitude=51.4,
+        longitude=-0.2,
+        detected_at=datetime(2026, 10, 5, 7, 35, tzinfo=UTC),
+        confidence="low",
+    ),
+)
+
+
+class _StubFirms:
+    def __init__(
+        self, *, error: Exception | None = None, fires: tuple[FireDetection, ...] = _FIRES
+    ) -> None:
+        self._error = error
+        self._fires = fires
+        self.calls: list[str] = []
+
+    def fetch(self, pier: PierConfig) -> tuple[FireDetection, ...]:
+        self.calls.append(pier.id)
+        if self._error is not None:
+            raise self._error
+        return self._fires
+
+
+def _firms_composite(
+    firms: FireSource | None, metar: _StubMetar | None = None
+) -> CompositeProvider:
+    return CompositeProvider(
+        fetchers=(_StubProvider(_BASE_FORECAST),), metar=metar, firms=firms, now=lambda: _FETCHED
+    )
+
+
+def _rejected_key() -> httpx.HTTPStatusError:
+    request = httpx.Request("GET", _FIRMS_URL)
+    response = httpx.Response(400, text="Invalid MAP_KEY.", request=request)
+    return httpx.HTTPStatusError(
+        f"Client error '400 Bad Request' for url '{_FIRMS_URL}'", request=request, response=response
+    )
+
+
+def test_firms_gives_every_pier_its_fire_detections() -> None:
+    firms = _StubFirms()
+    result = _firms_composite(firms).get(make_pier())
+    assert firms.calls == ["backyard"]
+    assert result.fires == _FIRES
+
+
+def test_the_firms_outcome_follows_the_metar_outcome() -> None:
+    result = _firms_composite(_StubFirms(), _StubMetar()).get(_station_pier())
+    assert [o.key for o in result.outcomes] == ["open_meteo", "metar", "firms"]
+    assert result.outcomes[-1] == FetchOutcome(
+        key="firms",
+        name="FIRMS",
+        variables=(),
+        fetched_at=_FETCHED,
+        ok=True,
+        issued_at=datetime(2026, 10, 5, 7, 35, tzinfo=UTC),
+    )
+
+
+def test_a_firms_fetch_with_no_detections_succeeds_with_no_issue_time() -> None:
+    result = _firms_composite(_StubFirms(fires=())).get(make_pier())
+    assert result.fires == ()
+    outcome = result.outcomes[-1]
+    assert (outcome.key, outcome.ok, outcome.error, outcome.issued_at) == (
+        "firms",
+        True,
+        None,
+        None,
+    )
+
+
+@pytest.mark.parametrize(
+    ("error", "described"),
+    [
+        (_rejected_key(), "HTTPStatusError: 400 Bad Request"),
+        (httpx.ReadTimeout(f"timed out reading {_FIRMS_URL}"), "ReadTimeout"),
+        (UnexpectedResponse(), "unexpected response"),
+    ],
+    ids=["rejected-key", "timeout", "unexpected-response"],
+)
+def test_a_failed_firms_fetch_gives_no_fires_and_logs_no_key(
+    error: Exception, described: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.DEBUG):
+        result = _firms_composite(_StubFirms(error=error)).get(make_pier())
+    assert result.fires == ()
+    outcome = result.outcomes[-1]
+    assert (outcome.key, outcome.ok, outcome.error, outcome.issued_at) == (
+        "firms",
+        False,
+        described,
+        None,
+    )
+    assert described in caplog.text
+    assert _FIRMS_KEY not in caplog.text
+    for record in caplog.records:
+        assert record.exc_info is None
+
+
+@pytest.mark.parametrize("error", [None, _rejected_key()], ids=["fetched", "failed"])
+def test_a_firms_fetch_leaves_the_snapshot_and_observation_unchanged(
+    error: Exception | None,
+) -> None:
+    fired = _firms_composite(_StubFirms(error=error), _StubMetar()).get(_station_pier())
+    plain = _firms_composite(None, _StubMetar()).get(_station_pier())
+    assert fired.conditions == plain.conditions
+    assert fired.observation == plain.observation
+    assert fired.outcomes[:-1] == plain.outcomes
+
+
+def test_no_firms_source_makes_no_firms_call() -> None:
+    result = _firms_composite(None).get(make_pier())
+    assert result.fires == ()
+    assert [o.key for o in result.outcomes] == ["open_meteo"]
+
+
+def test_build_provider_wires_the_real_firms_fetcher_for_a_key() -> None:
+    composite = build_provider(["open_meteo"], firms_key=SecretStr(_FIRMS_KEY))
+    assert isinstance(composite.firms, FirmsFetcher)
+    assert composite.firms.map_key == SecretStr(_FIRMS_KEY)
+
+
+def test_build_provider_without_a_key_makes_no_firms_request() -> None:
+    stack = build_provider(
+        ["open_meteo"],
+        fetchers={"open_meteo": _StubProvider(_BASE_FORECAST)},
+        metar=_StubMetar(),
+    )
+    assert stack.firms is None
+    with no_network():
+        result = stack.get(make_pier())
+    assert result.fires == ()
+    assert [o.key for o in result.outcomes] == ["open_meteo"]
+
+
+def test_build_provider_firms_keyword_replaces_the_real_fetcher() -> None:
+    firms = _StubFirms()
+    assert (
+        build_provider(["open_meteo"], firms_key=SecretStr(_FIRMS_KEY), firms=firms).firms is firms
+    )
+
+
+def test_the_real_firms_fetcher_asks_for_the_pier_box() -> None:
+    requests: list[httpx.Request] = []
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, text="latitude,longitude,acq_date,acq_time,confidence\n")
+
+    client = httpx.Client(transport=httpx.MockTransport(answer))
+    fetcher = FirmsFetcher(map_key=SecretStr(_FIRMS_KEY), client=client)
+    result = _firms_composite(fetcher).get(make_pier())
+    assert [str(r.url) for r in requests] == [_FIRMS_URL]
+    assert result.outcomes[-1].ok
+
+
+def test_listing_firms_as_a_provider_is_an_unknown_provider() -> None:
+    with pytest.raises(ValidationError, match="firms is not a known provider"):
+        ConditionsConfig(providers=["open_meteo", "firms"])
