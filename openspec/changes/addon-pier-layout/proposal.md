@@ -30,15 +30,16 @@ None.
 
 ### Modified Capabilities
 
-- `ha-addon`: the requirement "The add-on offers a Configuration form for the
-  interval and piers" gains section-prefixed labels and section introductions.
-  It also gives the flat field names a new reason.
+- `ha-addon`: three new requirements put a pier's fields in four sections,
+  prefix each label with its section, and introduce each section in its first
+  field. The requirement "The form's setting names match the names in
+  config.yaml" gives the flat field names a new reason.
 
 ## Impact
 
 - `ha-addon/translations/en.yaml`: the pier field names and descriptions.
-- `ha-addon/DOCS.md`: the label tables that name pier fields.
+- `ha-addon/DOCS.md`: every place that names a pier field by its label.
 - `tests/test_ha_addon.py`: the label checks.
-- `docs/decisions/`: a new decision record on keeping the pier fields flat.
+- `docs/decisions/`: ADR-0040, a new decision record on keeping the pier fields flat.
 - No change to `ha-addon/config.yaml`, `pierpressure/`, the verdict document or
   the MQTT entities.

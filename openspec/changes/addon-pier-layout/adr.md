@@ -1,7 +1,7 @@
 # ADR Review Manifest
 
 - Status: completed
-- Review date: 2026-11-14
+- Review date: 2026-11-14 (redone after rebasing onto main)
 
 ## Review Summary
 
@@ -38,9 +38,22 @@ get no record.
 - [ADR0023: Once the night has started, the verdict judges the rest of it](../../../docs/decisions/0023-verdict-judges-the-remaining-night.md)
 - [ADR-0024: Self-hosted Renovate owns every dependency update, and Dependabot only raises alerts](../../../docs/decisions/0024-self-hosted-renovate-owns-dependency-updates.md)
 - [ADR0025: The verdict document carries a flat hourly timeline as evidence beside the verdict](../../../docs/decisions/0025-hourly-timeline-is-evidence-beside-the-verdict.md)
+- [ADR0027: Conditions are filled variable by variable from an ordered provider list](../../../docs/decisions/0027-conditions-filled-per-variable-from-an-ordered-provider-list.md)
+- [ADR-0028: Each Open-Meteo model is its own provider](../../../docs/decisions/0028-each-open-meteo-model-is-its-own-provider.md)
+- [ADR-0029: Forecast agreement is an input to confidence, never to a gate or the score](../../../docs/decisions/0029-forecast-agreement-is-a-confidence-input.md)
+- [ADR-0030: Raw input variables stay out of the verdict document](../../../docs/decisions/0030-raw-input-variables-stay-out-of-the-verdict-document.md)
+- [ADR-0031: Computed variables come from a source in the provider order](../../../docs/decisions/0031-computed-variables-are-a-source-in-the-provider-order.md)
+- [ADR-0032: Computed transparency estimates extinction and maps it onto 7Timer!'s scale](../../../docs/decisions/0032-computed-transparency-estimates-extinction.md)
+- [ADR-0033: Computed seeing subtracts capped penalties for bad layers, the jet stream and the boundary layer](../../../docs/decisions/0033-computed-seeing-sums-capped-penalties.md)
+- [ADR-0034: PierPressure ships its own dashboard card, from this repository, through HACS](../../../docs/decisions/0034-pierpressure-ships-its-own-dashboard-card-through-hacs.md)
+- [ADR-0035: The PierPressure card is the only dashboard PierPressure documents](../../../docs/decisions/0035-the-pierpressure-card-is-the-only-documented-dashboard.md)
+- [ADR-0036: Once the night has started, targets are ranked on the rest of it, beside their whole-night window](../../../docs/decisions/0036-targets-ranked-on-the-remaining-night.md)
+- [ADR-0037: Observations are a core input beside the conditions, never a provider](../../../docs/decisions/0037-observations-are-a-core-input-beside-the-conditions.md)
+- [ADR-0038: An observation can only lower confidence, never raise it or change a gate or the score](../../../docs/decisions/0038-an-observation-only-lowers-confidence.md)
+- [ADR-0039: A key that travels in a request URL is masked in every log record](../../../docs/decisions/0039-a-key-in-a-url-is-masked-in-every-log-record.md)
 
-ADR-0006 is deprecated, so it was read for context only.
+ADR-0006 is deprecated and ADR-0026 is superseded, so both were read for context only. None of ADR-0027 to ADR-0039 touches the add-on's Configuration form.
 
 ## New Durable ADRs Created
 
-- [ADR0026: A pier's form fields stay in one flat list, and each label names its section](../../../docs/decisions/0026-addon-pier-fields-stay-flat-with-sectioned-labels.md)
+- [ADR0040: A pier's form fields stay in one flat list, and each label names its section](../../../docs/decisions/0040-addon-pier-fields-stay-flat-with-sectioned-labels.md)
