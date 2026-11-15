@@ -993,3 +993,15 @@ def test_a_repeated_id_stops_startup(tmp_path: Path, latitude: float) -> None:
 
     with pytest.raises(ConfigError, match="'backyard'"):
         load_config(path)
+
+
+def test_a_repeated_id_check_keeps_ids_that_differ_in_case(tmp_path: Path) -> None:
+    config = load_config(_piers_config(tmp_path, _pier("backyard"), _pier("Backyard")))
+
+    assert [pier.id for pier in config.piers] == ["backyard", "Backyard"]
+
+
+def test_a_repeated_id_check_leaves_an_id_that_is_not_text_to_its_pier(tmp_path: Path) -> None:
+    config = load_config(_piers_config(tmp_path, _pier("backyard"), _pier("5"), _pier("5")))
+
+    assert [pier.id for pier in config.piers] == ["backyard"]

@@ -9,7 +9,7 @@
 ## 2. Repeated pier ids [depends-on: 1]
 
 - [x] 2.1 [medium] Loading a `config.yaml` whose piers list holds two entries with the id `backyard` raises a `ConfigError` that names `backyard`, also when one of the two entries is otherwise invalid (design DD3) (verify: uv run pytest tests/test_config.py -k repeated_id) (✓ uv run pytest tests/test_config.py -k repeated_id passed)
-- [ ] 2.2 [easy] Ids that differ only in letter case, `backyard` and `Backyard`, both load, and an entry whose id is not text is left to its own per-pier check (verify: uv run pytest tests/test_config.py -k repeated_id)
+- [x] 2.2 [easy] Ids that differ only in letter case, `backyard` and `Backyard`, both load, and an entry whose id is not text is left to its own per-pier check (verify: uv run pytest tests/test_config.py -k repeated_id) (✓ uv run pytest tests/test_config.py -k repeated_id passed)
 - [ ] 2.3 [easy] The repeated-id error is one line: an id with a line break is shown escaped, several repeated ids are listed in the order they first repeat, and no other value from the entries appears (verify: uv run pytest tests/test_config.py -k repeated_id_error)
 
 ## 3. Add-on and docs [depends-on: 2]
