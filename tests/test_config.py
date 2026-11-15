@@ -697,6 +697,22 @@ def test_the_default_order_leaves_out_nws(tmp_path: Path) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# met-norway-provider 1.1: MET Norway is a provider in the list
+# --------------------------------------------------------------------------- #
+
+
+def test_met_norway_alone_satisfies_the_cloud_rule(tmp_path: Path) -> None:
+    config = load_config(_with_conditions(tmp_path, "conditions:\n  providers: [met_norway]\n"))
+    assert config.conditions.providers == ["met_norway"]
+
+
+def test_the_default_order_leaves_out_met_norway(tmp_path: Path) -> None:
+    config = load_config(_with_conditions(tmp_path, ""))
+    assert config.conditions.providers == _DEFAULT_ORDER
+    assert "met_norway" not in config.conditions.providers
+
+
+# --------------------------------------------------------------------------- #
 # air-quality-provider 3.1: the air-quality forecast is a provider in the list
 # --------------------------------------------------------------------------- #
 
@@ -739,3 +755,101 @@ def test_computed_without_its_input_providers_does_not_stop_startup(tmp_path: Pa
         _with_conditions(tmp_path, "conditions:\n  providers: [open_meteo_hrdps, computed]\n")
     )
     assert config.conditions.providers == ["open_meteo_hrdps", "computed"]
+
+
+# --------------------------------------------------------------------------- #
+# firms-nearby-fire 1.1: the optional firms block holds one key for the service
+# --------------------------------------------------------------------------- #
+
+FIRMS_KEY = "abc123secret"
+
+
+def _with_firms(tmp_path: Path, block: str) -> Path:
+    return _write(tmp_path, VALID_CONFIG + block)
+
+
+def test_a_firms_key_in_the_file_is_read_and_masked(tmp_path: Path) -> None:
+    config = load_config(_with_firms(tmp_path, f"firms:\n  map_key: {FIRMS_KEY}\n"))
+
+    assert config.firms is not None
+    assert config.firms.usable_key == SecretStr(FIRMS_KEY)
+    assert FIRMS_KEY not in repr(config)
+    assert FIRMS_KEY not in repr(config.model_dump())
+
+
+def test_a_firms_key_is_read_from_the_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("FIRMS_KEY", FIRMS_KEY)
+
+    config = load_config(_with_firms(tmp_path, "firms:\n  map_key: ${FIRMS_KEY}\n"))
+
+    assert config.firms is not None
+    assert config.firms.usable_key == SecretStr(FIRMS_KEY)
+
+
+@pytest.mark.parametrize("block", ["", "firms:\n", "firms: {}\n"], ids=["none", "null", "empty"])
+def test_no_firms_block_or_an_empty_one_gives_no_key(tmp_path: Path, block: str) -> None:
+    config = load_config(_with_firms(tmp_path, block))
+
+    assert config.firms is None
+
+
+def test_a_firms_block_without_a_key_gives_no_key(tmp_path: Path) -> None:
+    config = load_config(_with_firms(tmp_path, "firms:\n  map_key:\n"))
+
+    assert config.firms is not None
+    assert config.firms.usable_key is None
+
+
+@pytest.mark.parametrize("value", ["''", "${FIRMS_KEY}"], ids=["empty", "unset-variable"])
+def test_an_unusable_firms_key_counts_as_no_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    monkeypatch.delenv("FIRMS_KEY", raising=False)
+
+    config = load_config(_with_firms(tmp_path, f"firms:\n  map_key: {value}\n"))
+
+    assert config.firms is not None
+    assert config.firms.map_key is not None
+    assert config.firms.usable_key is None
+
+
+def test_a_firms_key_that_is_a_number_is_named_without_its_value(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    text = VALID_CONFIG + "firms:\n  map_key: 12345\n"
+
+    message = _hidden_error(tmp_path, text, caplog, "12345")
+
+    assert message.startswith("Invalid firms configuration: firms.map_key: ")
+
+
+def test_an_unknown_firms_setting_is_not_named(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    text = VALID_CONFIG + f"firms:\n  mapkey: {FIRMS_KEY}\n"
+
+    message = _hidden_error(tmp_path, text, caplog, "mapkey", FIRMS_KEY)
+
+    assert message == (
+        "Invalid firms configuration: the firms block holds a setting it does not know;"
+        " its settings are map_key"
+    )
+
+
+def test_a_firms_value_that_is_not_a_mapping_is_not_shown(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    text = VALID_CONFIG + f"firms: {FIRMS_KEY}\n"
+
+    message = _hidden_error(tmp_path, text, caplog, FIRMS_KEY)
+
+    assert "firms block must be a mapping of settings" in message
+
+
+def test_listing_firms_as_a_provider_stops_startup(tmp_path: Path) -> None:
+    path = _with_conditions(tmp_path, "conditions:\n  providers: [open_meteo, firms]\n")
+
+    with pytest.raises(ConfigError, match="firms is not a known provider"):
+        load_config(path)

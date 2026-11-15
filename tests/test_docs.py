@@ -435,3 +435,93 @@ def test_the_confidence_row_names_disagreement_and_the_airport_report() -> None:
     [row] = [line for line in document.splitlines() if line.startswith("| `confidence`")]
     assert "disagree" in row
     assert "airport reports more cloud" in row
+
+
+# --------------------------------------------------------------------------- #
+# met-norway-provider 1.10: the README documents the MET Norway provider
+# --------------------------------------------------------------------------- #
+
+
+def test_the_configuration_table_names_met_norway() -> None:
+    assert "`met_norway`" in _conditions_row()
+
+
+def test_the_health_topic_list_names_met_norway() -> None:
+    entities = _section(_README.read_text(encoding="utf-8"), "## 🏠 Home Assistant entities")
+    health_rows = [line for line in entities.splitlines() if "_health" in line]
+    assert health_rows
+    assert all("met_norway" in row for row in health_rows)
+
+
+def test_the_health_sensor_list_names_met_norway_health() -> None:
+    section = _section(_README.read_text(encoding="utf-8"), "### Watching provider health")
+    assert "**MET Norway health**" in section
+
+
+def test_the_clean_up_key_list_names_met_norway() -> None:
+    section = _section(_README.read_text(encoding="utf-8"), "### Removing the entities")
+    [paragraph] = [p for p in section.split("\n\n") if p.startswith("If you listed")]
+    assert "`met_norway`" in paragraph
+
+
+def test_the_metar_station_row_names_met_norway_among_the_layered_forecasts() -> None:
+    row = _metar_station_row()
+    assert "the Open-Meteo providers and MET Norway give" in row
+
+
+@pytest.mark.parametrize(
+    "fact",
+    [
+        "Nordic",
+        "m/s",
+        "km/h",
+        "6-hourly",
+        "72 hours",
+        "`Expires`",
+        "If-Modified-Since",
+        "User-Agent",
+    ],
+)
+def test_the_met_norway_section_explains_its_limits(fact: str) -> None:
+    section = _section(_README.read_text(encoding="utf-8"), "### Adding MET Norway")
+    assert fact in section
+
+
+# --------------------------------------------------------------------------- #
+# firms-nearby-fire 4.2: the README documents the FIRMS key, line and health
+# --------------------------------------------------------------------------- #
+
+
+def _readme() -> str:
+    return _README.read_text(encoding="utf-8")
+
+
+def test_the_configuration_table_documents_firms() -> None:
+    table = _section(_readme(), "## ⚙️ Configuration")
+    [row] = [line for line in table.splitlines() if line.startswith("| `firms`")]
+    for fact in ("map_key", "${", "50 km", "24 hours", "nominal", "high", "every pier"):
+        assert fact in row
+
+
+def test_the_readme_shows_the_fire_line() -> None:
+    table = _section(_readme(), "## ⚙️ Configuration")
+    assert "A satellite detected a fire" in table
+
+
+def test_the_entities_table_lists_firms_health() -> None:
+    section = _section(_readme(), "## 🏠 Home Assistant entities")
+    [row] = [line for line in section.splitlines() if line.startswith("| **FIRMS health**")]
+    assert "firms" in row
+
+
+@pytest.mark.parametrize("purpose", ["| Health discovery configs", "| Provider health state"])
+def test_the_topic_lists_name_firms(purpose: str) -> None:
+    section = _section(_readme(), "## 🏠 Home Assistant entities")
+    [row] = [line for line in section.splitlines() if line.startswith(purpose)]
+    assert "\\|metar\\|firms>" in row
+
+
+def test_watching_provider_health_explains_firms() -> None:
+    section = _section(_readme(), "### Watching provider health")
+    assert "**FIRMS health**" in section
+    assert "unexpected response" in section

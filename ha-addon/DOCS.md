@@ -187,6 +187,28 @@ piers:
 The pier's device then also has a **METAR health** sensor, which shows when
 the station's report was last fetched.
 
+## Set a FIRMS key
+
+With a free NASA FIRMS key, the reasons name a fire that a satellite detected
+within 50 km of a pier in the last 24 hours, such as `A satellite detected a
+fire 23 km NW of the pier at 2026-11-13T07:35:00Z (1 detection within 50
+km).` The line never changes the verdict, score or confidence. Request a key
+at <https://firms.modaps.eosdis.nasa.gov/api/map_key/>.
+
+The Configuration tab has no field for it. To set it, add `firms.map_key` to
+the add-on's `config.yaml` file, as
+[Add settings with config.yaml](#add-settings-with-configyaml) describes. One
+key serves every pier.
+
+```yaml
+firms:
+  map_key: your-firms-map-key
+```
+
+Every pier's device then also has a **FIRMS health** sensor, which shows when
+the fire detections were last fetched. The key never appears in the log or in
+health.
+
 ## Add settings with config.yaml
 
 The Configuration tab lists your piers. A `config.yaml` file can add the
@@ -214,7 +236,7 @@ The file is optional.
   tab does not show, or any other pier setting the tab leaves empty. List the
   pier under `piers:` with the same `id` as on the tab, and add only the settings
   you want.
-- **For the whole add-on:** `explainer`, `mqtt.discovery_prefix` and
+- **For the whole add-on:** `explainer`, `firms`, `mqtt.discovery_prefix` and
   `mqtt.base_topic`. The file can also set the broker, when the tab's broker
   fields are empty. See [With config.yaml](#with-configyaml).
 

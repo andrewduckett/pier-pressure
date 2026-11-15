@@ -237,3 +237,12 @@ def test_the_addon_docs_say_to_set_metar_station_in_config_yaml() -> None:
     assert "metar_station" in section
     assert "config.yaml" in section
     assert "(#add-settings-with-configyaml)" in section
+
+
+def test_the_addon_docs_say_to_set_the_firms_key_in_config_yaml() -> None:
+    # firms-nearby-fire D4: the form gets no field, so DOCS.md says where it goes.
+    docs = (ROOT / "ha-addon" / "DOCS.md").read_text(encoding="utf-8")
+    start = docs.index("### What the file can add")
+    section = docs[start : docs.find("\n### ", start + 1)]
+    assert "`firms`" in section
+    assert "firms.map_key" in docs

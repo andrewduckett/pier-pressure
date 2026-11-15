@@ -10,6 +10,7 @@ from pierpressure.core.conditions import SEEING_COLUMN, Variable
 from pierpressure.core.providers import (
     CATALOG,
     COMPUTED,
+    MET_NORWAY,
     NWS,
     OPEN_METEO,
     OPEN_METEO_AIR_QUALITY,
@@ -64,6 +65,26 @@ def test_nws_declares_total_cloud_and_the_weather_variables_with_no_bundle() -> 
     )
     assert NWS.bundles == ()
     assert not NWS.needs_key
+
+
+def test_met_norway_declares_its_layered_cloud_bundle_with_the_weather_variables() -> None:
+    assert MET_NORWAY.key == "met_norway"
+    assert MET_NORWAY.name == "MET Norway"
+    assert MET_NORWAY.variables == (
+        "cloud_cover",
+        "cloud_low",
+        "cloud_mid",
+        "cloud_high",
+        "wind_gust",
+        "wind_speed",
+        "wind_direction",
+        "temperature",
+        "dew_point",
+        "humidity",
+        "precipitation_probability",
+    )
+    assert MET_NORWAY.bundles == (_CLOUD_BUNDLE,)
+    assert not MET_NORWAY.needs_key
 
 
 def test_seven_timer_declares_seeing_and_transparency_and_no_bundle() -> None:
@@ -169,6 +190,7 @@ def test_catalog_maps_each_key_to_its_spec_in_order() -> None:
         ("open_meteo_ecmwf", OPEN_METEO_ECMWF),
         ("open_meteo_air_quality", OPEN_METEO_AIR_QUALITY),
         ("nws", NWS),
+        ("met_norway", MET_NORWAY),
         ("seven_timer", SEVEN_TIMER),
         ("computed", COMPUTED),
     ]

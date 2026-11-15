@@ -285,3 +285,20 @@ def test_page_rain_chance_row_gives_each_sources_threshold(page_text: str) -> No
     [row] = [r for r in _key_table_rows(page_text) if "`precipitation_probability`" in r]
     assert "more than 0.1 mm" in row and "Open-Meteo" in row
     assert "at least 0.01 in" in row and "NWS" in row
+
+
+# --------------------------------------------------------------------------- #
+# met-norway-provider 1.11: the rain-chance row names MET Norway's limits
+# --------------------------------------------------------------------------- #
+
+
+def test_page_rain_chance_row_says_met_norway_gives_it_only_near_the_nordic_countries(
+    page_text: str,
+) -> None:
+    [row] = [r for r in _key_table_rows(page_text) if "`precipitation_probability`" in r]
+    assert "MET Norway gives it only near the Nordic countries" in row
+
+
+def test_page_rain_chance_row_says_met_norway_publishes_no_threshold(page_text: str) -> None:
+    [row] = [r for r in _key_table_rows(page_text) if "`precipitation_probability`" in r]
+    assert "does not publish its threshold" in row

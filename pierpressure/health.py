@@ -27,6 +27,10 @@ NO_READINGS = "no readings returned"
 # The error for a METAR fetch that completed with no report for the station.
 NO_REPORT = "no report returned"
 
+# The error for a FIRMS fetch whose body has no CSV header it can read, such as
+# a plain-text "Invalid MAP_KEY." with a success status (firms-nearby-fire DD3).
+UNEXPECTED_RESPONSE = "unexpected response"
+
 # The error for a computed source whose inputs all have a series, but share no
 # hour with a value in each (computed-transparency DD6).
 NO_SHARED_HOUR = "no hour has every input"
