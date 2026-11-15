@@ -7,6 +7,7 @@ import traceback
 from pathlib import Path
 
 import pytest
+import yaml
 from pydantic import SecretStr, ValidationError
 
 from pierpressure.core.config import (
@@ -933,3 +934,14 @@ def test_a_padded_number_setting_is_decimal(
     config = load_config(_with_pier_setting(tmp_path, key, value))
 
     assert getattr(config.piers[0], key) == expected
+
+
+@pytest.mark.parametrize(("value", "expected"), [("0x1A", 26.0), ("1_000", 1000.0)])
+def test_other_number_forms_keep_their_meaning(tmp_path: Path, value: str, expected: float) -> None:
+    config = load_config(_with_pier_setting(tmp_path, "elevation_m", value))
+
+    assert config.piers[0].elevation_m == expected
+
+
+def test_yaml_safe_load_still_reads_number_forms_as_yaml_1_1() -> None:
+    assert yaml.safe_load("045") == 37
