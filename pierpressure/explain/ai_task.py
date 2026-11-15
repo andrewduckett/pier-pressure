@@ -63,5 +63,11 @@ class AiTaskProvider:
 
 
 def _narrative(response: httpx.Response) -> str:
-    """The reply's ``service_response.data`` text."""
-    return str(response.json()["service_response"]["data"])
+    """The reply's ``service_response.data`` text, or :class:`AiTaskError` (DD3)."""
+    try:
+        data = response.json()["service_response"]["data"]
+    except ValueError, KeyError, TypeError:
+        raise AiTaskError from None
+    if not isinstance(data, str) or not data.strip():
+        raise AiTaskError
+    return data.strip()

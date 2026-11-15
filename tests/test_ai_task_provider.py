@@ -14,7 +14,7 @@ from typing import Any
 import httpx
 import pytest
 
-from pierpressure.explain import build_prompt_input
+from pierpressure.explain import NarrativeExplainer, build_prompt_input
 from pierpressure.explain.ai_task import AiTaskProvider
 from pierpressure.explain.provider import SYSTEM_PROMPT
 
@@ -113,3 +113,38 @@ def test_the_request_bypasses_proxy_settings(monkeypatch: pytest.MonkeyPatch) ->
         provider.generate(build_prompt_input(_document()))
 
     assert reached == ["supervisor"]
+
+
+def _explainer(handler: Any) -> NarrativeExplainer:
+    return NarrativeExplainer(_provider(handler))
+
+
+# --------------------------------------------------------------------------- #
+# 2.2 — the reply
+# --------------------------------------------------------------------------- #
+
+
+def test_a_text_reply_becomes_the_stripped_narrative() -> None:
+    explainer = _explainer(lambda _request: _reply(" Clear skies. "))
+
+    assert explainer(_document()) == "Clear skies."
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        httpx.Response(200, text="not json"),
+        httpx.Response(200, json={"changed_states": [], "service_response": {}}),
+        httpx.Response(200, json={"changed_states": []}),
+        httpx.Response(200, json=["not", "a", "mapping"]),
+        _reply(""),
+        _reply("   "),
+        _reply({"text": "Clear skies."}),
+        _reply(None),
+    ],
+    ids=["not-json", "no-data", "no-service-response", "list", "empty", "blank", "mapping", "null"],
+)
+def test_a_reply_without_text_gives_no_narrative(reply: httpx.Response) -> None:
+    explainer = _explainer(lambda _request: reply)
+
+    assert explainer(_document()) is None
