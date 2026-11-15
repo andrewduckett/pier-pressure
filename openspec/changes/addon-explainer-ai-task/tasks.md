@@ -19,7 +19,7 @@
 ## 4. The docs [depends-on: 2, 3]
 
 - [x] 4.1 [easy] The "Turn on the explainer" section of `ha-addon/DOCS.md` describes the AI Task way, with `**Enabled**`, `**AI Task entity**` and `AI Task`, beside the API key way; it says the add-on gains administrator access to Home Assistant, that a model slower than the explainer's time bound gives no narrative, and to set `explainer.enabled` in one place only (verify: uv run pytest tests/test_ha_addon.py) (✓ uv run pytest tests/test_ha_addon.py passed, 108 tests)
-- [ ] 4.2 [easy] `docs/llm-explainer.md` describes `explainer.ai_task_entity`, says it works only in the add-on, and adds the AI Task path to the manual acceptance check (verify: uv run pytest tests/test_explainer_docs.py)
+- [x] 4.2 [easy] `docs/llm-explainer.md` describes `explainer.ai_task_entity`, says it works only in the add-on, and adds the AI Task path to the manual acceptance check (verify: uv run pytest tests/test_explainer_docs.py) (✓ uv run pytest tests/test_explainer_docs.py passed, 12 tests)
 
 ## 5. The whole change [depends-on: 4]
 
