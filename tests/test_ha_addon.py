@@ -11,6 +11,7 @@ addon-form-text D3-D8, and its explainer key addon-explainer-key-option D1-D9.
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -131,10 +132,20 @@ def test_addon_form_schema_declares_the_broker(addon: dict[str, Any]) -> None:
     assert addon["schema"]["mqtt"] == MQTT_FIELDS
 
 
-def test_addon_form_schema_declares_the_explainer_key(addon: dict[str, Any]) -> None:
-    # Only the key: the other explainer settings stay in config.yaml
-    # (addon-explainer-key-option D1, D4).
-    assert addon["schema"]["explainer"] == {"api_key": "password?"}
+def test_addon_form_schema_declares_the_explainer_fields(addon: dict[str, Any]) -> None:
+    # The model stays in config.yaml; the entity is plain text, because the core
+    # checks it (addon-explainer-ai-task DD4, DD6).
+    explainer = addon["schema"]["explainer"]
+    assert list(explainer.items()) == [
+        ("enabled", "bool?"),
+        ("ai_task_entity", "str?"),
+        ("api_key", "password?"),
+    ]
+
+
+def test_addon_asks_for_the_core_api(addon: dict[str, Any]) -> None:
+    # The AI Task action is called through the Supervisor's Core API (DD6).
+    assert addon["homeassistant_api"] is True
 
 
 def test_addon_form_schema_lists_the_explainer_last(addon: dict[str, Any]) -> None:
@@ -366,11 +377,22 @@ def test_the_broker_section_names_where_an_empty_host_leads(fallback: str) -> No
     assert fallback in mqtt["description"]
 
 
-@pytest.mark.parametrize("words", ["explainer.enabled", "config.yaml"])
-def test_the_explainer_section_names_the_switch(words: str) -> None:
-    # The form's key alone does not turn the explainer on (addon-explainer-key-option D4, D8).
+@pytest.mark.parametrize(
+    "words", ["explainer.enabled", "AI Task", "explainer.model", "config.yaml"]
+)
+def test_the_explainer_section_names_the_switch_and_both_ways(words: str) -> None:
+    # The form's key alone does not turn the explainer on (addon-explainer-key-option D4,
+    # D8); the narrative comes from the AI Task entity or the model (addon-explainer-ai-task).
     explainer = _load(ADDON_TRANSLATIONS)["configuration"]["explainer"]
     assert words in explainer["description"]
+
+
+@pytest.mark.parametrize(
+    ("field", "name"), [("enabled", "Enabled"), ("ai_task_entity", "AI Task entity")]
+)
+def test_the_explainer_fields_have_their_labels(field: str, name: str) -> None:
+    fields = _load(ADDON_TRANSLATIONS)["configuration"]["explainer"]["fields"]
+    assert fields[field]["name"] == name
 
 
 @pytest.mark.parametrize("field", ["port", "username", "password"])
@@ -497,6 +519,21 @@ def test_turn_on_the_explainer_names_where_each_setting_goes(words: str) -> None
 
 
 @pytest.mark.parametrize(
+    "words",
+    ["**Enabled**", "**AI Task entity**", "AI Task", "administrator", "in one place only"],
+)
+def test_turn_on_the_explainer_describes_the_ai_task_way(words: str) -> None:
+    # addon-explainer-ai-task DD6, ADR-0042.
+    assert words in _docs_section("Turn on the explainer")
+
+
+def test_turn_on_the_explainer_says_a_slow_model_gives_no_narrative() -> None:
+    section = _docs_section("Turn on the explainer")
+    assert "5 seconds" in section
+    assert "no paragraph" in section
+
+
+@pytest.mark.parametrize(
     ("key", "field"), [("min_altitude", "min_altitude"), ("points", "horizon_points")]
 )
 def test_horizon_error_labels_match_the_form(key: str, field: str) -> None:
@@ -510,4 +547,65 @@ def test_horizon_docs_name_error_labels() -> None:
     sentences = re.split(r"(?<=\.)\s+", " ".join(_docs_section("Set a pier's horizon").split()))
     assert any(
         "error" in s and "**Horizon: floor**" in s and "**Horizon: points**" in s for s in sentences
+    )
+
+
+def _supervisor_reads_as_addon_config(path: str) -> bool:
+    """Whether the Supervisor's store scan reads ``path`` as an add-on config.
+
+    A copy of its filter in home-assistant/supervisor@98a2322
+    ``supervisor/store/data.py:158-164``: it globs ``**/config.*``, keeps the
+    ``.yaml``, ``.yml`` and ``.json`` suffixes, and skips a path with a part that
+    starts with ``.`` or is named ``rootfs`` (addon-store-scan-warnings D2).
+    """
+    parts = Path(path).parts
+    return (
+        parts[-1].startswith("config.")
+        and Path(path).suffix in {".yaml", ".yml", ".json"}
+        and not any(part.startswith(".") or part == "rootfs" for part in parts)
+    )
+
+
+@pytest.mark.parametrize("path", ["docs/examples/config.sample.yaml"])
+def test_the_supervisor_scan_reads_a_config_file(path: str) -> None:
+    assert _supervisor_reads_as_addon_config(path)
+
+
+@pytest.mark.parametrize(
+    "path", [".github/config.yml", "x/rootfs/config.json", "a/config.txt", "vite.config.ts"]
+)
+def test_the_supervisor_scan_skips_other_files(path: str) -> None:
+    assert not _supervisor_reads_as_addon_config(path)
+
+
+def test_the_supervisor_scan_reads_only_the_two_config_files() -> None:
+    # Tracked files, because the Supervisor clones the repository (addon-store-scan-warnings D7).
+    tracked = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-files"], check=True, capture_output=True, text=True
+    ).stdout.splitlines()
+    read = {path for path in tracked if _supervisor_reads_as_addon_config(path)}
+    allowed = {"ha-addon/config.yaml", "openspec/config.yaml"}
+    assert read - allowed == set(), (
+        f"the Supervisor would read these as add-ons: {sorted(read - allowed)}"
+    )
+    assert read == allowed
+
+
+SUPERVISOR_WARNING = "If the Supervisor log warns about openspec/config.yaml"
+
+
+@pytest.mark.parametrize("words", ["openspec/config.yaml: Invalid app config!", "no action"])
+def test_the_supervisor_warning_section_names_the_warning(words: str) -> None:
+    # The one warning left, explained in the add-on docs (addon-store-scan-warnings D5, D8).
+    assert words in _docs_section(SUPERVISOR_WARNING)
+
+
+def test_the_supervisor_warning_is_linked_from_the_readme_install_step() -> None:
+    # The step that adds the repository URL (addon-store-scan-warnings D8).
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    install = readme.partition("\n## 🏡 Install as a Home Assistant add-on (app)\n")[2]
+    add_repository = install.partition("\n1. ")[2].partition("\n2. ")[0]
+    assert REPOSITORY_URL in add_repository
+    assert (
+        "(ha-addon/DOCS.md#if-the-supervisor-log-warns-about-openspecconfigyaml)" in add_repository
     )

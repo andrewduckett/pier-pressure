@@ -2,7 +2,8 @@
 
 Follows addon-options-form D1, D3; addon-form-horizon D1-D3;
 addon-form-equipment D1-D3; addon-form-broker D2; addon-form-gates D1;
-addon-options-core-validates D2-D4 and ADR-0022; and addon-explainer-key-option D2.
+addon-options-core-validates D2-D4 and ADR-0022; addon-explainer-key-option D2; and
+addon-explainer-ai-task DD6.
 
 When the user saves the form, the Supervisor writes its values to
 ``/data/options.json``. :func:`translate_form` turns them into the mapping a
@@ -117,7 +118,8 @@ def translate_form(options: dict[str, Any]) -> dict[str, Any] | None:
     not set (addon-form-gates D1). Its other keys pass through unchanged, because
     they are the file's keys. The ``mqtt`` and ``explainer`` blocks pass through
     without their empty fields, and each is left out when none is set
-    (addon-form-broker D2, addon-explainer-key-option D2). Every form
+    (addon-form-broker D2, addon-explainer-key-option D2). The explainer's
+    switch set to off counts as not set (addon-explainer-ai-task DD6). Every form
     pier is kept, and the core checks it (addon-options-core-validates D4).
     """
     piers = options.get("piers", [])
@@ -127,11 +129,26 @@ def translate_form(options: dict[str, Any]) -> dict[str, Any] | None:
     config: dict[str, Any] = {"piers": _config_piers(piers)}
     if "interval_seconds" in options:
         config["recompute"] = {"interval_seconds": options["interval_seconds"]}
-    for block in ("mqtt", "explainer"):
-        fields = _set_block_fields(options.get(block))
+    blocks = {
+        "mqtt": _set_block_fields(options.get("mqtt")),
+        "explainer": _without_switch_off(_set_block_fields(options.get("explainer"))),
+    }
+    for block, fields in blocks.items():
         if fields is not None and fields != {}:
             config[block] = fields
     return config
+
+
+def _without_switch_off(explainer: Any) -> Any:
+    """The form's explainer block without a switch set to off.
+
+    A switch turned on, then off, saves ``false``, and only the form's YAML mode
+    can clear it. So ``false`` counts as not set, and never conflicts with
+    ``explainer.enabled`` in ``config.yaml`` (addon-explainer-ai-task DD6).
+    """
+    if not isinstance(explainer, dict) or explainer.get("enabled") is not False:
+        return explainer
+    return {key: value for key, value in explainer.items() if key != "enabled"}
 
 
 def _set_block_fields(block: Any) -> Any:

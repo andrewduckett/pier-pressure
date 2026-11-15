@@ -37,14 +37,23 @@ from pierpressure.delivery.mqtt import (
     LoginRejected,
     MqttDelivery,
     availability_topic,
+    narrative_attributes_topic,
     verdict_state_topic,
 )
 from pierpressure.explain import NarrativeExplainer, no_op_explainer
+from pierpressure.explain.ai_task import AiTaskProvider
 from pierpressure.explain.provider import PydanticAIProvider
 from pierpressure.service import Service
 from pierpressure.supervisor import SupervisorError, fetch_mqtt_broker
 
-from .conftest import FakeMqttClient, make_mqtt_config, make_pier
+from .conftest import (
+    FakeMqttClient,
+    ScriptedMonotonic,
+    fixed_conditions,
+    make_conditions,
+    make_mqtt_config,
+    make_pier,
+)
 from .offline_guard import no_network
 from .test_golden_verdict import _INSTANT, _base_full, _secondary_full
 
@@ -150,16 +159,23 @@ class StartupStub:
         self.connected_to: list[MqttConfig] = []
         self.calls: list[str] = []
         self.login_advice: list[str | None] = []
+        self.manage_narrative: list[bool] = []
         self.closed = False
         self.supervisor_calls: list[str] = []
         stub = self
 
         class FakeDelivery:
             def __init__(
-                self, mqtt: MqttConfig, *, login_advice: str | None = None, **_kwargs: Any
+                self,
+                mqtt: MqttConfig,
+                *,
+                login_advice: str | None = None,
+                manage_narrative: bool = False,
+                **_kwargs: Any,
             ) -> None:
                 stub.connected_to.append(mqtt)
                 stub.login_advice.append(login_advice)
+                stub.manage_narrative.append(manage_narrative)
                 self._advice = login_advice
 
             def on_reconnect(self, _callback: Any) -> None:
@@ -2001,3 +2017,148 @@ def test_base_60_form_horizon_points_skip_only_their_pier(
     [error] = _errors(caplog)
     assert error.startswith("Skipping invalid pier 'backyard'")
     assert "horizon.points" in error
+
+
+# --------------------------------------------------------------------------- #
+# addon-explainer-ai-task DD5: the service passes the Supervisor token
+# --------------------------------------------------------------------------- #
+
+AI_TASK_EXPLAINER = "explainer:\n  enabled: true\n  ai_task_entity: ai_task.openai\n"
+
+
+def test_in_an_addon_main_wires_the_ai_task_entity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _addon(monkeypatch, options_file, BACKYARD)
+    StartupStub(monkeypatch)
+
+    with caplog.at_level(logging.INFO):
+        entry.main([_config(tmp_path, AI_TASK_EXPLAINER)])
+
+    assert "Narrative from the AI Task entity ai_task.openai" in caplog.text
+    assert "token-1" not in caplog.text
+
+
+def test_outside_an_addon_main_warns_once_about_the_ai_task_entity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    StartupStub(monkeypatch)
+    text = "mqtt:\n  host: broker.lan\n" + ROOF + AI_TASK_EXPLAINER
+
+    with caplog.at_level(logging.INFO):
+        entry.main([_config(tmp_path, text)])
+
+    warnings = [
+        r.getMessage()
+        for r in caplog.records
+        if r.levelno == logging.WARNING and "explainer.ai_task_entity" in r.getMessage()
+    ]
+    assert len(warnings) == 1
+    assert "add-on" in warnings[0]
+
+
+def test_outside_an_addon_an_ai_task_entity_still_publishes_every_verdict(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    config = _load(_config(tmp_path, "mqtt:\n  host: broker.lan\n" + ROOF + AI_TASK_EXPLAINER))
+    managing, explainer = entry.build_delivery_and_explainer(config)
+    client = FakeMqttClient()
+    delivery = MqttDelivery(config.mqtt, client=client, manage_narrative=True)
+    service = Service(
+        config,
+        delivery,
+        FixedClock(datetime(2026, 9, 8, 14, 0, tzinfo=UTC)),
+        conditions_provider=fixed_conditions(make_conditions(cloud=5.0)),
+        explainer=explainer,
+    )
+
+    with no_network():
+        delivery.connect()
+        service.run(monotonic=ScriptedMonotonic([0.0]), max_iterations=0)
+
+    assert managing._manage_narrative is True
+    assert client.publishes_to(verdict_state_topic("pierpressure", "roof"))
+    attrs = client.publishes_to(narrative_attributes_topic("pierpressure", "roof"))
+    assert attrs and json.loads(attrs[-1].payload)["available"] is False
+
+
+# --------------------------------------------------------------------------- #
+# addon-explainer-ai-task DD6: the form's switch and AI Task entity
+# --------------------------------------------------------------------------- #
+
+
+def _form_with_explainer(
+    monkeypatch: pytest.MonkeyPatch, options_file: Path, explainer: dict[str, Any]
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    options_file.write_text(
+        json.dumps({"interval_seconds": 600, "piers": [BACKYARD], "explainer": explainer}),
+        encoding="utf-8",
+    )
+
+
+def _ai_task_entity(stub: StartupStub, config: AppConfig) -> str:
+    """The AI Task entity the add-on's explainer asks for the narrative."""
+    _delivery, explainer = entry.build_delivery_and_explainer(config, supervisor_token="token-1")
+    assert stub.manage_narrative == [True]
+    assert isinstance(explainer, NarrativeExplainer)
+    assert isinstance(explainer.provider, AiTaskProvider)
+    return explainer.provider.entity_id
+
+
+def test_the_form_alone_turns_on_the_ai_task_narrative(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    _form_with_explainer(
+        monkeypatch, options_file, {"enabled": True, "ai_task_entity": "ai_task.openai"}
+    )
+    stub = StartupStub(monkeypatch)
+
+    config = _load(_no_file(tmp_path))
+
+    assert [pier.id for pier in config.piers] == ["backyard"]
+    assert _ai_task_entity(stub, config) == "ai_task.openai"
+
+
+def test_the_switch_in_both_places_stops_the_addon(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _form_with_explainer(monkeypatch, options_file, {"enabled": True})
+    StartupStub(monkeypatch)
+
+    with caplog.at_level(logging.ERROR):
+        assert entry.main([_config(tmp_path, "explainer:\n  enabled: true\n")]) == 1
+
+    [error] = _errors(caplog)
+    assert "explainer.enabled" in error
+
+
+def test_a_switch_set_to_off_on_the_form_does_not_conflict(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    _form_with_explainer(monkeypatch, options_file, {"enabled": False})
+    stub = StartupStub(monkeypatch)
+
+    config = _load(_config(tmp_path, AI_TASK_EXPLAINER))
+
+    assert _ai_task_entity(stub, config) == "ai_task.openai"
+
+
+def test_a_form_entity_combines_with_the_files_switch_and_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    _form_with_explainer(monkeypatch, options_file, {"ai_task_entity": "ai_task.openai"})
+    stub = StartupStub(monkeypatch)
+    text = "explainer:\n  enabled: true\n  model: openai:gpt-4o\n"
+
+    config = _load(_config(tmp_path, text))
+
+    assert _ai_task_entity(stub, config) == "ai_task.openai"
