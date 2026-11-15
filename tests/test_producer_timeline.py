@@ -203,12 +203,51 @@ def test_each_key_reads_its_own_series_and_the_hours_are_their_union() -> None:
     assert (late.time, late.cloud_cover, late.wind_gust) == (second, None, 23.4)
 
 
-def test_empty_conditions_yield_an_empty_timeline() -> None:
+_EVENING = datetime(2026, 9, 8, 18, tzinfo=UTC)
+# The London pier's solar day for the night of 2026-09-08: noon at 11:58 to 11:57.
+_NIGHT_HOURS = _hours(datetime(2026, 9, 8, 12, tzinfo=UTC), 24)
+
+
+def test_empty_conditions_yield_the_night_hours() -> None:
+    with no_network():
+        doc = produce_verdict(make_pier(), FixedClock(_EVENING), Conditions())
+    assert [entry.time for entry in doc.timeline] == _NIGHT_HOURS
+
+
+def test_an_hour_no_provider_returned_carries_only_its_time_and_altitudes() -> None:
+    with no_network():
+        doc = produce_verdict(make_pier(), FixedClock(_EVENING), Conditions())
+    assert doc.timeline
+    for entry in doc.timeline:
+        assert isinstance(entry.sun_altitude, float) and isinstance(entry.moon_altitude, float)
+        others = entry.model_dump(exclude={"time", "sun_altitude", "moon_altitude"})
+        assert set(others.values()) == {None}
+
+
+def test_a_forecast_shorter_than_the_solar_day_leaves_the_other_hours_null() -> None:
+    forecast = _hours(datetime(2026, 9, 8, 18, tzinfo=UTC), 12)
     with no_network():
         doc = produce_verdict(
-            make_pier(), FixedClock(datetime(2026, 9, 8, 14, tzinfo=UTC)), Conditions()
+            make_pier(), FixedClock(_EVENING), Conditions(series=_base(forecast, cloud_cover=10.0))
         )
-    assert doc.timeline == []
+    assert [entry.time for entry in doc.timeline] == _NIGHT_HOURS
+    assert [entry.time for entry in doc.timeline if entry.cloud_cover is not None] == forecast
+
+
+def test_provider_hours_past_the_night_stay_in_the_timeline() -> None:
+    forecast = _hours(datetime(2026, 9, 8, 18, tzinfo=UTC), 49)
+    with no_network():
+        doc = produce_verdict(
+            make_pier(), FixedClock(_EVENING), Conditions(series=_base(forecast, cloud_cover=10.0))
+        )
+    assert [entry.time for entry in doc.timeline] == _hours(_NIGHT_HOURS[0], 55)
+
+
+def test_the_night_hours_serialize_byte_identically() -> None:
+    with no_network():
+        first = produce_verdict(make_pier(), FixedClock(_EVENING), Conditions())
+        second = produce_verdict(make_pier(), FixedClock(_EVENING), Conditions())
+    assert first.model_dump_json() == second.model_dump_json()
 
 
 def test_past_hours_stay_and_the_scored_window_starts_at_the_instant() -> None:
