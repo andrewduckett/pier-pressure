@@ -54,3 +54,20 @@ def test_sample_config_loads_and_enables_the_explainer(monkeypatch: pytest.Monke
     assert config.explainer.model == "anthropic:claude-opus-5"
     # The unset ${ENV} key stays a visible placeholder rather than a blank secret.
     assert config.explainer.api_key == SecretStr("${ANTHROPIC_API_KEY}")
+
+
+def _section(heading: str) -> str:
+    text = _DOC.read_text(encoding="utf-8")
+    _, found, rest = text.partition(f"\n## {heading}\n")
+    assert found, f"llm-explainer.md has no section {heading!r}"
+    return rest.split("\n## ", 1)[0]
+
+
+@pytest.mark.parametrize("words", ["explainer.ai_task_entity", "only in the Home Assistant add-on"])
+def test_doc_describes_the_ai_task_entity(words: str) -> None:
+    # addon-explainer-ai-task DD4, DD5.
+    assert words in _section("Use Home Assistant's AI Task")
+
+
+def test_the_acceptance_check_covers_the_ai_task_path() -> None:
+    assert "AI Task" in _section("Manual acceptance check")

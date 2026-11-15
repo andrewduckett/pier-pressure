@@ -136,7 +136,7 @@ def test_unknown_explainer_field_is_rejected() -> None:
 # --------------------------------------------------------------------------- #
 
 MARKER = "sk-5e3d91"
-EXPLAINER_SETTINGS = ("enabled", "model", "api_key")
+EXPLAINER_SETTINGS = ("enabled", "model", "api_key", "ai_task_entity")
 
 
 def _hidden_error(
@@ -195,3 +195,27 @@ def test_an_empty_explainer_block_disables_the_explainer(tmp_path: Path, block: 
     config = load_config(_write(tmp_path, _CONFIG_HEAD + block))
 
     assert config.explainer is None or not config.explainer.enabled
+
+
+# --------------------------------------------------------------------------- #
+# addon-explainer-ai-task DD4: the AI Task entity setting
+# --------------------------------------------------------------------------- #
+
+
+def test_an_ai_task_entity_id_is_accepted(tmp_path: Path) -> None:
+    block = "explainer:\n  enabled: true\n  ai_task_entity: ai_task.google_ai_task\n"
+
+    config = load_config(_write(tmp_path, _CONFIG_HEAD + block))
+
+    assert config.explainer is not None
+    assert config.explainer.ai_task_entity == "ai_task.google_ai_task"
+
+
+def test_an_entity_of_another_domain_is_named_without_its_value(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    block = "explainer:\n  enabled: true\n  ai_task_entity: light.kitchen\n"
+
+    message = _hidden_error(tmp_path, block, caplog, "light.kitchen", "kitchen")
+
+    assert "explainer.ai_task_entity" in message

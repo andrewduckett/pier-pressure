@@ -66,6 +66,49 @@ that recompute. **A failing explainer never blocks or delays the verdict** — t
 verdict is always published on time, and the narrative entity resolves to
 `unavailable`.
 
+## Use Home Assistant's AI Task
+
+In the Home Assistant add-on, Home Assistant itself can write the paragraph. Set
+`explainer.ai_task_entity` to an AI Task entity, such as `ai_task.openai`, and the
+explainer calls Home Assistant's `ai_task.generate_data` action for that entity. The
+AI integration behind it, such as OpenAI, Google Gemini or Ollama, picks the model
+and holds the key. With an entity set, the explainer does not use `model` or
+`api_key`.
+
+```yaml
+explainer:
+  enabled: true
+  ai_task_entity: ai_task.openai
+```
+
+You can set both fields on the add-on's Configuration tab instead, as **Enabled** and
+**AI Task entity**. See
+[Turn on the explainer](../ha-addon/DOCS.md#turn-on-the-explainer).
+
+- `ai_task_entity` — **optional.** An entity ID of the form `ai_task.<object_id>`,
+  in lowercase letters, digits and underscores. Any other value stops the service
+  with a configuration error that names `explainer.ai_task_entity`.
+
+This works **only in the Home Assistant add-on**. The request goes through the
+Supervisor, with the token the Supervisor gives the add-on. Outside the add-on, such
+as in a plain Docker container, there is no token. The service then logs one warning
+at startup that names `explainer.ai_task_entity`, publishes every verdict as usual,
+and the narrative entity reads `unavailable`.
+
+The call has the same bounds as any other provider:
+
+- It waits about 5 seconds. A model that takes longer, such as a local model on small
+  hardware, gives no narrative for that recompute.
+- Home Assistant keeps running a call the explainer gave up on, so your AI provider
+  may still bill for it. The cache means this happens at most once for each changed
+  verdict of a pier.
+- A failed call is logged by its kind and HTTP status only, never by what Home
+  Assistant said.
+
+To make this call, the add-on asks for Home Assistant's API, which makes it an
+administrator of Home Assistant. PierPressure uses that access only for this one
+action ([ADR-0042](decisions/0042-addon-narrative-may-come-from-home-assistant-ai-task.md)).
+
 ## The narrative entity
 
 When enabled, Home Assistant auto-discovers one extra sensor per pier:
@@ -110,3 +153,11 @@ on generated language, which PierPressure does not assert mechanically (spec
    numbers, objects, or claims beyond what the verdict states — and reads clearly to a
    stargazer. If it drifts from the numbers, that is a prompt or model issue to
    address; the numbers document remains the source of truth regardless.
+
+To check the AI Task path, run the add-on with **Enabled** and **AI Task entity** set
+on its Configuration tab:
+
+1. Restart the add-on and confirm the log names the entity, for example
+   `Narrative from the AI Task entity ai_task.openai`.
+2. Wait for a recompute, or press the pier's refresh button.
+3. Repeat the three steps above on the narrative it publishes.
