@@ -5,7 +5,7 @@
 
 ## 2. The fire line in the verdict [depends-on: 1]
 
-- [ ] 2.1 [medium] `fire_reason` words the nearest counted detection as `A satellite detected a fire <km> km <bearing> of the pier at <time> (<n> detection[s] within 50 km).`: distance by `floor(d + 0.5)` and at least 1, bearing on the 8-point compass with 22.5° going to `NE`, the nearest by `(rounded_km, -detected_at.timestamp(), index)`, so 12.1 km and 12.4 km tie and the later time wins (design DD2) (verify: uv run pytest tests/test_fire.py -q -k reason)
+- [x] 2.1 [medium] `fire_reason` words the nearest counted detection as `A satellite detected a fire <km> km <bearing> of the pier at <time> (<n> detection[s] within 50 km).`: distance by `floor(d + 0.5)` and at least 1, bearing on the 8-point compass with 22.5° going to `NE`, the nearest by `(rounded_km, -detected_at.timestamp(), index)`, so 12.1 km and 12.4 km tie and the later time wins (design DD2) (verify: uv run pytest tests/test_fire.py -q -k reason) (✓ uv run pytest tests/test_fire.py -q -k reason passed: 5 passed; whole_km and compass_point cases also pass)
 - [ ] 2.2 [medium] `produce_verdict(..., fires=...)` appends the fire line after the observation and observed-cloud lines and before every equipment note, on `GO`, a gated `NO-GO` and a night with no dark window; with no counted detection there is no line, and with one the document equals the same call without fires except for that line in `reasons`; the goldens do not change (design DD2) (verify: uv run pytest tests/test_producer.py tests/test_golden_verdict.py -q -k "fire or golden")
 
 ## 3. Fetching fire detections [depends-on: 1]
