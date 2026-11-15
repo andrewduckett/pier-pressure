@@ -231,6 +231,31 @@ def test_no_other_field_opens_with_a_section_intro() -> None:
         assert opening not in sections, f"{field} opens like a section intro"
 
 
+# The labels the pier fields had before their sections (addon-pier-layout D1).
+OLD_PIER_LABELS = [
+    "Latitude",
+    "Longitude",
+    "Elevation",
+    "Horizon floor",
+    "Horizon points",
+    "Focal length",
+    "Sensor width",
+    "Sensor height",
+    "Reducer or barlow",
+    "GO threshold",
+    "Wind-gust limit",
+]
+
+
+@pytest.mark.parametrize("old", OLD_PIER_LABELS)
+def test_no_pier_description_names_an_old_label(old: str) -> None:
+    # A description may name another field by its new label, such as
+    # "Verdict: GO threshold", or in plain lower-case words.
+    pattern = re.compile(rf"(?<!: )\b{re.escape(old)}\b")
+    for field, entry in _pier_labels().items():
+        assert not pattern.search(entry["description"]), f"{field} names {old!r}"
+
+
 @pytest.mark.parametrize(
     ("field", "meaning"),
     [("go_threshold", "65"), ("max_gust", "no wind gate")],
