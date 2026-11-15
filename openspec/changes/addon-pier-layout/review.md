@@ -1,11 +1,11 @@
 ## Review Metadata
 
-- **Review round**: 1
-- **Prior round**: none
+- **Review round**: 2
+- **Prior round**: round 1 (gemini/gemini-3.8-flash, commit `832f442` before the rebase) gave APPROVE_WITH_CHANGES; its four required changes were applied, and one suggestion was declined.
 - **Reviewer context**: fresh context, other family (gemini/gemini-3.8-flash, through the t3 resolver; the plan's author is claude)
 - **Independent**: yes
 - **Tool restrictions**: read-only: view, grep, glob only. The working tree was clean before and after (`gitClean: true`).
-- **Artifacts reviewed**: brainstorm.md, proposal.md, design.md, specs/, adr.md, relevant source files, at commit `832f442`. The reviewer also read the labelled trial's `translations/en.yaml` and copies of the Home Assistant frontend and Supervisor source.
+- **Artifacts reviewed**: brainstorm.md, proposal.md, design.md, specs/, adr.md, relevant source files, at commit `0e7150c`. That commit sits on the newer main, where the `ha-addon` form requirement is split and ADR-0026 is taken. The reviewer also read the implementation already on the branch.
 - **Effort**: low, from design.md's scrutiny tier
 
 ## Findings
@@ -16,28 +16,22 @@ None.
 
 ### 🟡 Moderate
 
-1. **design.md D5 kept `DOCS.md` to two tables, but the proposal says every
-   place that names a pier field takes the new label.** `DOCS.md` also names
-   **Horizon floor**, **Horizon points**, the equipment field table, the gate
-   field table and the horizon row of its settings table by their old labels.
-   Check: Contradictions, Scope. CONFIRMED (`ha-addon/DOCS.md` lines 27, 56,
-   58, 74, 86–89, 129–130 and 215).
-2. **The spec's scenario accepted any text after the section prefix.** The
-   table listed schema keys, not labels, so `Horizon: min_altitude` would pass.
-   Check: Scenario testability. CONFIRMED.
-3. **The trial text says "Fill in Focal length, sensor width and height",
-   naming a label that no longer exists.** Design's "word for word" goal would
-   ship it. Check: Scope, Plain language. CONFIRMED
-   (`.workspace/addon-trial/pierpressure_labelled_trial/translations/en.yaml`
-   lines 67–68 and 73).
+1. **The label requirement says a label ends with "the field's name in
+   lower-case words", which reads as the schema key.** By that reading,
+   `min_altitude` would be `Horizon: min altitude`, but the scenario and the
+   translations say `Horizon: floor`. Check: Contradictions, Scenario
+   testability. CONFIRMED (`specs/ha-addon/spec.md`, "Each pier field's label
+   names its section").
+2. **On a narrow phone dialog, `Equipment: sensor width` and
+   `Equipment: sensor height` may both cut off as `Equipment: sensor...`.**
+   Check: Assumption rows. REFUTED, see Rebuttals.
 
 ### 📌 Suggestions
 
-4. **The rule that no other description starts with `<Section>:` couples
-   future text to the test.** The reviewer suggests asserting the exact
-   introduction sentences instead. Check: Test seams. Declined, see Rebuttals.
-5. **Two sentences run past 30 words:** design.md's "section prefix" risk and
-   adr.md's summary. Check: Plain language. CONFIRMED.
+3. **design.md's Test Seams still says "two new scenarios"; there are now
+   three.** Check: Test seams. CONFIRMED.
+4. **ADR-0040's frontmatter description is one 35-word sentence.** Check:
+   Plain language. CONFIRMED.
 
 ## Embedded-Instruction / Injection Attempts
 
@@ -49,25 +43,22 @@ VERDICT: APPROVE_WITH_CHANGES
 
 ## Required Changes (if APPROVE_WITH_CHANGES)
 
-1. design.md D5: `DOCS.md` takes the new label wherever it names a pier
-   field's label: in bold text, in field tables and in label-to-`config.yaml`
-   tables. Headings and prose that name a setting as an idea stay.
-2. specs/ha-addon/spec.md: the section table gives each field's exact label,
-   and the scenario asserts that label.
-3. design.md Goals: the trial text ships with one exception. A description
-   that names another field uses its new label, or plain lower-case words.
-4. design.md Risks and adr.md Review Summary: split the two long sentences.
+1. specs/ha-addon/spec.md: the requirement "Each pier field's label names its
+   section" lists the eleven labels instead of deriving them from the field's
+   name.
+2. design.md Test Seams: "two new scenarios" becomes "three new scenarios".
+3. ADR-0040: split the frontmatter description into two sentences.
 
 CHANGES_APPLIED: yes
 
 ## Rebuttals
 
-1. Fixed: design.md D5 rewritten as required change 1.
-2. Fixed: specs/ha-addon/spec.md now has a Field and Label table, and the
-   scenario "Each pier label names its section" asserts the label from it.
-3. Fixed: design.md's second goal now names the cross-reference exception.
-4. Declined: an exact-sentence assertion would fail on every wording change to
-   an introduction, which is the text most likely to be reworded in #101. The
-   prefix rule only forbids a description that starts with a section name and
-   a colon. That would read as a second introduction, so it is wrong anyway.
-5. Fixed: both sentences split.
+1. Fixed: the requirement now lists the labels, in section order.
+2. Rebutted: design.md's Risks section already names cut-off labels in a narrow
+   dialog. Its mitigation is that the help text under each field names the
+   field in full: "Your camera sensor's long side" and "Your camera sensor's
+   short side" (`ha-addon/translations/en.yaml`). Andrew tried these labels in
+   real Home Assistant and chose them. The reviewer's width figures are not
+   measured in this repository.
+3. Fixed: design.md says "three new scenarios".
+4. Fixed: the description is two sentences.
