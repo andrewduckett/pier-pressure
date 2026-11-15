@@ -45,6 +45,12 @@ def _conditions(
     return Conditions(series={**(base or {}), **(secondary or {})})
 
 
+def _at(timeline: list[TimelineEntry], time: datetime) -> TimelineEntry:
+    """The one entry for ``time``: the night's hours join the timeline, so position is no guide."""
+    [entry] = [entry for entry in timeline if entry.time == time]
+    return entry
+
+
 def test_the_timeline_spans_the_sorted_union_of_both_providers() -> None:
     day = datetime(2026, 9, 8, 0, tzinfo=UTC)
     base_times = _hours(day, 24)
@@ -75,7 +81,7 @@ def test_an_hour_one_provider_lacks_carries_null_for_its_series() -> None:
             make_pier(), FixedClock(datetime(2026, 9, 8, 14, tzinfo=UTC)), conditions
         )
 
-    first, second = doc.timeline
+    first, second = _at(doc.timeline, day), _at(doc.timeline, day + timedelta(hours=1))
     assert (first.cloud_cover, first.wind_gust) == (37.0, 23.4)
     assert (first.cloud_low, first.cloud_mid, first.cloud_high) == (1.0, 2.0, 3.0)
     assert (first.seeing, first.transparency) == (0.57, 0.9)
@@ -94,7 +100,7 @@ def test_a_missing_seven_timer_leaves_seeing_and_transparency_null() -> None:
             make_pier(), FixedClock(datetime(2026, 9, 8, 14, tzinfo=UTC)), conditions
         )
 
-    [entry] = doc.timeline
+    entry = _at(doc.timeline, day)
     assert entry.cloud_cover == 50.0
     assert entry.seeing is None and entry.transparency is None
 
@@ -121,7 +127,7 @@ def test_weather_values_pass_through_unchanged() -> None:
             make_pier(), FixedClock(datetime(2026, 9, 8, 14, tzinfo=UTC)), conditions
         )
 
-    [entry] = doc.timeline
+    entry = _at(doc.timeline, day)
     assert _weather(entry) == _WEATHER
 
 
@@ -134,7 +140,7 @@ def test_a_weather_value_the_provider_lacks_is_null_on_its_own() -> None:
             make_pier(), FixedClock(datetime(2026, 9, 8, 14, tzinfo=UTC)), conditions
         )
 
-    [entry] = doc.timeline
+    entry = _at(doc.timeline, day)
     assert _weather(entry) == reported
 
 
@@ -149,7 +155,7 @@ def test_an_hour_the_weather_series_lack_carries_null_weather_values() -> None:
             make_pier(), FixedClock(datetime(2026, 9, 8, 14, tzinfo=UTC)), conditions
         )
 
-    _, second = doc.timeline
+    second = _at(doc.timeline, day + timedelta(hours=1))
     assert all(value is None for value in _weather(second).values())
     assert (second.seeing, second.transparency) == (0.8, 0.7)
 
@@ -192,7 +198,7 @@ def test_each_key_reads_its_own_series_and_the_hours_are_their_union() -> None:
             make_pier(), FixedClock(datetime(2026, 9, 8, 14, tzinfo=UTC)), conditions
         )
 
-    early, late = doc.timeline
+    early, late = _at(doc.timeline, first), _at(doc.timeline, second)
     assert (early.time, early.cloud_cover, early.wind_gust) == (first, 37.0, None)
     assert (late.time, late.cloud_cover, late.wind_gust) == (second, None, 23.4)
 
@@ -284,13 +290,13 @@ def test_two_providers_draw_the_cloud_band() -> None:
         series=_base(times, cloud_cover=40.0),
         alternates={"cloud_cover": (_alternate(times, OPEN_METEO_HRRR, 70.0),)},
     )
-    [entry] = _timeline(conditions)
+    entry = _at(_timeline(conditions), times[0])
     assert (entry.cloud_cover, entry.cloud_cover_min, entry.cloud_cover_max) == (40.0, 40.0, 70.0)
 
 
 def test_one_provider_leaves_the_cloud_band_null() -> None:
     times = _hours(datetime(2026, 9, 8, 21, tzinfo=UTC), 1)
-    [entry] = _timeline(Conditions(series=_base(times, cloud_cover=40.0)))
+    entry = _at(_timeline(Conditions(series=_base(times, cloud_cover=40.0))), times[0])
     assert (entry.cloud_cover, entry.cloud_cover_min, entry.cloud_cover_max) == (40.0, None, None)
 
 
@@ -308,7 +314,7 @@ def test_two_alternates_draw_the_band_for_an_hour_the_filled_series_lacks() -> N
             )
         },
     )
-    _, entry = _timeline(conditions)
+    entry = _at(_timeline(conditions), second)
     assert (entry.cloud_cover, entry.cloud_cover_min, entry.cloud_cover_max) == (None, 10.0, 30.0)
 
 
