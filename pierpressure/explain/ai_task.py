@@ -13,6 +13,7 @@ keeps owning the cache, the time bound and the failure log line.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from http import HTTPStatus
 
 import httpx
 
@@ -64,6 +65,8 @@ class AiTaskProvider:
 
 def _narrative(response: httpx.Response) -> str:
     """The reply's ``service_response.data`` text, or :class:`AiTaskError` (DD3)."""
+    if response.status_code != HTTPStatus.OK:
+        raise AiTaskError(response.status_code)
     try:
         data = response.json()["service_response"]["data"]
     except ValueError, KeyError, TypeError:

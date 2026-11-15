@@ -8,7 +8,10 @@ or a patched socket, so no test reaches the network.
 from __future__ import annotations
 
 import json
+import logging
 import socket
+import threading
+import time
 from typing import Any
 
 import httpx
@@ -148,3 +151,79 @@ def test_a_reply_without_text_gives_no_narrative(reply: httpx.Response) -> None:
     explainer = _explainer(lambda _request: reply)
 
     assert explainer(_document()) is None
+
+
+# --------------------------------------------------------------------------- #
+# 2.3 — failures and the log line
+# --------------------------------------------------------------------------- #
+
+REJECTION = {"message": "AI Task entity ai_task.marker90 not found."}
+
+
+def _secrets_absent(caplog: pytest.LogCaptureFixture) -> None:
+    for text in ("marker90", "not found", TOKEN):
+        assert text not in caplog.text
+
+
+@pytest.mark.parametrize("status", [400, 401, 403, 500, 502])
+def test_an_error_status_gives_no_narrative(status: int) -> None:
+    explainer = _explainer(lambda _request: httpx.Response(status, json=REJECTION))
+
+    assert explainer(_document()) is None
+
+
+@pytest.mark.parametrize("status", [400, 401, 403, 500, 502])
+def test_an_error_status_is_logged_by_kind_and_status_only(
+    caplog: pytest.LogCaptureFixture, status: int
+) -> None:
+    explainer = _explainer(lambda _request: httpx.Response(status, json=REJECTION))
+
+    with caplog.at_level(logging.DEBUG):
+        explainer(_document())
+
+    failures = [r.getMessage() for r in caplog.records if "explainer provider" in r.getMessage()]
+    assert failures == [f"explainer provider failed: AiTaskError (HTTP {status}); no narrative"]
+    _secrets_absent(caplog)
+
+
+def test_a_refused_connection_gives_no_narrative(caplog: pytest.LogCaptureFixture) -> None:
+    def refuse(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("[Errno 111] Connection refused", request=request)
+
+    with caplog.at_level(logging.DEBUG):
+        narrative = _explainer(refuse)(_document())
+
+    assert narrative is None
+    assert "explainer provider failed: ConnectError; no narrative" in caplog.text
+    assert TOKEN not in caplog.text
+
+
+def test_a_request_that_never_answers_gives_up_within_the_bound(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    release = threading.Event()
+
+    def hang(_request: httpx.Request) -> httpx.Response:
+        release.wait(5.0)
+        return _reply()
+
+    explainer = NarrativeExplainer(_provider(hang), timeout=0.2)
+    start = time.monotonic()
+    try:
+        with caplog.at_level(logging.DEBUG):
+            narrative = explainer(_document())
+        elapsed = time.monotonic() - start
+    finally:
+        release.set()
+
+    assert narrative is None
+    assert elapsed < 1.0
+    assert TOKEN not in caplog.text
+
+
+def test_a_failed_call_is_retried_on_the_next_recompute() -> None:
+    replies = iter([httpx.Response(500), _reply("Clear skies.")])
+    explainer = _explainer(lambda _request: next(replies))
+
+    assert explainer(_document()) is None
+    assert explainer(_document()) == "Clear skies."
