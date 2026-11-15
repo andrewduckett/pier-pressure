@@ -1085,6 +1085,26 @@ def test_field_error_before_horizon_error_at_startup(
     assert "Horizon: floor" not in error
 
 
+def test_file_horizon_sources_keep_names_at_startup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    (tmp_path / "config.yaml").write_text(
+        "piers:\n  - id: backyard\n    horizon:\n      min_altitude: 10\n"
+        "      points: [[0, 5], [180, 10]]\n",
+        encoding="utf-8",
+    )
+    with caplog.at_level(logging.ERROR):
+        _form_piers(tmp_path, monkeypatch, options_file, BACKYARD, ROOF_FORM)
+
+    [error] = _errors(caplog)
+    assert error.startswith("Skipping invalid pier 'backyard': ")
+    assert "got: points, min_altitude" in error
+    assert "Horizon: floor" not in error
+
+
 def test_malformed_saved_values_skip_only_their_pier(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
