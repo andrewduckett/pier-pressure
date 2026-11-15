@@ -2,8 +2,9 @@
 
 The Configuration form's options, schema and labels follow addon-options-form D5, D6,
 its horizon fields addon-form-horizon D4, D5, its equipment fields
-addon-form-equipment D4, D5, its broker fields addon-form-broker D1, and its
-gate fields addon-form-gates D2, D4.
+addon-form-equipment D4, D5, its broker fields addon-form-broker D1, its
+gate fields addon-form-gates D2, D4, and its pier sections addon-pier-layout
+D1-D3 and D5.
 """
 
 from __future__ import annotations
@@ -164,6 +165,42 @@ def test_every_form_field_has_a_label(addon: dict[str, Any]) -> None:
             entry = labels[block]["fields"][field]
             assert entry["name"], f"{block}.{field} has no name"
             assert entry["description"], f"{block}.{field} has no description"
+
+
+# Each pier field after ``id``, in schema order, with its section and label. The
+# add-on files carry no section key, because Home Assistant would show or save
+# one, so this table is the only record of the sections (addon-pier-layout D3).
+PIER_SECTIONS = [
+    ("Location", "latitude", "Location: latitude"),
+    ("Location", "longitude", "Location: longitude"),
+    ("Location", "elevation_m", "Location: elevation"),
+    ("Horizon", "min_altitude", "Horizon: floor"),
+    ("Horizon", "horizon_points", "Horizon: points"),
+    ("Equipment", "equipment_focal_length_mm", "Equipment: focal length"),
+    ("Equipment", "equipment_sensor_width_mm", "Equipment: sensor width"),
+    ("Equipment", "equipment_sensor_height_mm", "Equipment: sensor height"),
+    ("Equipment", "equipment_reducer", "Equipment: reducer or barlow"),
+    ("Verdict", "go_threshold", "Verdict: GO threshold"),
+    ("Verdict", "max_gust", "Verdict: wind-gust limit"),
+]
+
+
+def _pier_labels() -> dict[str, Any]:
+    labels: dict[str, Any] = _load(ADDON_TRANSLATIONS)["configuration"]["piers"]["fields"]
+    return labels
+
+
+def test_section_labels_follow_the_schema_order(addon: dict[str, Any]) -> None:
+    (pier,) = addon["schema"]["piers"]
+    assert list(pier) == ["id"] + [field for _, field, _ in PIER_SECTIONS]
+
+
+def test_each_pier_field_has_its_section_label() -> None:
+    labels = _pier_labels()
+    assert {field: labels[field]["name"] for field in labels} == {
+        "id": "Pier ID",
+        **{field: label for _, field, label in PIER_SECTIONS},
+    }
 
 
 @pytest.mark.parametrize(

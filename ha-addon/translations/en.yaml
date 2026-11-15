@@ -17,57 +17,57 @@ configuration:
           A short name for the pier, such as backyard. It becomes part of the MQTT
           topics and entity IDs, so keep it to letters, digits and underscores.
       latitude:
-        name: Latitude
+        name: 'Location: latitude'
         description: >-
           In degrees, from -90 to 90. North is positive and south is negative,
           so 33.87° S is -33.87.
       longitude:
-        name: Longitude
+        name: 'Location: longitude'
         description: >-
           In degrees, from -180 to 180. East is positive and west is negative,
           so 87.88° W is -87.88.
       elevation_m:
-        name: Elevation
+        name: 'Location: elevation'
         description: Height above sea level, in metres.
       min_altitude:
-        name: Horizon floor
+        name: 'Horizon: floor'
         description: >-
           Optional. The lowest altitude a target must reach, in degrees from 0 to
           90, the same in every direction. Leave it empty when you set horizon
           points; the two cannot be used together.
       horizon_points:
-        name: Horizon points
+        name: 'Horizon: points'
         description: >-
           Optional. Your horizon as [azimuth, altitude] pairs in degrees, on one
           line, such as [[0, 10], [90, 25], [180, 5]]. Leave it empty when you set
           a horizon floor; the two cannot be used together.
       equipment_focal_length_mm:
-        name: Focal length
+        name: 'Equipment: focal length'
         description: >-
           Optional. Your telescope's focal length, in millimetres. Set it with
           sensor width and sensor height; the three go together.
       equipment_sensor_width_mm:
-        name: Sensor width
+        name: 'Equipment: sensor width'
         description: >-
           Optional. Your camera sensor's width, in millimetres. Set it with focal
           length and sensor height; the three go together.
       equipment_sensor_height_mm:
-        name: Sensor height
+        name: 'Equipment: sensor height'
         description: >-
           Optional. Your camera sensor's height, in millimetres. Set it with focal
           length and sensor width; the three go together.
       equipment_reducer:
-        name: Reducer or barlow
+        name: 'Equipment: reducer or barlow'
         description: >-
           Optional. The factor of a focal reducer or barlow, with no unit, such
           as 0.8 or 2. Leave it empty for 1.0, when you use neither.
       go_threshold:
-        name: GO threshold
+        name: 'Verdict: GO threshold'
         description: >-
           Optional. The score from 0 to 100, with no unit, that a night needs for
           GO. Leave it empty for 65.
       max_gust:
-        name: Wind-gust limit
+        name: 'Verdict: wind-gust limit'
         description: >-
           Optional. The wind gust, in km/h, above which the night is NO-GO. Leave
           it empty for no wind gate, so no forecast gust makes the night NO-GO.
