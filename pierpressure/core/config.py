@@ -175,6 +175,21 @@ class HorizonConfig(BaseModel):
         return points
 
 
+class HorizonSourcesError(ValueError):
+    """A horizon that sets more or fewer than one source.
+
+    ``sources`` names the sources it set, by their ``config.yaml`` keys, so an
+    interface can word the error in its own terms (addon-horizon-error-labels D3).
+    """
+
+    def __init__(self, sources: tuple[str, ...]) -> None:
+        super().__init__(
+            "a horizon must configure exactly one source "
+            "(points, min_altitude, or file), got: " + (", ".join(sources) or "none")
+        )
+        self.sources = sources
+
+
 def _resolve_horizon(spec: HorizonConfig | None, base_dir: Path | None) -> Horizon:
     """Build the canonical horizon for a pier from its declared source (design D3).
 
@@ -195,10 +210,7 @@ def _resolve_horizon(spec: HorizonConfig | None, base_dir: Path | None) -> Horiz
     }
     chosen = [name for name, present in sources.items() if present]
     if len(chosen) != 1:
-        raise ValueError(
-            "a horizon must configure exactly one source "
-            "(points, min_altitude, or file), got: " + (", ".join(chosen) or "none")
-        )
+        raise HorizonSourcesError(tuple(chosen))
 
     if spec.points is not None:
         return from_points(spec.points)
