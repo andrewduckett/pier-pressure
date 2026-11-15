@@ -7,7 +7,7 @@
 - [x] 1.5 [easy] The descriptions of the broker's `port`, `username` and `password` each say the field is set only with a host (verify: uv run pytest tests/test_ha_addon.py -k needs_a_host) (✓ uv run pytest tests/test_ha_addon.py -k needs_a_host passed)
 - [x] 1.6 [medium] The "Set up the add-on" section of `ha-addon/DOCS.md` names in bold the Recompute interval, Piers, Pier ID, Location, Horizon, Equipment, Verdict and MQTT broker, in the tab's order, and the order check fails on a section that names a part too early (verify: uv run pytest tests/test_ha_addon.py -k setup_steps) (✓ uv run pytest tests/test_ha_addon.py -k setup_steps passed)
 - [x] 1.7 [easy] The "More settings" section of `ha-addon/DOCS.md` lists what the tab shows by its parts, in the tab's order (verify: uv run pytest tests/test_ha_addon.py -k more_settings) (✓ uv run pytest tests/test_ha_addon.py -k more_settings passed)
-- [ ] 1.8 [easy] The whole project's checks pass, and the schema, service and form-to-verdict tests are unchanged (verify: mise run check)
+- [x] 1.8 [easy] The whole project's checks pass, and the schema, service and form-to-verdict tests are unchanged (verify: mise run check) (✓ mise run check passed, 2561 tests)
 
 ## Deviations Ledger
 
