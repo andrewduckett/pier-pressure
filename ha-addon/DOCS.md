@@ -91,7 +91,9 @@ cannot be read, the add-on skips that pier and logs an error that names it. The
 other piers still publish. To find the error, open the **Log** tab and look for
 `Skipping invalid pier`.
 
-An error about `horizon.points` refers to the **Horizon: points** field.
+If a pier sets both, the error names **Horizon: floor** and **Horizon: points**.
+If its points cannot be read, the error names `horizon.points`, which is the
+**Horizon: points** field.
 
 ## Set a pier's equipment
 

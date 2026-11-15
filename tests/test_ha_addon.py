@@ -503,3 +503,11 @@ def test_horizon_error_labels_match_the_form(key: str, field: str) -> None:
     # The add-on names these in the both-fields error (addon-horizon-error-labels D8).
     fields = _load(ADDON_TRANSLATIONS)["configuration"]["piers"]["fields"]
     assert HORIZON_LABELS[key] == fields[field]["name"]
+
+
+def test_horizon_docs_name_error_labels() -> None:
+    # A form pier with both horizon fields logs their labels (addon-horizon-error-labels D11).
+    sentences = re.split(r"(?<=\.)\s+", " ".join(_docs_section("Set a pier's horizon").split()))
+    assert any(
+        "error" in s and "**Horizon: floor**" in s and "**Horizon: points**" in s for s in sentences
+    )
