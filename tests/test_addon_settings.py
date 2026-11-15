@@ -229,6 +229,20 @@ def test_an_explainer_key_in_both_names_explainer_api_key() -> None:
     assert FILE_KEY not in message
 
 
+@pytest.mark.parametrize(
+    "form_explainer", [{"api_key": FORM_KEY}, {}], ids=["form-key", "no-form-key"]
+)
+def test_a_file_explainer_that_is_not_a_mapping_says_explainer_mapping(
+    form_explainer: dict[str, Any],
+) -> None:
+    # Whatever the form holds, as for mqtt (addon-explainer-key-option D5).
+    message = _error(_form(PIER, explainer=form_explainer), {"explainer": [FILE_KEY]})
+
+    assert "explainer in config.yaml must be a mapping" in message
+    assert FILE_KEY not in message
+    assert FORM_KEY not in message
+
+
 def test_an_unknown_mqtt_key_in_both_is_not_a_conflict() -> None:
     # The core rejects the key without naming it (config-secrets-hidden-in-errors D5).
     combined = combine_settings(_form(PIER, mqtt={SENTINEL: SENTINEL}), {"mqtt": {SENTINEL: 1}})

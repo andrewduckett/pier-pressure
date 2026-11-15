@@ -160,10 +160,18 @@ def _check_broker(form_mqtt: Any, file_mqtt: Any, problems: list[str]) -> None:
 def _check_explainer(form_explainer: Any, file_explainer: Any, problems: list[str]) -> None:
     """Report an explainer setting given in both, such as its API key.
 
-    As for the broker, a key the core does not define is not reported
+    As for the broker, a file block that is not a mapping is reported whatever the
+    form holds, and a key the core does not define is not reported
     (addon-explainer-key-option D5).
     """
-    if not isinstance(form_explainer, dict) or not isinstance(file_explainer, dict):
+    if file_explainer is None:
+        return
+    if not isinstance(file_explainer, dict):
+        problems.append(
+            "explainer in config.yaml must be a mapping of settings, such as explainer.enabled"
+        )
+        return
+    if not isinstance(form_explainer, dict):
         return
     form_keys = {key for key, value in form_explainer.items() if is_set(value)}
     file_keys = {key for key, value in file_explainer.items() if is_set(value)}
@@ -222,17 +230,15 @@ def _merge(
 def _merge_explainer(form_explainer: Any, file_explainer: Any) -> dict[str, Any] | None:
     """The form's explainer key added to the file's other explainer settings.
 
-    ``None`` leaves the file's value as it is: when the form sets no key, the file's
-    block reaches the core unchanged, and a block that is not a mapping is
-    rejected there (addon-explainer-key-option D5).
+    ``None`` when the form sets no key, so the file's block reaches the core
+    unchanged. A file block that is not a mapping never gets here, because the
+    combine reports it (addon-explainer-key-option D5).
     """
     if not isinstance(form_explainer, dict):
         return None
-    if file_explainer is None:
-        return form_explainer
-    if not isinstance(file_explainer, dict):
-        return None
-    return {**file_explainer, **form_explainer}
+    if isinstance(file_explainer, dict):
+        return {**file_explainer, **form_explainer}
+    return form_explainer
 
 
 def _merge_pier(pier: Any, file_piers: dict[str, dict[str, Any]]) -> Any:
