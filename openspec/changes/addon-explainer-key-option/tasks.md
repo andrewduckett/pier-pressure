@@ -11,7 +11,7 @@
 - [x] 1.9 [easy] A form key with a bad explainer setting in `config.yaml` stops the add-on with a configuration error, and no log line or error message contains the key (verify: uv run pytest tests/test_main.py -k form_explainer_key_hidden) (✓ uv run pytest tests/test_main.py -k form_explainer_key_hidden passed)
 - [x] 1.10 [easy] The "Set up the add-on" section of `ha-addon/DOCS.md` names **Explainer** in bold after **MQTT broker**, and "More settings" names the four parts in the tab's order (verify: uv run pytest tests/test_ha_addon.py -k "setup_steps or more_settings") (✓ uv run pytest tests/test_ha_addon.py -k "setup_steps or more_settings" passed)
 - [x] 1.11 [medium] A "Turn on the explainer" section of `ha-addon/DOCS.md` puts the key in the tab's **API key** field and `explainer.enabled` and `explainer.model` in `config.yaml`; the `config.yaml` sections name the key as a tab setting; and `docs/llm-explainer.md` points add-on users to the tab (verify: uv run pytest tests/test_ha_addon.py -k turn_on_the_explainer) (✓ uv run pytest tests/test_ha_addon.py -k turn_on_the_explainer passed)
-- [ ] 1.12 [easy] The whole project's checks pass (verify: mise run check)
+- [x] 1.12 [easy] The whole project's checks pass (verify: mise run check) (✓ mise run check passed, 2586 tests)
 
 ## Deviations Ledger
 
