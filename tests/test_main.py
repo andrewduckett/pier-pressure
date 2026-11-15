@@ -37,6 +37,7 @@ from pierpressure.delivery.mqtt import (
     LoginRejected,
     MqttDelivery,
     availability_topic,
+    narrative_attributes_topic,
     verdict_state_topic,
 )
 from pierpressure.explain import NarrativeExplainer, no_op_explainer
@@ -44,7 +45,14 @@ from pierpressure.explain.provider import PydanticAIProvider
 from pierpressure.service import Service
 from pierpressure.supervisor import SupervisorError, fetch_mqtt_broker
 
-from .conftest import FakeMqttClient, make_mqtt_config, make_pier
+from .conftest import (
+    FakeMqttClient,
+    ScriptedMonotonic,
+    fixed_conditions,
+    make_conditions,
+    make_mqtt_config,
+    make_pier,
+)
 from .offline_guard import no_network
 from .test_golden_verdict import _INSTANT, _base_full, _secondary_full
 
@@ -2001,3 +2009,71 @@ def test_base_60_form_horizon_points_skip_only_their_pier(
     [error] = _errors(caplog)
     assert error.startswith("Skipping invalid pier 'backyard'")
     assert "horizon.points" in error
+
+
+# --------------------------------------------------------------------------- #
+# addon-explainer-ai-task DD5: the service passes the Supervisor token
+# --------------------------------------------------------------------------- #
+
+AI_TASK_EXPLAINER = "explainer:\n  enabled: true\n  ai_task_entity: ai_task.openai\n"
+
+
+def test_in_an_addon_main_wires_the_ai_task_entity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _addon(monkeypatch, options_file, BACKYARD)
+    StartupStub(monkeypatch)
+
+    with caplog.at_level(logging.INFO):
+        entry.main([_config(tmp_path, AI_TASK_EXPLAINER)])
+
+    assert "Narrative from the AI Task entity ai_task.openai" in caplog.text
+    assert "token-1" not in caplog.text
+
+
+def test_outside_an_addon_main_warns_once_about_the_ai_task_entity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    StartupStub(monkeypatch)
+    text = "mqtt:\n  host: broker.lan\n" + ROOF + AI_TASK_EXPLAINER
+
+    with caplog.at_level(logging.INFO):
+        entry.main([_config(tmp_path, text)])
+
+    warnings = [
+        r.getMessage()
+        for r in caplog.records
+        if r.levelno == logging.WARNING and "explainer.ai_task_entity" in r.getMessage()
+    ]
+    assert len(warnings) == 1
+    assert "add-on" in warnings[0]
+
+
+def test_outside_an_addon_an_ai_task_entity_still_publishes_every_verdict(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    config = _load(_config(tmp_path, "mqtt:\n  host: broker.lan\n" + ROOF + AI_TASK_EXPLAINER))
+    managing, explainer = entry.build_delivery_and_explainer(config)
+    client = FakeMqttClient()
+    delivery = MqttDelivery(config.mqtt, client=client, manage_narrative=True)
+    service = Service(
+        config,
+        delivery,
+        FixedClock(datetime(2026, 9, 8, 14, 0, tzinfo=UTC)),
+        conditions_provider=fixed_conditions(make_conditions(cloud=5.0)),
+        explainer=explainer,
+    )
+
+    with no_network():
+        delivery.connect()
+        service.run(monotonic=ScriptedMonotonic([0.0]), max_iterations=0)
+
+    assert managing._manage_narrative is True
+    assert client.publishes_to(verdict_state_topic("pierpressure", "roof"))
+    attrs = client.publishes_to(narrative_attributes_topic("pierpressure", "roof"))
+    assert attrs and json.loads(attrs[-1].payload)["available"] is False
