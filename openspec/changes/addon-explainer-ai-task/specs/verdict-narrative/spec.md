@@ -79,9 +79,9 @@ nothing else.
 
 ### Requirement: The AI Task instructions are the explainer's existing prompt
 
-The `instructions` the AI Task provider sends SHALL be the explainer's system
-framing followed by the prompt text built from the verdict document, the same
-words the default provider sends to its LLM.
+The AI Task provider SHALL send as `instructions` the explainer's system framing,
+then the prompt text built from the verdict document. These are the same words
+the default provider sends to its LLM.
 
 #### Scenario: The instructions hold the framing and the verdict prompt
 
@@ -111,15 +111,16 @@ provider call: no narrative, and the verdict still delivered.
 
 #### Scenario: An error status gives no narrative
 
-- **WHEN** Home Assistant answers with status 400, 401, 500 or 502
+- **WHEN** Home Assistant or the Supervisor answers with status 400, 401, 403,
+  500 or 502
 - **THEN** the explainer produces no narrative text for that recompute
 - **AND** the verdict is still delivered
 
 ### Requirement: A Home Assistant that does not answer never delays the verdict past the explainer's bound
 
-When Home Assistant or the Supervisor does not answer the AI Task request, or
-cannot be reached, the verdict SHALL still be delivered, and the explainer SHALL
-give up within the same per-call time bound as the default provider.
+Home Assistant or the Supervisor may not answer the AI Task request, or may be
+out of reach. The verdict SHALL still be delivered. The explainer SHALL give up
+within the same per-call time bound as the default provider.
 
 #### Scenario: A request that never answers gives up within the bound
 
@@ -150,8 +151,8 @@ line SHALL contain the reply's text or the Supervisor token.
 
 ### Requirement: An AI Task entity outside an add-on gives no narrative
 
-When the explainer is enabled and `explainer.ai_task_entity` is set, but the
-process does not run inside a Home Assistant add-on, the explainer SHALL make no
+The explainer may be enabled with `explainer.ai_task_entity` set while the
+process runs outside a Home Assistant add-on. Then the explainer SHALL make no
 network call and produce no narrative. The service SHALL log one warning at
 startup that names `explainer.ai_task_entity` and says it works only in the
 add-on, and SHALL still deliver every verdict.

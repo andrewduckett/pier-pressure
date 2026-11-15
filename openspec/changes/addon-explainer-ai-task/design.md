@@ -132,9 +132,12 @@ over an optional narrative.
 - `ha-addon/translations/en.yaml`: labels **Enabled** and **AI Task entity**,
   each description starting `Optional.`. The section description names
   `explainer.enabled`, AI Task, `explainer.model` and `config.yaml`.
-- No change to `addon_options.py` or `addon_settings.py`. Their key-by-key code
-  reads `ExplainerConfig.model_fields`, so the new field joins it. Tests pin
-  that.
+- `addon_options.py`: `translate_form` drops the form's `explainer.enabled`
+  when it is false, so a switch turned on and then off counts as not set. The
+  form's switch can only turn the explainer on; `config.yaml` can still turn
+  it off.
+- No change to `addon_settings.py`. Its key-by-key code reads
+  `ExplainerConfig.model_fields`, so the new field joins it. Tests pin that.
 
 ### DD7 — Same bound and cache
 
@@ -160,10 +163,9 @@ D14).
 - [`homeassistant_api` makes the add-on an administrator of Home Assistant] →
   PierPressure calls only this one action. The ADR records the grant, and the
   docs tell the user.
-- [A form switch toggled on and then off saves `false`, which counts as set, so
-  `explainer.enabled: true` in `config.yaml` then conflicts] → The error names
-  `explainer.enabled`. DOCS.md says to clear the field or remove the file's
-  line.
+- [The form's switch cannot turn off an explainer that `config.yaml` turns on]
+  → A switch set to off counts as not set (DD6), so it never conflicts.
+  DOCS.md says to set `explainer.enabled` in one place only.
 - [An AI Task integration returns non-text `data` when no `structure` is sent]
   → Treated as a failed call: no narrative. Anthropic, OpenAI, Google and
   Ollama return text (brainstorm D2 research).

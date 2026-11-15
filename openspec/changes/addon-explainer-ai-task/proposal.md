@@ -19,7 +19,7 @@ that action, the key never reaches PierPressure.
   every verdict is still published (D10).
 - The add-on's Configuration form gains two optional explainer fields:
   `enabled` and `ai_task_entity` (D7). They join `config.yaml` key by key, as
-  `api_key` does (D8).
+  `api_key` does (D8). A switch set to off counts as not set (D7).
 - The add-on asks for `homeassistant_api: true` (D3).
 - The new provider keeps the explainer's timeout, cache and failure handling,
   and logs a failure by its kind and HTTP status only (D13).
@@ -48,10 +48,11 @@ None.
 
 ## Impact
 
-- Code: `pierpressure/explain/provider.py` (a new provider),
+- Code: `pierpressure/explain/ai_task.py` (a new provider),
   `pierpressure/explain/explainer.py` (`build_explainer`),
   `pierpressure/core/config.py` (`ExplainerConfig`), `pierpressure/__main__.py`
   (passing the Supervisor token and the startup log lines).
+  `pierpressure/addon_options.py` drops a form switch set to off.
   `pierpressure/addon_settings.py` needs no new rule: its key-by-key check
   already covers every `ExplainerConfig` field.
 - Add-on: `ha-addon/config.yaml` (schema and `homeassistant_api`),

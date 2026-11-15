@@ -126,9 +126,14 @@ environment names one.
 ### Requirement: The form's explainer block has three optional fields
 
 The `explainer` setting of the Configuration form SHALL be a block of three
-optional fields, in this order: `enabled`, a switch; `ai_task_entity`, text; and
-`api_key`, the API key of the explainer's LLM provider, in a field that hides
-its value. Its default SHALL be an empty block, so each field starts unset.
+optional fields, in this order:
+
+- `enabled`, a switch;
+- `ai_task_entity`, text;
+- `api_key`, the API key of the explainer's LLM provider, in a field that hides
+  its value.
+
+Its default SHALL be an empty block, so each field starts unset.
 
 #### Scenario: The form declares the explainer's fields
 
@@ -140,9 +145,9 @@ its value. Its default SHALL be an empty block, so each field starts unset.
 
 ### Requirement: The form's switch and AI Task entity turn on the AI Task narrative
 
-Inside an add-on, a Configuration form that sets `explainer.enabled` to true and
-`explainer.ai_task_entity` to an entity ID SHALL turn the explainer on with that
-AI Task entity, with no `config.yaml`.
+Inside an add-on, the Configuration form can set `explainer.enabled` to true and
+`explainer.ai_task_entity` to an entity ID. That SHALL turn the explainer on with
+that AI Task entity, with no `config.yaml`.
 
 #### Scenario: Form-only AI Task setup
 
@@ -158,7 +163,8 @@ AI Task entity, with no `config.yaml`.
 Inside an add-on, each of the form's `explainer.enabled`, `explainer.ai_task_entity`
 and `explainer.api_key` SHALL count as a setting of its own. A setting given on
 the form and in `config.yaml` SHALL stop the add-on with a configuration error
-that names it. Explainer settings given in only one place SHALL combine.
+that names it. Explainer settings given in only one place SHALL combine. A form
+`explainer.enabled` of false SHALL count as not set.
 
 #### Scenario: The switch in both places stops the add-on
 
@@ -166,6 +172,14 @@ that names it. Explainer settings given in only one place SHALL combine.
 - **AND** `config.yaml` sets `explainer.enabled` to true
 - **THEN** the add-on stops
 - **AND** its configuration error names `explainer.enabled`
+
+#### Scenario: A switch set to off on the form does not conflict
+
+- **WHEN** the form lists a pier and saves `explainer.enabled` as false
+- **AND** `config.yaml` sets `explainer.enabled` to true and
+  `explainer.ai_task_entity` to `ai_task.openai`
+- **THEN** the add-on starts, and reports no conflict for `explainer.enabled`
+- **AND** the explainer asks `ai_task.openai` for the narrative
 
 #### Scenario: A form entity combines with the file's switch
 
@@ -188,9 +202,9 @@ can call Home Assistant's AI Task action through the Supervisor.
 ### Requirement: The explainer section names both ways to write the narrative
 
 The English description of the form's `explainer` setting SHALL say that
-`explainer.enabled` turns the explainer on, and that the narrative comes from the
-AI Task entity when one is set, or else from the model in `config.yaml` with the
-API key.
+`explainer.enabled` turns the explainer on. It SHALL say where the narrative comes
+from: the AI Task entity when one is set, or else the model in `config.yaml` with
+the API key.
 
 #### Scenario: The explainer section names the switch and both ways
 
