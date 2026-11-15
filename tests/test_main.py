@@ -1048,6 +1048,27 @@ def test_a_bad_form_horizon_skips_only_its_pier(
     assert ("horizon.points" in error) is names_field
 
 
+BOTH_HORIZON_FIELDS = {"min_altitude": 10, "horizon_points": "[[0, 5], [180, 10]]"}
+
+
+def test_both_horizon_fields_name_labels_at_startup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    form = {**BACKYARD, **BOTH_HORIZON_FIELDS}
+    with caplog.at_level(logging.ERROR):
+        config = _form_piers(tmp_path, monkeypatch, options_file, form, ROOF_FORM)
+
+    assert [p.id for p in config.piers] == ["roof"]
+    [error] = _errors(caplog)
+    assert error.startswith("Skipping invalid pier 'backyard': ")
+    assert "Horizon: floor" in error
+    assert "Horizon: points" in error
+    assert "min_altitude" not in error
+
+
 def test_malformed_saved_values_skip_only_their_pier(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
