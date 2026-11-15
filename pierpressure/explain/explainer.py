@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from pierpressure.core.config import ExplainerConfig
 from pierpressure.core.model import VerdictDocument
 
+from .ai_task import AiTaskProvider
 from .prompt import PromptInput, build_prompt_input
 from .provider import PROVIDER_TIMEOUT, Provider, PydanticAIProvider
 
@@ -121,15 +122,30 @@ def _failure_kind(exc: Exception) -> str:
     return f"{type(exc).__name__} (HTTP {status})"
 
 
-def build_explainer(config: ExplainerConfig | None) -> Explainer:
+def build_explainer(
+    config: ExplainerConfig | None, *, supervisor_token: str | None = None
+) -> Explainer:
     """Wire the explainer from config: the no-op when disabled, else a real provider.
 
     An absent block or ``enabled: false`` yields :func:`no_op_explainer` and
-    constructs no provider (design D7). When enabled, the default Pydantic AI provider
-    is wired behind the caching, bounded-timeout wrapper; the config ``model`` string
-    selects the LLM provider.
+    constructs no provider (design D7). When enabled, the provider sits behind the
+    caching, bounded-timeout wrapper. An ``ai_task_entity`` selects the AI Task
+    provider, which needs ``supervisor_token`` and so works only inside the add-on;
+    without one the explainer stays a no-op (addon-explainer-ai-task DD5). Otherwise
+    the config ``model`` string selects the LLM provider.
     """
     if config is None or not config.enabled:
         return no_op_explainer
+    if config.ai_task_entity is not None:
+        if not supervisor_token:
+            logger.warning(
+                "explainer.ai_task_entity works only in the Home Assistant add-on; no narrative"
+            )
+            return no_op_explainer
+        unused = "; explainer.api_key is not used" if config.api_key is not None else ""
+        logger.info("Narrative from the AI Task entity %s%s", config.ai_task_entity, unused)
+        return NarrativeExplainer(
+            AiTaskProvider(entity_id=config.ai_task_entity, token=supervisor_token)
+        )
     provider = PydanticAIProvider(model=config.model, api_key=config.api_key)
     return NarrativeExplainer(provider)
