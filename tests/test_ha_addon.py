@@ -511,3 +511,31 @@ def test_horizon_docs_name_error_labels() -> None:
     assert any(
         "error" in s and "**Horizon: floor**" in s and "**Horizon: points**" in s for s in sentences
     )
+
+
+def _supervisor_reads_as_addon_config(path: str) -> bool:
+    """Whether the Supervisor's store scan reads ``path`` as an add-on config.
+
+    A copy of its filter in home-assistant/supervisor@98a2322
+    ``supervisor/store/data.py:158-164``: it globs ``**/config.*``, keeps the
+    ``.yaml``, ``.yml`` and ``.json`` suffixes, and skips a path with a part that
+    starts with ``.`` or is named ``rootfs`` (addon-store-scan-warnings D2).
+    """
+    parts = Path(path).parts
+    return (
+        parts[-1].startswith("config.")
+        and Path(path).suffix in {".yaml", ".yml", ".json"}
+        and not any(part.startswith(".") or part == "rootfs" for part in parts)
+    )
+
+
+@pytest.mark.parametrize("path", ["docs/examples/config.sample.yaml"])
+def test_the_supervisor_scan_reads_a_config_file(path: str) -> None:
+    assert _supervisor_reads_as_addon_config(path)
+
+
+@pytest.mark.parametrize(
+    "path", [".github/config.yml", "x/rootfs/config.json", "a/config.txt", "vite.config.ts"]
+)
+def test_the_supervisor_scan_skips_other_files(path: str) -> None:
+    assert not _supervisor_reads_as_addon_config(path)
