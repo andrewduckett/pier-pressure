@@ -19,7 +19,7 @@
 
 - [x] 4.1 [medium] `main()` calls `mask_key` right after `basicConfig` when the key is usable, logs one warning naming `firms.map_key` when a key is given but not usable, and passes the key to `build_provider`; the service seeds `FIRMS` health keyed `firms` with `variables` `()` for every pier after METAR, only while the key is usable and providers are reported, before going online, folds the `firms` outcome, and passes `result.fires` to `produce_verdict` (design DD5, DD7) (verify: uv run pytest tests/test_main.py tests/test_service.py tests/test_health_delivery.py -q -k firms) (✓ uv run pytest tests/test_main.py tests/test_service.py tests/test_health_delivery.py -q -k firms passed: 16 passed)
 - [x] 4.2 [easy] The README documents the `firms` block in its configuration table, the fire reason line, and the FIRMS health sensor in the entities table, the MQTT topic lists and "Watching provider health"; `ha-addon/DOCS.md` names `firms` under what the file can add for the whole add-on, and says to set `firms.map_key` in `config.yaml` (verify: uv run pytest tests/test_docs.py tests/test_ha_addon.py -q) (✓ uv run pytest tests/test_docs.py tests/test_ha_addon.py -q passed: 151 passed)
-- [ ] 4.3 [easy] The whole project gate is green (verify: mise run check)
+- [x] 4.3 [easy] The whole project gate is green (verify: mise run check) (✓ mise run check passed: specs 12/12, ruff, mypy, 2519 pytest passed, 510 card tests passed, card built)
 
 ## Deviations Ledger
 
