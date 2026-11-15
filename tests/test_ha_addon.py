@@ -385,6 +385,7 @@ TAB_ORDER = [
     "Pier ID",
     *_section_leaders(),
     "MQTT broker",
+    "Explainer",
 ]
 
 
@@ -407,14 +408,15 @@ def test_the_setup_steps_follow_the_tab_order() -> None:
 
 
 def test_the_setup_steps_check_names_a_part_out_of_order() -> None:
-    early_broker = [TAB_ORDER[0], TAB_ORDER[-1], *TAB_ORDER[1:-1]]
+    early_broker = [part for part in TAB_ORDER if part != "MQTT broker"]
+    early_broker.insert(1, "MQTT broker")
     steps = " then ".join(f"**{part}**" for part in early_broker)
     assert _first_part_out_of_order(steps) == "MQTT broker"
 
 
 def test_more_settings_names_the_tab_parts_in_order() -> None:
-    # addon-form-text D8.
-    parts = ["**Recompute interval**", "**Piers**", "**MQTT broker**"]
+    # addon-form-text D8, addon-explainer-key-option D9.
+    parts = ["**Recompute interval**", "**Piers**", "**MQTT broker**", "**Explainer**"]
     assert _first_out_of_order(_docs_section("More settings"), parts) is None
 
 

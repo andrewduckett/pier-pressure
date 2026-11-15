@@ -11,9 +11,9 @@ file, you add a `config.yaml` file. See
 
 ## Set up the add-on
 
-The Configuration tab has three parts, from top to bottom: the recompute
-interval, the piers and the MQTT broker. These steps walk through them in that
-order. Each field on the tab also has help text that says what to enter.
+The Configuration tab has four parts, from top to bottom: the recompute
+interval, the piers, the MQTT broker and the explainer. These steps walk through
+them in that order. Each field on the tab also has help text that says what to enter.
 
 1. **Open the add-on's Configuration tab.**
 2. **Check the interval.** **Recompute interval** is how often PierPressure
@@ -45,10 +45,14 @@ order. Each field on the tab also has help text that says what to enter.
    add-on asks Home Assistant's Supervisor for its host, port, username and
    password, so you enter no password. To use another broker, see
    [Use a different broker](#use-a-different-broker).
-5. **Save, then start the add-on.** The add-on reads the tab only when it starts.
+5. **Leave the explainer empty, or add its key.** The last part of the tab is
+   **Explainer**. It holds the API key for the optional explainer, which writes
+   a short paragraph about each verdict. Leave it empty unless you use the
+   explainer. See [Turn on the explainer](#turn-on-the-explainer).
+6. **Save, then start the add-on.** The add-on reads the tab only when it starts.
    If it is already running, restart it when Home Assistant offers to, or from
    the **Info** tab.
-6. **Check the log.** Open the **Log** tab. The first line ends with the
+7. **Check the log.** Open the **Log** tab. The first line ends with the
    version, for example `PierPressure 2026.10.0`. Later lines name where the
    settings and the broker came from:
 
@@ -57,7 +61,7 @@ order. Each field on the tab also has help text that says what to enter.
    MQTT broker from the Supervisor's mqtt service: core-mosquitto:1883
    ```
 
-7. **Find the entities.** Open **Settings → Devices & services → MQTT**. A device
+8. **Find the entities.** Open **Settings → Devices & services → MQTT**. A device
    named `PierPressure <pier>` appears for each pier.
 
 ## Set a pier's horizon
@@ -418,10 +422,11 @@ once the broker is back.
 
 ## More settings
 
-The Configuration tab shows only three parts, so far: the
+The Configuration tab shows only four parts, so far: the
 **Recompute interval**; the **Piers**, each with its Location, Horizon,
-Equipment and Verdict fields; and the **MQTT broker**. Add any other setting,
-such as a horizon file or `explainer`, in `config.yaml`. See
+Equipment and Verdict fields; the **MQTT broker**; and the **Explainer**, which
+holds only its API key. Add any other setting, such as a horizon file or
+`explainer.enabled`, in `config.yaml`. See
 [Add settings with config.yaml](#add-settings-with-configyaml). For every
 setting, see the
 [Configuration section of the README](https://github.com/andrewduckett/pier-pressure#️-configuration).
