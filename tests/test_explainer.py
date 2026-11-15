@@ -389,6 +389,38 @@ def test_pydantic_provider_scopes_the_key_to_the_call(monkeypatch: pytest.Monkey
     assert os.environ.get("OPENAI_API_KEY") is None
 
 
+def test_pydantic_provider_rejected_key_is_logged_without_the_reply(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from pydantic_ai.exceptions import ModelAuthenticationError, ModelHTTPError
+    from pydantic_ai.models.function import FunctionModel
+
+    # OpenAI's reply to a rejected key quotes its start and last four characters.
+    def respond(messages: Any, info: Any) -> Any:
+        raise ModelHTTPError.for_category(
+            ModelAuthenticationError,
+            status_code=401,
+            model_name="gpt-4o",
+            body={"error": {"message": "Incorrect API key provided: sk-proj-ab12...wxyz"}},
+        )
+
+    provider = PydanticAIProvider(
+        model="openai:gpt-4o",
+        api_key=SecretStr("sk-proj-ab12marker90wxyz"),
+        model_obj=FunctionModel(respond),
+    )
+    explainer = NarrativeExplainer(provider)
+    with no_network(), caplog.at_level(logging.WARNING, logger="pierpressure.explain"):
+        assert explainer(_document()) is None
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    assert "ModelAuthenticationError" in warnings[0].getMessage()
+    assert "HTTP 401" in warnings[0].getMessage()
+    for fragment in ("sk-proj-ab12", "wxyz", "Incorrect API key provided"):
+        assert fragment not in caplog.text
+        assert all(fragment not in _record_text(r) for r in caplog.records)
+
+
 # --------------------------------------------------------------------------- #
 # build_explainer factory
 # --------------------------------------------------------------------------- #
