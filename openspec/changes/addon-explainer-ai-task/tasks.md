@@ -1,6 +1,6 @@
 ## 1. The setting
 
-- [ ] 1.1 [easy] `explainer.ai_task_entity` accepts `ai_task.google_ai_task`, and rejects `light.kitchen` with a configuration error that names `explainer.ai_task_entity` and does not contain the value (design DD4) (verify: uv run pytest tests/test_explainer_config.py)
+- [x] 1.1 [easy] `explainer.ai_task_entity` accepts `ai_task.google_ai_task`, and rejects `light.kitchen` with a configuration error that names `explainer.ai_task_entity` and does not contain the value (design DD4) (verify: uv run pytest tests/test_explainer_config.py) (✓ uv run pytest tests/test_explainer_config.py passed, 17 tests)
 
 ## 2. The AI Task provider [depends-on: 1]
 
