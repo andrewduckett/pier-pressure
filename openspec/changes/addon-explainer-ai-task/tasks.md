@@ -14,7 +14,7 @@
 
 - [x] 3.1 [easy] The add-on config sets `homeassistant_api: true`, and its schema's `explainer` block is `enabled: bool?`, `ai_task_entity: str?`, `api_key: password?` in that order, with `options.explainer` still `{}` (DD6) (verify: uv run pytest tests/test_ha_addon.py) (✓ uv run pytest tests/test_ha_addon.py passed, 102 tests)
 - [x] 3.2 [easy] The English translation labels **Enabled** and **AI Task entity**, each description contains `Optional.`, and the `explainer` description names `explainer.enabled`, `AI Task`, `explainer.model` and `config.yaml` (verify: uv run pytest tests/test_ha_addon.py) (✓ uv run pytest tests/test_ha_addon.py passed, 102 tests)
-- [ ] 3.3 [medium] The form's `explainer.enabled` of false counts as not set; a form with `enabled` true and an AI Task entity turns the explainer on with no `config.yaml`; `enabled` in both places stops the add-on naming `explainer.enabled`; a form entity combines with the file's `enabled` and `model` (DD6) (verify: uv run pytest tests/test_addon_options.py tests/test_addon_settings.py tests/test_main.py)
+- [x] 3.3 [medium] The form's `explainer.enabled` of false counts as not set; a form with `enabled` true and an AI Task entity turns the explainer on with no `config.yaml`; `enabled` in both places stops the add-on naming `explainer.enabled`; a form entity combines with the file's `enabled` and `model` (DD6) (verify: uv run pytest tests/test_addon_options.py tests/test_addon_settings.py tests/test_main.py) (✓ uv run pytest tests/test_addon_options.py tests/test_addon_settings.py tests/test_main.py passed, 293 tests)
 
 ## 4. The docs [depends-on: 2, 3]
 
