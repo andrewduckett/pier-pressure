@@ -22,7 +22,8 @@ provider health and never reach the verdict (provider-health-entities D1).
 
 A pier that names a METAR station also gets its latest observation, fetched after
 the providers. It travels beside the conditions too, and never fills a variable
-(metar-reason DD2).
+(metar-reason DD2). While the service has a FIRMS key, every pier also gets its
+fire detections, fetched after the METAR, in the same way (firms-nearby-fire DD4).
 """
 
 from __future__ import annotations
@@ -33,6 +34,8 @@ from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from functools import partial
 from typing import Protocol, get_args
+
+from pydantic import SecretStr
 
 from pierpressure.core.computed import (
     Derivation,
@@ -45,6 +48,7 @@ from pierpressure.core.computed import (
 )
 from pierpressure.core.conditions import SEEING_COLUMN, Conditions, Series, Variable
 from pierpressure.core.config import PierConfig
+from pierpressure.core.fire import FireDetection
 from pierpressure.core.observation import Observation
 from pierpressure.core.providers import CATALOG, COMPUTED, ProviderSpec
 from pierpressure.health import (
@@ -163,6 +167,12 @@ class ObservationSource(Protocol):
     """Anything that can fetch a station's latest observation."""
 
     def fetch(self, station: str) -> Observation: ...
+
+
+class FireSource(Protocol):
+    """Anything that can fetch the fire detections near a pier."""
+
+    def fetch(self, pier: PierConfig) -> tuple[FireDetection, ...]: ...
 
 
 Fill = tuple[ProviderSpec, SourceForecast]
@@ -339,11 +349,12 @@ def _utcnow() -> datetime:
 
 @dataclass(frozen=True)
 class FetchResult:
-    """One pier's conditions and observation, and the outcome of each fetch behind them."""
+    """One pier's conditions, observation and fires, and the outcome of each fetch behind them."""
 
     conditions: Conditions
     outcomes: tuple[FetchOutcome, ...] = ()
     observation: Observation | None = None
+    fires: tuple[FireDetection, ...] = ()
 
 
 @dataclass
@@ -355,13 +366,15 @@ class CompositeProvider:
     the rest returned. A partial snapshot is a valid result, not an error.
 
     ``metar`` fetches the observation for a pier that names a station; without
-    it no pier gets one. ``now`` stamps each outcome's fetch time; tests pass a
+    it no pier gets one. ``firms`` fetches every pier's fire detections; without
+    it no pier gets any. ``now`` stamps each outcome's fetch time; tests pass a
     fixed clock.
     """
 
     fetchers: Sequence[Provider | ComputedSource]
     now: Callable[[], datetime] = _utcnow
     metar: ObservationSource | None = None
+    firms: FireSource | None = None
 
     @property
     def providers(self) -> tuple[ProviderInfo, ...]:
@@ -392,12 +405,49 @@ class CompositeProvider:
         if self.metar is not None and pier.metar_station is not None:
             observation, outcome = self._safe_observe(self.metar, pier.metar_station)
             outcomes.append(outcome)
+        fires: tuple[FireDetection, ...] = ()
+        if self.firms is not None:
+            fires, outcome = self._safe_fires(self.firms, pier)
+            outcomes.append(outcome)
         # The computed fills sit side by side in their slot. Each declares one
         # variable the others don't, so none touches another's fill (DD3).
         return FetchResult(
             conditions=assemble_snapshot([fill for fills, _ in slots for fill in fills]),
             outcomes=tuple(outcomes),
             observation=observation,
+            fires=fires,
+        )
+
+    def _safe_fires(
+        self, source: FireSource, pier: PierConfig
+    ) -> tuple[tuple[FireDetection, ...], FetchOutcome]:
+        """Fetch the pier's fire detections; a failure is a failed outcome and no fires.
+
+        Unlike the other fetches, the warning holds only the safe description: the
+        request URL carries the FIRMS key, and httpx's error text quotes the URL.
+        No detection is too old or too far to succeed here: the core decides use.
+        """
+        from .firms import FIRMS, UnexpectedResponse
+
+        fetched_at = self.now()
+        fires: tuple[FireDetection, ...] = ()
+        error: str | None = None
+        try:
+            fires = source.fetch(pier)
+        except UnexpectedResponse as exc:
+            error = exc.description
+        except Exception as exc:  # noqa: BLE001 - a failed FIRMS fetch degrades, never fails
+            error = describe_error(exc)
+        if error is not None:
+            logger.warning("FIRMS fetch for %s failed: %s", pier.id, error)
+        return fires, FetchOutcome(
+            key=FIRMS.key,
+            name=FIRMS.name,
+            variables=FIRMS.variables,
+            fetched_at=fetched_at,
+            ok=error is None,
+            error=error,
+            issued_at=max((fire.detected_at for fire in fires), default=None),
         )
 
     def _safe_observe(
@@ -493,6 +543,8 @@ def build_provider(
     now: Callable[[], datetime] = _utcnow,
     fetchers: Mapping[str, Provider | ComputedSource] | None = None,
     metar: ObservationSource | None = None,
+    firms_key: SecretStr | None = None,
+    firms: FireSource | None = None,
 ) -> CompositeProvider:
     """Assemble the production provider stack from the configured provider order.
 
@@ -503,7 +555,10 @@ def build_provider(
     same clock. A model provider's issue time is its model's run start instead.
     MET Norway reads its response's expiry against the same clock.
     ``metar`` replaces the real METAR fetcher, as ``fetchers`` replaces a provider.
+    ``firms_key`` is the usable FIRMS key; without it no FIRMS request is made.
+    ``firms`` replaces the real FIRMS fetcher in the same way.
     """
+    from .firms import FirmsFetcher
     from .met_norway import MetNorwayProvider
     from .metar import MetarFetcher
     from .nws import NwsProvider
@@ -523,8 +578,11 @@ def build_provider(
         OpenMeteoProvider, spec=CATALOG["open_meteo_air_quality"], now=now
     )
     overrides = fetchers or {}
+    if firms is None and firms_key is not None:
+        firms = FirmsFetcher(map_key=firms_key)
     return CompositeProvider(
         fetchers=tuple(overrides[key] if key in overrides else real[key]() for key in keys),
         now=now,
         metar=metar if metar is not None else MetarFetcher(),
+        firms=firms,
     )

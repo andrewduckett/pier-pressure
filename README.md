@@ -193,6 +193,14 @@ conditions:
   providers: [open_meteo, seven_timer, open_meteo_air_quality, computed]   # optional (default shown)
 ```
 
+To have the reasons name a satellite-detected fire near each pier, add a NASA
+FIRMS key:
+
+```yaml
+firms:
+  map_key: ${FIRMS_KEY}   # optional; read from the environment
+```
+
 | Setting | What it does |
 |---|---|
 | `piers` | A list. Each pier is checked on its own: an invalid pier is logged and skipped, and the others keep running. If no pier is valid, PierPressure exits with an error. |
@@ -203,6 +211,7 @@ conditions:
 | `horizon` | Exactly one of: `points` (a list of `[azimuth, altitude]` pairs), `min_altitude` (a flat floor in degrees), or `file` + `format`. Without it the horizon is flat at 0°. The only file format supported today is `nina` (a NINA `.hrz` export). `stellarium` and `telescopius` are recognised but rejected as not yet supported. |
 | `equipment` | Your telescope and camera. With equipment, targets are also ranked on how well they fit the field of view. |
 | `explainer` | The optional LLM summary. See [docs/llm-explainer.md](docs/llm-explainer.md). |
+| `firms` | Optional, and one key for every pier. `map_key` is a free NASA FIRMS MAP_KEY, which you request at <https://firms.modaps.eosdis.nasa.gov/api/map_key/>. Write it as `${FIRMS_KEY}` to read it from the environment. With a key, PierPressure asks FIRMS on every recompute for NOAA-20 VIIRS fire detections near each pier. A detection counts when its confidence is `nominal` or `high`, it is from the 24 hours up to the verdict, and it is within 50 km of the pier. When any count, the reasons gain one line about the nearest, after the METAR lines, such as `A satellite detected a fire 23 km NW of the pier at 2026-11-13T07:35:00Z (1 detection within 50 km).` The line never changes the verdict, score or confidence. A key that is empty, or names an environment variable that is not set, turns the line off, and the log says so once. The key never appears in the log, an error or a health sensor. |
 | `conditions` | Optional. `providers` lists the weather providers, preferred first. The default is `[open_meteo, seven_timer, open_meteo_air_quality, computed]`. Each forecast variable, such as cloud cover or seeing, comes from the first provider in the list that returned it. PierPressure will not start if the list is empty, names an unknown provider, names a provider more than once, or has no provider that needs no key and supplies cloud cover. The providers are `open_meteo`, the six Open-Meteo models below, `open_meteo_air_quality` for the air-quality forecast, `nws` for the National Weather Service, `met_norway` for MET Norway, `seven_timer`, and `computed`, which computes transparency and seeing from other providers' values. |
 
 ### Choosing Open-Meteo models
@@ -489,6 +498,7 @@ Each pier becomes one device, `PierPressure <pier>`, with these entities:
 | **Narrative** (sensor) | `ready` or unavailable | Only when the explainer is on. The text is in its attributes. |
 | **Open-Meteo health**, **7Timer! health**, **Computed health**, and **Open-Meteo HRRR health** and so on for each listed model (diagnostic sensors) | When that weather source last succeeded, or unknown | One per provider in the `conditions` list. See [Watching provider health](#watching-provider-health). |
 | **METAR health** (diagnostic sensor) | When the METAR fetch last succeeded, or unknown | Only for a pier with a `metar_station`. See [Watching provider health](#watching-provider-health). |
+| **FIRMS health** (diagnostic sensor) | When the FIRMS fetch last succeeded, or unknown | On every pier, only while `firms.map_key` is set. See [Watching provider health](#watching-provider-health). |
 
 To see these together on a dashboard, install the PierPressure card through
 HACS. It shows tonight's verdict, the moon, an hour-by-hour night strip and a
@@ -504,7 +514,7 @@ connection, the broker sends PierPressure's last-will message instead.
 | Purpose | Topic | Retained |
 |---|---|---|
 | Discovery configs | `homeassistant/<sensor\|button>/pierpressure_<pier>/<verdict\|score\|top_target\|target_<n>\|cloud_cover\|cloud_low\|cloud_mid\|cloud_high\|wind_gust\|seeing\|transparency\|sun_altitude\|moon_altitude\|temperature\|dew_point\|humidity\|wind_speed\|wind_direction\|precipitation_probability\|cloud_cover_min\|cloud_cover_max\|narrative\|refresh>/config` | yes |
-| Health discovery configs | `homeassistant/sensor/pierpressure_<pier>/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|open_meteo_ecmwf\|open_meteo_air_quality\|nws\|met_norway\|seven_timer\|computed\|metar>_health/config` | yes |
+| Health discovery configs | `homeassistant/sensor/pierpressure_<pier>/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|open_meteo_ecmwf\|open_meteo_air_quality\|nws\|met_norway\|seven_timer\|computed\|metar\|firms>_health/config` | yes |
 | Verdict state | `pierpressure/<pier>/verdict/state` | yes |
 | Verdict attributes (the document without `timeline`) | `pierpressure/<pier>/verdict/attributes` | yes |
 | Top target state and list | `pierpressure/<pier>/top_target/state`, `.../top_target/attributes` | yes |
@@ -512,7 +522,7 @@ connection, the broker sends PierPressure's last-will message instead.
 | Cloud cover state and forecast | `pierpressure/<pier>/cloud_cover/state`, `.../cloud_cover/attributes` | yes |
 | Timeline sensor state and forecast, where `<var>` is `cloud_low`, `cloud_mid`, `cloud_high`, `wind_gust`, `seeing`, `transparency`, `sun_altitude`, `moon_altitude`, `temperature`, `dew_point`, `humidity`, `wind_speed`, `wind_direction`, `precipitation_probability`, `cloud_cover_min` or `cloud_cover_max` | `pierpressure/<pier>/<var>/state`, `.../<var>/attributes` | yes |
 | Narrative state and text | `pierpressure/<pier>/narrative/state`, `.../narrative/attributes` | yes |
-| Provider health state and details | `pierpressure/<pier>/health/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|open_meteo_ecmwf\|open_meteo_air_quality\|nws\|met_norway\|seven_timer\|computed\|metar>/state`, `.../attributes` | yes |
+| Provider health state and details | `pierpressure/<pier>/health/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|open_meteo_ecmwf\|open_meteo_air_quality\|nws\|met_norway\|seven_timer\|computed\|metar\|firms>/state`, `.../attributes` | yes |
 | Refresh command | `pierpressure/<pier>/refresh/command` | no |
 | Availability | `pierpressure/status` | yes |
 
@@ -631,7 +641,12 @@ its own, such as **Open-Meteo HRRR health**, `nws` adds **NWS health**, and
 pier with a `metar_station` also has **METAR health**. Its `variables` is `[]`,
 because a report fills no forecast variable, and its `issued_at` is when the
 station measured. A fetch that returns no report fails with `no report
-returned`. A report too old to quote still counts as a success. You find them
+returned`. A report too old to quote still counts as a success. While
+`firms.map_key` is set, every pier also has **FIRMS health**. Its `variables`
+is `[]` too, and its `issued_at` is the time of the latest detection from the
+last successful fetch, or `null` when FIRMS found none. Finding no fire is a
+success. A rejected key fails with `HTTPStatusError: 400 Bad Request`, and a
+reply with no CSV header fails with `unexpected response`. You find them
 under the pier's device, in the diagnostic section.
 
 **State.** The time of that provider's last successful fetch for this pier. It is
@@ -752,11 +767,12 @@ If you listed Open-Meteo models, NWS or MET Norway, add each one's health sensor
 to the list, such as `sensor/pierpressure_backyard/open_meteo_hrrr_health`. The
 keys are `open_meteo_hrrr`, `open_meteo_hrdps`, `open_meteo_rdps`,
 `open_meteo_icon`, `open_meteo_gfs`, `open_meteo_ecmwf`, `nws` and `met_norway`. If the pier has a
-`metar_station`, also add `sensor/pierpressure_backyard/metar_health`.
+`metar_station`, also add `sensor/pierpressure_backyard/metar_health`. If you
+set `firms.map_key`, also add `sensor/pierpressure_backyard/firms_health`.
 
 **Removing one provider.** When you take a provider out of the `conditions` list,
-or a `metar_station` off a pier, its health sensor stays in Home Assistant,
-showing its last success. Clear its discovery topic to remove it. For HRRR on
+take a `metar_station` off a pier, or remove the FIRMS key, its health sensor
+stays in Home Assistant, showing its last success. Clear its discovery topic to remove it. For HRRR on
 the `backyard` pier:
 
 ```bash

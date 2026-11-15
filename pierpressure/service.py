@@ -39,6 +39,7 @@ from enum import Enum
 from typing import Final
 
 from pierpressure.conditions import FetchResult
+from pierpressure.conditions.firms import FIRMS
 from pierpressure.conditions.metar import METAR
 from pierpressure.core.clock import Clock
 from pierpressure.core.conditions import Conditions
@@ -142,10 +143,14 @@ class Service:
         to a partial snapshot rather than skipping a publish.
         """
         result = self._conditions_provider(pier)
-        # The conditions and the observation reach the core; the fetch outcomes
-        # feed health alone.
+        # The conditions, the observation and the fires reach the core; the fetch
+        # outcomes feed health alone.
         document = produce_verdict(
-            pier, self._clock, result.conditions, observation=result.observation
+            pier,
+            self._clock,
+            result.conditions,
+            observation=result.observation,
+            fires=result.fires,
         )
         narrative = self._explainer(document)  # never raises; may be None
         self._delivery.publish_verdict(document, narrative=narrative)
@@ -169,12 +174,17 @@ class Service:
         ``online`` (publish-failure-resilience D4).
         """
         tracking_since = self._clock.now()
+        firms = self._config.firms
+        has_firms_key = firms is not None and firms.usable_key is not None
         for pier in self._config.piers:
-            # METAR health only for a pier that names a station, and only when the
-            # service reports health at all (metar-reason DD8).
+            # METAR health only for a pier that names a station, and FIRMS health
+            # for every pier while the key is usable; both only when the service
+            # reports health at all (metar-reason DD8, firms-nearby-fire DD7).
             sources = self._providers
             if sources and pier.metar_station is not None:
                 sources = (*sources, METAR)
+            if sources and has_firms_key:
+                sources = (*sources, FIRMS)
             self._health[pier.id] = {
                 info.key: ProviderHealth.empty(
                     key=info.key,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import logging
 from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -12,9 +13,10 @@ from typing import Any
 
 import httpx
 import pytest
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 
 from pierpressure import __version__
+from pierpressure.conditions.firms import FirmsFetcher, UnexpectedResponse
 from pierpressure.conditions.met_norway import MetNorwayProvider, parse_met_norway
 from pierpressure.conditions.metar import MetarFetcher, NoReport
 from pierpressure.conditions.nws import NwsProvider, parse_nws
@@ -23,6 +25,7 @@ from pierpressure.conditions.provider import (
     CompositeProvider,
     ComputedSource,
     Derived,
+    FireSource,
     SourceForecast,
     SourceReading,
     assemble_snapshot,
@@ -32,6 +35,7 @@ from pierpressure.conditions.seven_timer import SevenTimerProvider, parse_seven_
 from pierpressure.core.computed import computed_seeing, computed_transparency
 from pierpressure.core.conditions import SEEING_COLUMN, Conditions, Series
 from pierpressure.core.config import DEFAULT_PROVIDERS, ConditionsConfig, PierConfig
+from pierpressure.core.fire import FireDetection
 from pierpressure.core.observation import CloudLayer, Observation
 from pierpressure.core.providers import (
     CATALOG,
@@ -48,6 +52,7 @@ from pierpressure.core.providers import (
 from pierpressure.health import FetchOutcome, ProviderInfo, describe_error
 
 from .conftest import make_pier, standard_seeing_column
+from .offline_guard import no_network
 
 _FIXTURES = Path(__file__).parent / "fixtures"
 _ISSUED = datetime(2026, 9, 8, 18, 0, tzinfo=UTC)
@@ -2708,3 +2713,181 @@ def test_build_provider_metar_keyword_replaces_the_real_fetcher() -> None:
 def test_listing_metar_as_a_provider_is_an_unknown_provider() -> None:
     with pytest.raises(ValidationError, match="metar is not a known provider"):
         ConditionsConfig(providers=["open_meteo", "metar"])
+
+
+# --------------------------------------------------------------------------- #
+# firms-nearby-fire DD4: the composite fetches fire detections after the METAR
+# --------------------------------------------------------------------------- #
+
+_FIRMS_KEY = "abc123secret"
+_FIRMS_URL = (
+    f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{_FIRMS_KEY}/VIIRS_NOAA20_NRT/"
+    "-0.9232,51.0000,0.6832,52.0000/2"
+)
+_FIRES = (
+    FireDetection(
+        latitude=51.6,
+        longitude=-0.1,
+        detected_at=datetime(2026, 10, 5, 5, 54, tzinfo=UTC),
+        confidence="nominal",
+    ),
+    FireDetection(
+        latitude=51.4,
+        longitude=-0.2,
+        detected_at=datetime(2026, 10, 5, 7, 35, tzinfo=UTC),
+        confidence="low",
+    ),
+)
+
+
+class _StubFirms:
+    def __init__(
+        self, *, error: Exception | None = None, fires: tuple[FireDetection, ...] = _FIRES
+    ) -> None:
+        self._error = error
+        self._fires = fires
+        self.calls: list[str] = []
+
+    def fetch(self, pier: PierConfig) -> tuple[FireDetection, ...]:
+        self.calls.append(pier.id)
+        if self._error is not None:
+            raise self._error
+        return self._fires
+
+
+def _firms_composite(
+    firms: FireSource | None, metar: _StubMetar | None = None
+) -> CompositeProvider:
+    return CompositeProvider(
+        fetchers=(_StubProvider(_BASE_FORECAST),), metar=metar, firms=firms, now=lambda: _FETCHED
+    )
+
+
+def _rejected_key() -> httpx.HTTPStatusError:
+    request = httpx.Request("GET", _FIRMS_URL)
+    response = httpx.Response(400, text="Invalid MAP_KEY.", request=request)
+    return httpx.HTTPStatusError(
+        f"Client error '400 Bad Request' for url '{_FIRMS_URL}'", request=request, response=response
+    )
+
+
+def test_firms_gives_every_pier_its_fire_detections() -> None:
+    firms = _StubFirms()
+    result = _firms_composite(firms).get(make_pier())
+    assert firms.calls == ["backyard"]
+    assert result.fires == _FIRES
+
+
+def test_the_firms_outcome_follows_the_metar_outcome() -> None:
+    result = _firms_composite(_StubFirms(), _StubMetar()).get(_station_pier())
+    assert [o.key for o in result.outcomes] == ["open_meteo", "metar", "firms"]
+    assert result.outcomes[-1] == FetchOutcome(
+        key="firms",
+        name="FIRMS",
+        variables=(),
+        fetched_at=_FETCHED,
+        ok=True,
+        issued_at=datetime(2026, 10, 5, 7, 35, tzinfo=UTC),
+    )
+
+
+def test_a_firms_fetch_with_no_detections_succeeds_with_no_issue_time() -> None:
+    result = _firms_composite(_StubFirms(fires=())).get(make_pier())
+    assert result.fires == ()
+    outcome = result.outcomes[-1]
+    assert (outcome.key, outcome.ok, outcome.error, outcome.issued_at) == (
+        "firms",
+        True,
+        None,
+        None,
+    )
+
+
+@pytest.mark.parametrize(
+    ("error", "described"),
+    [
+        (_rejected_key(), "HTTPStatusError: 400 Bad Request"),
+        (httpx.ReadTimeout(f"timed out reading {_FIRMS_URL}"), "ReadTimeout"),
+        (UnexpectedResponse(), "unexpected response"),
+    ],
+    ids=["rejected-key", "timeout", "unexpected-response"],
+)
+def test_a_failed_firms_fetch_gives_no_fires_and_logs_no_key(
+    error: Exception, described: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.DEBUG):
+        result = _firms_composite(_StubFirms(error=error)).get(make_pier())
+    assert result.fires == ()
+    outcome = result.outcomes[-1]
+    assert (outcome.key, outcome.ok, outcome.error, outcome.issued_at) == (
+        "firms",
+        False,
+        described,
+        None,
+    )
+    assert described in caplog.text
+    assert _FIRMS_KEY not in caplog.text
+    for record in caplog.records:
+        assert record.exc_info is None
+
+
+@pytest.mark.parametrize("error", [None, _rejected_key()], ids=["fetched", "failed"])
+def test_a_firms_fetch_leaves_the_snapshot_and_observation_unchanged(
+    error: Exception | None,
+) -> None:
+    fired = _firms_composite(_StubFirms(error=error), _StubMetar()).get(_station_pier())
+    plain = _firms_composite(None, _StubMetar()).get(_station_pier())
+    assert fired.conditions == plain.conditions
+    assert fired.observation == plain.observation
+    assert fired.outcomes[:-1] == plain.outcomes
+
+
+def test_no_firms_source_makes_no_firms_call() -> None:
+    result = _firms_composite(None).get(make_pier())
+    assert result.fires == ()
+    assert [o.key for o in result.outcomes] == ["open_meteo"]
+
+
+def test_build_provider_wires_the_real_firms_fetcher_for_a_key() -> None:
+    composite = build_provider(["open_meteo"], firms_key=SecretStr(_FIRMS_KEY))
+    assert isinstance(composite.firms, FirmsFetcher)
+    assert composite.firms.map_key == SecretStr(_FIRMS_KEY)
+
+
+def test_build_provider_without_a_key_makes_no_firms_request() -> None:
+    stack = build_provider(
+        ["open_meteo"],
+        fetchers={"open_meteo": _StubProvider(_BASE_FORECAST)},
+        metar=_StubMetar(),
+    )
+    assert stack.firms is None
+    with no_network():
+        result = stack.get(make_pier())
+    assert result.fires == ()
+    assert [o.key for o in result.outcomes] == ["open_meteo"]
+
+
+def test_build_provider_firms_keyword_replaces_the_real_fetcher() -> None:
+    firms = _StubFirms()
+    assert (
+        build_provider(["open_meteo"], firms_key=SecretStr(_FIRMS_KEY), firms=firms).firms is firms
+    )
+
+
+def test_the_real_firms_fetcher_asks_for_the_pier_box() -> None:
+    requests: list[httpx.Request] = []
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, text="latitude,longitude,acq_date,acq_time,confidence\n")
+
+    client = httpx.Client(transport=httpx.MockTransport(answer))
+    fetcher = FirmsFetcher(map_key=SecretStr(_FIRMS_KEY), client=client)
+    result = _firms_composite(fetcher).get(make_pier())
+    assert [str(r.url) for r in requests] == [_FIRMS_URL]
+    assert result.outcomes[-1].ok
+
+
+def test_listing_firms_as_a_provider_is_an_unknown_provider() -> None:
+    with pytest.raises(ValidationError, match="firms is not a known provider"):
+        ConditionsConfig(providers=["open_meteo", "firms"])
