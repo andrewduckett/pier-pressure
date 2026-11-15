@@ -88,7 +88,9 @@ ARM.
 
 1. In Home Assistant, open **Settings → Add-ons → Add-on Store**. From the **⋮**
    menu, choose **Repositories** and add
-   `https://github.com/andrewduckett/pier-pressure`.
+   `https://github.com/andrewduckett/pier-pressure`. The Supervisor log may then
+   warn that it [can't read `openspec/config.yaml`](ha-addon/DOCS.md#if-the-supervisor-log-warns-about-openspecconfigyaml),
+   which is harmless.
 2. Install **PierPressure** from the store.
 3. Open the add-on's **Configuration** tab. Check the recompute interval, in
    seconds, and add a pier: its ID, its latitude and longitude in degrees, and

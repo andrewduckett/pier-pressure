@@ -7,7 +7,7 @@
 ## 2. The docs
 
 - [x] 2.1 [easy] `ha-addon/DOCS.md` has a section `## If the Supervisor log warns about openspec/config.yaml`, placed after the other "If …" sections. It quotes `Can't read …/openspec/config.yaml: Invalid app config!`, says that the Supervisor reads every `config.yaml` in the repository and that this file is the project's planning config, not an add-on, and says the warning is harmless and needs no action. A test checks that the section exists, quotes `openspec/config.yaml: Invalid app config!` and says `no action` (brainstorm D5, D8) (verify: uv run pytest tests/test_ha_addon.py -k supervisor_warning) (✓ uv run pytest tests/test_ha_addon.py -k supervisor_warning passed)
-- [ ] 2.2 [easy] In the README's add-on install section, step 1, which adds the repository URL, has one sentence that links to that DOCS.md section by its anchor (`ha-addon/DOCS.md#if-the-supervisor-log-warns-about-openspecconfigyaml`). A test checks the link (brainstorm D8) (verify: uv run pytest tests/test_ha_addon.py -k supervisor_warning)
+- [x] 2.2 [easy] In the README's add-on install section, step 1, which adds the repository URL, has one sentence that links to that DOCS.md section by its anchor (`ha-addon/DOCS.md#if-the-supervisor-log-warns-about-openspecconfigyaml`). A test checks the link (brainstorm D8) (verify: uv run pytest tests/test_ha_addon.py -k supervisor_warning) (✓ uv run pytest tests/test_ha_addon.py -k supervisor_warning passed)
 
 ## 3. Integration
 

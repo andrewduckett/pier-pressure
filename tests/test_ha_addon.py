@@ -562,3 +562,14 @@ SUPERVISOR_WARNING = "If the Supervisor log warns about openspec/config.yaml"
 def test_the_supervisor_warning_section_names_the_warning(words: str) -> None:
     # The one warning left, explained in the add-on docs (addon-store-scan-warnings D5, D8).
     assert words in _docs_section(SUPERVISOR_WARNING)
+
+
+def test_the_supervisor_warning_is_linked_from_the_readme_install_step() -> None:
+    # The step that adds the repository URL (addon-store-scan-warnings D8).
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    install = readme.partition("\n## 🏡 Install as a Home Assistant add-on (app)\n")[2]
+    add_repository = install.partition("\n1. ")[2].partition("\n2. ")[0]
+    assert REPOSITORY_URL in add_repository
+    assert (
+        "(ha-addon/DOCS.md#if-the-supervisor-log-warns-about-openspecconfigyaml)" in add_repository
+    )
