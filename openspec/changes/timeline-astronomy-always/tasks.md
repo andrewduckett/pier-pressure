@@ -14,7 +14,7 @@
 
 ## 3. Integration
 
-- [ ] 3.1 [easy] The whole change passes the CI gate (verify: mise run check)
+- [x] 3.1 [easy] The whole change passes the CI gate (verify: mise run check) (✓ mise run check passed)
 
 ## Deviations Ledger
 
