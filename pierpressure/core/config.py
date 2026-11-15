@@ -159,7 +159,7 @@ class HorizonConfig(BaseModel):
     @field_validator("points", mode="before")
     @classmethod
     def _parse_points_text(cls, value: Any) -> Any:
-        """Parse text in ``points`` as YAML; pass any other value through (D1).
+        """Parse text in ``points`` as ``config.yaml`` is read; pass any other value through (D1).
 
         Text that holds nothing, such as blank text or only a comment, parses to
         ``None``. It is rejected rather than read as "no points", so a typo never
@@ -168,7 +168,7 @@ class HorizonConfig(BaseModel):
         if not isinstance(value, str):
             return value
         try:
-            points = yaml.safe_load(value)
+            points = _read_yaml(value)
         except yaml.YAMLError as exc:
             # The reader's message spans several lines; keep it to one.
             message = " ".join(str(exc).split())
