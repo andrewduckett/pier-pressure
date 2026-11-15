@@ -1953,3 +1953,24 @@ def test_main_without_a_firms_key_wires_none_and_does_not_warn(
 
     assert keys == [None]
     assert _firms_warnings(caplog) == []
+
+
+# --------------------------------------------------------------------------- #
+# config-load-validation 3: the form reaches the core's loading rules (DD4)
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    "file_text",
+    [None, "piers:\n  - id: backyard\n    metar_station: KBOS\n"],
+    ids=["no-config-yaml", "config-yaml-adds-to-the-pier"],
+)
+def test_a_repeated_id_on_the_form_stops_the_addon(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path, file_text: str | None
+) -> None:
+    _addon(monkeypatch, options_file, BACKYARD, BACKYARD)
+    StartupStub(monkeypatch)
+    config_path = _no_file(tmp_path) if file_text is None else _config(tmp_path, file_text)
+
+    with pytest.raises(ConfigError, match="listed more than once: 'backyard'$"):
+        _load(config_path)
