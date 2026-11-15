@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
+import httpx
 import pytest
+from pydantic import SecretStr
 
-from pierpressure.conditions.firms import UnexpectedResponse, parse_firms
+from pierpressure import __version__
+from pierpressure.conditions.firms import (
+    FirmsFetcher,
+    UnexpectedResponse,
+    firms_box,
+    parse_firms,
+)
+from pierpressure.core.config import PierConfig
 from pierpressure.core.fire import FireDetection
 
 _FIXTURE = Path(__file__).parent / "fixtures" / "firms_viirs_noaa20.csv"
@@ -100,3 +110,78 @@ def test_parse_a_body_without_the_needed_header_is_unexpected(body: str) -> None
     with pytest.raises(UnexpectedResponse) as raised:
         parse_firms(body)
     assert raised.value.description == "unexpected response"
+
+
+# --------------------------------------------------------------------------- #
+# 3.2: one GET per pier for the box that holds every point within 50 km
+# --------------------------------------------------------------------------- #
+
+_KEY = "abc123secret"
+
+
+@pytest.mark.parametrize(
+    ("latitude", "longitude", "box"),
+    [
+        (60.0, 10.0, "9.0000,59.5000,11.0000,60.5000"),
+        (0.0, 179.8, "179.3000,-0.5000,180.0000,0.5000"),
+        (0.0, -179.8, "-180.0000,-0.5000,-179.3000,0.5000"),
+        (89.8, 10.0, "-180.0000,89.3000,180.0000,90.0000"),
+        (-89.5, 10.0, "-180.0000,-90.0000,180.0000,-89.0000"),
+    ],
+    ids=["60-north", "antimeridian-east", "antimeridian-west", "north-pole", "south-pole"],
+)
+def test_firms_box_bounds_the_pier(latitude: float, longitude: float, box: str) -> None:
+    assert firms_box(latitude, longitude) == box
+
+
+def _fetcher(
+    handler: Callable[[httpx.Request], httpx.Response], requests: list[httpx.Request] | None = None
+) -> FirmsFetcher:
+    def record(request: httpx.Request) -> httpx.Response:
+        if requests is not None:
+            requests.append(request)
+        return handler(request)
+
+    client = httpx.Client(transport=httpx.MockTransport(record))
+    return FirmsFetcher(map_key=SecretStr(_KEY), client=client)
+
+
+_PIER = PierConfig(id="north", latitude=60.0, longitude=10.0, elevation_m=0.0)
+
+
+def test_fetch_sends_one_get_for_the_pier_box() -> None:
+    requests: list[httpx.Request] = []
+    _fetcher(lambda _: httpx.Response(200, text=f"{_HEADER}\n"), requests).fetch(_PIER)
+    (request,) = requests
+    assert request.method == "GET"
+    assert str(request.url) == (
+        "https://firms.modaps.eosdis.nasa.gov/api/area/csv/abc123secret/VIIRS_NOAA20_NRT/"
+        "9.0000,59.5000,11.0000,60.5000/2"
+    )
+
+
+def test_fetch_sends_the_fixed_user_agent() -> None:
+    requests: list[httpx.Request] = []
+    _fetcher(lambda _: httpx.Response(200, text=f"{_HEADER}\n"), requests).fetch(_PIER)
+    agent = requests[0].headers["User-Agent"]
+    assert "PierPressure" in agent
+    assert __version__ in agent
+
+
+def test_fetch_returns_the_parsed_detections() -> None:
+    fires = _fetcher(lambda _: httpx.Response(200, text=_recorded())).fetch(_PIER)
+    assert len(fires) == 5
+
+
+def test_fetch_raises_on_a_rejected_key() -> None:
+    with pytest.raises(httpx.HTTPStatusError):
+        _fetcher(lambda _: httpx.Response(400, text="Invalid MAP_KEY.")).fetch(_PIER)
+
+
+def test_fetch_of_a_text_reply_with_a_success_status_is_unexpected() -> None:
+    with pytest.raises(UnexpectedResponse):
+        _fetcher(lambda _: httpx.Response(200, text="Invalid MAP_KEY.")).fetch(_PIER)
+
+
+def test_the_fetcher_does_not_show_its_key() -> None:
+    assert _KEY not in repr(_fetcher(lambda _: httpx.Response(200)))
