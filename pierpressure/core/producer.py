@@ -15,11 +15,13 @@ document.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
 
 from .clock import Clock
 from .conditions import TIMELINE_VARIABLES, Conditions
 from .config import PierConfig
+from .fire import FireDetection, counted, fire_reason
 from .model import (
     Agreement,
     CloudLayerEntry,
@@ -40,6 +42,7 @@ def produce_verdict(
     clock: Clock,
     conditions: Conditions,
     observation: Observation | None = None,
+    fires: Sequence[FireDetection] = (),
 ) -> VerdictDocument:
     """Produce the verdict document for ``pier`` at the injected clock instant.
 
@@ -47,7 +50,7 @@ def produce_verdict(
     immutable per-variable value the provider layer obtained for this evaluation. The
     single evaluation instant comes from the injected ``clock`` and drives
     ``generated_at``, the astronomy, and the lead-time confidence, so the whole
-    document is a pure function of ``(pier, clock, conditions, observation)``.
+    document is a pure function of ``(pier, clock, conditions, observation, fires)``.
 
     When the selected night has no dark window, astronomy alone decides the
     verdict (a NO-GO) and ignores the conditions, matching the rule that no dark
@@ -59,6 +62,10 @@ def produce_verdict(
     reaches the document when it is usable at the instant (metar-reason DD1), and
     changes no gate, score, agreement or timeline. It can lower the confidence when
     it reports more cloud than this hour's forecast (metar-confidence DD5).
+
+    ``fires`` are the pier's fire detections, fetched beside ``conditions``. Those
+    that count at the instant add one reason line and nothing else
+    (firms-nearby-fire DD2).
     """
     instant = clock.now()
     if observation is not None and not usable(observation, instant):
@@ -83,6 +90,10 @@ def produce_verdict(
     # (metar-confidence DD5).
     if decision.observed is not None:
         reasons.append(_observed_reason(decision.observed))
+    # Last of the core's own lines, on every verdict (firms-nearby-fire DD2).
+    near = counted(fires, pier, instant)
+    if near:
+        reasons.append(fire_reason(near, pier))
     scored_start, scored_end = decision.scored_window
     worth_setting_up = (
         scored_start is not None

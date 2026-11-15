@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from pierpressure.core.clock import FixedClock
 from pierpressure.core.conditions import Conditions, Series
 from pierpressure.core.config import PierConfig
+from pierpressure.core.fire import FireDetection
 from pierpressure.core.model import Agreement, AgreementBand, MoonPhase, Verdict, VerdictDocument
 from pierpressure.core.observation import CloudLayer, Observation
 from pierpressure.core.producer import produce_verdict
@@ -230,6 +231,7 @@ def _produce_at(
     *,
     conditions: Conditions | None = None,
     pier: PierConfig | None = None,
+    fires: tuple[FireDetection, ...] = (),
 ) -> VerdictDocument:
     with no_network():
         return produce_verdict(
@@ -237,6 +239,7 @@ def _produce_at(
             FixedClock(instant),
             conditions or _november_conditions(),
             observation=observation,
+            fires=fires,
         )
 
 
@@ -533,3 +536,102 @@ def test_an_observed_report_adds_no_line_without_a_cloud_cover_series() -> None:
     sky = _sky(0.0, 0.0)
     conditions = Conditions(series={k: v for k, v in sky.series.items() if k != "cloud_cover"})
     assert _observed_lines(_produce_at(_EVENING, _OVERCAST, conditions=conditions)) == []
+
+
+# --------------------------------------------------------------------------- #
+# firms-nearby-fire 2.2: a counted fire adds one line after the observation lines
+# --------------------------------------------------------------------------- #
+
+_FIRE_PREFIX = "A satellite detected a fire"
+
+
+def _fire_near(
+    pier: PierConfig, detected_at: datetime, *, confidence: str = "nominal"
+) -> FireDetection:
+    """A detection 0.1° of latitude, about 11 km, north of ``pier``."""
+    return FireDetection(
+        latitude=pier.latitude + 0.1,
+        longitude=pier.longitude,
+        detected_at=detected_at,
+        confidence=confidence,
+    )
+
+
+def _fire_lines(doc: VerdictDocument) -> list[str]:
+    return [line for line in doc.reasons if line.startswith(_FIRE_PREFIX)]
+
+
+def test_a_counted_fire_line_follows_the_observation_line() -> None:
+    fire = _fire_near(make_pier(), _EVENING - timedelta(hours=3))
+    doc = _produce_at(_EVENING, _observation(), fires=(fire,))
+    assert doc.verdict is Verdict.GO
+    assert doc.reasons[-2:] == [
+        _OBSERVATION_LINE,
+        "A satellite detected a fire 11 km N of the pier at 2026-11-14T18:30:00Z"
+        " (1 detection within 50 km).",
+    ]
+
+
+def test_a_counted_fire_line_follows_the_observed_cloud_line() -> None:
+    fire = _fire_near(make_pier(), _EVENING - timedelta(hours=3))
+    doc = _produce_at(_EVENING, _BROKEN, conditions=_sky(40.0, 0.0), fires=(fire,))
+    assert doc.reasons[-2].startswith("Observed cloud above this hour's forecast")
+    assert doc.reasons[-1].startswith(_FIRE_PREFIX)
+
+
+def test_a_counted_fire_line_precedes_the_equipment_notes() -> None:
+    instant = datetime(2026, 9, 8, 18, tzinfo=UTC)
+    pier = PierConfig(
+        id="backyard",
+        latitude=51.5,
+        longitude=-0.12,
+        elevation_m=30.0,
+        equipment={"focal_length_mm": 600.0, "sensor_width_mm": 23.5, "sensor_height_mm": 15.7},  # type: ignore[arg-type]
+    )
+    conditions = Conditions(
+        series=provider_series(OPEN_METEO, _NIGHT, issued_at=_ISSUED, cloud_cover=20.0)
+    )
+    fire = _fire_near(pier, instant - timedelta(hours=2))
+    doc = _produce_at(instant, None, conditions=conditions, pier=pier, fires=(fire,))
+    line = next(i for i, r in enumerate(doc.reasons) if r.startswith(_FIRE_PREFIX))
+    notes = [i for i, r in enumerate(doc.reasons) if r.startswith("Top pick")]
+    assert notes
+    assert line < min(notes)
+
+
+def test_a_gated_no_go_ends_with_the_fire_line() -> None:
+    before_dusk = datetime(2026, 11, 14, 15, tzinfo=UTC)
+    fire = _fire_near(make_pier(), before_dusk - timedelta(hours=1))
+    doc = _produce_at(
+        before_dusk, None, conditions=_november_conditions(cloud=100.0), fires=(fire,)
+    )
+    assert doc.verdict is Verdict.NO_GO
+    assert doc.reasons[0].startswith("Overcast")
+    assert doc.reasons[-1].startswith(_FIRE_PREFIX)
+
+
+def test_a_night_with_no_dark_window_ends_with_the_fire_line() -> None:
+    midsummer = datetime(2026, 6, 21, 22, tzinfo=UTC)
+    pier = PierConfig(id="north", latitude=60.0, longitude=10.0, elevation_m=0.0)
+    fire = _fire_near(pier, midsummer - timedelta(hours=1))
+    doc = _produce_at(midsummer, None, conditions=Conditions(), pier=pier, fires=(fire,))
+    assert doc.dark_window.start is None
+    assert doc.reasons[-1].startswith(_FIRE_PREFIX)
+
+
+def test_fires_that_do_not_count_add_no_line() -> None:
+    pier = make_pier()
+    fires = (
+        _fire_near(pier, _EVENING - timedelta(hours=3), confidence="low"),
+        _fire_near(pier, _EVENING - timedelta(hours=25)),
+    )
+    assert _fire_lines(_produce_at(_EVENING, _observation(), fires=fires)) == []
+
+
+def test_a_counted_fire_changes_nothing_but_the_fire_line() -> None:
+    fire = _fire_near(make_pier(), _EVENING - timedelta(hours=3))
+    plain = json.loads(_produce_at(_EVENING, _observation()).to_json())
+    fired = json.loads(_produce_at(_EVENING, _observation(), fires=(fire,)).to_json())
+    line = fired["reasons"].pop()
+    assert line.startswith(_FIRE_PREFIX)
+    assert fired == plain
