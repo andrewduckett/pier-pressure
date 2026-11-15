@@ -488,23 +488,35 @@ class ConfigFile:
 
 
 class _SettingsLoader(yaml.SafeLoader):
-    """PyYAML's safe loader, except that a zero-padded integer is decimal (ADR-0041).
+    """PyYAML's safe loader, with two YAML 1.1 number forms changed (ADR-0041).
 
-    YAML 1.1 reads ``045`` as the octal number 37. Only the constructor changes,
-    not the pattern that picks the tag, so ``08`` still stays text as before.
+    YAML 1.1 reads ``045`` as the octal number 37 and ``1:30`` as the base-60
+    number 90. Here a zero-padded integer is decimal, and a value with a colon is
+    the text written. Only the constructors change, not the patterns that pick the
+    tag, so ``08`` still stays text as before.
     """
 
 
 def _construct_int(loader: _SettingsLoader, node: yaml.ScalarNode) -> Any:
     text = loader.construct_scalar(node)
+    if ":" in text:
+        return text
     digits = text.lstrip("+-")
     if len(digits) > 1 and digits[0] == "0" and (digits[1].isdigit() or digits[1] == "_"):
         return int(text.replace("_", ""))
     return loader.construct_yaml_int(node)
 
 
+def _construct_float(loader: _SettingsLoader, node: yaml.ScalarNode) -> Any:
+    text = loader.construct_scalar(node)
+    if ":" in text:
+        return text
+    return loader.construct_yaml_float(node)
+
+
 # Adding to the subclass copies the safe loader's table, so yaml.safe_load is unchanged.
 _SettingsLoader.add_constructor("tag:yaml.org,2002:int", _construct_int)
+_SettingsLoader.add_constructor("tag:yaml.org,2002:float", _construct_float)
 
 
 def _read_yaml(text: str) -> Any:

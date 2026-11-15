@@ -945,3 +945,26 @@ def test_other_number_forms_keep_their_meaning(tmp_path: Path, value: str, expec
 
 def test_yaml_safe_load_still_reads_number_forms_as_yaml_1_1() -> None:
     assert yaml.safe_load("045") == 37
+
+
+def test_a_base_60_number_setting_skips_only_its_pier(tmp_path: Path) -> None:
+    text = (
+        VALID_CONFIG
+        + """    go_threshold: 1:05
+  - id: other
+    latitude: 51.50
+    longitude: -0.12
+    elevation_m: 30
+"""
+    )
+
+    config = load_config(_write(tmp_path, text))
+
+    assert [pier.id for pier in config.piers] == ["other"]
+
+
+@pytest.mark.parametrize("value", ["1:30", "1:30.5"])
+def test_a_base_60_id_is_text(tmp_path: Path, value: str) -> None:
+    config = load_config(_write(tmp_path, VALID_CONFIG.replace("id: backyard", f"id: {value}")))
+
+    assert config.piers[0].id == value
