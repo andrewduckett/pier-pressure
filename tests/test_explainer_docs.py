@@ -17,7 +17,7 @@ from pierpressure.core.config import load_config
 
 _ROOT = Path(__file__).resolve().parent.parent
 _DOC = _ROOT / "docs" / "llm-explainer.md"
-_SAMPLE = _ROOT / "docs" / "examples" / "config.explainer.yaml"
+_SAMPLE = _ROOT / "docs" / "examples" / "explainer-config.yaml"
 
 
 def test_explainer_doc_exists() -> None:
