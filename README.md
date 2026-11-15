@@ -556,7 +556,7 @@ hold every key except `timeline`, which would push them past Home Assistant's
 | `dark_window` | object | Tonight's astronomical night: `{ start, end }`. |
 | `scored_window` | object | The part of `dark_window` that the verdict judged: `{ start, end }`. |
 | `moon` | object | The moon's illumination, phase, and behaviour during the dark window. |
-| `timeline` | list | One entry per hour of weather the sources returned, with the sun and moon altitude. Evidence beside the verdict, not part of it. Delivered on the timeline sensors, one per variable; see [docs/night-timeline.md](docs/night-timeline.md). |
+| `timeline` | list | One entry per hour of weather the sources returned, with the sun and moon altitude. It also always holds the hours of the night the verdict judges, even when every provider fails, with null weather where no source returned the hour. Evidence beside the verdict, not part of it. Delivered on the timeline sensors, one per variable; see [docs/night-timeline.md](docs/night-timeline.md). |
 | `observation` | object or `null` | The latest report from the pier's `metar_station`: `{ station, observed_at, cover, clouds }`. `observed_at` is when the station measured. `cover` is the report's overall code, such as `BKN` or `CLR`. `clouds` lists each layer as reported, `{ cover, base_ft }`, with `base_ft` in feet above ground or `null` when the report gives none. `null` when the pier names no station, the fetch failed, or the report was measured more than 90 minutes before `generated_at`. Evidence beside the verdict, not part of it. |
 
 **`dark_window`** is when the sun's centre is more than 18° below the horizon.
