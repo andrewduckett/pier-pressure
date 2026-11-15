@@ -17,6 +17,7 @@ import logging
 import math
 import os
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -42,6 +43,11 @@ logger = logging.getLogger(__name__)
 # The log line for a skipped pier, from any interface. The add-on's docs tell users
 # to search the log for it (addon-form-horizon D2).
 SKIP_PIER_MESSAGE = "Skipping invalid pier %r: %s"
+
+# Writes a skipped pier's error from the pier as given and the core's error. An
+# interface passes one to word the error in its own terms; it must not decide
+# whether the pier is valid (ADR-0022, addon-horizon-error-labels D4).
+PierErrorWriter = Callable[[Any, ValidationError], str]
 
 _ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _METAR_STATION = re.compile(r"[A-Z][A-Z0-9]{3}")
@@ -673,14 +679,20 @@ def _block_error(
     return ConfigError(f"Invalid {block} configuration: " + "; ".join(problems))
 
 
-def validate_piers(raw_piers: list[Any], base_dir: Path | None = None) -> list[PierConfig]:
+def validate_piers(
+    raw_piers: list[Any],
+    base_dir: Path | None = None,
+    *,
+    write_error: PierErrorWriter | None = None,
+) -> list[PierConfig]:
     """Validate each pier independently; log and skip invalid ones.
 
     Returns the list of valid piers (possibly empty). This is the per-pier
     validation isolation from the spec: one bad entry — including an invalid or
     unreadable horizon — never disables the rest. ``base_dir`` is passed as
     Pydantic validation context so a relative horizon file path resolves against
-    the config file's directory (design D3).
+    the config file's directory (design D3). ``write_error``, when given, writes
+    each skipped pier's error for the log; otherwise the core's error is logged.
     """
     context = {"base_dir": base_dir}
     valid: list[PierConfig] = []
@@ -689,5 +701,6 @@ def validate_piers(raw_piers: list[Any], base_dir: Path | None = None) -> list[P
             valid.append(PierConfig.model_validate(raw_pier, context=context))
         except ValidationError as exc:
             pier_id = raw_pier.get("id") if isinstance(raw_pier, dict) else None
-            logger.error(SKIP_PIER_MESSAGE, pier_id, exc)
+            text = exc if write_error is None else write_error(raw_pier, exc)
+            logger.error(SKIP_PIER_MESSAGE, pier_id, text)
     return valid
