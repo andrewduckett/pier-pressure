@@ -519,6 +519,21 @@ def test_turn_on_the_explainer_names_where_each_setting_goes(words: str) -> None
 
 
 @pytest.mark.parametrize(
+    "words",
+    ["**Enabled**", "**AI Task entity**", "AI Task", "administrator", "in one place only"],
+)
+def test_turn_on_the_explainer_describes_the_ai_task_way(words: str) -> None:
+    # addon-explainer-ai-task DD6, ADR-0042.
+    assert words in _docs_section("Turn on the explainer")
+
+
+def test_turn_on_the_explainer_says_a_slow_model_gives_no_narrative() -> None:
+    section = _docs_section("Turn on the explainer")
+    assert "5 seconds" in section
+    assert "no paragraph" in section
+
+
+@pytest.mark.parametrize(
     ("key", "field"), [("min_altitude", "min_altitude"), ("points", "horizon_points")]
 )
 def test_horizon_error_labels_match_the_form(key: str, field: str) -> None:

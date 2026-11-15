@@ -238,12 +238,47 @@ pier's verdict. The paragraph appears on the pier's **Narrative** sensor. It
 never changes the verdict, score or confidence. The explainer is off until you
 turn it on.
 
+You can turn it on in one of two ways:
+
+- **With Home Assistant's AI Task.** Home Assistant writes the paragraph with
+  the AI integration you already use, such as OpenAI, Google Gemini or Ollama.
+  You set it all on the Configuration tab, and need no API key here.
+- **With an API key.** The add-on calls your AI provider itself. You put the key
+  on the Configuration tab, and turn the explainer on in `config.yaml`.
+
+### With Home Assistant's AI Task
+
+You need an AI integration that gives an AI Task entity, such as
+`ai_task.openai`. To find it, go to **Settings** > **Devices & services** >
+**Entities** and search for `ai_task`.
+
+1. **Fill in the explainer.** On the Configuration tab, under **Explainer**,
+   turn on **Enabled** and enter the entity in **AI Task entity**. Then save.
+2. **Restart the add-on.** The log names the entity, for example
+   `Narrative from the AI Task entity ai_task.openai`.
+
+With an AI Task entity set, the add-on does not use **API key** or
+`explainer.model`.
+
+Before you choose this way, know that:
+
+- **The add-on gains administrator access to Home Assistant.** To call the AI
+  Task action, it asks the Supervisor for Home Assistant's API, and the
+  Supervisor gives that access to the whole API. PierPressure uses it only to
+  ask for the paragraph.
+- **A slow model gives no paragraph.** The explainer waits about 5 seconds for
+  each paragraph. If the model takes longer, as a local model on small hardware
+  can, the pier gets no paragraph that time, and the **Narrative** sensor reads
+  unavailable. The verdict is still delivered.
+
+### With an API key
+
 Its settings live in two places:
 
 | Setting | Where you set it | Example |
 | --- | --- | --- |
 | **API key**, the key your AI provider gives you | The **Explainer** part of the Configuration tab. The tab hides it as you type. | |
-| `explainer.enabled`, which turns the explainer on | `config.yaml` | `true` |
+| `explainer.enabled`, which turns the explainer on | `config.yaml`, or **Enabled** on the tab | `true` |
 | `explainer.model`, the provider and model, as `provider:model` | `config.yaml`. Leave it out for `anthropic:claude-opus-5`. | `openai:gpt-4o` |
 
 1. **Enter the key.** On the Configuration tab, fill in **API key** under
@@ -267,6 +302,13 @@ stops the add-on, and its configuration error names `explainer.api_key`.
 A key on its own does nothing: without `explainer.enabled: true`, the explainer
 stays off. For the models you can use, see the
 [explainer's documentation](https://github.com/andrewduckett/pier-pressure/blob/main/docs/llm-explainer.md).
+
+### Set explainer.enabled in one place only
+
+You can turn the explainer on with **Enabled** on the tab or with
+`explainer.enabled` in `config.yaml`. Set it in one place only: in both places,
+the add-on stops, and its configuration error names `explainer.enabled`. A
+switch you turn off on the tab counts as not set, so `config.yaml` then decides.
 
 ## Add settings with config.yaml
 
@@ -339,6 +381,8 @@ below counts as one setting, so set it in one place only:
 | A pier's equipment | any of the four equipment fields | the pier's `equipment` |
 | The broker connection | **Host**, **Port**, **Username** or **Password** | `mqtt.host`, `mqtt.port`, `mqtt.username` or `mqtt.password` |
 | The recompute interval | **Recompute interval** | `recompute` |
+| The explainer's switch | **Enabled**, when it is on | `explainer.enabled` |
+| The explainer's AI Task entity | **AI Task entity** | `explainer.ai_task_entity` |
 | The explainer's API key | **API key** | `explainer.api_key` |
 
 Every other setting, such as a pier's `latitude`, counts on its own. The tab
@@ -482,8 +526,8 @@ as usual.
 The Configuration tab shows only four parts, so far: the
 **Recompute interval**; the **Piers**, each with its Location, Horizon,
 Equipment and Verdict fields; the **MQTT broker**; and the **Explainer**, which
-holds only its API key. Add any other setting, such as a horizon file or
-`explainer.enabled`, in `config.yaml`. See
+holds its switch, its AI Task entity and its API key. Add any other setting,
+such as a horizon file or `explainer.model`, in `config.yaml`. See
 [Add settings with config.yaml](#add-settings-with-configyaml). For every
 setting, see the
 [Configuration section of the README](https://github.com/andrewduckett/pier-pressure#️-configuration).
