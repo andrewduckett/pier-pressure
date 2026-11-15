@@ -17,8 +17,16 @@
 - [x] 3.1 [medium] Through `load_app_config` inside the add-on, a form that lists `backyard` twice raises a `ConfigError` that names `backyard`, with no `config.yaml` and with a `config.yaml` that adds `metar_station` to `backyard` (design DD4) (verify: uv run pytest tests/test_main.py -k repeated_id) (✓ uv run pytest tests/test_main.py -k repeated_id passed)
 - [x] 3.2 [easy] Through `load_app_config` inside the add-on, a form pier's `horizon_points` of `[[045, 10], [180, 5]]` gives the samples `(45, 10)` and `(180, 5)`, and `[[1:30, 20], [180, 5]]` skips that pier with a logged error that names it and `horizon.points` while the other form pier loads (verify: uv run pytest tests/test_main.py -k horizon_points) (✓ uv run pytest tests/test_main.py -k horizon_points passed)
 - [x] 3.3 [easy] The README's configuration table says each pier needs its own id, that an id that looks like a number must be quoted, that a zero-padded number such as `045` reads as 45, and that `1:30` is not a number (design DD5) (verify: grep -q "045" README.md) (✓ grep -q "045" README.md passed)
-- [ ] 3.4 [easy] The whole change passes the CI gate (verify: mise run check)
+- [x] 3.4 [easy] The whole change passes the CI gate (verify: mise run check) (✓ mise run check passed)
 
 ## Deviations Ledger
 
 <!-- Dated notes on small departures from the plan, written during apply. Stop and ask the user about a large one. -->
+
+- 2026-11-15, task 3.3: the README's configuration table had no `id` row for
+  DD5 to extend, so the task added one. The number rules went in a short note
+  under the table rather than in the `horizon` row, because they hold for every
+  setting.
+- 2026-11-15, tasks 1.2, 1.5, 2.2, 2.3, 3.1 and 3.2: each test passed when first
+  run, because an earlier task's code already gave the behavior. Each was
+  checked instead by breaking that code briefly and watching the test fail.
