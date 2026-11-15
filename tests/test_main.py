@@ -39,7 +39,7 @@ from pierpressure.delivery.mqtt import (
     availability_topic,
     verdict_state_topic,
 )
-from pierpressure.explain import NarrativeExplainer
+from pierpressure.explain import NarrativeExplainer, no_op_explainer
 from pierpressure.explain.provider import PydanticAIProvider
 from pierpressure.service import Service
 from pierpressure.supervisor import SupervisorError, fetch_mqtt_broker
@@ -1674,6 +1674,23 @@ def test_the_form_explainer_key_reaches_the_explainer(
     assert "Settings from the Configuration tab and config.yaml" in [
         r.getMessage() for r in caplog.records
     ]
+
+
+def test_the_form_explainer_key_alone_leaves_the_explainer_off(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    # Only config.yaml's explainer.enabled turns it on (addon-explainer-key-option D4).
+    _form_with_explainer_key(monkeypatch, options_file, BACKYARD)
+    StartupStub(monkeypatch)
+
+    config = _load(_no_file(tmp_path))
+    _delivery, explainer = entry.build_delivery_and_explainer(config)
+
+    # The narrative entity is managed only while the explainer is enabled.
+    assert [pier.id for pier in config.piers] == ["backyard"]
+    assert config.explainer is not None
+    assert not config.explainer.enabled
+    assert explainer is no_op_explainer
 
 
 # --------------------------------------------------------------------------- #
