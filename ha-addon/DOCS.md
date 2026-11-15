@@ -11,26 +11,44 @@ file, you add a `config.yaml` file. See
 
 ## Set up the add-on
 
+The Configuration tab has three parts, from top to bottom: the recompute
+interval, the piers and the MQTT broker. These steps walk through them in that
+order. Each field on the tab also has help text that says what to enter.
+
 1. **Open the add-on's Configuration tab.**
-2. **Check the recompute interval.** It is how often PierPressure recomputes the
-   verdict, in seconds. The default, 900, is 15 minutes.
-3. **Add a pier.** Under **Piers**, add an entry for each place you observe from.
-   Give it:
-   - a **Pier ID**, a short name such as `backyard`. Use only letters, digits and
-     underscores, because the ID becomes part of the MQTT topics and entity IDs.
-   - the **Location** fields: its latitude and longitude in degrees, and its
-     elevation above sea level, in metres. North and east are positive; south
-     and west are negative. A phone that shows 87.88° W means `-87.88`.
-   - optionally, the **Horizon** fields. See
-     [Set a pier's horizon](#set-a-piers-horizon).
-   - optionally, the **Equipment** fields. See
+2. **Check the interval.** **Recompute interval** is how often PierPressure
+   recomputes every pier's verdict, in seconds. Keep the default, 900, which is
+   15 minutes, unless you need fresher verdicts. To get a new verdict between
+   times, press the **Refresh** button on the pier's device.
+3. **Add a pier.** Under **Piers**, add an entry for each place you observe
+   from. Each pier opens a dialog. Its fields come in the order below, and each
+   label after the Pier ID starts with its section's name, such as
+   **Horizon: floor**. Fill in the pier's:
+   - **Pier ID**, a short name such as `backyard`. Use only lowercase letters,
+     digits and underscores, because the ID becomes part of the MQTT topics and
+     entity IDs. If you change it later, Home Assistant gets a new device for
+     the pier.
+   - **Location** fields, which are required: **Location: latitude** and
+     **Location: longitude** in decimal degrees, and **Location: elevation**
+     above sea level, in metres. North and east are positive; south and west
+     are negative. A phone that shows 87.88° W means `-87.88`.
+   - **Horizon** fields, if trees or buildings block your low sky. They are
+     optional. See [Set a pier's horizon](#set-a-piers-horizon).
+   - **Equipment** fields, if you want targets ranked on how they fit your
+     camera. They are optional. See
      [Set a pier's equipment](#set-a-piers-equipment).
-   - optionally, the **Verdict** fields: its GO threshold and wind-gust limit. See
+   - **Verdict** fields, if you want another GO threshold or a wind-gust
+     limit. They are optional. See
      [Set a pier's GO threshold and wind-gust limit](#set-a-piers-go-threshold-and-wind-gust-limit).
-4. **Save, then start the add-on.** The add-on reads the tab only when it starts.
+4. **Leave the broker empty, or set it.** The last part of the tab is
+   **MQTT broker**. Leave it empty to use the Mosquitto broker add-on: the
+   add-on asks Home Assistant's Supervisor for its host, port, username and
+   password, so you enter no password. To use another broker, see
+   [Use a different broker](#use-a-different-broker).
+5. **Save, then start the add-on.** The add-on reads the tab only when it starts.
    If it is already running, restart it when Home Assistant offers to, or from
    the **Info** tab.
-5. **Check the log.** Open the **Log** tab. The first line ends with the
+6. **Check the log.** Open the **Log** tab. The first line ends with the
    version, for example `PierPressure 2026.10.0`. Later lines name where the
    settings and the broker came from:
 
@@ -39,10 +57,7 @@ file, you add a `config.yaml` file. See
    MQTT broker from the Supervisor's mqtt service: core-mosquitto:1883
    ```
 
-   The add-on asks Home Assistant's Supervisor for the Mosquitto add-on's broker,
-   and uses its host, port, username and password. You enter no password. To use
-   another broker, see [Use a different broker](#use-a-different-broker).
-6. **Find the entities.** Open **Settings → Devices & services → MQTT**. A device
+7. **Find the entities.** Open **Settings → Devices & services → MQTT**. A device
    named `PierPressure <pier>` appears for each pier.
 
 ## Set a pier's horizon

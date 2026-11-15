@@ -348,6 +348,40 @@ def test_a_broker_login_field_says_it_needs_a_host(field: str) -> None:
     assert "only with a host" in entry["description"]
 
 
+# The Configuration tab's parts, and a pier's dialog inside Piers, top to bottom.
+TAB_ORDER = [
+    "Recompute interval",
+    "Piers",
+    "Pier ID",
+    *_section_leaders(),
+    "MQTT broker",
+]
+
+
+def _docs_section(heading: str) -> str:
+    docs = ADDON_DOCS.read_text(encoding="utf-8")
+    _, found, rest = docs.partition(f"\n## {heading}\n")
+    assert found, f"DOCS.md has no section {heading!r}"
+    return rest.split("\n## ", 1)[0]
+
+
+def _first_part_out_of_order(text: str) -> str | None:
+    bold = [f"**{part}**" for part in TAB_ORDER]
+    out_of_order = _first_out_of_order(text, bold)
+    return out_of_order.strip("*") if out_of_order else None
+
+
+def test_the_setup_steps_follow_the_tab_order() -> None:
+    # addon-form-text D7.
+    assert _first_part_out_of_order(_docs_section("Set up the add-on")) is None
+
+
+def test_the_setup_steps_check_names_a_part_out_of_order() -> None:
+    early_broker = [TAB_ORDER[0], TAB_ORDER[-1], *TAB_ORDER[1:-1]]
+    steps = " then ".join(f"**{part}**" for part in early_broker)
+    assert _first_part_out_of_order(steps) == "MQTT broker"
+
+
 @pytest.mark.parametrize(
     ("path", "unit"),
     [
