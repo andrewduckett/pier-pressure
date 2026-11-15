@@ -40,6 +40,10 @@ OPTIONS_PATH = "/data/options.json"
 # The form fields that become the pier's ``horizon`` block.
 HORIZON_FIELDS = ("min_altitude", "horizon_points")
 
+# Each ``horizon`` block key and the label of its form field, for errors the
+# add-on words in the form's terms (addon-horizon-error-labels D8).
+HORIZON_LABELS = {"min_altitude": "Horizon: floor", "points": "Horizon: points"}
+
 # Each form field and the key it becomes in the pier's ``equipment`` block.
 EQUIPMENT_FIELDS = {
     "equipment_focal_length_mm": "focal_length_mm",

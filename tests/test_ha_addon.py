@@ -18,6 +18,8 @@ import pytest
 import yaml
 from next_version import RELEASE_TAG
 
+from pierpressure.addon_options import HORIZON_LABELS
+
 ROOT = Path(__file__).resolve().parent.parent
 REPOSITORY_FILE = ROOT / "repository.yaml"
 ADDON_CONFIG = ROOT / "ha-addon" / "config.yaml"
@@ -492,3 +494,12 @@ def test_the_addon_docs_say_to_set_the_firms_key_in_config_yaml() -> None:
 def test_turn_on_the_explainer_names_where_each_setting_goes(words: str) -> None:
     # The key on the tab, the rest in config.yaml (addon-explainer-key-option D9).
     assert words in _docs_section("Turn on the explainer")
+
+
+@pytest.mark.parametrize(
+    ("key", "field"), [("min_altitude", "min_altitude"), ("points", "horizon_points")]
+)
+def test_horizon_error_labels_match_the_form(key: str, field: str) -> None:
+    # The add-on names these in the both-fields error (addon-horizon-error-labels D8).
+    fields = _load(ADDON_TRANSLATIONS)["configuration"]["piers"]["fields"]
+    assert HORIZON_LABELS[key] == fields[field]["name"]
