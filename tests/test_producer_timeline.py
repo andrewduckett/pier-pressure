@@ -18,7 +18,7 @@ from pierpressure.core.providers import (
     SEVEN_TIMER,
     ProviderSpec,
 )
-from pierpressure.core.sky import dark_window
+from pierpressure.core.sky import dark_window, night_hours
 
 from .conftest import make_pier, provider_series
 from .offline_guard import no_network
@@ -56,6 +56,7 @@ def test_the_timeline_spans_the_sorted_union_of_both_providers() -> None:
     base_times = _hours(day, 24)
     secondary_times = _hours(day + timedelta(hours=12), 48)
     # Out of order on input: the timeline must sort, not trust the provider's order.
+    # At 14:00 the night's hours run from 12:00 to 11:00 next day, inside the span.
     conditions = _conditions(
         base=_base(list(reversed(base_times)), cloud_cover=10.0),
         secondary=_secondary(secondary_times, seeing=0.5),
@@ -258,8 +259,7 @@ def test_past_hours_stay_and_the_scored_window_starts_at_the_instant() -> None:
     with no_network():
         doc = produce_verdict(make_pier(), FixedClock(_MID_SESSION), conditions)
 
-    assert [entry.time for entry in doc.timeline] == times
-    assert doc.timeline[0].cloud_cover == 10.0
+    assert [entry.time for entry in doc.timeline if entry.cloud_cover == 10.0] == times
     assert doc.scored_window.start == _MID_SESSION
 
 
@@ -276,7 +276,8 @@ def test_the_timeline_fills_without_a_dark_window() -> None:
         baseline = produce_verdict(pier, clock, Conditions())
 
     assert doc.dark_window.start is None
-    assert [entry.time for entry in doc.timeline] == times
+    night = night_hours(pier, clock.now(), (None, None))
+    assert [entry.time for entry in doc.timeline] == sorted({*times, *night})
     assert doc.model_dump_json(exclude={"timeline"}) == baseline.model_dump_json(
         exclude={"timeline"}
     )
@@ -300,6 +301,11 @@ def test_hours_outside_the_dark_window_change_no_other_field() -> None:
             return produce_verdict(pier, clock, conditions).model_dump_json(exclude={"timeline"})
 
     assert _doc(inside) == _doc(wider)
+
+
+def test_the_docstring_says_the_timeline_always_holds_the_night_hours() -> None:
+    assert produce_verdict.__doc__ is not None
+    assert "always holds the selected night's hours" in " ".join(produce_verdict.__doc__.split())
 
 
 def test_the_docstring_no_longer_says_conditions_are_not_consulted() -> None:
@@ -358,13 +364,15 @@ def test_two_alternates_draw_the_band_for_an_hour_the_filled_series_lacks() -> N
 
 
 def test_hours_only_an_alternate_covers_add_no_entry() -> None:
-    night = _hours(datetime(2026, 9, 8, 20, tzinfo=UTC), 8)
-    long_run = _hours(datetime(2026, 9, 8, 20, tzinfo=UTC), 56)
+    night = _hours(datetime(2026, 9, 8, 20, tzinfo=UTC), 23)
+    long_run = _hours(datetime(2026, 9, 8, 20, tzinfo=UTC), 71)
     conditions = Conditions(
         series=_base(night, cloud_cover=40.0),
         alternates={"cloud_cover": (_alternate(long_run, OPEN_METEO_GFS, 70.0),)},
     )
-    assert [entry.time for entry in _timeline(conditions)] == night
+    with no_network():
+        doc = produce_verdict(make_pier(), FixedClock(_EVENING), conditions)
+    assert doc.timeline[-1].time == datetime(2026, 9, 9, 18, tzinfo=UTC)
 
 
 def _air_quality(times: list[datetime], aerosol: float, pm2_5: float) -> dict[Variable, Series]:
@@ -381,12 +389,14 @@ def _air_quality(times: list[datetime], aerosol: float, pm2_5: float) -> dict[Va
 
 
 def test_hours_only_a_hidden_variable_covers_add_no_entry() -> None:
-    night = _hours(datetime(2026, 9, 8, 20, tzinfo=UTC), 8)
-    long_run = _hours(datetime(2026, 9, 8, 20, tzinfo=UTC), 56)
+    night = _hours(datetime(2026, 9, 8, 20, tzinfo=UTC), 23)
+    long_run = _hours(datetime(2026, 9, 8, 20, tzinfo=UTC), 71)
     conditions = Conditions(
         series={**_base(night, cloud_cover=40.0), **_air_quality(long_run, 0.14, 8.8)}
     )
-    assert [entry.time for entry in _timeline(conditions)] == night
+    with no_network():
+        doc = produce_verdict(make_pier(), FixedClock(_EVENING), conditions)
+    assert doc.timeline[-1].time == datetime(2026, 9, 9, 18, tzinfo=UTC)
 
 
 def test_air_quality_series_alone_yield_the_empty_conditions_document() -> None:
@@ -397,6 +407,7 @@ def test_air_quality_series_alone_yield_the_empty_conditions_document() -> None:
         doc = produce_verdict(pier, clock, Conditions(series=_air_quality(times, 0.14, 8.8)))
         empty = produce_verdict(pier, clock, Conditions())
     assert doc.model_dump_json() == empty.model_dump_json()
+    assert [entry.time for entry in doc.timeline] == _NIGHT_HOURS
 
 
 def test_air_quality_series_leave_the_document_byte_identical() -> None:

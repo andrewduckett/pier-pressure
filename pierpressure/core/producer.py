@@ -54,9 +54,9 @@ def produce_verdict(
 
     When the selected night has no dark window, astronomy alone decides the
     verdict (a NO-GO) and ignores the conditions, matching the rule that no dark
-    window means conditions are not required. The ``timeline`` still carries every
-    hour the providers returned: it is evidence beside the verdict, never an input
-    to it (ADR-0025).
+    window means conditions are not required. The ``timeline`` always holds the
+    selected night's hours, beside every hour the providers returned: it is
+    evidence beside the verdict, never an input to it (ADR-0025).
 
     ``observation`` is the pier's latest METAR, fetched beside ``conditions``. It
     reaches the document when it is usable at the instant (metar-reason DD1), and
