@@ -51,6 +51,7 @@ PierErrorWriter = Callable[[Any, ValidationError], str]
 
 _ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _METAR_STATION = re.compile(r"[A-Z][A-Z0-9]{3}")
+_AI_TASK_ENTITY = re.compile(r"ai_task\.[a-z0-9_]+")
 
 # The system-wide go-threshold applied when a pier omits its own (design D8, and
 # the tuning value locked in task 5.1). A gate-passing night scores GO at or
@@ -360,6 +361,16 @@ class ExplainerConfig(BaseModel):
     model: str = "anthropic:claude-opus-5"
     # Masked when printed; read only to call the LLM provider (D4).
     api_key: SecretStr | None = None
+    # Set, the narrative comes from this Home Assistant AI Task entity instead of
+    # ``model`` and ``api_key`` (addon-explainer-ai-task DD4).
+    ai_task_entity: str | None = None
+
+    @field_validator("ai_task_entity")
+    @classmethod
+    def _check_ai_task_entity(cls, entity: str | None) -> str | None:
+        if entity is not None and not _AI_TASK_ENTITY.fullmatch(entity):
+            raise ValueError("must be an AI Task entity ID, such as ai_task.openai")
+        return entity
 
 
 class FirmsConfig(BaseModel):

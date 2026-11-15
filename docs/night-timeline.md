@@ -7,7 +7,11 @@ timeline sensors deliver it to Home Assistant, and how to chart it.
 ## What the timeline is
 
 The verdict document has a `timeline` field: a list with one entry per clock
-hour. It covers every hour a provider returned for a variable it shows, usually
+hour. It always holds the hours of the night the verdict judges: every hour
+from solar noon before the night to the next solar noon, and from the current
+hour when that is earlier, as it is each morning. It holds them even when every
+provider fails, so the sun and moon altitudes are always there. Beside those
+hours, it covers every hour a provider returned for a variable it shows, usually
 two to three days, including hours that have already passed. Entries are in
 time order. Some providers return variables the timeline does not show, such as
 aerosol optical depth and PM2.5 from the air-quality forecast. The
@@ -30,8 +34,9 @@ Each entry has the same keys, always present:
 
 Each weather value comes from the first provider in the pier's `providers` list
 that gives it, so different values can come from different providers. A weather
-value is `null` when its source has no data for that hour. The sun and moon
-altitudes are always present.
+value is `null` when its source has no data for that hour. In an hour no
+provider returned, every weather value is `null`. The sun and moon altitudes are
+always present.
 
 The timeline is evidence, not a decision. The verdict still judges one night,
 the one `dark_window` names. Clear hours on a later night do not change
@@ -74,16 +79,15 @@ Every timeline sensor works the same way:
   Each sensor judges its own value, so Seeing can be unknown while Cloud low has
   a value in the same hour.
 
-When the current hour has no value for a sensor, or the timeline is empty, its
-state is `unknown`. It never shows `0` or an older value instead. The sensor stays
-available, so `forecast` is still there for a chart. It is unavailable only when
-PierPressure is offline, and then Home Assistant hides all its attributes.
+When the current hour has no value for a sensor, its state is `unknown`. It
+never shows `0` or an older value instead. The sensor stays available, so
+`forecast` is still there for a chart. It is unavailable only when PierPressure
+is offline, and then Home Assistant hides all its attributes.
 
-Every timeline sensor shows `unknown` when no weather source returned the
-current hour: the altitudes too. A timeline entry, and the altitudes in it, is
-always present for each hour a source returned, but there is no entry for an
-hour no source returned. To tell whether it is dark, use the Verdict sensor's
-`dark_window` instead.
+The Sun altitude and Moon altitude sensors always have a state, even when every
+provider fails: PierPressure computes the altitudes offline, and the timeline
+always holds the current hour. The weather sensors show `unknown` when no
+provider returned the current hour.
 
 ### An altitude is for the start of the hour
 

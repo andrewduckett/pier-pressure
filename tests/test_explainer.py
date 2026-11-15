@@ -460,3 +460,92 @@ def test_build_explainer_wires_a_real_provider_when_enabled() -> None:
         ExplainerConfig(enabled=True, model="anthropic:claude-opus-5", api_key="k")
     )
     assert isinstance(explainer, NarrativeExplainer)
+
+
+# --------------------------------------------------------------------------- #
+# addon-explainer-ai-task DD5: build_explainer picks the AI Task provider
+# --------------------------------------------------------------------------- #
+
+AI_TASK = "ai_task.openai"
+SUPERVISOR_TOKEN = "tok-3e9a"
+UNUSED_KEY = "sk-8c41f2"
+
+
+def _ai_task_config(**fields: Any) -> Any:
+    from pierpressure.core.config import ExplainerConfig
+
+    return ExplainerConfig(enabled=True, ai_task_entity=AI_TASK, **fields)
+
+
+def test_an_ai_task_entity_with_a_token_wires_the_ai_task_provider() -> None:
+    from pierpressure.explain.ai_task import AiTaskProvider
+
+    explainer = build_explainer(_ai_task_config(), supervisor_token=SUPERVISOR_TOKEN)
+
+    assert isinstance(explainer, NarrativeExplainer)
+    assert isinstance(explainer.provider, AiTaskProvider)
+    assert explainer.provider.entity_id == AI_TASK
+    assert explainer.provider.token == SUPERVISOR_TOKEN
+
+
+def test_the_ai_task_provider_never_holds_the_api_key() -> None:
+    explainer = build_explainer(
+        _ai_task_config(api_key=UNUSED_KEY), supervisor_token=SUPERVISOR_TOKEN
+    )
+
+    assert isinstance(explainer, NarrativeExplainer)
+    assert UNUSED_KEY not in repr(vars(explainer.provider))
+
+
+def test_the_startup_log_names_the_ai_task_entity(caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level(logging.INFO):
+        build_explainer(_ai_task_config(), supervisor_token=SUPERVISOR_TOKEN)
+
+    assert AI_TASK in caplog.text
+    assert "api_key" not in caplog.text
+
+
+def test_an_unused_api_key_is_reported_without_its_value(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.INFO):
+        build_explainer(_ai_task_config(api_key=UNUSED_KEY), supervisor_token=SUPERVISOR_TOKEN)
+
+    assert "explainer.api_key is not used" in caplog.text
+    assert UNUSED_KEY not in caplog.text
+
+
+def test_an_ai_task_entity_without_a_token_gives_the_no_op_explainer() -> None:
+    assert build_explainer(_ai_task_config()) is no_op_explainer
+
+
+def test_an_ai_task_entity_without_a_token_logs_one_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.INFO):
+        build_explainer(_ai_task_config())
+
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    assert "explainer.ai_task_entity" in warnings[0]
+    assert "Home Assistant add-on" in warnings[0]
+
+
+def test_a_token_alone_keeps_the_default_provider() -> None:
+    from pierpressure.core.config import ExplainerConfig
+
+    explainer = build_explainer(
+        ExplainerConfig(enabled=True, model="anthropic:claude-opus-5"),
+        supervisor_token=SUPERVISOR_TOKEN,
+    )
+
+    assert isinstance(explainer, NarrativeExplainer)
+    assert isinstance(explainer.provider, PydanticAIProvider)
+
+
+def test_a_disabled_explainer_ignores_the_ai_task_entity() -> None:
+    from pierpressure.core.config import ExplainerConfig
+
+    config = ExplainerConfig(enabled=False, ai_task_entity=AI_TASK)
+
+    assert build_explainer(config, supervisor_token=SUPERVISOR_TOKEN) is no_op_explainer

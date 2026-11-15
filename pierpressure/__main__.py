@@ -77,7 +77,10 @@ class LoadedConfig(NamedTuple):
 
 
 def build_delivery_and_explainer(
-    config: AppConfig, *, broker_from_supervisor: bool = False
+    config: AppConfig,
+    *,
+    broker_from_supervisor: bool = False,
+    supervisor_token: str | None = None,
 ) -> tuple[MqttDelivery, Explainer]:
     """Construct the delivery adapter and explainer from config (design D7).
 
@@ -91,6 +94,10 @@ def build_delivery_and_explainer(
     broker from the Supervisor gets :data:`SUPERVISOR_LOGIN_ADVICE`. A broker from
     the file or the form gets the adapter's default, which says to check the
     username and password (reconnect-restores-delivery D5).
+
+    ``supervisor_token`` lets an ``explainer.ai_task_entity`` reach Home Assistant.
+    It stays out of :class:`AppConfig`, so printing the settings never shows it
+    (addon-explainer-ai-task DD5).
     """
     manage_narrative = config.explainer is not None and config.explainer.enabled
     login_advice = SUPERVISOR_LOGIN_ADVICE if broker_from_supervisor else None
@@ -99,7 +106,7 @@ def build_delivery_and_explainer(
         manage_narrative=manage_narrative,
         login_advice=login_advice,
     )
-    explainer = build_explainer(config.explainer)
+    explainer = build_explainer(config.explainer, supervisor_token=supervisor_token)
     return delivery, explainer
 
 
@@ -239,7 +246,9 @@ def main(argv: list[str] | None = None) -> int:
     # Before anything fetches, so no request URL is logged unmasked.
     firms_key = _firms_key(config)
     delivery, explainer = build_delivery_and_explainer(
-        config, broker_from_supervisor=loaded.broker_from_supervisor
+        config,
+        broker_from_supervisor=loaded.broker_from_supervisor,
+        supervisor_token=os.environ.get("SUPERVISOR_TOKEN"),
     )
     clock = SystemClock()
     conditions = build_provider(config.conditions.providers, now=clock.now, firms_key=firms_key)
