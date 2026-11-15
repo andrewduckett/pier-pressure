@@ -39,6 +39,11 @@ export ANTHROPIC_API_KEY='sk-ant-...'
 uv run python -m pierpressure /path/to/config.yaml
 ```
 
+In the Home Assistant add-on, the add-on cannot read a variable you set. Put the
+key in the **API key** field of the add-on's Configuration tab instead, and
+leave `api_key` out of `config.yaml`. See
+[Turn on the explainer](../ha-addon/DOCS.md#turn-on-the-explainer).
+
 - `enabled` — the single switch. It wires both the LLM provider and the narrative
   entity; leave it out or set it `false` to keep the explainer off.
 - `model` — a Pydantic AI model spec, `provider:model-name`. Examples:

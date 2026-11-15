@@ -3,98 +3,156 @@
 configuration:
   interval_seconds:
     name: Recompute interval
-    description: How often to recompute the verdict, in seconds. 900 is 15 minutes.
+    description: >-
+      How often PierPressure recomputes every pier's verdict from fresh
+      forecasts, in seconds, a whole number of at least 1. Keep 900, which is
+      15 minutes, unless you need fresher verdicts. To get a new verdict between
+      times, press the Refresh button on the pier's device. This form always sets
+      the interval, so config.yaml cannot.
   piers:
     name: Piers
     description: >-
-      The places you observe from. Each pier gets its own verdict device. List
-      at least one. For a setting this form does not show, such as a horizon
-      file, add the pier to config.yaml with the same ID and only that setting.
+      The places you observe from. List at least one. Each pier gets its own
+      device in Home Assistant, with its own verdict. A pier's dialog starts with
+      its Pier ID, then four sections: Location, where the pier is; Horizon, what
+      blocks your sky; Equipment, your telescope and camera; and Verdict, how good
+      a night must be for GO. Each field's label starts with its section's name,
+      such as Horizon: floor. Only the Pier ID and the Location fields are
+      required. For a setting this form does not show, such as a horizon file,
+      add the pier to config.yaml with the same ID and only that setting.
     fields:
       id:
         name: Pier ID
         description: >-
-          A short name for the pier, such as backyard. It becomes part of the MQTT
-          topics and entity IDs, so keep it to letters, digits and underscores.
+          A short name for this pier, such as backyard or roof. It becomes part
+          of the pier's MQTT topics and entity IDs, so use only lowercase
+          letters, digits and underscores. If you change it later, Home
+          Assistant gets a new device for the pier.
       latitude:
-        name: Latitude
+        name: 'Location: latitude'
         description: >-
-          In degrees, from -90 to 90. North is positive and south is negative,
-          so 33.87° S is -33.87.
+          Location: where the pier is on Earth, for dusk, dawn and where each
+          target sits in your sky. Where the pier is, north or south, in decimal
+          degrees from -90 to 90. North of the equator is positive and south is
+          negative, so 33.87° S is -33.87. Four decimal places place the pier
+          within about 10 metres.
       longitude:
-        name: Longitude
+        name: 'Location: longitude'
         description: >-
-          In degrees, from -180 to 180. East is positive and west is negative,
-          so 87.88° W is -87.88.
+          Where the pier is, east or west, in decimal degrees from -180 to 180.
+          East of Greenwich is positive and west is negative, so 87.88° W is
+          -87.88.
       elevation_m:
-        name: Elevation
-        description: Height above sea level, in metres.
+        name: 'Location: elevation'
+        description: >-
+          The pier's height above sea level, in metres. A reading from a map or
+          a phone is close enough.
       min_altitude:
-        name: Horizon floor
+        name: 'Horizon: floor'
         description: >-
-          Optional. The lowest altitude a target must reach, in degrees from 0 to
-          90, the same in every direction. Leave it empty when you set horizon
-          points; the two cannot be used together.
+          Horizon: what blocks your sky. Fill in the floor or the points, or
+          neither for a flat horizon at 0°. Optional. The lowest altitude a
+          target must reach to count as visible, in degrees from 0 to 90, the
+          same in every direction. Use it when trees or roofs block about the
+          same height all round. Fill in this or Horizon: points, not both. With
+          both empty, the horizon is flat at 0°.
       horizon_points:
-        name: Horizon points
+        name: 'Horizon: points'
         description: >-
-          Optional. Your horizon as [azimuth, altitude] pairs in degrees, on one
-          line, such as [[0, 10], [90, 25], [180, 5]]. Leave it empty when you set
-          a horizon floor; the two cannot be used together.
+          Optional. The height of what blocks your sky, direction by direction,
+          as [azimuth, altitude] pairs in degrees, all on one line. Azimuth runs
+          clockwise from north: 0 is north, 90 east, 180 south, 270 west. For
+          example [[0, 10], [90, 25], [180, 5], [270, 15]]. Between two points
+          the horizon runs in a straight line. Fill in this or Horizon: floor,
+          not both.
       equipment_focal_length_mm:
-        name: Focal length
+        name: 'Equipment: focal length'
         description: >-
-          Optional. Your telescope's focal length, in millimetres. Set it with
-          sensor width and sensor height; the three go together.
+          Equipment: your telescope and camera, so targets that fit your field
+          of view rank higher. Optional. Your telescope's focal length, in
+          millimetres, without a reducer or barlow. With sensor width and
+          height, it lets PierPressure favour targets that fit your field of
+          view. Fill in all three, or none.
       equipment_sensor_width_mm:
-        name: Sensor width
+        name: 'Equipment: sensor width'
         description: >-
-          Optional. Your camera sensor's width, in millimetres. Set it with focal
-          length and sensor height; the three go together.
+          Optional. Your camera sensor's long side, in millimetres. The camera's
+          data sheet gives it, such as 23.5 for an APS-C sensor. Fill in focal
+          length, sensor width and sensor height together, or none of them.
       equipment_sensor_height_mm:
-        name: Sensor height
+        name: 'Equipment: sensor height'
         description: >-
-          Optional. Your camera sensor's height, in millimetres. Set it with focal
-          length and sensor width; the three go together.
+          Optional. Your camera sensor's short side, in millimetres, such as
+          15.7 for an APS-C sensor. Fill in focal length, sensor width and
+          sensor height together, or none of them.
       equipment_reducer:
-        name: Reducer or barlow
+        name: 'Equipment: reducer or barlow'
         description: >-
-          Optional. The factor of a focal reducer or barlow, with no unit, such
-          as 0.8 or 2. Leave it empty for 1.0, when you use neither.
+          Optional. The factor printed on your focal reducer or barlow, with no
+          unit, such as 0.8 for a reducer or 2 for a barlow. Leave it empty for
+          1.0, when you use neither.
       go_threshold:
-        name: GO threshold
+        name: 'Verdict: GO threshold'
         description: >-
-          Optional. The score from 0 to 100, with no unit, that a night needs for
-          GO. Leave it empty for 65.
+          Verdict: how good a night must be for GO, and how much wind makes it
+          NO-GO. Optional. The score from 0 to 100, with no unit, that a night
+          needs for GO. A night that passes every check but scores lower is
+          MAYBE. Leave it empty for 65.
       max_gust:
-        name: Wind-gust limit
+        name: 'Verdict: wind-gust limit'
         description: >-
-          Optional. The wind gust, in km/h, above which the night is NO-GO. Leave
-          it empty for no wind gate, so no forecast gust makes the night NO-GO.
+          Optional. The strongest wind gust you will image in, in km/h. A
+          forecast gust above it during the dark hours makes the night NO-GO.
+          Leave it empty for no wind gate, so wind never makes the night NO-GO.
   mqtt:
     name: MQTT broker
     description: >-
-      Optional. The broker to publish to. Leave the host empty to use the broker
-      set in config.yaml, or else the Mosquitto broker add-on.
+      Optional. The MQTT broker PierPressure publishes its verdicts to. Most
+      setups leave every field here empty: the add-on then uses the broker set
+      in config.yaml, or else the Mosquitto broker add-on, and needs no
+      password. Fill in a host only to use another broker.
     fields:
       host:
         name: Host
         description: >-
-          The broker's host name or IP address, such as 192.168.1.10. When you set
-          it, the add-on takes the host, port, username and password from this
-          form only.
+          Optional. The broker's host name or IP address, such as 192.168.1.10
+          or broker.lan. When you set it, the add-on takes the host, port,
+          username and password from this form only, and does not use the
+          Mosquitto add-on or config.yaml. Leave it empty to use one of those.
       port:
         name: Port
         description: >-
           Optional. The broker's port, a number from 1 to 65535 with no unit.
-          Leave it empty for 1883, the usual MQTT port. Set it only with a host.
+          Leave it empty for 1883, the usual MQTT port. Set it only with a host:
+          without one, the add-on stops at startup with a configuration error.
       username:
         name: Username
         description: >-
           Optional. The name the add-on logs in with, if your broker needs a
-          login. Set it only with a host.
+          login. Leave it empty for a broker with no login. Set it only with a
+          host: without one, the add-on stops at startup with a configuration
+          error.
       password:
         name: Password
         description: >-
-          Optional. The password the add-on logs in with. The form hides it as
-          you type. Set it only with a host.
+          Optional. The password for that username. The form hides it as you
+          type, and the add-on never writes it to the log. Set it only with a
+          host: without one, the add-on stops at startup with a configuration
+          error.
+  explainer:
+    name: Explainer
+    description: >-
+      Optional. The explainer has an AI language model write a short paragraph
+      about each pier's verdict, on the pier's Narrative sensor. It never
+      changes the verdict. To turn it on, set explainer.enabled to true in
+      config.yaml, and pick the model there with explainer.model. Put the
+      model's API key here, so it does not sit in plain text in config.yaml.
+    fields:
+      api_key:
+        name: API key
+        description: >-
+          Optional. The key for the AI provider that explainer.model names, such
+          as Anthropic for anthropic:claude-opus-5. The form hides it as you
+          type. Set it here, not in config.yaml: a key in both places stops the
+          add-on at startup with a configuration error. Leave it empty if your
+          provider needs no key.

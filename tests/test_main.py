@@ -39,6 +39,8 @@ from pierpressure.delivery.mqtt import (
     availability_topic,
     verdict_state_topic,
 )
+from pierpressure.explain import NarrativeExplainer, no_op_explainer
+from pierpressure.explain.provider import PydanticAIProvider
 from pierpressure.service import Service
 from pierpressure.supervisor import SupervisorError, fetch_mqtt_broker
 
@@ -1046,6 +1048,63 @@ def test_a_bad_form_horizon_skips_only_its_pier(
     assert ("horizon.points" in error) is names_field
 
 
+BOTH_HORIZON_FIELDS = {"min_altitude": 10, "horizon_points": "[[0, 5], [180, 10]]"}
+
+
+def test_both_horizon_fields_name_labels_at_startup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    form = {**BACKYARD, **BOTH_HORIZON_FIELDS}
+    with caplog.at_level(logging.ERROR):
+        config = _form_piers(tmp_path, monkeypatch, options_file, form, ROOF_FORM)
+
+    assert [p.id for p in config.piers] == ["roof"]
+    [error] = _errors(caplog)
+    assert error.startswith("Skipping invalid pier 'backyard': ")
+    assert "Horizon: floor" in error
+    assert "Horizon: points" in error
+    assert "min_altitude" not in error
+
+
+def test_field_error_before_horizon_error_at_startup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # The core checks the horizon only once every field passes.
+    form = {**BACKYARD, **BOTH_HORIZON_FIELDS, "latitude": 95}
+    with caplog.at_level(logging.ERROR):
+        _form_piers(tmp_path, monkeypatch, options_file, form, ROOF_FORM)
+
+    [error] = _errors(caplog)
+    assert "latitude" in error
+    assert "Horizon: floor" not in error
+
+
+def test_file_horizon_sources_keep_names_at_startup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    (tmp_path / "config.yaml").write_text(
+        "piers:\n  - id: backyard\n    horizon:\n      min_altitude: 10\n"
+        "      points: [[0, 5], [180, 10]]\n",
+        encoding="utf-8",
+    )
+    with caplog.at_level(logging.ERROR):
+        _form_piers(tmp_path, monkeypatch, options_file, BACKYARD, ROOF_FORM)
+
+    [error] = _errors(caplog)
+    assert error.startswith("Skipping invalid pier 'backyard': ")
+    assert "got: points, min_altitude" in error
+    assert "Horizon: floor" not in error
+
+
 def test_malformed_saved_values_skip_only_their_pier(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1624,6 +1683,89 @@ def test_main_logs_a_block_error_without_its_secret(
     [error] = _errors(caplog)
     assert error.startswith(f"Configuration error: Invalid {named} configuration: ")
     assert marker not in caplog.text
+
+
+# --------------------------------------------------------------------------- #
+# addon-explainer-key-option: the form holds the explainer's key (D4, D5)
+# --------------------------------------------------------------------------- #
+
+FORM_EXPLAINER_KEY = "sk-8c41f2"
+
+
+def _form_with_explainer_key(
+    monkeypatch: pytest.MonkeyPatch, options_file: Path, *piers: Any
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    options_file.write_text(
+        json.dumps(
+            {
+                "interval_seconds": 600,
+                "piers": list(piers),
+                "explainer": {"api_key": FORM_EXPLAINER_KEY},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_the_form_explainer_key_reaches_the_explainer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _form_with_explainer_key(monkeypatch, options_file, BACKYARD)
+    StartupStub(monkeypatch)
+    text = "explainer:\n  enabled: true\n  model: openai:gpt-4o\n"
+
+    with caplog.at_level(logging.INFO, logger="pierpressure"):
+        config = _load(_config(tmp_path, text))
+    _delivery, explainer = entry.build_delivery_and_explainer(config)
+
+    assert isinstance(explainer, NarrativeExplainer)
+    provider = explainer.provider
+    assert isinstance(provider, PydanticAIProvider)
+    assert provider.model == "openai:gpt-4o"
+    assert provider.api_key is not None
+    assert provider.api_key.get_secret_value() == FORM_EXPLAINER_KEY
+    assert "Settings from the Configuration tab and config.yaml" in [
+        r.getMessage() for r in caplog.records
+    ]
+
+
+def test_the_form_explainer_key_alone_leaves_the_explainer_off(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    # Only config.yaml's explainer.enabled turns it on (addon-explainer-key-option D4).
+    _form_with_explainer_key(monkeypatch, options_file, BACKYARD)
+    StartupStub(monkeypatch)
+
+    config = _load(_no_file(tmp_path))
+    _delivery, explainer = entry.build_delivery_and_explainer(config)
+
+    # The narrative entity is managed only while the explainer is enabled.
+    assert [pier.id for pier in config.piers] == ["backyard"]
+    assert config.explainer is not None
+    assert not config.explainer.enabled
+    assert explainer is no_op_explainer
+
+
+def test_the_form_explainer_key_hidden_in_a_bad_explainer_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # addon-explainer-key-option D7.
+    _form_with_explainer_key(monkeypatch, options_file, BACKYARD)
+    StartupStub(monkeypatch)
+
+    with caplog.at_level(logging.DEBUG):
+        assert entry.main([_config(tmp_path, "explainer:\n  enabled: maybe\n")]) == 1
+
+    [error] = _errors(caplog)
+    assert error.startswith("Configuration error: Invalid explainer configuration: ")
+    assert FORM_EXPLAINER_KEY not in caplog.text
 
 
 # --------------------------------------------------------------------------- #

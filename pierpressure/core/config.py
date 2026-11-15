@@ -17,6 +17,7 @@ import logging
 import math
 import os
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -42,6 +43,11 @@ logger = logging.getLogger(__name__)
 # The log line for a skipped pier, from any interface. The add-on's docs tell users
 # to search the log for it (addon-form-horizon D2).
 SKIP_PIER_MESSAGE = "Skipping invalid pier %r: %s"
+
+# Writes a skipped pier's error from the pier as given and the core's error. An
+# interface passes one to word the error in its own terms; it must not decide
+# whether the pier is valid (ADR-0022, addon-horizon-error-labels D4).
+PierErrorWriter = Callable[[Any, ValidationError], str]
 
 _ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _METAR_STATION = re.compile(r"[A-Z][A-Z0-9]{3}")
@@ -175,6 +181,21 @@ class HorizonConfig(BaseModel):
         return points
 
 
+class HorizonSourcesError(ValueError):
+    """A horizon that sets more or fewer than one source.
+
+    ``sources`` names the sources it set, by their ``config.yaml`` keys, so an
+    interface can word the error in its own terms (addon-horizon-error-labels D3).
+    """
+
+    def __init__(self, sources: tuple[str, ...]) -> None:
+        super().__init__(
+            "a horizon must configure exactly one source "
+            "(points, min_altitude, or file), got: " + (", ".join(sources) or "none")
+        )
+        self.sources = sources
+
+
 def _resolve_horizon(spec: HorizonConfig | None, base_dir: Path | None) -> Horizon:
     """Build the canonical horizon for a pier from its declared source (design D3).
 
@@ -195,10 +216,7 @@ def _resolve_horizon(spec: HorizonConfig | None, base_dir: Path | None) -> Horiz
     }
     chosen = [name for name, present in sources.items() if present]
     if len(chosen) != 1:
-        raise ValueError(
-            "a horizon must configure exactly one source "
-            "(points, min_altitude, or file), got: " + (", ".join(chosen) or "none")
-        )
+        raise HorizonSourcesError(tuple(chosen))
 
     if spec.points is not None:
         return from_points(spec.points)
@@ -533,14 +551,19 @@ def load_config(path: str | os.PathLike[str]) -> AppConfig:
     return build_config(read_config(path))
 
 
-def build_config(read: ConfigFile, broker: BrokerSettings | None = None) -> AppConfig:
+def build_config(
+    read: ConfigFile,
+    broker: BrokerSettings | None = None,
+    *,
+    write_error: PierErrorWriter | None = None,
+) -> AppConfig:
     """Validate a read config file into :class:`AppConfig` (design D2, step 2).
 
     When the file names no ``mqtt.host`` and ``broker`` is given, the broker
     supplies the host, port, username and password; ``discovery_prefix`` and
     ``base_topic`` still come from the file or their defaults. When the file names
-    a host, ``broker`` is ignored. Raises :class:`ConfigError` as
-    :func:`load_config` describes.
+    a host, ``broker`` is ignored. ``write_error`` goes to :func:`validate_piers`.
+    Raises :class:`ConfigError` as :func:`load_config` describes.
     """
     raw = read.raw
     raw_mqtt = raw.get("mqtt")
@@ -574,7 +597,7 @@ def build_config(read: ConfigFile, broker: BrokerSettings | None = None) -> AppC
     # a horizon file placed beside config.yaml is found regardless of the process
     # working directory (design D3).
     base_dir = read.base_dir
-    piers = validate_piers(raw_piers, base_dir)
+    piers = validate_piers(raw_piers, base_dir, write_error=write_error)
     if not piers:
         raise ConfigError("No valid pier in configuration; nothing to publish")
 
@@ -661,14 +684,20 @@ def _block_error(
     return ConfigError(f"Invalid {block} configuration: " + "; ".join(problems))
 
 
-def validate_piers(raw_piers: list[Any], base_dir: Path | None = None) -> list[PierConfig]:
+def validate_piers(
+    raw_piers: list[Any],
+    base_dir: Path | None = None,
+    *,
+    write_error: PierErrorWriter | None = None,
+) -> list[PierConfig]:
     """Validate each pier independently; log and skip invalid ones.
 
     Returns the list of valid piers (possibly empty). This is the per-pier
     validation isolation from the spec: one bad entry — including an invalid or
     unreadable horizon — never disables the rest. ``base_dir`` is passed as
     Pydantic validation context so a relative horizon file path resolves against
-    the config file's directory (design D3).
+    the config file's directory (design D3). ``write_error``, when given, writes
+    each skipped pier's error for the log; otherwise the core's error is logged.
     """
     context = {"base_dir": base_dir}
     valid: list[PierConfig] = []
@@ -677,5 +706,6 @@ def validate_piers(raw_piers: list[Any], base_dir: Path | None = None) -> list[P
             valid.append(PierConfig.model_validate(raw_pier, context=context))
         except ValidationError as exc:
             pier_id = raw_pier.get("id") if isinstance(raw_pier, dict) else None
-            logger.error(SKIP_PIER_MESSAGE, pier_id, exc)
+            text = exc if write_error is None else write_error(raw_pier, exc)
+            logger.error(SKIP_PIER_MESSAGE, pier_id, text)
     return valid
