@@ -418,10 +418,10 @@ once the broker is back.
 
 ## More settings
 
-The Configuration tab has only the interval, the piers, with their horizon floor
-or points, their equipment, their GO threshold and their wind-gust limit, and the
-broker, so far. Add any other setting, such as a horizon file or `explainer`, in
-`config.yaml`. See
+The Configuration tab shows only three parts, so far: the
+**Recompute interval**; the **Piers**, each with its Location, Horizon,
+Equipment and Verdict fields; and the **MQTT broker**. Add any other setting,
+such as a horizon file or `explainer`, in `config.yaml`. See
 [Add settings with config.yaml](#add-settings-with-configyaml). For every
 setting, see the
 [Configuration section of the README](https://github.com/andrewduckett/pier-pressure#️-configuration).
