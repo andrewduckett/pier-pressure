@@ -6,13 +6,16 @@ its own. Agree a term with the user before adding it here.
 
 ## Timeline
 
-The hourly series of sky and weather for one pier, in the verdict document.
-One entry per clock hour across every hour a provider returned for a variable
-the timeline shows, each carrying that hour's conditions and the sun and moon
-altitude computed by the core. A variable the timeline does not show never adds
-an hour. The timeline is evidence beside the verdict. It carries no verdict
-of its own, and the verdict judges one night regardless of how far the timeline
-reaches.
+The hourly series of sky and weather for one pier, in the verdict document. One
+entry per clock hour, each carrying that hour's conditions and the sun and moon
+altitude computed by the core. The hours are those of the selected night's local
+solar day, from solar noon to the next solar noon, starting earlier at the
+current hour when that comes first, joined by every hour a provider returned for
+a variable the timeline shows. The night's hours are present even when every
+provider fails; their conditions are then null. A variable the timeline does not
+show never adds an hour. The timeline is evidence beside the verdict. It carries
+no verdict of its own, and the verdict judges one night regardless of how far
+the timeline reaches.
 
 Scope: the verdict document and its delivery. Code and specs use `timeline`.
 
