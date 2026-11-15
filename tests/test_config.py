@@ -7,6 +7,7 @@ import traceback
 from pathlib import Path
 
 import pytest
+import yaml
 from pydantic import SecretStr, ValidationError
 
 from pierpressure.core.config import (
@@ -910,3 +911,122 @@ def test_listing_firms_as_a_provider_stops_startup(tmp_path: Path) -> None:
 
     with pytest.raises(ConfigError, match="firms is not a known provider"):
         load_config(path)
+
+
+# --------------------------------------------------------------------------- #
+# config-load-validation 1: one reader for settings YAML (design DD1)
+# --------------------------------------------------------------------------- #
+
+
+def _with_pier_setting(tmp_path: Path, key: str, value: str) -> Path:
+    """VALID_CONFIG with the pier's ``key`` set to ``value``, written as YAML."""
+    lines = [line for line in VALID_CONFIG.splitlines() if not line.startswith(f"    {key}:")]
+    return _write(tmp_path, "\n".join(lines) + f"\n    {key}: {value}\n")
+
+
+@pytest.mark.parametrize(
+    ("key", "value", "expected"),
+    [("go_threshold", "070", 70), ("longitude", "-045", -45.0), ("go_threshold", "080", 80)],
+)
+def test_a_padded_number_setting_is_decimal(
+    tmp_path: Path, key: str, value: str, expected: float
+) -> None:
+    config = load_config(_with_pier_setting(tmp_path, key, value))
+
+    assert getattr(config.piers[0], key) == expected
+
+
+@pytest.mark.parametrize(("value", "expected"), [("0x1A", 26.0), ("1_000", 1000.0)])
+def test_other_number_forms_keep_their_meaning(tmp_path: Path, value: str, expected: float) -> None:
+    config = load_config(_with_pier_setting(tmp_path, "elevation_m", value))
+
+    assert config.piers[0].elevation_m == expected
+
+
+def test_yaml_safe_load_still_reads_number_forms_as_yaml_1_1() -> None:
+    assert yaml.safe_load("045") == 37
+
+
+def test_a_base_60_number_setting_skips_only_its_pier(tmp_path: Path) -> None:
+    text = (
+        VALID_CONFIG
+        + """    go_threshold: 1:05
+  - id: other
+    latitude: 51.50
+    longitude: -0.12
+    elevation_m: 30
+"""
+    )
+
+    config = load_config(_write(tmp_path, text))
+
+    assert [pier.id for pier in config.piers] == ["other"]
+
+
+@pytest.mark.parametrize("value", ["1:30", "1:30.5"])
+def test_a_base_60_id_is_text(tmp_path: Path, value: str) -> None:
+    config = load_config(_write(tmp_path, VALID_CONFIG.replace("id: backyard", f"id: {value}")))
+
+    assert config.piers[0].id == value
+
+
+# --------------------------------------------------------------------------- #
+# config-load-validation 2: a pier id repeated in the piers list (design DD3)
+# --------------------------------------------------------------------------- #
+
+
+def _piers_config(tmp_path: Path, *piers: str) -> Path:
+    """VALID_CONFIG's blocks with each of ``piers`` as a pier entry, written as YAML."""
+    head = VALID_CONFIG[: VALID_CONFIG.index("piers:")]
+    return _write(tmp_path, head + "piers:\n" + "".join(piers))
+
+
+def _pier(pier_id: str, latitude: float = 51.5) -> str:
+    return (
+        f"  - id: {pier_id}\n    latitude: {latitude}\n    longitude: -0.12\n    elevation_m: 30\n"
+    )
+
+
+@pytest.mark.parametrize("latitude", [51.5, 95], ids=["valid", "otherwise-invalid"])
+def test_a_repeated_id_stops_startup(tmp_path: Path, latitude: float) -> None:
+    path = _piers_config(tmp_path, _pier("backyard"), _pier("backyard", latitude))
+
+    with pytest.raises(ConfigError, match="'backyard'"):
+        load_config(path)
+
+
+def test_a_repeated_id_check_keeps_ids_that_differ_in_case(tmp_path: Path) -> None:
+    config = load_config(_piers_config(tmp_path, _pier("backyard"), _pier("Backyard")))
+
+    assert [pier.id for pier in config.piers] == ["backyard", "Backyard"]
+
+
+def test_a_repeated_id_check_leaves_an_id_that_is_not_text_to_its_pier(tmp_path: Path) -> None:
+    config = load_config(_piers_config(tmp_path, _pier("backyard"), _pier("5"), _pier("5")))
+
+    assert [pier.id for pier in config.piers] == ["backyard"]
+
+
+def _repeated_id_error(tmp_path: Path, *piers: str) -> str:
+    with pytest.raises(ConfigError) as error:
+        load_config(_piers_config(tmp_path, *piers))
+    return str(error.value)
+
+
+def test_a_repeated_id_error_escapes_a_line_break(tmp_path: Path) -> None:
+    message = _repeated_id_error(tmp_path, _pier('"back\\nyard"'), _pier('"back\\nyard"'))
+
+    assert "\n" not in message
+    assert "'back\\nyard'" in message
+
+
+def test_a_repeated_id_error_lists_ids_in_the_order_they_first_repeat(tmp_path: Path) -> None:
+    message = _repeated_id_error(tmp_path, _pier("a"), _pier("b"), _pier("b"), _pier("a"))
+
+    assert message.endswith("listed more than once: 'b', 'a'")
+
+
+def test_a_repeated_id_error_shows_no_other_value(tmp_path: Path) -> None:
+    message = _repeated_id_error(tmp_path, _pier("backyard", 12.3456), _pier("backyard", 95))
+
+    assert message == "Pier ids must be unique; listed more than once: 'backyard'"

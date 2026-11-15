@@ -127,6 +127,37 @@ def test_the_file_explainer_key_is_used_when_the_form_key_is_blank() -> None:
     assert combined.raw["explainer"] == {"enabled": True, "api_key": FILE_KEY}
 
 
+def test_a_form_ai_task_entity_joins_the_files_switch_and_model() -> None:
+    # addon-explainer-ai-task DD6: the new field joins key by key.
+    file = {"explainer": {"enabled": True, "model": "openai:gpt-4o"}}
+
+    combined = combine_settings(_form(PIER, explainer={"ai_task_entity": "ai_task.openai"}), file)
+
+    assert combined.raw["explainer"] == {
+        "enabled": True,
+        "model": "openai:gpt-4o",
+        "ai_task_entity": "ai_task.openai",
+    }
+
+
+@pytest.mark.parametrize(
+    ("form", "file"),
+    [
+        ({"enabled": True}, {"enabled": True}),
+        ({"ai_task_entity": "ai_task.openai"}, {"ai_task_entity": "ai_task.google"}),
+    ],
+    ids=["enabled", "ai_task_entity"],
+)
+def test_an_explainer_setting_in_both_places_is_named(
+    form: dict[str, Any], file: dict[str, Any]
+) -> None:
+    [key] = form
+
+    error = _error(_form(PIER, explainer=form), {"explainer": file})
+
+    assert f"explainer.{key}" in error
+
+
 def test_a_file_pier_with_only_an_id_adds_nothing() -> None:
     combined = combine_settings(_form(PIER), {"piers": [{"id": "backyard"}]})
 

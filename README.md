@@ -88,7 +88,9 @@ ARM.
 
 1. In Home Assistant, open **Settings → Add-ons → Add-on Store**. From the **⋮**
    menu, choose **Repositories** and add
-   `https://github.com/andrewduckett/pier-pressure`.
+   `https://github.com/andrewduckett/pier-pressure`. The Supervisor log may then
+   warn that it [can't read `openspec/config.yaml`](ha-addon/DOCS.md#if-the-supervisor-log-warns-about-openspecconfigyaml),
+   which is harmless.
 2. Install **PierPressure** from the store.
 3. Open the add-on's **Configuration** tab. Check the recompute interval, in
    seconds, and add a pier: its ID, its latitude and longitude in degrees, and
@@ -204,6 +206,7 @@ firms:
 | Setting | What it does |
 |---|---|
 | `piers` | A list. Each pier is checked on its own: an invalid pier is logged and skipped, and the others keep running. If no pier is valid, PierPressure exits with an error. |
+| `id` | The pier's name, which its MQTT topics and entities use. Each pier needs its own id: if two piers share one, PierPressure exits with an error that names it. Ids that differ only in letter case, such as `backyard` and `Backyard`, are different piers. Put quotes around an id that looks like a number, such as `"07"`. Without them, YAML reads `07` as a number, which is not a valid id. |
 | `go_threshold` | The score a night needs for `GO`. |
 | `max_gust` | Turns on the wind gate. Leave it out to ignore wind gusts. |
 | `dew_margin` | When the air temperature is less than this many °C above the dew point, the reasons say from which hour dew is likely, or frost at 0 °C or below. The default is 4. Set 0 to turn the line off. It never changes the verdict, score or confidence. |
@@ -213,6 +216,11 @@ firms:
 | `explainer` | The optional LLM summary. See [docs/llm-explainer.md](docs/llm-explainer.md). |
 | `firms` | Optional, and one key for every pier. `map_key` is a free NASA FIRMS MAP_KEY, which you request at <https://firms.modaps.eosdis.nasa.gov/api/map_key/>. Write it as `${FIRMS_KEY}` to read it from the environment. With a key, PierPressure asks FIRMS on every recompute for NOAA-20 VIIRS fire detections near each pier. A detection counts when its confidence is `nominal` or `high`, it is from the 24 hours up to the verdict, and it is within 50 km of the pier. When any count, the reasons gain one line about the nearest, after the METAR lines, such as `A satellite detected a fire 23 km NW of the pier at 2026-11-13T07:35:00Z (1 detection within 50 km).` The line never changes the verdict, score or confidence. A key that is empty, or names an environment variable that is not set, turns the line off, and the log says so once. The key never appears in the log, an error or a health sensor. |
 | `conditions` | Optional. `providers` lists the weather providers, preferred first. The default is `[open_meteo, seven_timer, open_meteo_air_quality, computed]`. Each forecast variable, such as cloud cover or seeing, comes from the first provider in the list that returned it. PierPressure will not start if the list is empty, names an unknown provider, names a provider more than once, or has no provider that needs no key and supplies cloud cover. The providers are `open_meteo`, the six Open-Meteo models below, `open_meteo_air_quality` for the air-quality forecast, `nws` for the National Weather Service, `met_norway` for MET Norway, `seven_timer`, and `computed`, which computes transparency and seeing from other providers' values. |
+
+Numbers in `config.yaml` are decimal, even with leading zeros: `045` reads as
+45 and `-045` as -45, also in horizon `points`. A value with a colon, such as
+`1:30`, is not a number but text. So a number setting that holds one, such as an
+azimuth in horizon `points`, makes its pier invalid.
 
 ### Choosing Open-Meteo models
 
@@ -548,7 +556,7 @@ hold every key except `timeline`, which would push them past Home Assistant's
 | `dark_window` | object | Tonight's astronomical night: `{ start, end }`. |
 | `scored_window` | object | The part of `dark_window` that the verdict judged: `{ start, end }`. |
 | `moon` | object | The moon's illumination, phase, and behaviour during the dark window. |
-| `timeline` | list | One entry per hour of weather the sources returned, with the sun and moon altitude. Evidence beside the verdict, not part of it. Delivered on the timeline sensors, one per variable; see [docs/night-timeline.md](docs/night-timeline.md). |
+| `timeline` | list | One entry per hour of weather the sources returned, with the sun and moon altitude. It also always holds the hours of the night the verdict judges, even when every provider fails, with null weather where no source returned the hour. Evidence beside the verdict, not part of it. Delivered on the timeline sensors, one per variable; see [docs/night-timeline.md](docs/night-timeline.md). |
 | `observation` | object or `null` | The latest report from the pier's `metar_station`: `{ station, observed_at, cover, clouds }`. `observed_at` is when the station measured. `cover` is the report's overall code, such as `BKN` or `CLR`. `clouds` lists each layer as reported, `{ cover, base_ft }`, with `base_ft` in feet above ground or `null` when the report gives none. `null` when the pier names no station, the fetch failed, or the report was measured more than 90 minutes before `generated_at`. Evidence beside the verdict, not part of it. |
 
 **`dark_window`** is when the sun's centre is more than 18° below the horizon.

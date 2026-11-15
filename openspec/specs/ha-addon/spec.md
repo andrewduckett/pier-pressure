@@ -151,7 +151,8 @@ order: `interval_seconds`, `piers`, `mqtt`, the broker, and `explainer`.
 - **AND** its `schema` declares `mqtt` with an optional text `host`, an optional
   `port`, an optional text `username`, and an optional `password` of the
   password type
-- **AND** its `schema` declares `explainer` with an optional `api_key` of the
+- **AND** its `schema` declares `explainer` with an optional `enabled` of the
+  bool type, an optional text `ai_task_entity`, and an optional `api_key` of the
   password type
 - **AND** its `schema` lists `interval_seconds`, `piers`, `mqtt` and
   `explainer` in that order
@@ -260,7 +261,8 @@ none.
   field means: a threshold of 65, and no wind gate
 - **AND** it gives a name and a description for `mqtt` and each of its four
   fields
-- **AND** it gives a name and a description for `explainer` and its `api_key`
+- **AND** it gives a name and a description for `explainer` and each of its
+  three fields: `enabled`, `ai_task_entity` and `api_key`
 
 ### Requirement: A pier's fields appear in four sections after its id
 
@@ -1270,6 +1272,12 @@ environment names one.
 - **AND** the service asks the Supervisor for the broker
 - **THEN** the request goes straight to the Supervisor, not through the proxy
 
+#### Scenario: Proxy settings do not reach the AI Task request
+
+- **WHEN** the container's environment sets `HTTP_PROXY` or `ALL_PROXY`
+- **AND** the explainer asks an AI Task entity for a narrative
+- **THEN** the request goes straight to the Supervisor, not through the proxy
+
 ### Requirement: The add-on keeps asking for a Supervisor broker that is not provided yet
 
 When the service needs the Supervisor's broker and the Supervisor does not
@@ -1416,8 +1424,8 @@ SHALL NOT contain it.
 - **WHEN** the test suite reads the add-on config file and its English
   translation file
 - **THEN** the description of each optional pier field, each of the four
-  broker fields, `host` included, and the explainer's `api_key` contains
-  `Optional.`
+  broker fields, `host` included, and each of the explainer's three fields
+  contains `Optional.`
 - **AND** the descriptions of `interval_seconds`, `id`, `latitude`,
   `longitude` and `elevation_m` do not contain `Optional.`
 
@@ -1487,19 +1495,6 @@ Equipment and Verdict fields, the MQTT broker and the Explainer, in that order.
 - **WHEN** the section names **MQTT broker** in bold before **Piers**
 - **THEN** the test suite fails, naming `MQTT broker`
 
-### Requirement: The form's explainer block has one optional key field
-
-The `explainer` setting of the Configuration form SHALL be a block with one
-optional field, `api_key`: the API key of the explainer's LLM provider, in a
-field that hides its value. Its default SHALL be an empty block.
-
-#### Scenario: The form declares the explainer key
-
-- **WHEN** the test suite reads the add-on config file
-- **THEN** its `schema` declares `explainer` with exactly one field, an optional
-  `api_key` of the password type
-- **AND** its `options` set `explainer` to an empty block
-
 ### Requirement: An explainer key on the form sets the explainer's API key
 
 Inside an add-on, the Configuration form's `explainer.api_key` SHALL become the
@@ -1519,7 +1514,7 @@ explainer settings SHALL still come from `config.yaml` or their defaults.
 ### Requirement: An explainer key on the form does not turn the explainer on
 
 Inside an add-on, an `explainer.api_key` on the Configuration form SHALL NOT
-turn the explainer on. Without `explainer.enabled` set to true in
+turn the explainer on. Without `explainer.enabled` set to true on the form or in
 `config.yaml`, the explainer SHALL stay off, as it does with a key in a file.
 
 #### Scenario: A key alone leaves the explainer off
@@ -1601,17 +1596,6 @@ Inside an add-on, the service SHALL NOT insert the Configuration form's
   `explainer` block
 - **AND** no log line or error message contains `sk-8c41f2`
 
-### Requirement: The explainer section says config.yaml turns the explainer on
-
-The English description of the form's `explainer` setting SHALL say that
-`explainer.enabled` in `config.yaml` turns the explainer on.
-
-#### Scenario: The explainer section names the switch
-
-- **WHEN** the test suite reads the English translation file
-- **THEN** the description of `explainer` contains `explainer.enabled` and
-  `config.yaml`
-
 ### Requirement: The More settings section names the tab's parts in order
 
 The "More settings" section of the add-on's documentation SHALL name, in bold,
@@ -1628,8 +1612,10 @@ order the Configuration tab shows them.
 ### Requirement: The add-on docs say where each explainer setting goes
 
 The add-on's documentation SHALL have a section on turning on the explainer. It
-SHALL say to put the API key in the Configuration tab's **API key** field, and
-`explainer.enabled` and `explainer.model` in `config.yaml`.
+SHALL describe two ways. With Home Assistant's AI Task, the user sets
+**Enabled** and **AI Task entity** on the Configuration tab. With an API key, the
+user puts it in the tab's **API key** field, and `explainer.enabled` and
+`explainer.model` in `config.yaml`.
 
 #### Scenario: The explainer section names both places
 
@@ -1637,6 +1623,12 @@ SHALL say to put the API key in the Configuration tab's **API key** field, and
   `ha-addon/DOCS.md`
 - **THEN** it contains `**API key**`, `explainer.enabled`, `explainer.model`
   and `config.yaml`
+
+#### Scenario: The explainer section names the AI Task fields
+
+- **WHEN** the test suite reads the "Turn on the explainer" section of
+  `ha-addon/DOCS.md`
+- **THEN** it contains `**Enabled**`, `**AI Task entity**` and `AI Task`
 
 ### Requirement: A horizon from config.yaml with two sources keeps the file's names
 
@@ -1667,3 +1659,172 @@ the error for a pier that fills in both horizon fields names
   `ha-addon/DOCS.md`
 - **THEN** a sentence that contains `error` also contains
   `**Horizon: floor**` and `**Horizon: points**`
+
+### Requirement: A pier id repeated on the Configuration form stops the add-on
+
+When the Configuration form lists the same pier `id` more than once, the add-on
+SHALL stop with a configuration error that names the `id`. This SHALL hold
+whether or not `config.yaml` exists.
+
+#### Scenario: A pier listed twice on the form stops the add-on
+
+- **WHEN** the form lists the pier `backyard` twice
+- **AND** there is no `config.yaml`
+- **THEN** the add-on stops
+- **AND** its configuration error names `backyard`
+
+#### Scenario: A form repeat stops the add-on when config.yaml adds to the pier
+
+- **WHEN** the form lists the pier `backyard` twice
+- **AND** `config.yaml` lists the pier `backyard` once, with its `metar_station`
+- **THEN** the add-on stops
+- **AND** its configuration error names `backyard`
+
+### Requirement: Form horizon points read numbers as config.yaml does
+
+Inside an add-on, a form pier's `horizon_points` text SHALL follow the number
+rules of the configuration file. A zero-padded azimuth SHALL be read as a
+decimal number, and a base-60 value SHALL skip the pier with a logged error that
+names the pier and `horizon.points`.
+
+#### Scenario: A padded azimuth on the form is decimal
+
+- **WHEN** a form pier's `horizon_points` is `[[045, 10], [180, 5]]`
+- **THEN** the pier's horizon samples are `(45, 10)` and `(180, 5)`
+
+#### Scenario: A base-60 azimuth on the form skips only that pier
+
+- **WHEN** the form lists two piers
+- **AND** one pier's `horizon_points` is `[[1:30, 20], [180, 5]]`
+- **THEN** the service logs an error that names that pier and `horizon.points`
+- **AND** it publishes a verdict for the other pier
+
+### Requirement: The add-on store reads only two config files from the repository
+
+The Home Assistant Supervisor reads as an add-on config each file named
+`config.*` with a `.yaml`, `.yml` or `.json` suffix, unless a part of its path
+starts with `.` or is named `rootfs`. Of the repository's tracked files, only
+`ha-addon/config.yaml` and `openspec/config.yaml` SHALL match that rule.
+OpenSpec reads its config only at `openspec/config.yaml`, so that file is the
+one allowed exception.
+
+#### Scenario: Only the add-on config and the OpenSpec config match
+
+- **WHEN** the test suite applies the Supervisor's rule to the repository's
+  tracked files
+- **THEN** the files that match are exactly `ha-addon/config.yaml` and
+  `openspec/config.yaml`
+
+#### Scenario: A new tracked file that matches fails the check
+
+- **WHEN** a tracked file such as `docs/examples/config.sample.yaml` is added
+- **THEN** the check fails and names `docs/examples/config.sample.yaml`
+
+### Requirement: The add-on docs explain the Supervisor's warning for the OpenSpec config
+
+The add-on documentation SHALL name the warning that the Supervisor logs for
+`openspec/config.yaml` on each store reload, `Can't read …/openspec/config.yaml:
+Invalid app config!`. It SHALL say that the file is not an add-on, and that the
+warning is harmless and needs no action. The README's add-on install steps SHALL
+link to that explanation.
+
+#### Scenario: The add-on docs name the warning
+
+- **WHEN** a user reads `ha-addon/DOCS.md`
+- **THEN** one section quotes `openspec/config.yaml: Invalid app config!` and
+  says the warning needs no action
+
+#### Scenario: The README links to the explanation
+
+- **WHEN** a user reads the README's steps to install the add-on
+- **THEN** the step that adds the repository links to that section of
+  `ha-addon/DOCS.md`
+
+### Requirement: The form's explainer block has three optional fields
+
+The `explainer` setting of the Configuration form SHALL be a block of three
+optional fields, in this order:
+
+- `enabled`, a switch;
+- `ai_task_entity`, text;
+- `api_key`, the API key of the explainer's LLM provider, in a field that hides
+  its value.
+
+Its default SHALL be an empty block, so each field starts unset.
+
+#### Scenario: The form declares the explainer's fields
+
+- **WHEN** the test suite reads the add-on config file
+- **THEN** its `schema` declares `explainer` with exactly the fields `enabled`
+  as `bool?`, `ai_task_entity` as `str?` and `api_key` as `password?`, in that
+  order
+- **AND** its `options` set `explainer` to an empty block
+
+### Requirement: The form's switch and AI Task entity turn on the AI Task narrative
+
+Inside an add-on, the Configuration form can set `explainer.enabled` to true and
+`explainer.ai_task_entity` to an entity ID. That SHALL turn the explainer on with
+that AI Task entity, with no `config.yaml`.
+
+#### Scenario: Form-only AI Task setup
+
+- **WHEN** the form lists a pier, sets `explainer.enabled` to true and
+  `explainer.ai_task_entity` to `ai_task.openai`
+- **AND** the add-on's config folder holds no `config.yaml`
+- **THEN** the add-on starts and publishes a verdict and a narrative entity for
+  that pier
+- **AND** the explainer asks `ai_task.openai` for the narrative
+
+### Requirement: Each explainer setting on the form joins config.yaml on its own
+
+Inside an add-on, each of the form's `explainer.enabled`, `explainer.ai_task_entity`
+and `explainer.api_key` SHALL count as a setting of its own. A setting given on
+the form and in `config.yaml` SHALL stop the add-on with a configuration error
+that names it. Explainer settings given in only one place SHALL combine. A form
+`explainer.enabled` of false SHALL count as not set.
+
+#### Scenario: The switch in both places stops the add-on
+
+- **WHEN** the form lists a pier and sets `explainer.enabled` to true
+- **AND** `config.yaml` sets `explainer.enabled` to true
+- **THEN** the add-on stops
+- **AND** its configuration error names `explainer.enabled`
+
+#### Scenario: A switch set to off on the form does not conflict
+
+- **WHEN** the form lists a pier and saves `explainer.enabled` as false
+- **AND** `config.yaml` sets `explainer.enabled` to true and
+  `explainer.ai_task_entity` to `ai_task.openai`
+- **THEN** the add-on starts, and reports no conflict for `explainer.enabled`
+- **AND** the explainer asks `ai_task.openai` for the narrative
+
+#### Scenario: A form entity combines with the file's switch
+
+- **WHEN** the form lists a pier and sets `explainer.ai_task_entity` to
+  `ai_task.openai`
+- **AND** `config.yaml` sets `explainer.enabled` to true and `explainer.model`
+- **THEN** the add-on starts, and reports no conflict for the explainer
+- **AND** the explainer asks `ai_task.openai` for the narrative
+
+### Requirement: The add-on asks for Home Assistant's Core API
+
+The add-on's config file SHALL set `homeassistant_api` to true, so the explainer
+can call Home Assistant's AI Task action through the Supervisor.
+
+#### Scenario: The add-on config asks for the Core API
+
+- **WHEN** the test suite reads the add-on config file
+- **THEN** it sets `homeassistant_api` to true
+
+### Requirement: The explainer section names both ways to write the narrative
+
+The English description of the form's `explainer` setting SHALL say that
+`explainer.enabled` turns the explainer on. It SHALL say where the narrative comes
+from: the AI Task entity when one is set, or else the model in `config.yaml` with
+the API key.
+
+#### Scenario: The explainer section names the switch and both ways
+
+- **WHEN** the test suite reads the English translation file
+- **THEN** the description of `explainer` contains `explainer.enabled`,
+  `AI Task`, `explainer.model` and `config.yaml`

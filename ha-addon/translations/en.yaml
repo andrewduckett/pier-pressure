@@ -144,10 +144,24 @@ configuration:
     description: >-
       Optional. The explainer has an AI language model write a short paragraph
       about each pier's verdict, on the pier's Narrative sensor. It never
-      changes the verdict. To turn it on, set explainer.enabled to true in
-      config.yaml, and pick the model there with explainer.model. Put the
-      model's API key here, so it does not sit in plain text in config.yaml.
+      changes the verdict. explainer.enabled turns it on, here or in
+      config.yaml. With an AI Task entity set, Home Assistant's AI Task writes
+      the paragraph. Without one, the model that explainer.model names in
+      config.yaml writes it, with the API key below.
     fields:
+      enabled:
+        name: Enabled
+        description: >-
+          Optional. Turn it on to have the explainer write a paragraph for each
+          pier. Set explainer.enabled here or in config.yaml, not both: in both
+          places, the add-on stops at startup with a configuration error.
+      ai_task_entity:
+        name: AI Task entity
+        description: >-
+          Optional. The Home Assistant AI Task entity that writes the paragraph,
+          such as ai_task.openai. Find it under Settings, Devices & services,
+          Entities. When it is set, the add-on does not use the API key. Leave
+          it empty to use the model in config.yaml.
       api_key:
         name: API key
         description: >-

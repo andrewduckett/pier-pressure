@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
@@ -327,3 +328,54 @@ def test_deeply_nested_points_text_skips_only_its_pier(caplog: pytest.LogCapture
     # The YAML reader recurses once per level; too deep a text must not stop the
     # other piers (per-pier isolation).
     assert "horizon.points" in _skipped_error("[" * 3000 + "]" * 3000, caplog)
+
+
+# --------------------------------------------------------------------------- #
+# config-load-validation 1.4 / 1.5 — numbers in inline points (design DD1, DD2)
+# --------------------------------------------------------------------------- #
+
+
+def test_a_padded_azimuth_in_points_text_is_decimal() -> None:
+    [pier] = validate_piers([_pier_with_points("[[045, 10], [180, 5]]")])
+
+    assert pier.horizon_mask.samples == ((45.0, 10.0), (180.0, 5.0))
+
+
+def test_a_base_60_azimuth_in_points_text_skips_the_pier(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    assert "horizon.points" in _skipped_error("[[1:30, 20], [180, 5]]", caplog)
+
+
+def _config_file_with_points(points: str) -> str:
+    return _config_with_pier(
+        f"""  - id: backyard
+    latitude: 51.5
+    longitude: -0.12
+    elevation_m: 30
+    horizon:
+      points: {points}
+  - id: good
+    latitude: 51.5
+    longitude: -0.12
+    elevation_m: 30
+"""
+    )
+
+
+def test_a_padded_azimuth_in_a_config_file_list_is_decimal(tmp_path: Path) -> None:
+    config = load_config(_write(tmp_path, _config_file_with_points("[[045, 10], [180, 5]]")))
+
+    assert config.piers[0].horizon_mask.samples == ((45.0, 10.0), (180.0, 5.0))
+
+
+def test_a_base_60_azimuth_in_a_config_file_list_skips_the_pier(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.ERROR):
+        config = load_config(_write(tmp_path, _config_file_with_points("[[1:30, 20], [180, 5]]")))
+
+    assert [pier.id for pier in config.piers] == ["good"]
+    [message] = caplog.messages
+    assert message.startswith("Skipping invalid pier 'backyard'")
+    assert "horizon.points" in message

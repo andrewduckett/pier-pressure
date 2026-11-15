@@ -29,8 +29,8 @@ options:
   # block optional. Its fields are optional instead, and port has no default, so
   # an empty block sets no broker (addon-form-broker D1).
   mqtt: {}
-  # Listed for the same reason; its one field is optional
-  # (addon-explainer-key-option D2).
+  # Listed for the same reason; its fields are optional
+  # (addon-explainer-key-option D2, addon-explainer-ai-task DD6).
   explainer: {}
 schema:
   interval_seconds: int(1,)
@@ -64,11 +64,19 @@ schema:
     port: port?
     username: str?
     password: password?
-  # The explainer's key, hidden on the form so it need not sit in plain text in
-  # config.yaml. config.yaml still turns the explainer on and picks its model;
-  # the service joins the two (addon-explainer-key-option D2, D4, D5).
+  # The explainer's switch, its AI Task entity, and its key, hidden on the form
+  # so it need not sit in plain text in config.yaml. config.yaml still picks the
+  # model; the service joins the two (addon-explainer-key-option D2, D4, D5). The
+  # entity is plain text, because the service checks it (addon-explainer-ai-task
+  # DD4, DD6).
   explainer:
+    enabled: bool?
+    ai_task_entity: str?
     api_key: password?
+# Lets the explainer call Home Assistant's AI Task action through the
+# Supervisor. It makes the add-on an administrator of Home Assistant's Core API
+# (addon-explainer-ai-task DD6, ADR-0042).
+homeassistant_api: true
 # Ask the Supervisor for the broker another add-on (usually Mosquitto) provides.
 # "want", not "need", so the add-on still installs with any other broker. Used
 # only when the settings name no mqtt.host (ha-addon-mqtt-service).

@@ -51,6 +51,7 @@ PierErrorWriter = Callable[[Any, ValidationError], str]
 
 _ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _METAR_STATION = re.compile(r"[A-Z][A-Z0-9]{3}")
+_AI_TASK_ENTITY = re.compile(r"ai_task\.[a-z0-9_]+")
 
 # The system-wide go-threshold applied when a pier omits its own (design D8, and
 # the tuning value locked in task 5.1). A gate-passing night scores GO at or
@@ -159,7 +160,7 @@ class HorizonConfig(BaseModel):
     @field_validator("points", mode="before")
     @classmethod
     def _parse_points_text(cls, value: Any) -> Any:
-        """Parse text in ``points`` as YAML; pass any other value through (D1).
+        """Parse text in ``points`` as ``config.yaml`` is read; pass any other value through (D1).
 
         Text that holds nothing, such as blank text or only a comment, parses to
         ``None``. It is rejected rather than read as "no points", so a typo never
@@ -168,7 +169,7 @@ class HorizonConfig(BaseModel):
         if not isinstance(value, str):
             return value
         try:
-            points = yaml.safe_load(value)
+            points = _read_yaml(value)
         except yaml.YAMLError as exc:
             # The reader's message spans several lines; keep it to one.
             message = " ".join(str(exc).split())
@@ -360,6 +361,16 @@ class ExplainerConfig(BaseModel):
     model: str = "anthropic:claude-opus-5"
     # Masked when printed; read only to call the LLM provider (D4).
     api_key: SecretStr | None = None
+    # Set, the narrative comes from this Home Assistant AI Task entity instead of
+    # ``model`` and ``api_key`` (addon-explainer-ai-task DD4).
+    ai_task_entity: str | None = None
+
+    @field_validator("ai_task_entity")
+    @classmethod
+    def _check_ai_task_entity(cls, entity: str | None) -> str | None:
+        if entity is not None and not _AI_TASK_ENTITY.fullmatch(entity):
+            raise ValueError("must be an AI Task entity ID, such as ai_task.openai")
+        return entity
 
 
 class FirmsConfig(BaseModel):
@@ -487,6 +498,43 @@ class ConfigFile:
         return isinstance(mqtt, dict) and mqtt.get("host") not in (None, "")
 
 
+class _SettingsLoader(yaml.SafeLoader):
+    """PyYAML's safe loader, with two YAML 1.1 number forms changed (ADR-0041).
+
+    YAML 1.1 reads ``045`` as the octal number 37 and ``1:30`` as the base-60
+    number 90. Here a zero-padded integer is decimal, and a value with a colon is
+    the text written. Only the constructors change, not the patterns that pick the
+    tag, so ``08`` still stays text as before.
+    """
+
+
+def _construct_int(loader: _SettingsLoader, node: yaml.ScalarNode) -> Any:
+    text = loader.construct_scalar(node)
+    if ":" in text:
+        return text
+    digits = text.lstrip("+-")
+    if len(digits) > 1 and digits[0] == "0" and (digits[1].isdigit() or digits[1] == "_"):
+        return int(text.replace("_", ""))
+    return loader.construct_yaml_int(node)
+
+
+def _construct_float(loader: _SettingsLoader, node: yaml.ScalarNode) -> Any:
+    text = loader.construct_scalar(node)
+    if ":" in text:
+        return text
+    return loader.construct_yaml_float(node)
+
+
+# Adding to the subclass copies the safe loader's table, so yaml.safe_load is unchanged.
+_SettingsLoader.add_constructor("tag:yaml.org,2002:int", _construct_int)
+_SettingsLoader.add_constructor("tag:yaml.org,2002:float", _construct_float)
+
+
+def _read_yaml(text: str) -> Any:
+    """Read settings YAML with :class:`_SettingsLoader`; raises ``yaml.YAMLError``."""
+    return yaml.load(text, Loader=_SettingsLoader)  # noqa: S506 - a safe loader
+
+
 def read_config_mapping(path: str | os.PathLike[str]) -> dict[str, Any]:
     """Read the YAML config at ``path`` as a ``${VAR}``-expanded mapping.
 
@@ -500,7 +548,7 @@ def read_config_mapping(path: str | os.PathLike[str]) -> dict[str, Any]:
     config_path = Path(path)
     text = config_path.read_text(encoding="utf-8")
     try:
-        raw = yaml.safe_load(text)
+        raw = _read_yaml(text)
     except yaml.YAMLError as exc:
         raise ConfigError(_yaml_error_message(config_path, exc)) from None
     if not isinstance(raw, dict):
@@ -544,9 +592,10 @@ def load_config(path: str | os.PathLike[str]) -> AppConfig:
     """Load and validate the YAML config at ``path``.
 
     Raises :class:`ConfigError` if the file is missing/malformed, if ``mqtt``,
-    ``recompute``, ``explainer`` or ``firms`` are invalid, or if no valid pier
-    remains after per-pier validation. An ``mqtt``, ``explainer`` or ``firms``
-    error holds none of the block's text (config-secrets-hidden-in-errors D1).
+    ``recompute``, ``explainer`` or ``firms`` are invalid, if a pier id is listed
+    more than once, or if no valid pier remains after per-pier validation. An
+    ``mqtt``, ``explainer`` or ``firms`` error holds none of the block's text
+    (config-secrets-hidden-in-errors D1).
     """
     return build_config(read_config(path))
 
@@ -592,6 +641,11 @@ def build_config(
     raw_piers = raw.get("piers")
     if not isinstance(raw_piers, list):
         raise ConfigError("Configuration must contain a 'piers' list")
+    # Checked before any pier, because neither pier is wrong on its own (DD3).
+    repeated = _repeated_pier_ids(raw_piers)
+    if repeated:
+        listed = ", ".join(repr(pier_id) for pier_id in repeated)
+        raise ConfigError(f"Pier ids must be unique; listed more than once: {listed}")
 
     # The config file's own directory anchors relative horizon file references, so
     # a horizon file placed beside config.yaml is found regardless of the process
@@ -632,6 +686,24 @@ def build_config(
         return AppConfig.model_validate(assembled, context={"base_dir": base_dir})
     except ValidationError as exc:
         raise ConfigError(f"Invalid configuration: {exc}") from exc
+
+
+def _repeated_pier_ids(raw_piers: list[Any]) -> list[str]:
+    """Each text ``id`` listed more than once, in the order it first repeats (DD3).
+
+    Every entry counts, valid or not. An entry that is not a mapping, or whose
+    ``id`` is not text, is left to its own pier check. Ids are compared exactly.
+    """
+    seen: set[str] = set()
+    repeated: list[str] = []
+    for raw_pier in raw_piers:
+        pier_id = raw_pier.get("id") if isinstance(raw_pier, dict) else None
+        if not isinstance(pier_id, str):
+            continue
+        if pier_id in seen and pier_id not in repeated:
+            repeated.append(pier_id)
+        seen.add(pier_id)
+    return repeated
 
 
 def _conditions_config(raw: Any) -> ConditionsConfig:

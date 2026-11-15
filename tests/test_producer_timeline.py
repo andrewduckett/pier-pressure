@@ -18,7 +18,7 @@ from pierpressure.core.providers import (
     SEVEN_TIMER,
     ProviderSpec,
 )
-from pierpressure.core.sky import dark_window
+from pierpressure.core.sky import dark_window, night_hours
 
 from .conftest import make_pier, provider_series
 from .offline_guard import no_network
@@ -45,11 +45,18 @@ def _conditions(
     return Conditions(series={**(base or {}), **(secondary or {})})
 
 
+def _at(timeline: list[TimelineEntry], time: datetime) -> TimelineEntry:
+    """The one entry for ``time``: the night's hours join the timeline, so position is no guide."""
+    [entry] = [entry for entry in timeline if entry.time == time]
+    return entry
+
+
 def test_the_timeline_spans_the_sorted_union_of_both_providers() -> None:
     day = datetime(2026, 9, 8, 0, tzinfo=UTC)
     base_times = _hours(day, 24)
     secondary_times = _hours(day + timedelta(hours=12), 48)
     # Out of order on input: the timeline must sort, not trust the provider's order.
+    # At 14:00 the night's hours run from 12:00 to 11:00 next day, inside the span.
     conditions = _conditions(
         base=_base(list(reversed(base_times)), cloud_cover=10.0),
         secondary=_secondary(secondary_times, seeing=0.5),
@@ -75,7 +82,7 @@ def test_an_hour_one_provider_lacks_carries_null_for_its_series() -> None:
             make_pier(), FixedClock(datetime(2026, 9, 8, 14, tzinfo=UTC)), conditions
         )
 
-    first, second = doc.timeline
+    first, second = _at(doc.timeline, day), _at(doc.timeline, day + timedelta(hours=1))
     assert (first.cloud_cover, first.wind_gust) == (37.0, 23.4)
     assert (first.cloud_low, first.cloud_mid, first.cloud_high) == (1.0, 2.0, 3.0)
     assert (first.seeing, first.transparency) == (0.57, 0.9)
@@ -94,7 +101,7 @@ def test_a_missing_seven_timer_leaves_seeing_and_transparency_null() -> None:
             make_pier(), FixedClock(datetime(2026, 9, 8, 14, tzinfo=UTC)), conditions
         )
 
-    [entry] = doc.timeline
+    entry = _at(doc.timeline, day)
     assert entry.cloud_cover == 50.0
     assert entry.seeing is None and entry.transparency is None
 
@@ -121,7 +128,7 @@ def test_weather_values_pass_through_unchanged() -> None:
             make_pier(), FixedClock(datetime(2026, 9, 8, 14, tzinfo=UTC)), conditions
         )
 
-    [entry] = doc.timeline
+    entry = _at(doc.timeline, day)
     assert _weather(entry) == _WEATHER
 
 
@@ -134,7 +141,7 @@ def test_a_weather_value_the_provider_lacks_is_null_on_its_own() -> None:
             make_pier(), FixedClock(datetime(2026, 9, 8, 14, tzinfo=UTC)), conditions
         )
 
-    [entry] = doc.timeline
+    entry = _at(doc.timeline, day)
     assert _weather(entry) == reported
 
 
@@ -149,7 +156,7 @@ def test_an_hour_the_weather_series_lack_carries_null_weather_values() -> None:
             make_pier(), FixedClock(datetime(2026, 9, 8, 14, tzinfo=UTC)), conditions
         )
 
-    _, second = doc.timeline
+    second = _at(doc.timeline, day + timedelta(hours=1))
     assert all(value is None for value in _weather(second).values())
     assert (second.seeing, second.transparency) == (0.8, 0.7)
 
@@ -192,17 +199,56 @@ def test_each_key_reads_its_own_series_and_the_hours_are_their_union() -> None:
             make_pier(), FixedClock(datetime(2026, 9, 8, 14, tzinfo=UTC)), conditions
         )
 
-    early, late = doc.timeline
+    early, late = _at(doc.timeline, first), _at(doc.timeline, second)
     assert (early.time, early.cloud_cover, early.wind_gust) == (first, 37.0, None)
     assert (late.time, late.cloud_cover, late.wind_gust) == (second, None, 23.4)
 
 
-def test_empty_conditions_yield_an_empty_timeline() -> None:
+_EVENING = datetime(2026, 9, 8, 18, tzinfo=UTC)
+# The London pier's solar day for the night of 2026-09-08: noon at 11:58 to 11:57.
+_NIGHT_HOURS = _hours(datetime(2026, 9, 8, 12, tzinfo=UTC), 24)
+
+
+def test_empty_conditions_yield_the_night_hours() -> None:
+    with no_network():
+        doc = produce_verdict(make_pier(), FixedClock(_EVENING), Conditions())
+    assert [entry.time for entry in doc.timeline] == _NIGHT_HOURS
+
+
+def test_an_hour_no_provider_returned_carries_only_its_time_and_altitudes() -> None:
+    with no_network():
+        doc = produce_verdict(make_pier(), FixedClock(_EVENING), Conditions())
+    assert doc.timeline
+    for entry in doc.timeline:
+        assert isinstance(entry.sun_altitude, float) and isinstance(entry.moon_altitude, float)
+        others = entry.model_dump(exclude={"time", "sun_altitude", "moon_altitude"})
+        assert set(others.values()) == {None}
+
+
+def test_a_forecast_shorter_than_the_solar_day_leaves_the_other_hours_null() -> None:
+    forecast = _hours(datetime(2026, 9, 8, 18, tzinfo=UTC), 12)
     with no_network():
         doc = produce_verdict(
-            make_pier(), FixedClock(datetime(2026, 9, 8, 14, tzinfo=UTC)), Conditions()
+            make_pier(), FixedClock(_EVENING), Conditions(series=_base(forecast, cloud_cover=10.0))
         )
-    assert doc.timeline == []
+    assert [entry.time for entry in doc.timeline] == _NIGHT_HOURS
+    assert [entry.time for entry in doc.timeline if entry.cloud_cover is not None] == forecast
+
+
+def test_provider_hours_past_the_night_stay_in_the_timeline() -> None:
+    forecast = _hours(datetime(2026, 9, 8, 18, tzinfo=UTC), 49)
+    with no_network():
+        doc = produce_verdict(
+            make_pier(), FixedClock(_EVENING), Conditions(series=_base(forecast, cloud_cover=10.0))
+        )
+    assert [entry.time for entry in doc.timeline] == _hours(_NIGHT_HOURS[0], 55)
+
+
+def test_the_night_hours_serialize_byte_identically() -> None:
+    with no_network():
+        first = produce_verdict(make_pier(), FixedClock(_EVENING), Conditions())
+        second = produce_verdict(make_pier(), FixedClock(_EVENING), Conditions())
+    assert first.model_dump_json() == second.model_dump_json()
 
 
 def test_past_hours_stay_and_the_scored_window_starts_at_the_instant() -> None:
@@ -213,8 +259,7 @@ def test_past_hours_stay_and_the_scored_window_starts_at_the_instant() -> None:
     with no_network():
         doc = produce_verdict(make_pier(), FixedClock(_MID_SESSION), conditions)
 
-    assert [entry.time for entry in doc.timeline] == times
-    assert doc.timeline[0].cloud_cover == 10.0
+    assert [entry.time for entry in doc.timeline if entry.cloud_cover == 10.0] == times
     assert doc.scored_window.start == _MID_SESSION
 
 
@@ -231,7 +276,8 @@ def test_the_timeline_fills_without_a_dark_window() -> None:
         baseline = produce_verdict(pier, clock, Conditions())
 
     assert doc.dark_window.start is None
-    assert [entry.time for entry in doc.timeline] == times
+    night = night_hours(pier, clock.now(), (None, None))
+    assert [entry.time for entry in doc.timeline] == sorted({*times, *night})
     assert doc.model_dump_json(exclude={"timeline"}) == baseline.model_dump_json(
         exclude={"timeline"}
     )
@@ -255,6 +301,11 @@ def test_hours_outside_the_dark_window_change_no_other_field() -> None:
             return produce_verdict(pier, clock, conditions).model_dump_json(exclude={"timeline"})
 
     assert _doc(inside) == _doc(wider)
+
+
+def test_the_docstring_says_the_timeline_always_holds_the_night_hours() -> None:
+    assert produce_verdict.__doc__ is not None
+    assert "always holds the selected night's hours" in " ".join(produce_verdict.__doc__.split())
 
 
 def test_the_docstring_no_longer_says_conditions_are_not_consulted() -> None:
@@ -284,13 +335,13 @@ def test_two_providers_draw_the_cloud_band() -> None:
         series=_base(times, cloud_cover=40.0),
         alternates={"cloud_cover": (_alternate(times, OPEN_METEO_HRRR, 70.0),)},
     )
-    [entry] = _timeline(conditions)
+    entry = _at(_timeline(conditions), times[0])
     assert (entry.cloud_cover, entry.cloud_cover_min, entry.cloud_cover_max) == (40.0, 40.0, 70.0)
 
 
 def test_one_provider_leaves_the_cloud_band_null() -> None:
     times = _hours(datetime(2026, 9, 8, 21, tzinfo=UTC), 1)
-    [entry] = _timeline(Conditions(series=_base(times, cloud_cover=40.0)))
+    entry = _at(_timeline(Conditions(series=_base(times, cloud_cover=40.0))), times[0])
     assert (entry.cloud_cover, entry.cloud_cover_min, entry.cloud_cover_max) == (40.0, None, None)
 
 
@@ -308,18 +359,20 @@ def test_two_alternates_draw_the_band_for_an_hour_the_filled_series_lacks() -> N
             )
         },
     )
-    _, entry = _timeline(conditions)
+    entry = _at(_timeline(conditions), second)
     assert (entry.cloud_cover, entry.cloud_cover_min, entry.cloud_cover_max) == (None, 10.0, 30.0)
 
 
 def test_hours_only_an_alternate_covers_add_no_entry() -> None:
-    night = _hours(datetime(2026, 9, 8, 20, tzinfo=UTC), 8)
-    long_run = _hours(datetime(2026, 9, 8, 20, tzinfo=UTC), 56)
+    night = _hours(datetime(2026, 9, 8, 20, tzinfo=UTC), 23)
+    long_run = _hours(datetime(2026, 9, 8, 20, tzinfo=UTC), 71)
     conditions = Conditions(
         series=_base(night, cloud_cover=40.0),
         alternates={"cloud_cover": (_alternate(long_run, OPEN_METEO_GFS, 70.0),)},
     )
-    assert [entry.time for entry in _timeline(conditions)] == night
+    with no_network():
+        doc = produce_verdict(make_pier(), FixedClock(_EVENING), conditions)
+    assert doc.timeline[-1].time == datetime(2026, 9, 9, 18, tzinfo=UTC)
 
 
 def _air_quality(times: list[datetime], aerosol: float, pm2_5: float) -> dict[Variable, Series]:
@@ -336,12 +389,14 @@ def _air_quality(times: list[datetime], aerosol: float, pm2_5: float) -> dict[Va
 
 
 def test_hours_only_a_hidden_variable_covers_add_no_entry() -> None:
-    night = _hours(datetime(2026, 9, 8, 20, tzinfo=UTC), 8)
-    long_run = _hours(datetime(2026, 9, 8, 20, tzinfo=UTC), 56)
+    night = _hours(datetime(2026, 9, 8, 20, tzinfo=UTC), 23)
+    long_run = _hours(datetime(2026, 9, 8, 20, tzinfo=UTC), 71)
     conditions = Conditions(
         series={**_base(night, cloud_cover=40.0), **_air_quality(long_run, 0.14, 8.8)}
     )
-    assert [entry.time for entry in _timeline(conditions)] == night
+    with no_network():
+        doc = produce_verdict(make_pier(), FixedClock(_EVENING), conditions)
+    assert doc.timeline[-1].time == datetime(2026, 9, 9, 18, tzinfo=UTC)
 
 
 def test_air_quality_series_alone_yield_the_empty_conditions_document() -> None:
@@ -352,6 +407,7 @@ def test_air_quality_series_alone_yield_the_empty_conditions_document() -> None:
         doc = produce_verdict(pier, clock, Conditions(series=_air_quality(times, 0.14, 8.8)))
         empty = produce_verdict(pier, clock, Conditions())
     assert doc.model_dump_json() == empty.model_dump_json()
+    assert [entry.time for entry in doc.timeline] == _NIGHT_HOURS
 
 
 def test_air_quality_series_leave_the_document_byte_identical() -> None:

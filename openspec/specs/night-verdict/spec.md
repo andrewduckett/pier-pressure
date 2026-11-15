@@ -115,12 +115,12 @@ Each entry's `sun_altitude` and `moon_altitude` SHALL be the geometric altitude 
 
 ### Requirement: The timeline is evidence beside the verdict
 
-The timeline SHALL be filled whenever a provider returned rows for a variable the timeline shows, whether or not the selected night has a dark window. It SHALL NOT change the verdict, the score, the confidence, the reasons or any other existing field. It carries no verdict of its own: the verdict judges the one night the dark window names, however far the timeline reaches.
+The timeline SHALL be filled whether or not a provider returned rows, and whether or not the selected night has a dark window. It SHALL NOT change the verdict, the score, the confidence, the reasons or any other existing field. It carries no verdict of its own: the verdict judges the one night the dark window names, however far the timeline reaches.
 
 #### Scenario: The timeline fills without a dark window
 
 - **WHEN** a verdict is produced for a pier whose selected night has no dark window and a provider returned rows
-- **THEN** the `timeline` holds one entry per returned hour
+- **THEN** the `timeline` holds one entry per returned hour and per hour of the selected night, each hour once
 - **AND** the document with `timeline` removed equals the document produced for the same pier and instant from the empty conditions value
 
 #### Scenario: Hours outside the dark window change no other field
@@ -1321,14 +1321,14 @@ rests on deterministic offline astronomy rather than on a forecast.
 ### Requirement: The timeline holds one entry per hour a shown variable's filled series covers
 
 The verdict document SHALL carry a `timeline` list: the hourly series of sky and
-weather for the pier. The list SHALL hold one entry per clock hour that a filled
-series of a shown variable covers, including hours already past. A shown
-variable is one the timeline carries as a key. The list SHALL be sorted by hour
-ascending, with no hour repeated.
+weather for the pier. Beside the selected night's hours, the list SHALL hold one
+entry per clock hour that a filled series of a shown variable covers, including
+hours already past. A shown variable is one the timeline carries as a key. The
+list SHALL be sorted by hour ascending, with no hour repeated.
 
 #### Scenario: The timeline spans the union of both providers' hours
 
-- **WHEN** a verdict is produced with a cloud-cover series covering 00:00 to 23:00 on one day and a seeing series covering 12:00 on that day to 11:00 two days later
+- **WHEN** a verdict is produced with a cloud-cover series covering 00:00 to 23:00 on one day and a seeing series covering 12:00 on that day to 11:00 two days later, and the selected night's hours all fall inside that span
 - **THEN** the `timeline` holds one entry for every hour from the first day's 00:00 to the third day's 11:00, in ascending order, with no hour repeated
 
 #### Scenario: Past hours stay in the timeline
@@ -1337,35 +1337,30 @@ ascending, with no hour repeated.
 - **THEN** the entries for those earlier hours are present and unchanged
 - **AND** the `scored_window` still starts at the evaluation instant
 
+#### Scenario: Provider hours past the night stay in the timeline
+
+- **WHEN** a verdict is produced for a pier at latitude 51.5, longitude −0.12, elevation 30 m, at 2026-09-08T18:00:00Z, with a `cloud_cover` series that covers 2026-09-08T18:00:00Z to 2026-09-10T18:00:00Z
+- **THEN** the `timeline` holds one entry per hour from 2026-09-08T12:00:00Z to 2026-09-10T18:00:00Z
+
 ### Requirement: Hours only an alternate covers add no timeline entry
 
-Hours only an alternate covers SHALL NOT add a timeline entry.
+Hours only an alternate covers SHALL NOT add a timeline entry, unless they are
+among the selected night's hours.
 
 #### Scenario: Hours only an alternate covers add no entry
 
-- **WHEN** every filled series ends at 03:00 and a `cloud_cover` alternate runs to 03:00 two days later
-- **THEN** the `timeline`'s last entry is 03:00 on the first night
+- **WHEN** a verdict is produced for a pier at latitude 51.5, longitude −0.12, elevation 30 m, at 2026-09-08T18:00:00Z, every filled series ends at 2026-09-09T18:00:00Z, and a `cloud_cover` alternate runs to 2026-09-11T18:00:00Z
+- **THEN** the `timeline`'s last entry is 2026-09-09T18:00:00Z
 
 ### Requirement: A variable the timeline does not show adds no timeline hour
 
 Hours only a series of a variable the timeline does not show covers SHALL NOT
-add a timeline entry.
+add a timeline entry, unless they are among the selected night's hours.
 
 #### Scenario: Hours only a hidden variable covers add no entry
 
-- **WHEN** every filled series of a variable the timeline shows ends at 03:00 and an `aerosol_optical_depth` series runs to 03:00 two days later
-- **THEN** the `timeline`'s last entry is 03:00 on the first night
-
-### Requirement: The timeline is empty, never absent, when no provider returned rows
-
-The `timeline` list SHALL be empty, never absent, when no provider returned rows
-for a variable the timeline shows.
-
-#### Scenario: No provider rows yield an empty timeline
-
-- **WHEN** a verdict is produced with the empty conditions value
-- **THEN** the document's `timeline` is an empty list
-- **AND** the verdict is produced without error
+- **WHEN** a verdict is produced for a pier at latitude 51.5, longitude −0.12, elevation 30 m, at 2026-09-08T18:00:00Z, every filled series of a variable the timeline shows ends at 2026-09-09T18:00:00Z, and an `aerosol_optical_depth` series runs to 2026-09-11T18:00:00Z
+- **THEN** the `timeline`'s last entry is 2026-09-09T18:00:00Z
 
 ### Requirement: A timeline entry carries exactly eighteen keys in a fixed order
 
@@ -1605,7 +1600,7 @@ source's `transparency` and `seeing`.
 
 - **WHEN** a verdict is produced from a snapshot whose only series are `aerosol_optical_depth` and `pm2_5`
 - **THEN** the serialized document is byte-identical to the one produced for the same pier and instant from the empty conditions value
-- **AND** its `timeline` is an empty list
+- **AND** its `timeline` holds exactly the selected night's hours
 
 #### Scenario: A column water vapour series leaves the document byte-identical
 
@@ -2093,3 +2088,170 @@ document. The document SHALL gain no key for them.
 
 - **WHEN** two verdicts are produced for the same pier, instant and conditions, one with a counted fire detection and one with none
 - **THEN** the two documents are equal except that the first one's `reasons` holds the fire line
+
+### Requirement: A pier id repeated in the piers list stops startup
+
+When two or more entries in the piers list have the same text `id`, the system
+SHALL report a configuration error that names that id, and SHALL NOT start. An
+entry SHALL count whether or not it passes its other checks. Two ids that
+differ only in letter case SHALL NOT count as the same id.
+
+#### Scenario: Two piers with one id stop startup
+
+- **WHEN** the piers list holds two entries with the id `backyard`
+- **THEN** startup fails with a configuration error that names `backyard`
+- **AND** no verdict document is published
+
+#### Scenario: An entry that is otherwise invalid still counts
+
+- **WHEN** the piers list holds a valid pier with the id `backyard`
+- **AND** a second entry with the id `backyard` whose latitude is 95
+- **THEN** startup fails with a configuration error that names `backyard`
+
+#### Scenario: Ids that differ in letter case are distinct
+
+- **WHEN** the piers list holds one valid pier with the id `backyard` and another with the id `Backyard`
+- **THEN** both piers are accepted
+- **AND** each produces its own verdict document
+
+### Requirement: The repeated-id error shows only the id
+
+The configuration error for a repeated pier id SHALL be one line. It SHALL show
+the repeated id, escaped so that a line break in the id cannot split the line,
+and SHALL show no other configuration value.
+
+#### Scenario: An id with a line break stays on one line
+
+- **WHEN** two entries in the piers list have the id `back` followed by a line break and `yard`
+- **THEN** the configuration error is a single line that names that id with the line break escaped
+- **AND** the error holds no other value from either entry
+
+### Requirement: A zero-padded integer in the configuration file is a decimal number
+
+When a number setting in the configuration file holds an integer with leading
+zeros, with or without a sign, the setting SHALL take that decimal number.
+
+#### Scenario: A padded go-threshold is read as decimal
+
+- **WHEN** a pier in the configuration file sets `go_threshold: 070`
+- **THEN** the pier's go-threshold is 70
+
+#### Scenario: A padded negative number is read as decimal
+
+- **WHEN** a pier in the configuration file sets `longitude: -045`
+- **THEN** the pier's longitude is -45
+
+#### Scenario: A padded number with the digit 8 or 9 is read as decimal
+
+- **WHEN** a pier in the configuration file sets `go_threshold: 080`
+- **THEN** the pier's go-threshold is 80
+
+### Requirement: A base-60 value in the configuration file is text
+
+The system SHALL read a value in the configuration file that is written as
+numbers joined by colons, such as `1:30` or `1:30.5`, as text, not as a number.
+
+#### Scenario: A base-60 number setting is rejected
+
+- **WHEN** a pier in the configuration file sets `go_threshold: 1:05`
+- **THEN** that pier is reported as invalid
+- **AND** each other valid pier still produces a verdict document
+
+#### Scenario: A base-60 id is text
+
+- **WHEN** a pier in the configuration file sets `id: 1:30`, without quotes
+- **THEN** the pier's id is the text `1:30`
+
+### Requirement: Other number forms in the configuration file keep their meaning
+
+The system SHALL read every other number in the configuration file as it did
+before zero-padded and base-60 values changed. A hexadecimal value such as
+`0x1A` SHALL still read as 26, and a value with underscores such as `1_000`
+SHALL still read as 1000.
+
+#### Scenario: Hexadecimal and underscore numbers are unchanged
+
+- **WHEN** a pier in the configuration file sets `elevation_m: 0x1A`
+- **AND** another pier sets `elevation_m: 1_000`
+- **THEN** the first pier's elevation is 26 metres
+- **AND** the second pier's elevation is 1000 metres
+
+### Requirement: The timeline holds every hour of the selected night's solar day
+
+The `timeline` SHALL hold an entry for every clock hour that starts inside the
+selected night's local solar day, whatever the providers returned. The solar
+day runs from one local solar noon to the next. When the selected night has a
+dark window, it is the solar day that holds `dark_window.start`.
+
+#### Scenario: An ordinary night with no provider rows
+
+- **WHEN** a verdict is produced for a pier at latitude 51.5, longitude −0.12, elevation 30 m, at 2026-09-08T18:00:00Z, from the empty conditions value
+- **THEN** the `timeline` holds 24 entries, one per hour from 2026-09-08T12:00:00Z to 2026-09-09T11:00:00Z, in ascending order
+
+#### Scenario: Continuous polar night
+
+- **WHEN** a verdict is produced from the empty conditions value during continuous polar night, at an evaluation instant inside the dark window
+- **THEN** the `timeline` holds one entry for every clock hour that starts inside `dark_window`, and no other entry
+
+### Requirement: The night's hours start at the current hour when that comes first
+
+When the clock hour that holds the evaluation instant starts before the
+selected night's solar day, the `timeline` SHALL also hold every clock hour
+from that hour up to the solar day.
+
+#### Scenario: A morning after dawn
+
+- **WHEN** a verdict is produced for a pier at latitude 51.5, longitude −0.12, elevation 30 m, at 2026-09-09T06:30:00Z, from the empty conditions value
+- **THEN** the `timeline` holds one entry per hour from 2026-09-09T06:00:00Z to 2026-09-10T11:00:00Z, in ascending order
+
+#### Scenario: The current hour inside the solar day adds nothing
+
+- **WHEN** a verdict is produced for the same pier at 2026-09-08T18:00:00Z, from the empty conditions value
+- **THEN** the `timeline`'s first entry is 2026-09-08T12:00:00Z
+
+### Requirement: Without a dark window, the solar day is the next one to reach its midpoint
+
+When the selected night has no dark window, its solar day SHALL be the first
+local solar day whose midpoint, halfway between its two solar noons, is at or
+after the evaluation instant.
+
+#### Scenario: A summer night that never reaches astronomical darkness
+
+- **WHEN** a verdict is produced for a pier at latitude 55.0, longitude −3.0, elevation 0 m, at 2026-06-21T08:00:00Z, from the empty conditions value
+- **THEN** `dark_window` is null
+- **AND** the `timeline` holds one entry per hour from 2026-06-21T08:00:00Z to 2026-06-22T12:00:00Z, in ascending order
+
+#### Scenario: Before the midpoint the current solar day applies
+
+- **WHEN** a verdict is produced for the same pier at 2026-06-20T22:00:00Z, from the empty conditions value
+- **THEN** the `timeline`'s first entry is 2026-06-20T13:00:00Z and its last is 2026-06-21T12:00:00Z
+
+### Requirement: An hour no provider returned carries only its time and altitudes
+
+A timeline entry for an hour that no filled series of a shown variable covers
+SHALL carry its `time`, `sun_altitude` and `moon_altitude`, and null for every
+other key.
+
+#### Scenario: Every forecast fails
+
+- **WHEN** a verdict is produced from the empty conditions value
+- **THEN** every entry's `sun_altitude` and `moon_altitude` are numbers
+- **AND** every other key of every entry except `time` is null
+
+#### Scenario: A forecast shorter than the solar day
+
+- **WHEN** a verdict is produced for a pier at latitude 51.5, longitude −0.12, elevation 30 m, at 2026-09-08T18:00:00Z, with a `cloud_cover` series that covers 2026-09-08T18:00:00Z to 2026-09-09T05:00:00Z
+- **THEN** the `timeline` holds one entry per hour from 2026-09-08T12:00:00Z to 2026-09-09T11:00:00Z
+- **AND** the entries before 18:00 and after 05:00 have a null `cloud_cover`
+
+### Requirement: With no provider rows, the timeline carries the selected night's astronomy
+
+The `timeline` list SHALL never be empty or absent. When no provider returned
+rows for a variable the timeline shows, it SHALL hold exactly the selected
+night's hours, and the verdict SHALL be produced without error.
+
+#### Scenario: No provider rows yield the night's hours
+
+- **WHEN** a verdict is produced with the empty conditions value
+- **THEN** the document's `timeline` holds exactly the selected night's hours
+- **AND** the verdict is produced without error
