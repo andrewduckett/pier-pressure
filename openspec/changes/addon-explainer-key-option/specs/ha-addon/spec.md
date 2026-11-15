@@ -172,10 +172,10 @@ names `explainer.api_key`. The error SHALL NOT contain either key.
 
 ### Requirement: An explainer in config.yaml that is not a mapping stops the add-on
 
-Inside an add-on, when the Configuration form sets `explainer.api_key` and
-`config.yaml` gives `explainer` a value that is not a mapping, the add-on SHALL
-stop with a configuration error that says `explainer` in `config.yaml` must be
-a mapping of settings. The error SHALL NOT contain the file's value.
+Inside an add-on, when `config.yaml` gives `explainer` a value that is not a
+mapping, the add-on SHALL stop with a configuration error that says `explainer`
+in `config.yaml` must be a mapping of settings, whatever the form sets. The
+error SHALL NOT contain the file's value.
 
 #### Scenario: An explainer list in the file stops the add-on
 
@@ -186,18 +186,27 @@ a mapping of settings. The error SHALL NOT contain the file's value.
   mapping
 - **AND** no log line or error message contains `sk-file-5d07`
 
-### Requirement: No log line or error reveals the form's explainer key
+#### Scenario: An explainer list in the file stops the add-on without a form key
+
+- **WHEN** the form lists a pier and sets no `explainer.api_key`
+- **AND** `config.yaml` sets `explainer` to the list `[sk-file-5d07]`
+- **THEN** the add-on stops
+- **AND** its configuration error says `explainer` in config.yaml must be a
+  mapping
+- **AND** no log line or error message contains `sk-file-5d07`
+
+### Requirement: No startup error reveals the form's explainer key
 
 Inside an add-on, the service SHALL NOT insert the Configuration form's
-`explainer.api_key` into a log line or an error message.
+`explainer.api_key` into a startup log line or a configuration error.
 
-#### Scenario: A failed explainer call does not reveal the form's key
+#### Scenario: A bad explainer setting does not reveal the form's key
 
 - **WHEN** the form lists a pier and sets `explainer.api_key` to `sk-8c41f2`
-- **AND** `config.yaml` sets `explainer.enabled` to true
-- **AND** the explainer's call to its LLM provider fails
-- **THEN** the add-on still publishes the pier's verdict
-- **AND** no log line contains `sk-8c41f2`
+- **AND** `config.yaml` sets `explainer.enabled` to `maybe`
+- **THEN** the add-on stops with a configuration error that names the
+  `explainer` block
+- **AND** no log line or error message contains `sk-8c41f2`
 
 ### Requirement: The explainer section says config.yaml turns the explainer on
 
@@ -209,6 +218,19 @@ The English description of the form's `explainer` setting SHALL say that
 - **WHEN** the test suite reads the English translation file
 - **THEN** the description of `explainer` contains `explainer.enabled` and
   `config.yaml`
+
+### Requirement: The More settings section names the tab's parts in order
+
+The "More settings" section of the add-on's documentation SHALL name, in bold,
+the Recompute interval, the Piers, the MQTT broker and the Explainer, in the
+order the Configuration tab shows them.
+
+#### Scenario: More settings names the four parts in order
+
+- **WHEN** the test suite reads the "More settings" section of
+  `ha-addon/DOCS.md`
+- **THEN** it names in bold `Recompute interval`, `Piers`, `MQTT broker` and
+  `Explainer`, each first named after the one before it
 
 ### Requirement: The add-on docs say where each explainer setting goes
 
