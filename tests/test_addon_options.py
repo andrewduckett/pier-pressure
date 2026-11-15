@@ -1,8 +1,8 @@
 """addon-options-form D1, D3: the Configuration form's saved values become config.
 
 The horizon fields follow addon-form-horizon D1-D3, the equipment fields
-addon-form-equipment D1-D3, the broker fields addon-form-broker D2, and the gate
-fields addon-form-gates D1.
+addon-form-equipment D1-D3, the broker fields addon-form-broker D2, the gate
+fields addon-form-gates D1, and the explainer key addon-explainer-key-option D2.
 """
 
 from __future__ import annotations
@@ -315,6 +315,54 @@ def test_a_broker_value_that_is_not_a_mapping_reaches_the_core(
 ) -> None:
     # The core rejects it; dropping it would silently use the Supervisor's broker.
     assert _read_with_broker(tmp_path, mqtt)["mqtt"] == mqtt
+
+
+# --------------------------------------------------------------------------- #
+# addon-explainer-key-option D2, D6: the form's explainer key, left out when empty
+# --------------------------------------------------------------------------- #
+
+FORM_KEY = "sk-8c41f2"
+
+
+def _read_with_explainer(tmp_path: Path, explainer: object) -> dict[str, object]:
+    options = {"interval_seconds": 900, "piers": [PIER], "explainer": explainer}
+    read = read_addon_options(_options(tmp_path, json.dumps(options)))
+    assert read is not None
+    return read
+
+
+def test_the_form_explainer_key_becomes_the_explainer_block(tmp_path: Path) -> None:
+    explainer = _read_with_explainer(tmp_path, {"api_key": FORM_KEY})["explainer"]
+
+    assert explainer == {"api_key": FORM_KEY}
+
+
+@pytest.mark.parametrize(
+    "explainer",
+    [{}, {"api_key": None}, {"api_key": ""}, {"api_key": "   "}],
+    ids=["empty-block", "null", "empty", "blank"],
+)
+def test_an_explainer_block_with_no_key_gives_no_explainer_key(
+    tmp_path: Path, explainer: dict[str, object]
+) -> None:
+    assert "explainer" not in _read_with_explainer(tmp_path, explainer)
+
+
+def test_a_form_without_an_explainer_block_gives_no_explainer_key(tmp_path: Path) -> None:
+    # Saved values from an add-on version before the block existed.
+    options = {"interval_seconds": 900, "piers": [PIER]}
+    read = read_addon_options(_options(tmp_path, json.dumps(options)))
+
+    assert read is not None
+    assert "explainer" not in read
+
+
+@pytest.mark.parametrize("explainer", [[], "", 0], ids=["list", "text", "zero"])
+def test_an_explainer_value_that_is_not_a_mapping_reaches_the_core(
+    tmp_path: Path, explainer: object
+) -> None:
+    # The core rejects it by name, as it does a broker value of the wrong shape.
+    assert _read_with_explainer(tmp_path, explainer)["explainer"] == explainer
 
 
 # --------------------------------------------------------------------------- #

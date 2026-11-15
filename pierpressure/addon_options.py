@@ -1,8 +1,8 @@
 """The add-on's Configuration form.
 
 Follows addon-options-form D1, D3; addon-form-horizon D1-D3;
-addon-form-equipment D1-D3; addon-form-broker D2; addon-form-gates D1; and
-addon-options-core-validates D2-D4 and ADR-0022.
+addon-form-equipment D1-D3; addon-form-broker D2; addon-form-gates D1;
+addon-options-core-validates D2-D4 and ADR-0022; and addon-explainer-key-option D2.
 
 When the user saves the form, the Supervisor writes its values to
 ``/data/options.json``. :func:`translate_form` turns them into the mapping a
@@ -12,8 +12,8 @@ a pier's flat ``min_altitude`` and ``horizon_points`` fields become the file's
 ``horizon`` block, and its ``equipment_*`` fields become its ``equipment`` block.
 Its ``go_threshold`` and ``max_gust`` keep the file's names. Each passes through
 when set and is left out when not, so the core's default applies.
-The form's ``mqtt`` block already uses the file's names, so it passes through
-without the fields the user left empty.
+The form's ``mqtt`` and ``explainer`` blocks already use the file's names, so
+they pass through without the fields the user left empty.
 
 The translation only reads, renames and drops unset fields. It never decides
 whether a value is valid: any value it does not expect passes through, and the
@@ -111,8 +111,9 @@ def translate_form(options: dict[str, Any]) -> dict[str, Any] | None:
     become its ``horizon`` block, and its equipment fields its ``equipment``
     block. Its gate fields, ``go_threshold`` and ``max_gust``, are left out when
     not set (addon-form-gates D1). Its other keys pass through unchanged, because
-    they are the file's keys. The ``mqtt`` block passes through without its empty
-    fields, and is left out when none is set (addon-form-broker D2). Every form
+    they are the file's keys. The ``mqtt`` and ``explainer`` blocks pass through
+    without their empty fields, and each is left out when none is set
+    (addon-form-broker D2, addon-explainer-key-option D2). Every form
     pier is kept, and the core checks it (addon-options-core-validates D4).
     """
     piers = options.get("piers", [])
@@ -122,22 +123,24 @@ def translate_form(options: dict[str, Any]) -> dict[str, Any] | None:
     config: dict[str, Any] = {"piers": _config_piers(piers)}
     if "interval_seconds" in options:
         config["recompute"] = {"interval_seconds": options["interval_seconds"]}
-    mqtt = _set_broker_fields(options.get("mqtt"))
-    if mqtt is not None and mqtt != {}:
-        config["mqtt"] = mqtt
+    for block in ("mqtt", "explainer"):
+        fields = _set_block_fields(options.get(block))
+        if fields is not None and fields != {}:
+            config[block] = fields
     return config
 
 
-def _set_broker_fields(mqtt: Any) -> Any:
-    """The form's ``mqtt`` block without the fields left empty (addon-form-broker D2).
+def _set_block_fields(block: Any) -> Any:
+    """A form block without the fields left empty (addon-form-broker D2).
 
     A field that is ``None``, empty text or blank text is unset, so a cleared
-    username neither sets an empty login nor counts as a username without a host.
+    username neither sets an empty login nor counts as a username without a host,
+    and a cleared explainer key gives no key (addon-explainer-key-option D6).
     A value that is not a mapping passes through, and the core rejects it.
     """
-    if not isinstance(mqtt, dict):
-        return mqtt
-    return {key: value for key, value in mqtt.items() if is_set(value)}
+    if not isinstance(block, dict):
+        return block
+    return {key: value for key, value in block.items() if is_set(value)}
 
 
 def _config_piers(piers: list[Any]) -> list[Any]:
