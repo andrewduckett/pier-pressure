@@ -39,6 +39,8 @@ from pierpressure.delivery.mqtt import (
     availability_topic,
     verdict_state_topic,
 )
+from pierpressure.explain import NarrativeExplainer
+from pierpressure.explain.provider import PydanticAIProvider
 from pierpressure.service import Service
 from pierpressure.supervisor import SupervisorError, fetch_mqtt_broker
 
@@ -1624,6 +1626,54 @@ def test_main_logs_a_block_error_without_its_secret(
     [error] = _errors(caplog)
     assert error.startswith(f"Configuration error: Invalid {named} configuration: ")
     assert marker not in caplog.text
+
+
+# --------------------------------------------------------------------------- #
+# addon-explainer-key-option: the form holds the explainer's key (D4, D5)
+# --------------------------------------------------------------------------- #
+
+FORM_EXPLAINER_KEY = "sk-8c41f2"
+
+
+def _form_with_explainer_key(
+    monkeypatch: pytest.MonkeyPatch, options_file: Path, *piers: Any
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "token-1")
+    options_file.write_text(
+        json.dumps(
+            {
+                "interval_seconds": 600,
+                "piers": list(piers),
+                "explainer": {"api_key": FORM_EXPLAINER_KEY},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_the_form_explainer_key_reaches_the_explainer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _form_with_explainer_key(monkeypatch, options_file, BACKYARD)
+    StartupStub(monkeypatch)
+    text = "explainer:\n  enabled: true\n  model: openai:gpt-4o\n"
+
+    with caplog.at_level(logging.INFO, logger="pierpressure"):
+        config = _load(_config(tmp_path, text))
+    _delivery, explainer = entry.build_delivery_and_explainer(config)
+
+    assert isinstance(explainer, NarrativeExplainer)
+    provider = explainer.provider
+    assert isinstance(provider, PydanticAIProvider)
+    assert provider.model == "openai:gpt-4o"
+    assert provider.api_key is not None
+    assert provider.api_key.get_secret_value() == FORM_EXPLAINER_KEY
+    assert "Settings from the Configuration tab and config.yaml" in [
+        r.getMessage() for r in caplog.records
+    ]
 
 
 # --------------------------------------------------------------------------- #

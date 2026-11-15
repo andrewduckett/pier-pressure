@@ -6,7 +6,7 @@
 - [x] 1.4 [easy] The form translation puts a set `explainer.api_key` into the config's `explainer` block, and leaves out the block when the key is absent, null, empty or blank (verify: uv run pytest tests/test_addon_options.py -k explainer) (✓ uv run pytest tests/test_addon_options.py -k explainer passed)
 - [x] 1.5 [medium] Combining the form with `config.yaml` adds the file's other explainer settings to the form's key, and a key in both is a combine error that names `explainer.api_key` and contains neither key (verify: uv run pytest tests/test_addon_settings.py -k explainer) (✓ uv run pytest tests/test_addon_settings.py -k explainer passed)
 - [x] 1.6 [easy] A file `explainer` that is not a mapping is a combine error, with or without a form key, that says `explainer` in config.yaml must be a mapping and holds none of the file's value (verify: uv run pytest tests/test_addon_settings.py -k explainer_mapping) (✓ uv run pytest tests/test_addon_settings.py -k explainer_mapping passed)
-- [ ] 1.7 [medium] At startup, a form key with `explainer.enabled` and `explainer.model` in `config.yaml` runs the explainer with that model and key, and the log says the settings came from the Configuration tab and config.yaml (verify: uv run pytest tests/test_main.py -k form_explainer_key_reaches)
+- [x] 1.7 [medium] At startup, a form key with `explainer.enabled` and `explainer.model` in `config.yaml` runs the explainer with that model and key, and the log says the settings came from the Configuration tab and config.yaml (verify: uv run pytest tests/test_main.py -k form_explainer_key_reaches) (✓ uv run pytest tests/test_main.py -k form_explainer_key_reaches passed)
 - [ ] 1.8 [easy] At startup, a form key with no `config.yaml` starts the add-on with the explainer off, so no narrative entity is published (verify: uv run pytest tests/test_main.py -k form_explainer_key_alone)
 - [ ] 1.9 [easy] A form key with a bad explainer setting in `config.yaml` stops the add-on with a configuration error, and no log line or error message contains the key (verify: uv run pytest tests/test_main.py -k form_explainer_key_hidden)
 - [ ] 1.10 [easy] The "Set up the add-on" section of `ha-addon/DOCS.md` names **Explainer** in bold after **MQTT broker**, and "More settings" names the four parts in the tab's order (verify: uv run pytest tests/test_ha_addon.py -k "setup_steps or more_settings")
@@ -18,3 +18,6 @@
 - 2026-11-14, task 1.3: the test passed at once, because task 1.2 wrote the
   section's text. A mutation that changed `explainer.enabled` to `enabled`
   made it fail, so the test guards the behavior.
+- 2026-11-14, task 1.7: the test passed at once, because tasks 1.4 and 1.5
+  built the path from the form to the explainer. A mutation that dropped the
+  form's key from the merged explainer block made it fail.
