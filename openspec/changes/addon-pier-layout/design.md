@@ -21,7 +21,9 @@ name their defaults.
 
 - Show a pier's four sections inside the one dialog, using only labels and help
   text.
-- Ship the help text Andrew tried in the labelled trial, word for word.
+- Ship the help text Andrew tried in the labelled trial. The one change is that
+  a description which names another field uses that field's new label or plain
+  lower-case words, never an old label such as "Focal length".
 
 **Non-Goals:**
 
@@ -81,19 +83,22 @@ trial chose the flat layout. That choice is costly to reverse: nesting later
 would change every saved pier and the translation in `addon_options.py`. It
 gets a decision record (see adr.md), and ADR 0020 stays as written.
 
-### D5. `DOCS.md` changes only its label tables
+### D5. `DOCS.md` takes the new label wherever it names a pier field's label
 
-The two tables that map a label to its `config.yaml` name use today's labels.
-They take the new ones. All other `DOCS.md` text stays for #101.
+`DOCS.md` names pier fields by their labels in bold text, in its field tables
+and in its label-to-`config.yaml` tables. Each of those takes the new label,
+such as **Horizon: points**. Text that names a setting as an idea, such as the
+heading "Set a pier's GO threshold and wind-gust limit", stays. Every other
+change to `DOCS.md` waits for #101.
 
 ## Risks / Trade-offs
 
 - [A long label is cut off in a narrow dialog, such as `Equipment: reducer or
   barlow` on a phone.] → Andrew saw the labels in the trial. The help text below
   each field still names the field in full.
-- [The section prefix repeats on every field, which some may read as noise.] →
-  It is the only grouping the dialog can show, and Andrew preferred it to the
-  plain list.
+- [The section prefix repeats on every field. Some may read it as noise.] →
+  It is the only grouping the dialog can show. Andrew preferred it to the plain
+  list.
 - [A later pier field is added without a section.] → The test's section table
   fails until the field has a row.
 

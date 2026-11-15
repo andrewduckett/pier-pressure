@@ -5,8 +5,8 @@
 
 ## Review Summary
 
-ADR review completed for this change. Design decision D4, keeping a pier's
-form fields flat now that the form allows nesting, qualifies: the old reason in
+ADR review completed for this change. Design decision D4 qualifies: it keeps a
+pier's form fields flat now that the form allows nesting. The old reason in
 [ADR-0020](../../../docs/decisions/0020-addon-form-translated-to-config-file-shape.md)
 is gone, and nesting later would change every saved pier. D1 to D3 and D5 are
 label text, a test table and a documentation edit, all cheap to change, so they

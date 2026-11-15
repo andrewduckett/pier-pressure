@@ -56,15 +56,23 @@ in English, and each description of a number SHALL name its unit or say it has
 none.
 
 A pier's fields SHALL appear in this order, in four sections after the pier's
-`id`. Each field's English label SHALL start with its section's name, a colon
-and a space, such as `Horizon: floor`. The `id` label SHALL have no section.
+`id`. Each field's English label SHALL be the one in this table. It starts with
+its section's name, a colon and a space. The label of `id` SHALL be `Pier ID`,
+with no section.
 
-| Section | Fields |
-|---|---|
-| Location | `latitude`, `longitude`, `elevation_m` |
-| Horizon | `min_altitude`, `horizon_points` |
-| Equipment | `equipment_focal_length_mm`, `equipment_sensor_width_mm`, `equipment_sensor_height_mm`, `equipment_reducer` |
-| Verdict | `go_threshold`, `max_gust` |
+| Section | Field | Label |
+|---|---|---|
+| Location | `latitude` | `Location: latitude` |
+| Location | `longitude` | `Location: longitude` |
+| Location | `elevation_m` | `Location: elevation` |
+| Horizon | `min_altitude` | `Horizon: floor` |
+| Horizon | `horizon_points` | `Horizon: points` |
+| Equipment | `equipment_focal_length_mm` | `Equipment: focal length` |
+| Equipment | `equipment_sensor_width_mm` | `Equipment: sensor width` |
+| Equipment | `equipment_sensor_height_mm` | `Equipment: sensor height` |
+| Equipment | `equipment_reducer` | `Equipment: reducer or barlow` |
+| Verdict | `go_threshold` | `Verdict: GO threshold` |
+| Verdict | `max_gust` | `Verdict: wind-gust limit` |
 
 The description of each section's first field SHALL start with the section's
 name and a colon, followed by one sentence that introduces the section. No
@@ -112,8 +120,8 @@ other field's description SHALL start that way.
   translation file
 - **THEN** the pier fields in the schema follow the order `id`, then the
   Location, Horizon, Equipment and Verdict fields as the table lists them
-- **AND** the label of each of those fields starts with its section's name and
-  `: `, such as `Location: latitude` and `Verdict: wind-gust limit`
+- **AND** the label of each of those fields is the label the table gives it,
+  such as `Location: latitude` and `Verdict: wind-gust limit`
 - **AND** the label of `id` is `Pier ID`
 
 #### Scenario: Each section's first field introduces the section
