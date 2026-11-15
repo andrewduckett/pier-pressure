@@ -311,6 +311,23 @@ def test_failure_log_carries_no_traceback(caplog: pytest.LogCaptureFixture) -> N
     assert "connection refused" not in caplog.text
 
 
+class _TextStatusError(Exception):
+    """An error whose ``status_code`` is provider text rather than an HTTP status."""
+
+    status_code = "401 for sk-marker"
+
+
+def test_failure_log_ignores_a_status_code_that_is_not_an_integer(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    explainer = NarrativeExplainer(_LeakyProvider(_TextStatusError()))
+    with caplog.at_level(logging.WARNING, logger="pierpressure.explain"):
+        explainer(_document())
+    warning = next(r for r in caplog.records if r.levelno == logging.WARNING)
+    assert warning.getMessage() == "explainer provider failed: _TextStatusError; no narrative"
+    assert "sk-marker" not in caplog.text
+
+
 # --------------------------------------------------------------------------- #
 # 2.6 — the default Pydantic AI provider, driven by an injected test model
 # --------------------------------------------------------------------------- #

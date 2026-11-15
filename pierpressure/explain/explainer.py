@@ -115,7 +115,8 @@ def _failure_kind(exc: Exception) -> str:
     and last four characters, which the log mask cannot recognize as the key.
     """
     status = getattr(exc, "status_code", None)
-    if status is None:
+    # Any other type could be provider text, so it is left out like the error's text.
+    if not isinstance(status, int):
         return type(exc).__name__
     return f"{type(exc).__name__} (HTTP {status})"
 
