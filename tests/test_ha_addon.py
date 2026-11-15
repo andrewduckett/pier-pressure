@@ -3,8 +3,9 @@
 The Configuration form's options, schema and labels follow addon-options-form D5, D6,
 its horizon fields addon-form-horizon D4, D5, its equipment fields
 addon-form-equipment D4, D5, its broker fields addon-form-broker D1, its
-gate fields addon-form-gates D2, D4, and its pier sections addon-pier-layout
-D1-D3 and D5.
+gate fields addon-form-gates D2, D4, its pier sections addon-pier-layout
+D1-D3 and D5, and the rest of its help text and DOCS.md walkthrough
+addon-form-text D3-D8.
 """
 
 from __future__ import annotations
