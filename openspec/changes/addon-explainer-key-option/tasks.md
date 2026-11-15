@@ -8,7 +8,7 @@
 - [x] 1.6 [easy] A file `explainer` that is not a mapping is a combine error, with or without a form key, that says `explainer` in config.yaml must be a mapping and holds none of the file's value (verify: uv run pytest tests/test_addon_settings.py -k explainer_mapping) (✓ uv run pytest tests/test_addon_settings.py -k explainer_mapping passed)
 - [x] 1.7 [medium] At startup, a form key with `explainer.enabled` and `explainer.model` in `config.yaml` runs the explainer with that model and key, and the log says the settings came from the Configuration tab and config.yaml (verify: uv run pytest tests/test_main.py -k form_explainer_key_reaches) (✓ uv run pytest tests/test_main.py -k form_explainer_key_reaches passed)
 - [x] 1.8 [easy] At startup, a form key with no `config.yaml` starts the add-on with the explainer off, so no narrative entity is published (verify: uv run pytest tests/test_main.py -k form_explainer_key_alone) (✓ uv run pytest tests/test_main.py -k form_explainer_key_alone passed)
-- [ ] 1.9 [easy] A form key with a bad explainer setting in `config.yaml` stops the add-on with a configuration error, and no log line or error message contains the key (verify: uv run pytest tests/test_main.py -k form_explainer_key_hidden)
+- [x] 1.9 [easy] A form key with a bad explainer setting in `config.yaml` stops the add-on with a configuration error, and no log line or error message contains the key (verify: uv run pytest tests/test_main.py -k form_explainer_key_hidden) (✓ uv run pytest tests/test_main.py -k form_explainer_key_hidden passed)
 - [ ] 1.10 [easy] The "Set up the add-on" section of `ha-addon/DOCS.md` names **Explainer** in bold after **MQTT broker**, and "More settings" names the four parts in the tab's order (verify: uv run pytest tests/test_ha_addon.py -k "setup_steps or more_settings")
 - [ ] 1.11 [medium] A "Turn on the explainer" section of `ha-addon/DOCS.md` puts the key in the tab's **API key** field and `explainer.enabled` and `explainer.model` in `config.yaml`; the `config.yaml` sections name the key as a tab setting; and `docs/llm-explainer.md` points add-on users to the tab (verify: uv run pytest tests/test_ha_addon.py -k turn_on_the_explainer)
 - [ ] 1.12 [easy] The whole project's checks pass (verify: mise run check)
@@ -26,3 +26,6 @@
   explainer on whenever the form set a key made it fail. The test asserts on the
   loaded settings rather than the delivery, because the startup stub replaces
   the delivery.
+- 2026-11-14, task 1.9: the test passed at once, because the core already
+  builds an explainer error from each setting's name and rule, never its value.
+  A mutation that added the block's value to that error made it fail.

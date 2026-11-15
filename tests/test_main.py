@@ -1693,6 +1693,24 @@ def test_the_form_explainer_key_alone_leaves_the_explainer_off(
     assert explainer is no_op_explainer
 
 
+def test_the_form_explainer_key_hidden_in_a_bad_explainer_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # addon-explainer-key-option D7.
+    _form_with_explainer_key(monkeypatch, options_file, BACKYARD)
+    StartupStub(monkeypatch)
+
+    with caplog.at_level(logging.DEBUG):
+        assert entry.main([_config(tmp_path, "explainer:\n  enabled: maybe\n")]) == 1
+
+    [error] = _errors(caplog)
+    assert error.startswith("Configuration error: Invalid explainer configuration: ")
+    assert FORM_EXPLAINER_KEY not in caplog.text
+
+
 # --------------------------------------------------------------------------- #
 # addon-options-core-validates: the core checks every saved setting (D6)
 # --------------------------------------------------------------------------- #
