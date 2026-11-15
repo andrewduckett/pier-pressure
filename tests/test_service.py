@@ -9,9 +9,11 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from pierpressure.conditions import FetchResult
+from pierpressure.conditions.firms import FIRMS
 from pierpressure.conditions.metar import METAR
 from pierpressure.core.clock import FixedClock
 from pierpressure.core.config import AppConfig, PierConfig, RecomputeConfig
+from pierpressure.core.fire import FireDetection
 from pierpressure.core.observation import Observation
 from pierpressure.core.providers import OPEN_METEO, SEVEN_TIMER
 from pierpressure.delivery.mqtt import MqttDelivery, refresh_command_topic
@@ -424,3 +426,123 @@ def test_with_no_providers_a_pier_with_a_station_publishes_no_metar_health() -> 
     service.run(monotonic=ScriptedMonotonic([0.0]), max_iterations=0)
 
     assert delivery.healths == []
+
+
+# --------------------------------------------------------------------------- #
+# FIRMS health and the fire detections (firms-nearby-fire DD7)
+# --------------------------------------------------------------------------- #
+
+_DETECTED_AT = _START - timedelta(hours=3)
+
+
+class _FirmsFetch:
+    """Answer each fetch with one fire detection near the pier and a FIRMS outcome."""
+
+    def __init__(self, events: list[tuple[str, ...]]) -> None:
+        self._events = events
+
+    def __call__(self, pier: PierConfig) -> FetchResult:
+        self._events.append(("fetch", pier.id))
+        fire = FireDetection(
+            latitude=pier.latitude + 0.1,
+            longitude=pier.longitude,
+            detected_at=_DETECTED_AT,
+            confidence="nominal",
+        )
+        outcome = FetchOutcome(
+            key=FIRMS.key,
+            name=FIRMS.name,
+            variables=FIRMS.variables,
+            fetched_at=_START,
+            ok=True,
+            issued_at=_DETECTED_AT,
+        )
+        return FetchResult(make_conditions(), (outcome,), fires=(fire,))
+
+
+def _firms_service(
+    delivery: RecordingDelivery,
+    *,
+    firms: dict[str, str] | None,
+    providers: tuple[ProviderInfo, ...] = _PROVIDERS,
+) -> Service:
+    config = AppConfig.model_validate(
+        {
+            "mqtt": make_mqtt_config(),
+            "recompute": RecomputeConfig(interval_seconds=10),
+            "piers": [
+                make_pier("a").model_copy(update={"metar_station": "KBOS"}),
+                make_pier("b"),
+            ],
+            "firms": firms,
+        }
+    )
+    return Service(
+        config,
+        delivery,  # type: ignore[arg-type]
+        FixedClock(_START),
+        conditions_provider=_FirmsFetch(delivery.events),
+        providers=providers,
+    )
+
+
+def test_startup_seeds_firms_health_for_every_pier_after_metar() -> None:
+    delivery = RecordingDelivery()
+    _firms_service(delivery, firms={"map_key": "abc123secret"}).run(
+        monotonic=ScriptedMonotonic([0.0]), max_iterations=0
+    )
+
+    assert delivery.events[:3] == [("health", "a"), ("health", "b"), ("online",)]
+    seeded = dict(delivery.healths[:2])
+    assert [h.key for h in seeded["a"]] == ["open_meteo", "seven_timer", "metar", "firms"]
+    assert [h.key for h in seeded["b"]] == ["open_meteo", "seven_timer", "firms"]
+    assert seeded["b"][-1] == ProviderHealth.empty(
+        key="firms", name="FIRMS", variables=(), tracking_since=_START
+    )
+
+
+@pytest.mark.parametrize(
+    "firms",
+    [None, {"map_key": "${FIRMS_KEY}"}, {"map_key": ""}],
+    ids=["no-block", "unset-variable", "empty-key"],
+)
+def test_no_usable_key_seeds_no_firms_health(firms: dict[str, str] | None) -> None:
+    delivery = RecordingDelivery()
+    _firms_service(delivery, firms=firms).run(monotonic=ScriptedMonotonic([0.0]), max_iterations=0)
+
+    for _, healths in delivery.healths:
+        assert "firms" not in [h.key for h in healths]
+
+
+def test_with_no_providers_a_firms_key_publishes_no_health() -> None:
+    delivery = RecordingDelivery()
+    _firms_service(delivery, firms={"map_key": "abc123secret"}, providers=()).run(
+        monotonic=ScriptedMonotonic([0.0]), max_iterations=0
+    )
+
+    assert delivery.healths == []
+
+
+def test_a_firms_outcome_folds_into_firms_health() -> None:
+    delivery = RecordingDelivery()
+    _firms_service(delivery, firms={"map_key": "abc123secret"}).run(
+        monotonic=ScriptedMonotonic([0.0]), max_iterations=0
+    )
+
+    firms = dict(delivery.healths)["b"][-1]
+    assert (firms.key, firms.status, firms.last_success, firms.issued_at) == (
+        "firms",
+        "ok",
+        _START,
+        _DETECTED_AT,
+    )
+
+
+def test_the_service_passes_the_fires_to_the_verdict() -> None:
+    delivery = RecordingDelivery()
+    _firms_service(delivery, firms={"map_key": "abc123secret"}).run(
+        monotonic=ScriptedMonotonic([0.0]), max_iterations=0
+    )
+
+    for doc in delivery.documents:
+        assert doc.reasons[-1].startswith("A satellite detected a fire 11 km N of the pier")

@@ -1724,3 +1724,90 @@ def test_a_mapping_beside_unset_form_fields_is_used(
         roof.equipment.sensor_height_mm,
         roof.equipment.reducer,
     ) == tuple(EQUIPMENT.values())
+
+
+# --------------------------------------------------------------------------- #
+# firms-nearby-fire DD5, DD6: main masks a usable FIRMS key and wires it
+# --------------------------------------------------------------------------- #
+
+FIRMS_KEY = "abc123secret"
+
+
+def _run_with_firms(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    block: str,
+) -> list[Any]:
+    """Run ``main`` with ``block`` added, log the key once, and return the keys it wired."""
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    RunningStub(monkeypatch, terminate_in="run")
+    keys: list[Any] = []
+    real_build = entry.build_provider
+
+    def recording_build(*args: Any, **kwargs: Any) -> Any:
+        keys.append(kwargs.get("firms_key"))
+        return real_build(*args, **kwargs)
+
+    stub_service = entry.Service
+
+    class LoggingService(stub_service):  # type: ignore[misc, valid-type]
+        def run(self) -> None:
+            url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{FIRMS_KEY}/x/2"
+            logging.getLogger("httpx").info("HTTP Request: GET %s", url)
+            super().run()
+
+    monkeypatch.setattr(entry, "build_provider", recording_build)
+    monkeypatch.setattr(entry, "Service", LoggingService)
+    with caplog.at_level(logging.DEBUG):
+        assert entry.main([_config(tmp_path, FILE_BROKER + PIERS + block)]) == 0
+    return keys
+
+
+def _firms_warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [
+        r.getMessage()
+        for r in caplog.records
+        if r.levelno == logging.WARNING and "firms.map_key" in r.getMessage()
+    ]
+
+
+@pytest.mark.usefixtures("sigterm_guard")
+def test_main_masks_a_usable_firms_key_and_wires_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    keys = _run_with_firms(tmp_path, monkeypatch, caplog, f"firms:\n  map_key: {FIRMS_KEY}\n")
+
+    [key] = keys
+    assert key.get_secret_value() == FIRMS_KEY
+    assert any("HTTP Request: GET" in r.getMessage() for r in caplog.records)
+    assert "**********" in caplog.text
+    assert FIRMS_KEY not in caplog.text
+    assert _firms_warnings(caplog) == []
+
+
+@pytest.mark.usefixtures("sigterm_guard")
+@pytest.mark.parametrize("value", ["${FIRMS_KEY}", "''"], ids=["unset-variable", "empty"])
+def test_main_warns_once_about_an_unusable_firms_key(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    value: str,
+) -> None:
+    monkeypatch.delenv("FIRMS_KEY", raising=False)
+    keys = _run_with_firms(tmp_path, monkeypatch, caplog, f"firms:\n  map_key: {value}\n")
+
+    assert keys == [None]
+    [warning] = _firms_warnings(caplog)
+    assert "${" not in warning
+
+
+@pytest.mark.usefixtures("sigterm_guard")
+@pytest.mark.parametrize("block", ["", "firms:\n  map_key:\n"], ids=["no-block", "no-key"])
+def test_main_without_a_firms_key_wires_none_and_does_not_warn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, block: str
+) -> None:
+    keys = _run_with_firms(tmp_path, monkeypatch, caplog, block)
+
+    assert keys == [None]
+    assert _firms_warnings(caplog) == []

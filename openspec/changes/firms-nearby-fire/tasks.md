@@ -17,10 +17,12 @@
 
 ## 4. Wiring, health, docs and the gate [depends-on: 2, 3]
 
-- [ ] 4.1 [medium] `main()` calls `mask_key` right after `basicConfig` when the key is usable, logs one warning naming `firms.map_key` when a key is given but not usable, and passes the key to `build_provider`; the service seeds `FIRMS` health keyed `firms` with `variables` `()` for every pier after METAR, only while the key is usable and providers are reported, before going online, folds the `firms` outcome, and passes `result.fires` to `produce_verdict` (design DD5, DD7) (verify: uv run pytest tests/test_main.py tests/test_service.py tests/test_health_delivery.py -q -k firms)
+- [x] 4.1 [medium] `main()` calls `mask_key` right after `basicConfig` when the key is usable, logs one warning naming `firms.map_key` when a key is given but not usable, and passes the key to `build_provider`; the service seeds `FIRMS` health keyed `firms` with `variables` `()` for every pier after METAR, only while the key is usable and providers are reported, before going online, folds the `firms` outcome, and passes `result.fires` to `produce_verdict` (design DD5, DD7) (verify: uv run pytest tests/test_main.py tests/test_service.py tests/test_health_delivery.py -q -k firms) (✓ uv run pytest tests/test_main.py tests/test_service.py tests/test_health_delivery.py -q -k firms passed: 16 passed)
 - [ ] 4.2 [easy] The README documents the `firms` block in its configuration table, the fire reason line, and the FIRMS health sensor in the entities table, the MQTT topic lists and "Watching provider health"; `ha-addon/DOCS.md` names `firms` under what the file can add for the whole add-on, and says to set `firms.map_key` in `config.yaml` (verify: uv run pytest tests/test_docs.py tests/test_ha_addon.py -q)
 - [ ] 4.3 [easy] The whole project gate is green (verify: mise run check)
 
 ## Deviations Ledger
 
 <!-- Dated notes on small departures from the plan, written during apply. Stop and ask the user about a large one. -->
+
+- 2026-11-14, task 4.1: `main()` calls `mask_key` once the configuration has loaded, not on the line after `basicConfig`. The key is not known before then, and nothing fetches before then, so no request URL is logged unmasked. Config errors already hide the key (task 1.1).
