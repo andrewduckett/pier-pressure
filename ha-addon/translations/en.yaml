@@ -123,14 +123,19 @@ configuration:
         name: Port
         description: >-
           Optional. The broker's port, a number from 1 to 65535 with no unit.
-          Leave it empty for 1883, the usual MQTT port. Set it only with a host.
+          Leave it empty for 1883, the usual MQTT port. Set it only with a host:
+          without one, the add-on stops at startup with a configuration error.
       username:
         name: Username
         description: >-
           Optional. The name the add-on logs in with, if your broker needs a
-          login. Set it only with a host.
+          login. Leave it empty for a broker with no login. Set it only with a
+          host: without one, the add-on stops at startup with a configuration
+          error.
       password:
         name: Password
         description: >-
-          Optional. The password the add-on logs in with. The form hides it as
-          you type. Set it only with a host.
+          Optional. The password for that username. The form hides it as you
+          type, and the add-on never writes it to the log. Set it only with a
+          host: without one, the add-on stops at startup with a configuration
+          error.

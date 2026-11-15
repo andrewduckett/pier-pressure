@@ -341,6 +341,13 @@ def test_the_broker_section_names_where_an_empty_host_leads(fallback: str) -> No
     assert fallback in mqtt["description"]
 
 
+@pytest.mark.parametrize("field", ["port", "username", "password"])
+def test_a_broker_login_field_says_it_needs_a_host(field: str) -> None:
+    # Without a host these stop the add-on (addon-form-broker, addon-form-text D6).
+    entry = _load(ADDON_TRANSLATIONS)["configuration"]["mqtt"]["fields"][field]
+    assert "only with a host" in entry["description"]
+
+
 @pytest.mark.parametrize(
     ("path", "unit"),
     [
