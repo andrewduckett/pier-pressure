@@ -87,14 +87,15 @@ settings SHALL show the key as a mask.
 
 While the service has a FIRMS key, every fetch for every pier SHALL make one
 request to
-`https://firms.modaps.eosdis.nasa.gov/api/area/csv/<key>/VIIRS_NOAA20_NRT/<west>,<south>,<east>,<north>/1`,
-where the four bounds are the pier's FIRMS box. With no key, the system SHALL
+`https://firms.modaps.eosdis.nasa.gov/api/area/csv/<key>/VIIRS_NOAA20_NRT/<west>,<south>,<east>,<north>/2`,
+where the four bounds are the pier's FIRMS box. The day range of 2 asks for
+today and yesterday in UTC, so the 24 hours before any instant are covered. With no key, the system SHALL
 make no FIRMS request.
 
 #### Scenario: A pier at 60° north fetches its box
 
 - **WHEN** the FIRMS key is `abc123secret` and the system fetches conditions for a pier at latitude 60.0, longitude 10.0
-- **THEN** it makes one request to `https://firms.modaps.eosdis.nasa.gov/api/area/csv/abc123secret/VIIRS_NOAA20_NRT/9.0000,59.5000,11.0000,60.5000/1`
+- **THEN** it makes one request to `https://firms.modaps.eosdis.nasa.gov/api/area/csv/abc123secret/VIIRS_NOAA20_NRT/9.0000,59.5000,11.0000,60.5000/2`
 
 #### Scenario: No key makes no FIRMS request
 
@@ -177,10 +178,13 @@ with no fire detections.
 
 ### Requirement: A failed FIRMS fetch leaves the pier with no fire detections
 
-When the FIRMS request fails, times out, answers with a status that is not a
-success, or returns a body with no header row naming `latitude`, `longitude`,
-`acq_date`, `acq_time` and `confidence`, the pier SHALL have no fire detections
-for that fetch. A body with no such header SHALL count as a failed fetch with
+The pier SHALL have no fire detections for a fetch when the FIRMS request:
+
+- fails or times out;
+- answers with a status that is not a success; or
+- returns a body whose header row lacks `latitude`, `longitude`, `acq_date`,
+  `acq_time` or `confidence`.
+ A body with no such header SHALL count as a failed fetch with
 the error `unexpected response`. A failed FIRMS fetch SHALL NOT change the
 snapshot, the observation, or the fetch of any provider.
 

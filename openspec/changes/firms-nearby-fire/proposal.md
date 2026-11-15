@@ -13,7 +13,7 @@ reasons tells the user why tonight's sky may be worse than the forecast says.
   config error ever shows it, or the request URL that contains it (D3). It
   supports `${VAR}`. Add-on users set it in `config.yaml` (D4).
 - When the key is set, every fetch for every pier makes one FIRMS area request
-  for VIIRS NOAA-20 near-real-time detections from the last day, for a box
+  for VIIRS NOAA-20 near-real-time detections from today and yesterday in UTC, for a box
   around the pier (D5).
 - The detections reach the core as plain data beside the conditions and the
   observation. A fire detection is not an observation and not a provider, and

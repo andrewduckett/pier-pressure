@@ -2,10 +2,12 @@
 
 ### Requirement: Only a confident, recent fire detection within 50 km counts
 
-A fire detection SHALL count for the verdict only when all of these hold: its
-confidence is `nominal` or `high`; its time is no later than the evaluation
-instant and no more than 24 hours before it; and its great-circle distance from
-the pier is at most 50 km.
+A fire detection SHALL count for the verdict only when all three hold:
+
+- its confidence is `nominal` or `high`;
+- its time is no later than the evaluation instant, and no more than 24 hours
+  before it;
+- its great-circle distance from the pier is at most 50 km.
 
 #### Scenario: A low confidence detection does not count
 
@@ -75,13 +77,14 @@ boundary taking the next point clockwise.
 
 ### Requirement: The nearest of equally near detections is the latest
 
-When two or more counted fire detections are equally near, the fire line SHALL
-name the one with the latest time. When those times are equal too, it SHALL
+The nearest counted fire detection SHALL be the one with the smallest distance
+in whole kilometres, rounded as the fire line rounds it. When two or more share
+that distance, the fire line SHALL name the one with the latest time. When those times are equal too, it SHALL
 name the first of them in the order received.
 
 #### Scenario: Two detections at the same distance
 
-- **WHEN** two counted fire detections are both 12 km from the pier, one at `2026-11-13T05:54:00Z` and one at `2026-11-13T07:35:00Z`
+- **WHEN** two counted fire detections are 12.1 km and 12.4 km from the pier, one at `2026-11-13T05:54:00Z` and one at `2026-11-13T07:35:00Z`
 - **THEN** the fire line names the time `2026-11-13T07:35:00Z`
 
 ### Requirement: The fire line follows the observation lines on every verdict

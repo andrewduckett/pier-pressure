@@ -85,9 +85,10 @@ bearing. Both use `math`, so the core stays free of new imports.
 `evaluate()`, the model and the document schema do not change. Golden files do
 not change, because no golden pier passes fires.
 
-The nearest is chosen by `min` over `(distance, -timestamp, index)`, which gives
-the tie rule in the spec. Distance is rounded with `math.floor(d + 0.5)`, not
-`round()`, so .5 always rounds up, and then raised to at least 1. Bearing index
+Distance is rounded with `math.floor(d + 0.5)`, not `round()`, so .5 always
+rounds up, and then raised to at least 1. The nearest is chosen by `min` over
+`(rounded_km, -detected_at.timestamp(), index)`, which gives the tie rule in the
+spec: equally near means the same whole kilometres. Bearing index
 is `int((bearing + 22.5) // 45) % 8` over `N, NE, E, SE, S, SW, W, NW`. That
 sends a boundary bearing clockwise.
 
@@ -120,12 +121,28 @@ does.
 
 ### DD5: A log filter masks the key in every record
 
-When a key is set, `main()` adds a `logging.Filter` to each root handler. The
-filter replaces the key's text with `**********` in the record's formatted
-message and in any exception text, then clears `args`. It lives in a small new
-`pierpressure/redact.py`, outside the core. A filter on the handlers catches
-records that propagate from every logger, httpx's included. DD4 still logs
-safely, so the filter is a second guard, not the only one.
+`pierpressure/redact.py`, outside the core, holds `mask_key(key)`. It adds one
+`logging.Filter` to every handler on the root logger at the time of the call.
+`main()` calls it right after `basicConfig`, before any fetch, when the key is
+usable. The filter does three things to each record:
+
+- It sets `record.msg` to `record.getMessage()` with the key replaced by
+  `**********`, and sets `record.args` to `()`. A formatter then reads the
+  masked text as it is.
+- When the record has `exc_info`, it formats the exception once with
+  `logging.Formatter().formatException`, masks it, and stores it in
+  `record.exc_text`. The formatter uses `exc_text` when it is set.
+- It masks `record.stack_info` the same way.
+
+A filter on the handlers catches records from every logger that propagates to
+the root, httpx's included. A filter on a logger would not: it never sees the
+records of that logger's children. DD4 still logs safely, so the filter is a
+second guard, not the only one.
+
+Tests use the same seam. A test that checks the log calls `mask_key` after
+pytest has added its `caplog` handler, then drives a fetch with httpx's own
+request logging on. A unit test of the fetcher alone needs no mask, because it
+uses a made-up key.
 
 - **Alternative:** raise the `httpx` logger to WARNING. Rejected: it removes
   the request log for every other provider, and it does not cover the
@@ -138,7 +155,7 @@ safely, so the filter is a second guard, not the only one.
 `FirmsConfig(BaseModel)` uses `extra="forbid"` and `hide_input_in_errors=True`,
 and holds `map_key: SecretStr | None = None`. `AppConfig.firms: FirmsConfig |
 None = None`. `ConfigFile` rejects a `firms` value that is not a mapping, with
-the wording the explainer uses. `load_app_config` validates the block through
+the wording the explainer uses. `build_config` validates the block through
 `_block_error("firms", FirmsConfig, ...)`, and treats an empty block as absent.
 `FirmsConfig.usable_key` returns the key, or `None` when it is empty or still
 holds `${`. `main()` logs the one warning that names `firms.map_key` when a key
