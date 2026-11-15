@@ -364,6 +364,13 @@ def test_the_broker_section_names_where_an_empty_host_leads(fallback: str) -> No
     assert fallback in mqtt["description"]
 
 
+@pytest.mark.parametrize("words", ["explainer.enabled", "config.yaml"])
+def test_the_explainer_section_names_the_switch(words: str) -> None:
+    # The form's key alone does not turn the explainer on (addon-explainer-key-option D4, D8).
+    explainer = _load(ADDON_TRANSLATIONS)["configuration"]["explainer"]
+    assert words in explainer["description"]
+
+
 @pytest.mark.parametrize("field", ["port", "username", "password"])
 def test_a_broker_login_field_says_it_needs_a_host(field: str) -> None:
     # Without a host these stop the add-on (addon-form-broker, addon-form-text D6).
