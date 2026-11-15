@@ -1974,3 +1974,30 @@ def test_a_repeated_id_on_the_form_stops_the_addon(
 
     with pytest.raises(ConfigError, match="listed more than once: 'backyard'$"):
         _load(config_path)
+
+
+def test_padded_form_horizon_points_are_decimal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, options_file: Path
+) -> None:
+    form = {**BACKYARD, "horizon_points": "[[045, 10], [180, 5]]"}
+
+    [pier] = _form_piers(tmp_path, monkeypatch, options_file, form).piers
+
+    assert pier.horizon_mask.samples == ((45.0, 10.0), (180.0, 5.0))
+
+
+def test_base_60_form_horizon_points_skip_only_their_pier(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    form = {**BACKYARD, "horizon_points": "[[1:30, 20], [180, 5]]"}
+
+    with caplog.at_level(logging.ERROR):
+        config = _form_piers(tmp_path, monkeypatch, options_file, form, ROOF_FORM)
+
+    assert [p.id for p in config.piers] == ["roof"]
+    [error] = _errors(caplog)
+    assert error.startswith("Skipping invalid pier 'backyard'")
+    assert "horizon.points" in error

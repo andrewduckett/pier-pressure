@@ -15,7 +15,7 @@
 ## 3. Add-on and docs [depends-on: 2]
 
 - [x] 3.1 [medium] Through `load_app_config` inside the add-on, a form that lists `backyard` twice raises a `ConfigError` that names `backyard`, with no `config.yaml` and with a `config.yaml` that adds `metar_station` to `backyard` (design DD4) (verify: uv run pytest tests/test_main.py -k repeated_id) (✓ uv run pytest tests/test_main.py -k repeated_id passed)
-- [ ] 3.2 [easy] Through `load_app_config` inside the add-on, a form pier's `horizon_points` of `[[045, 10], [180, 5]]` gives the samples `(45, 10)` and `(180, 5)`, and `[[1:30, 20], [180, 5]]` skips that pier with a logged error that names it and `horizon.points` while the other form pier loads (verify: uv run pytest tests/test_main.py -k horizon_points)
+- [x] 3.2 [easy] Through `load_app_config` inside the add-on, a form pier's `horizon_points` of `[[045, 10], [180, 5]]` gives the samples `(45, 10)` and `(180, 5)`, and `[[1:30, 20], [180, 5]]` skips that pier with a logged error that names it and `horizon.points` while the other form pier loads (verify: uv run pytest tests/test_main.py -k horizon_points) (✓ uv run pytest tests/test_main.py -k horizon_points passed)
 - [ ] 3.3 [easy] The README's configuration table says each pier needs its own id, that an id that looks like a number must be quoted, that a zero-padded number such as `045` reads as 45, and that `1:30` is not a number (design DD5) (verify: grep -q "045" README.md)
 - [ ] 3.4 [easy] The whole change passes the CI gate (verify: mise run check)
 
