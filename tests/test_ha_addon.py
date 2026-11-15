@@ -4,8 +4,8 @@ The Configuration form's options, schema and labels follow addon-options-form D5
 its horizon fields addon-form-horizon D4, D5, its equipment fields
 addon-form-equipment D4, D5, its broker fields addon-form-broker D1, its
 gate fields addon-form-gates D2, D4, its pier sections addon-pier-layout
-D1-D3 and D5, and the rest of its help text and DOCS.md walkthrough
-addon-form-text D3-D8.
+D1-D3 and D5, the rest of its help text and DOCS.md walkthrough
+addon-form-text D3-D8, and its explainer key addon-explainer-key-option D1-D9.
 """
 
 from __future__ import annotations
@@ -484,3 +484,11 @@ def test_the_addon_docs_say_to_set_the_firms_key_in_config_yaml() -> None:
     section = docs[start : docs.find("\n### ", start + 1)]
     assert "`firms`" in section
     assert "firms.map_key" in docs
+
+
+@pytest.mark.parametrize(
+    "words", ["**API key**", "explainer.enabled", "explainer.model", "config.yaml"]
+)
+def test_turn_on_the_explainer_names_where_each_setting_goes(words: str) -> None:
+    # The key on the tab, the rest in config.yaml (addon-explainer-key-option D9).
+    assert words in _docs_section("Turn on the explainer")

@@ -229,6 +229,43 @@ Every pier's device then also has a **FIRMS health** sensor, which shows when
 the fire detections were last fetched. The key never appears in the log or in
 health.
 
+## Turn on the explainer
+
+The explainer has an AI language model write a short paragraph about each
+pier's verdict. The paragraph appears on the pier's **Narrative** sensor. It
+never changes the verdict, score or confidence. The explainer is off until you
+turn it on.
+
+Its settings live in two places:
+
+| Setting | Where you set it | Example |
+| --- | --- | --- |
+| **API key**, the key your AI provider gives you | The **Explainer** part of the Configuration tab. The tab hides it as you type. | |
+| `explainer.enabled`, which turns the explainer on | `config.yaml` | `true` |
+| `explainer.model`, the provider and model, as `provider:model` | `config.yaml`. Leave it out for `anthropic:claude-opus-5`. | `openai:gpt-4o` |
+
+1. **Enter the key.** On the Configuration tab, fill in **API key** under
+   **Explainer**, then save.
+2. **Turn the explainer on.** Add these lines to the add-on's `config.yaml`, as
+   [Add settings with config.yaml](#add-settings-with-configyaml) describes:
+
+   ```yaml
+   explainer:
+     enabled: true
+     model: anthropic:claude-opus-5
+   ```
+
+3. **Restart the add-on.** The log says
+   `Settings from the Configuration tab and config.yaml`.
+
+**Set the key on the tab, not in `config.yaml`.** The file is plain text that
+anyone who can open the add-on's config folder can read. A key in both places
+stops the add-on, and its configuration error names `explainer.api_key`.
+
+A key on its own does nothing: without `explainer.enabled: true`, the explainer
+stays off. For the models you can use, see the
+[explainer's documentation](https://github.com/andrewduckett/pier-pressure/blob/main/docs/llm-explainer.md).
+
 ## Add settings with config.yaml
 
 The Configuration tab lists your piers. A `config.yaml` file can add the
@@ -256,8 +293,9 @@ The file is optional.
   tab does not show, or any other pier setting the tab leaves empty. List the
   pier under `piers:` with the same `id` as on the tab, and add only the settings
   you want.
-- **For the whole add-on:** `explainer`, `firms`, `mqtt.discovery_prefix` and
-  `mqtt.base_topic`. The file can also set the broker, when the tab's broker
+- **For the whole add-on:** `explainer.enabled` and `explainer.model`, `firms`,
+  `mqtt.discovery_prefix` and `mqtt.base_topic`. The explainer's API key belongs
+  on the tab. See [Turn on the explainer](#turn-on-the-explainer). The file can also set the broker, when the tab's broker
   fields are empty. See [With config.yaml](#with-configyaml).
 
 **The file cannot add a pier.** Every pier in `config.yaml` must also be on the
@@ -299,6 +337,7 @@ below counts as one setting, so set it in one place only:
 | A pier's equipment | any of the four equipment fields | the pier's `equipment` |
 | The broker connection | **Host**, **Port**, **Username** or **Password** | `mqtt.host`, `mqtt.port`, `mqtt.username` or `mqtt.password` |
 | The recompute interval | **Recompute interval** | `recompute` |
+| The explainer's API key | **API key** | `explainer.api_key` |
 
 Every other setting, such as a pier's `latitude`, counts on its own. The tab
 always sets the recompute interval, so a `recompute` block in the file is always
