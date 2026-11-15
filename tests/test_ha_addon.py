@@ -132,10 +132,20 @@ def test_addon_form_schema_declares_the_broker(addon: dict[str, Any]) -> None:
     assert addon["schema"]["mqtt"] == MQTT_FIELDS
 
 
-def test_addon_form_schema_declares_the_explainer_key(addon: dict[str, Any]) -> None:
-    # Only the key: the other explainer settings stay in config.yaml
-    # (addon-explainer-key-option D1, D4).
-    assert addon["schema"]["explainer"] == {"api_key": "password?"}
+def test_addon_form_schema_declares_the_explainer_fields(addon: dict[str, Any]) -> None:
+    # The model stays in config.yaml; the entity is plain text, because the core
+    # checks it (addon-explainer-ai-task DD4, DD6).
+    explainer = addon["schema"]["explainer"]
+    assert list(explainer.items()) == [
+        ("enabled", "bool?"),
+        ("ai_task_entity", "str?"),
+        ("api_key", "password?"),
+    ]
+
+
+def test_addon_asks_for_the_core_api(addon: dict[str, Any]) -> None:
+    # The AI Task action is called through the Supervisor's Core API (DD6).
+    assert addon["homeassistant_api"] is True
 
 
 def test_addon_form_schema_lists_the_explainer_last(addon: dict[str, Any]) -> None:
@@ -367,11 +377,22 @@ def test_the_broker_section_names_where_an_empty_host_leads(fallback: str) -> No
     assert fallback in mqtt["description"]
 
 
-@pytest.mark.parametrize("words", ["explainer.enabled", "config.yaml"])
-def test_the_explainer_section_names_the_switch(words: str) -> None:
-    # The form's key alone does not turn the explainer on (addon-explainer-key-option D4, D8).
+@pytest.mark.parametrize(
+    "words", ["explainer.enabled", "AI Task", "explainer.model", "config.yaml"]
+)
+def test_the_explainer_section_names_the_switch_and_both_ways(words: str) -> None:
+    # The form's key alone does not turn the explainer on (addon-explainer-key-option D4,
+    # D8); the narrative comes from the AI Task entity or the model (addon-explainer-ai-task).
     explainer = _load(ADDON_TRANSLATIONS)["configuration"]["explainer"]
     assert words in explainer["description"]
+
+
+@pytest.mark.parametrize(
+    ("field", "name"), [("enabled", "Enabled"), ("ai_task_entity", "AI Task entity")]
+)
+def test_the_explainer_fields_have_their_labels(field: str, name: str) -> None:
+    fields = _load(ADDON_TRANSLATIONS)["configuration"]["explainer"]["fields"]
+    assert fields[field]["name"] == name
 
 
 @pytest.mark.parametrize("field", ["port", "username", "password"])
