@@ -6,8 +6,15 @@ import os
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
-from pierpressure.core.config import ConfigError, PierConfig, load_config, validate_piers
+from pierpressure.core.config import (
+    ConfigError,
+    HorizonSourcesError,
+    PierConfig,
+    load_config,
+    validate_piers,
+)
 
 _NINA_FIXTURE = Path(__file__).parent / "fixtures" / "nina_horizon.hrz"
 
@@ -98,6 +105,34 @@ def test_two_horizon_sources_invalidate_only_their_own_pier(tmp_path: Path) -> N
     )
     config = load_config(_write(tmp_path, text))
     assert [pier.id for pier in config.piers] == ["good"]
+
+
+def _two_sources_error() -> object:
+    pier = {
+        "id": "two_sources",
+        "latitude": 51.5,
+        "longitude": -0.12,
+        "elevation_m": 30,
+        "horizon": {"min_altitude": 25, "points": [[0, 10]]},
+    }
+    with pytest.raises(ValidationError) as error:
+        PierConfig.model_validate(pier)
+    [only] = error.value.errors()
+    return only["ctx"]["error"]
+
+
+def test_horizon_sources_error_carries_the_sources_it_found() -> None:
+    # The add-on rewords this error from its sources (addon-horizon-error-labels D3).
+    error = _two_sources_error()
+    assert isinstance(error, HorizonSourcesError)
+    assert error.sources == ("points", "min_altitude")
+
+
+def test_horizon_sources_error_keeps_the_core_message() -> None:
+    assert str(_two_sources_error()) == (
+        "a horizon must configure exactly one source "
+        "(points, min_altitude, or file), got: points, min_altitude"
+    )
 
 
 def test_out_of_range_inline_point_invalidates_only_its_pier(tmp_path: Path) -> None:

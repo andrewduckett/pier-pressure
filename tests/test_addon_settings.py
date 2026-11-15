@@ -9,9 +9,10 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
-from pierpressure.addon_settings import combine_settings, file_pier_ids
-from pierpressure.core.config import ConfigError
+from pierpressure.addon_settings import combine_settings, file_pier_ids, form_pier_error_writer
+from pierpressure.core.config import ConfigError, PierConfig
 
 PIER = {"id": "backyard", "latitude": 51.5, "longitude": -0.12, "elevation_m": 30.0}
 ROOF = {**PIER, "id": "roof"}
@@ -433,3 +434,47 @@ def test_an_unknown_top_level_key_is_not_an_added_setting() -> None:
 )
 def test_file_pier_ids_names_the_usable_ids_once(file: dict[str, Any], ids: list[str]) -> None:
     assert file_pier_ids(file) == ids
+
+
+# --------------------------------------------------------------------------- #
+# The error that skips a pier (addon-horizon-error-labels D5-D7)
+# --------------------------------------------------------------------------- #
+
+BOTH_HORIZON_FIELDS = {"min_altitude": 10, "horizon_points": "[[0, 5], [180, 10]]"}
+
+
+def _written_error(form: dict[str, Any], file: dict[str, Any] | None = None) -> str:
+    [raw_pier] = combine_settings(form, file).raw["piers"]
+    with pytest.raises(ValidationError) as error:
+        PierConfig.model_validate(raw_pier)
+    return form_pier_error_writer(form)(raw_pier, error.value)
+
+
+def test_horizon_error_in_labels_for_both_form_fields() -> None:
+    assert _written_error(_form({**PIER, **BOTH_HORIZON_FIELDS})) == (
+        "Horizon: floor and Horizon: points are both filled in on the Configuration tab. "
+        "Fill in one of them at most."
+    )
+
+
+def _core_error(form: dict[str, Any], file: dict[str, Any] | None = None) -> str:
+    [raw_pier] = combine_settings(form, file).raw["piers"]
+    with pytest.raises(ValidationError) as error:
+        PierConfig.model_validate(raw_pier)
+    return str(error.value)
+
+
+def test_horizon_error_keeps_file_names_for_a_config_yaml_horizon() -> None:
+    form = _form(PIER)
+    file = {"piers": [{"id": "backyard", "horizon": {"min_altitude": 10, "points": [[0, 5]]}}]}
+
+    written = _written_error(form, file)
+
+    assert written == _core_error(form, file)
+    assert "points, min_altitude" in written
+
+
+def test_horizon_error_keeps_file_names_for_a_field_error() -> None:
+    form = _form({**PIER, **BOTH_HORIZON_FIELDS, "latitude": 95})
+
+    assert _written_error(form) == _core_error(form)

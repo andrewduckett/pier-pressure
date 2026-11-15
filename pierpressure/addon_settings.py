@@ -16,6 +16,10 @@ skip that pier (D2, addon-options-core-validates D4).
 Every problem goes into one :class:`ConfigError`, on one line. A problem names
 settings by their ``config.yaml`` names and piers by their ids, escaped so a line
 break cannot split the log line. It never holds a setting's value (D5).
+
+The core still checks each pier. :func:`form_pier_error_writer` only rewords
+the core's error for a pier that sets both horizon fields on the form, in the
+form's labels (addon-horizon-error-labels D5-D7).
 """
 
 from __future__ import annotations
@@ -23,8 +27,23 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from pierpressure.addon_options import is_set, pier_settings, translate_form
-from pierpressure.core.config import AppConfig, ConfigError, ExplainerConfig, MqttConfig
+from pydantic import ValidationError
+
+from pierpressure.addon_options import (
+    HORIZON_FIELDS,
+    HORIZON_LABELS,
+    is_set,
+    pier_settings,
+    translate_form,
+)
+from pierpressure.core.config import (
+    AppConfig,
+    ConfigError,
+    ExplainerConfig,
+    HorizonSourcesError,
+    MqttConfig,
+    PierErrorWriter,
+)
 
 # The ``mqtt`` keys that make up the broker connection, one setting as a group.
 CONNECTION_KEYS = ("host", "port", "username", "password")
@@ -76,6 +95,40 @@ def combine_settings(options: dict[str, Any], file: dict[str, Any] | None) -> Co
 def file_pier_ids(file: dict[str, Any]) -> list[str]:
     """The text ids of the file's piers, once each, in the file's order (D6)."""
     return list(_file_piers(file, []))
+
+
+def form_pier_error_writer(options: dict[str, Any]) -> PierErrorWriter:
+    """Write a skipped pier's error, in the form's labels for both horizon fields.
+
+    A pier whose horizon came from the form gets the form's wording for the core's
+    horizon-source error. That is a form pier that sets both horizon fields: the
+    combine stops the add-on when ``config.yaml`` sets that pier's horizon too
+    (D6). The core checks the horizon only once every field is valid, so that
+    error is then the pier's only one. Every other error is the core's.
+    """
+    form_horizon_ids = {
+        pier["id"]
+        for pier in options.get("piers", [])
+        if isinstance(pier, dict)
+        and isinstance(pier.get("id"), str)
+        and all(is_set(pier.get(field)) for field in HORIZON_FIELDS)
+    }
+    both_labels = " and ".join(HORIZON_LABELS.values())
+
+    def write_error(raw_pier: Any, error: ValidationError) -> str:
+        pier_id = raw_pier.get("id") if isinstance(raw_pier, dict) else None
+        if isinstance(pier_id, str) and pier_id in form_horizon_ids:
+            [first, *rest] = error.errors()
+            cause = first.get("ctx", {}).get("error")
+            sources = cause.sources if isinstance(cause, HorizonSourcesError) else ()
+            if not rest and set(sources) == set(HORIZON_LABELS):
+                return (
+                    f"{both_labels} are both filled in on the Configuration tab. "
+                    "Fill in one of them at most."
+                )
+        return str(error)
+
+    return write_error
 
 
 def _file_piers(file: dict[str, Any], problems: list[str]) -> dict[str, dict[str, Any]]:
