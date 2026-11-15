@@ -910,3 +910,26 @@ def test_listing_firms_as_a_provider_stops_startup(tmp_path: Path) -> None:
 
     with pytest.raises(ConfigError, match="firms is not a known provider"):
         load_config(path)
+
+
+# --------------------------------------------------------------------------- #
+# config-load-validation 1: one reader for settings YAML (design DD1)
+# --------------------------------------------------------------------------- #
+
+
+def _with_pier_setting(tmp_path: Path, key: str, value: str) -> Path:
+    """VALID_CONFIG with the pier's ``key`` set to ``value``, written as YAML."""
+    lines = [line for line in VALID_CONFIG.splitlines() if not line.startswith(f"    {key}:")]
+    return _write(tmp_path, "\n".join(lines) + f"\n    {key}: {value}\n")
+
+
+@pytest.mark.parametrize(
+    ("key", "value", "expected"),
+    [("go_threshold", "070", 70), ("longitude", "-045", -45.0), ("go_threshold", "080", 80)],
+)
+def test_a_padded_number_setting_is_decimal(
+    tmp_path: Path, key: str, value: str, expected: float
+) -> None:
+    config = load_config(_with_pier_setting(tmp_path, key, value))
+
+    assert getattr(config.piers[0], key) == expected

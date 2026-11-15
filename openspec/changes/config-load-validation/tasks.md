@@ -1,6 +1,6 @@
 ## 1. One reader for settings YAML
 
-- [ ] 1.1 [medium] A zero-padded integer in `config.yaml` is read as a decimal number by a number setting: `go_threshold: 070` gives 70, `longitude: -045` gives -45, and `go_threshold: 080` gives 80 (design DD1) (verify: uv run pytest tests/test_config.py -k padded)
+- [x] 1.1 [medium] A zero-padded integer in `config.yaml` is read as a decimal number by a number setting: `go_threshold: 070` gives 70, `longitude: -045` gives -45, and `go_threshold: 080` gives 80 (design DD1) (verify: uv run pytest tests/test_config.py -k padded) (✓ uv run pytest tests/test_config.py -k padded passed)
 - [ ] 1.2 [easy] Other number forms in `config.yaml` keep their meaning: `elevation_m: 0x1A` gives 26 and `elevation_m: 1_000` gives 1000, and `yaml.safe_load("045")` is still 37 after the reader is defined (verify: uv run pytest tests/test_config.py -k number_forms)
 - [ ] 1.3 [easy] A base-60 value in `config.yaml` is text: `go_threshold: 1:05` skips its pier while another valid pier still loads, and `id: 1:30` loads as the text `1:30` (verify: uv run pytest tests/test_config.py -k base_60)
 - [ ] 1.4 [easy] Horizon points written as text use the same reader: `"[[045, 10], [180, 5]]"` gives the samples `(45, 10)` and `(180, 5)`, and `"[[1:30, 20], [180, 5]]"` makes the pier invalid with an error that names `horizon.points` (verify: uv run pytest tests/test_horizon_config.py -k "padded or base_60")

@@ -487,6 +487,31 @@ class ConfigFile:
         return isinstance(mqtt, dict) and mqtt.get("host") not in (None, "")
 
 
+class _SettingsLoader(yaml.SafeLoader):
+    """PyYAML's safe loader, except that a zero-padded integer is decimal (ADR-0041).
+
+    YAML 1.1 reads ``045`` as the octal number 37. Only the constructor changes,
+    not the pattern that picks the tag, so ``08`` still stays text as before.
+    """
+
+
+def _construct_int(loader: _SettingsLoader, node: yaml.ScalarNode) -> Any:
+    text = loader.construct_scalar(node)
+    digits = text.lstrip("+-")
+    if len(digits) > 1 and digits[0] == "0" and (digits[1].isdigit() or digits[1] == "_"):
+        return int(text.replace("_", ""))
+    return loader.construct_yaml_int(node)
+
+
+# Adding to the subclass copies the safe loader's table, so yaml.safe_load is unchanged.
+_SettingsLoader.add_constructor("tag:yaml.org,2002:int", _construct_int)
+
+
+def _read_yaml(text: str) -> Any:
+    """Read settings YAML with :class:`_SettingsLoader`; raises ``yaml.YAMLError``."""
+    return yaml.load(text, Loader=_SettingsLoader)  # noqa: S506 - a safe loader
+
+
 def read_config_mapping(path: str | os.PathLike[str]) -> dict[str, Any]:
     """Read the YAML config at ``path`` as a ``${VAR}``-expanded mapping.
 
@@ -500,7 +525,7 @@ def read_config_mapping(path: str | os.PathLike[str]) -> dict[str, Any]:
     config_path = Path(path)
     text = config_path.read_text(encoding="utf-8")
     try:
-        raw = yaml.safe_load(text)
+        raw = _read_yaml(text)
     except yaml.YAMLError as exc:
         raise ConfigError(_yaml_error_message(config_path, exc)) from None
     if not isinstance(raw, dict):
