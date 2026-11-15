@@ -115,13 +115,29 @@ MQTT_FIELDS = {
 
 def test_addon_form_defaults_to_the_interval_and_no_piers(addon: dict[str, Any]) -> None:
     # No equipment default: a new pier starts with no equipment (D4). The broker
-    # block must be in options, because the Supervisor cannot mark a block
-    # optional (addon-form-broker D1).
-    assert addon["options"] == {"interval_seconds": 900, "piers": [], "mqtt": {}}
+    # and explainer blocks must be in options, because the Supervisor cannot mark
+    # a block optional (addon-form-broker D1, addon-explainer-key-option D2).
+    assert addon["options"] == {
+        "interval_seconds": 900,
+        "piers": [],
+        "mqtt": {},
+        "explainer": {},
+    }
 
 
 def test_addon_form_schema_declares_the_broker(addon: dict[str, Any]) -> None:
     assert addon["schema"]["mqtt"] == MQTT_FIELDS
+
+
+def test_addon_form_schema_declares_the_explainer_key(addon: dict[str, Any]) -> None:
+    # Only the key: the other explainer settings stay in config.yaml
+    # (addon-explainer-key-option D1, D4).
+    assert addon["schema"]["explainer"] == {"api_key": "password?"}
+
+
+def test_addon_form_schema_lists_the_explainer_last(addon: dict[str, Any]) -> None:
+    # The form shows the parts in schema order (addon-explainer-key-option D3).
+    assert list(addon["schema"]) == ["interval_seconds", "piers", "mqtt", "explainer"]
 
 
 def test_addon_form_schema_declares_the_interval_and_piers(addon: dict[str, Any]) -> None:
