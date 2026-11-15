@@ -14,6 +14,7 @@ from pierpressure.core.sky import (
     _ephemeris,
     altitudes_at,
     dark_window,
+    night_hours,
     night_solar_day,
 )
 
@@ -114,3 +115,41 @@ def test_without_a_dark_window_before_the_midpoint_the_current_solar_day_applies
 def test_in_continuous_polar_night_the_solar_day_is_the_dark_window() -> None:
     instant = datetime(2026, 12, 21, 15, tzinfo=UTC)
     assert _solar_day(_HIGH_ARCTIC, instant) == dark_window(_HIGH_ARCTIC, instant)
+
+
+# --------------------------------------------------------------------------- #
+# The night's hours
+# --------------------------------------------------------------------------- #
+
+
+def _night_hours(pier: PierConfig, instant: datetime) -> list[datetime]:
+    with no_network():
+        return night_hours(pier, instant, dark_window(pier, instant))
+
+
+def _span(first: datetime, last: datetime) -> list[datetime]:
+    return _hours(first, int((last - first) / timedelta(hours=1)) + 1)
+
+
+def test_the_night_hours_are_every_hour_that_starts_inside_the_solar_day() -> None:
+    assert _night_hours(_london(), datetime(2026, 9, 8, 18, tzinfo=UTC)) == _span(
+        datetime(2026, 9, 8, 12, tzinfo=UTC), datetime(2026, 9, 9, 11, tzinfo=UTC)
+    )
+
+
+def test_the_night_hours_start_at_the_current_hour_when_it_comes_first() -> None:
+    assert _night_hours(_london(), datetime(2026, 9, 9, 6, 30, tzinfo=UTC)) == _span(
+        datetime(2026, 9, 9, 6, tzinfo=UTC), datetime(2026, 9, 10, 11, tzinfo=UTC)
+    )
+
+
+def test_without_a_dark_window_the_hours_run_from_now_to_tomorrows_noon() -> None:
+    assert _night_hours(_SCOTLAND, datetime(2026, 6, 21, 8, tzinfo=UTC)) == _span(
+        datetime(2026, 6, 21, 8, tzinfo=UTC), datetime(2026, 6, 22, 12, tzinfo=UTC)
+    )
+
+
+def test_without_a_dark_window_before_the_midpoint_the_hours_are_tonights() -> None:
+    assert _night_hours(_SCOTLAND, datetime(2026, 6, 20, 22, tzinfo=UTC)) == _span(
+        datetime(2026, 6, 20, 13, tzinfo=UTC), datetime(2026, 6, 21, 12, tzinfo=UTC)
+    )

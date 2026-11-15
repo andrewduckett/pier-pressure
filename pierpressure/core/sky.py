@@ -15,6 +15,7 @@ The exposed engine is:
 - :func:`moon_info` — the moon's illumination, phase, and behaviour across a
   given dark window;
 - :func:`night_solar_day` — the selected night's local solar day, noon to noon;
+- :func:`night_hours` — the clock hours the timeline always carries for that night;
 - :func:`altitudes_at` — the sun's and the moon's altitude at each timeline hour.
 """
 
@@ -227,6 +228,30 @@ def night_solar_day(
             # on either side.
             day_start, day_end = _local_solar_day(pier, day_end + half)
     return (day_start.replace(microsecond=0), day_end.replace(microsecond=0))
+
+
+def night_hours(
+    pier: PierConfig,
+    instant: datetime,
+    window: tuple[datetime, datetime] | tuple[None, None],
+) -> list[datetime]:
+    """The top-of-hour UTC times the timeline always carries for the selected night.
+
+    Every hour that starts inside :func:`night_solar_day`, preceded by the hours
+    from the one holding ``instant`` when that starts earlier, so the current
+    hour always has an entry.
+    """
+    day_start, day_end = night_solar_day(pier, instant, window)
+    first = day_start.replace(minute=0, second=0)
+    if first < day_start:
+        first += timedelta(hours=1)
+    first = min(first, instant.replace(minute=0, second=0, microsecond=0))
+    hours: list[datetime] = []
+    hour = first
+    while hour < day_end:
+        hours.append(hour)
+        hour += timedelta(hours=1)
+    return hours
 
 
 # Phase octants centred on the cardinal points (design D4). Each entry is the
