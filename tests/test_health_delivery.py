@@ -9,11 +9,19 @@ last-will topic only, so a failing provider keeps showing its last success.
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime, timedelta, timezone
 
+import httpx
 import jsonschema
 import pytest
+from pydantic import SecretStr
 
+from pierpressure.conditions import SourceForecast, build_provider
+from pierpressure.conditions.firms import FIRMS, FirmsFetcher
+from pierpressure.conditions.metar import METAR
+from pierpressure.core.clock import FixedClock
+from pierpressure.core.config import AppConfig, FirmsConfig, RecomputeConfig
 from pierpressure.core.providers import (
     COMPUTED,
     OPEN_METEO,
@@ -34,8 +42,10 @@ from pierpressure.delivery.mqtt import (
     health_state_topic,
 )
 from pierpressure.health import FetchOutcome, ProviderHealth, fold
+from pierpressure.redact import mask_key
+from pierpressure.service import Service
 
-from .conftest import FakeMqttClient, make_document, make_mqtt_config
+from .conftest import FakeMqttClient, make_document, make_mqtt_config, make_pier
 
 BASE = "pierpressure"
 PREFIX = "homeassistant"
@@ -309,3 +319,176 @@ def test_a_time_with_no_time_zone_is_rejected() -> None:
     )
     with pytest.raises(ValueError, match="time zone"):
         health_attributes(health)
+
+
+# --------------------------------------------------------------------------- #
+# METAR health (metar-reason DD8)
+# --------------------------------------------------------------------------- #
+
+_METAR_FETCHED = datetime(2026, 11, 14, 21, 30, 5, tzinfo=UTC)
+_METAR_OBSERVED = datetime(2026, 11, 14, 20, 54, tzinfo=UTC)
+
+
+def _metar_health() -> ProviderHealth:
+    empty = ProviderHealth.empty(
+        key=METAR.key, name=METAR.name, variables=METAR.variables, tracking_since=_START
+    )
+    return fold(
+        empty,
+        FetchOutcome(
+            key=METAR.key,
+            name=METAR.name,
+            variables=METAR.variables,
+            fetched_at=_METAR_FETCHED,
+            ok=True,
+            issued_at=_METAR_OBSERVED,
+        ),
+    )
+
+
+def test_metar_health_discovery_is_named_and_keyed_metar() -> None:
+    payload = build_health_discovery("backyard", BASE, METAR.key, METAR.name)
+    jsonschema.validate(payload, SENSOR_SCHEMA)
+    assert payload["name"] == "METAR health"
+    assert payload["unique_id"] == "pierpressure_backyard_metar_health"
+    assert payload["state_topic"] == "pierpressure/backyard/health/metar/state"
+
+
+def test_metar_health_state_is_the_fetch_time() -> None:
+    assert health_state(_metar_health()) == "2026-11-14T21:30:05+00:00"
+
+
+def test_metar_health_attributes_list_no_variables_and_the_observation_time() -> None:
+    attributes = health_attributes(_metar_health())
+    assert (attributes["status"], attributes["variables"], attributes["issued_at"]) == (
+        "ok",
+        [],
+        "2026-11-14T20:54:00+00:00",
+    )
+
+
+def test_a_metar_fetch_with_no_report_shows_as_failed() -> None:
+    failed = fold(
+        _metar_health(),
+        FetchOutcome(
+            key=METAR.key,
+            name=METAR.name,
+            variables=METAR.variables,
+            fetched_at=_METAR_FETCHED + timedelta(minutes=15),
+            ok=False,
+            error="no report returned",
+        ),
+    )
+    attributes = health_attributes(failed)
+    assert (attributes["status"], attributes["last_error"]) == ("failed", "no report returned")
+
+
+# --------------------------------------------------------------------------- #
+# FIRMS health (firms-nearby-fire DD7)
+# --------------------------------------------------------------------------- #
+
+_FIRMS_KEY = "abc123secret"
+_FIRMS_FETCHED = datetime(2026, 11, 14, 21, 30, 5, tzinfo=UTC)
+
+
+def _firms_outcome(*, ok: bool = True, **fields: object) -> FetchOutcome:
+    return FetchOutcome(
+        key=FIRMS.key,
+        name=FIRMS.name,
+        variables=FIRMS.variables,
+        fetched_at=_FIRMS_FETCHED,
+        ok=ok,
+        **fields,  # type: ignore[arg-type]
+    )
+
+
+def _firms_health(outcome: FetchOutcome) -> ProviderHealth:
+    empty = ProviderHealth.empty(
+        key=FIRMS.key, name=FIRMS.name, variables=FIRMS.variables, tracking_since=_START
+    )
+    return fold(empty, outcome)
+
+
+def test_firms_health_discovery_is_named_and_keyed_firms() -> None:
+    payload = build_health_discovery("backyard", BASE, FIRMS.key, FIRMS.name)
+    jsonschema.validate(payload, SENSOR_SCHEMA)
+    assert payload["name"] == "FIRMS health"
+    assert payload["unique_id"] == "pierpressure_backyard_firms_health"
+    assert payload["state_topic"] == "pierpressure/backyard/health/firms/state"
+
+
+def test_firms_health_gives_the_latest_detection_time() -> None:
+    health = _firms_health(_firms_outcome(issued_at=datetime(2026, 11, 13, 7, 35, tzinfo=UTC)))
+    attributes = health_attributes(health)
+    assert health_state(health) == "2026-11-14T21:30:05+00:00"
+    assert (attributes["status"], attributes["variables"], attributes["issued_at"]) == (
+        "ok",
+        [],
+        "2026-11-13T07:35:00+00:00",
+    )
+
+
+def test_a_firms_fetch_with_no_detections_is_ok_with_no_issue_time() -> None:
+    health = _firms_health(_firms_outcome())
+    attributes = health_attributes(health)
+    assert health_state(health) == "2026-11-14T21:30:05+00:00"
+    assert (attributes["status"], attributes["issued_at"]) == ("ok", None)
+
+
+def test_a_rejected_firms_key_shows_as_failed() -> None:
+    health = _firms_health(_firms_outcome(ok=False, error="HTTPStatusError: 400 Bad Request"))
+    attributes = health_attributes(health)
+    assert (attributes["status"], attributes["last_error"]) == (
+        "failed",
+        "HTTPStatusError: 400 Bad Request",
+    )
+
+
+def test_a_rejected_firms_key_reaches_no_log_line_or_mqtt_message(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    def answer(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "firms.modaps.eosdis.nasa.gov":
+            return httpx.Response(400, text="Invalid MAP_KEY.")
+        raise httpx.ConnectError("no network in tests", request=request)
+
+    client = httpx.Client(transport=httpx.MockTransport(answer))
+    firms = FirmsFetcher(map_key=SecretStr(_FIRMS_KEY), client=client)
+    provider = build_provider(["open_meteo"], fetchers={"open_meteo": _NoForecast()}, firms=firms)
+    config = AppConfig(
+        mqtt=make_mqtt_config(),
+        recompute=RecomputeConfig(interval_seconds=900),
+        piers=[make_pier("backyard")],
+        firms=FirmsConfig(map_key=SecretStr(_FIRMS_KEY)),
+    )
+    delivery, mqtt = _delivery()
+    service = Service(
+        config,
+        delivery,
+        FixedClock(_FIRMS_FETCHED),
+        conditions_provider=provider.get,
+        providers=provider.providers,
+    )
+
+    with caplog.at_level(logging.DEBUG):
+        mask_key(SecretStr(_FIRMS_KEY))
+        service.run(monotonic=lambda: 0.0, max_iterations=0)
+
+    attributes = json.loads(
+        mqtt.publishes_to(health_attributes_topic(BASE, "backyard", "firms"))[-1].payload
+    )
+    assert (attributes["status"], attributes["last_error"]) == (
+        "failed",
+        "HTTPStatusError: 400 Bad Request",
+    )
+    assert any("HTTP Request" in r.getMessage() for r in caplog.records)
+    assert _FIRMS_KEY not in caplog.text
+    for published in mqtt.published:
+        assert _FIRMS_KEY not in str(published.payload)
+
+
+class _NoForecast:
+    spec = OPEN_METEO
+
+    def fetch(self, _pier: object) -> SourceForecast:
+        return SourceForecast()

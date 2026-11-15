@@ -231,4 +231,5 @@ def test_document_targets_preserve_key_order() -> None:
         "moon",
         "timeline",
         "agreement",
+        "observation",
     ]

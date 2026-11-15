@@ -44,6 +44,7 @@ logger = logging.getLogger(__name__)
 SKIP_PIER_MESSAGE = "Skipping invalid pier %r: %s"
 
 _ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+_METAR_STATION = re.compile(r"[A-Z][A-Z0-9]{3}")
 
 # The system-wide go-threshold applied when a pier omits its own (design D8, and
 # the tuning value locked in task 5.1). A gate-passing night scores GO at or
@@ -285,8 +286,21 @@ class PierConfig(BaseModel):
     # The optional imaging equipment (design D1). Absent -> the field-of-view ranking
     # term does not contribute; the pier still ranks on placement and brightness.
     equipment: Equipment | None = None
+    # The airport whose METAR the verdict quotes (metar-reason DD7). It describes
+    # the site, like the horizon, so it is not a tuning knob.
+    metar_station: str | None = None
 
     _horizon_mask: Horizon = PrivateAttr()
+
+    @field_validator("metar_station")
+    @classmethod
+    def _check_metar_station(cls, station: str | None) -> str | None:
+        if station is None:
+            return None
+        station = station.upper()
+        if not _METAR_STATION.fullmatch(station):
+            raise ValueError("must be four letters or digits, starting with a letter")
+        return station
 
     @property
     def horizon_mask(self) -> Horizon:
@@ -330,6 +344,32 @@ class ExplainerConfig(BaseModel):
     api_key: SecretStr | None = None
 
 
+class FirmsConfig(BaseModel):
+    """The optional NASA FIRMS key, one for the whole service (firms-nearby-fire DD6).
+
+    A key belongs to an account, not a site, so every pier gets the fire line
+    while it is set. FIRMS takes the key only in the request URL, which is why
+    the edge masks it in every log record too (DD5).
+    """
+
+    # This block holds the MAP_KEY, so its errors never show their input. Its checks
+    # must not quote their input: build_config writes this block's errors from their
+    # messages.
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+
+    map_key: SecretStr | None = None
+
+    @property
+    def usable_key(self) -> SecretStr | None:
+        """The key, or ``None`` when it is empty or holds an unset ``${VAR}``."""
+        if self.map_key is None:
+            return None
+        value = self.map_key.get_secret_value()
+        if not value or "${" in value:
+            return None
+        return self.map_key
+
+
 class AppConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -341,6 +381,8 @@ class AppConfig(BaseModel):
     # The optional explainer edge (design D7). Absent -> disabled: no provider is
     # constructed and no narrative entity is published.
     explainer: ExplainerConfig | None = None
+    # Absent -> no key: no FIRMS request, no fire line and no FIRMS health (DD6).
+    firms: FirmsConfig | None = None
 
 
 def _expand_env(value: Any) -> Any:
@@ -386,8 +428,8 @@ class ConfigFile:
     file references. The add-on's form builds one too, in the file's shape.
 
     Construction enforces the broker connection rule for every source of settings
-    (addon-form-broker D3). It raises :class:`ConfigError` if the ``mqtt`` or
-    ``explainer`` block is not a mapping, or if ``mqtt`` sets ``port``,
+    (addon-form-broker D3). It raises :class:`ConfigError` if the ``mqtt``,
+    ``explainer`` or ``firms`` block is not a mapping, or if ``mqtt`` sets ``port``,
     ``username`` or ``password`` without ``host`` — the connection settings come
     from one source, so a partial set would be silently ignored otherwise. These
     errors hold no value from the block, which can be a secret
@@ -406,6 +448,11 @@ class ConfigFile:
         if explainer is not None and not isinstance(explainer, dict):
             raise ConfigError(
                 "The explainer block must be a mapping of settings, such as explainer.enabled"
+            )
+        firms = self.raw.get("firms")
+        if firms is not None and not isinstance(firms, dict):
+            raise ConfigError(
+                "The firms block must be a mapping of settings, such as firms.map_key"
             )
         if mqtt is not None and not self.names_broker_host:
             partial = [f"mqtt.{key}" for key in _CREDENTIAL_KEYS if mqtt.get(key) is not None]
@@ -479,9 +526,9 @@ def load_config(path: str | os.PathLike[str]) -> AppConfig:
     """Load and validate the YAML config at ``path``.
 
     Raises :class:`ConfigError` if the file is missing/malformed, if ``mqtt``,
-    ``recompute`` or ``explainer`` are invalid, or if no valid pier remains after
-    per-pier validation. An ``mqtt`` or ``explainer`` error holds none of the
-    block's text (config-secrets-hidden-in-errors D1).
+    ``recompute``, ``explainer`` or ``firms`` are invalid, or if no valid pier
+    remains after per-pier validation. An ``mqtt``, ``explainer`` or ``firms``
+    error holds none of the block's text (config-secrets-hidden-in-errors D1).
     """
     return build_config(read_config(path))
 
@@ -549,6 +596,13 @@ def build_config(read: ConfigFile, broker: BrokerSettings | None = None) -> AppC
             assembled["explainer"] = ExplainerConfig.model_validate(raw_explainer)
         except ValidationError as exc:
             raise _block_error("explainer", ExplainerConfig, raw_explainer, exc) from None
+    # ``firms`` is validated the same way, for the same reason: it holds a key (DD6).
+    raw_firms = raw.get("firms")
+    if raw_firms:
+        try:
+            assembled["firms"] = FirmsConfig.model_validate(raw_firms)
+        except ValidationError as exc:
+            raise _block_error("firms", FirmsConfig, raw_firms, exc) from None
     try:
         # This re-runs each pier's after-validator (a horizon file may be re-read),
         # so keep the label neutral rather than blaming one section.

@@ -27,6 +27,8 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
+from pydantic import SecretStr
+
 from pierpressure import __version__
 from pierpressure.addon_options import OPTIONS_PATH, is_set, read_form_values
 from pierpressure.addon_settings import combine_settings, file_pier_ids
@@ -43,6 +45,7 @@ from pierpressure.core.config import (
 )
 from pierpressure.delivery.mqtt import DeliveryError, MqttDelivery
 from pierpressure.explain import Explainer, build_explainer
+from pierpressure.redact import mask_key
 from pierpressure.service import Service
 from pierpressure.supervisor import SETTINGS_PLACE, SupervisorError, fetch_mqtt_broker
 
@@ -187,6 +190,25 @@ def _file_pier_ids(path: Path) -> list[str]:
         return []
 
 
+def _firms_key(config: AppConfig) -> SecretStr | None:
+    """The usable FIRMS key, masked in every log record from here on (firms-nearby-fire DD5).
+
+    A key that is empty or still names an unset variable turns fire detections
+    off, with one warning that never shows the value.
+    """
+    if config.firms is None:
+        return None
+    key = config.firms.usable_key
+    if key is not None:
+        mask_key(key)
+    elif config.firms.map_key is not None:
+        logger.warning(
+            "firms.map_key is empty or names an environment variable that is not set, "
+            "so fire detections are off"
+        )
+    return key
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(
         level=logging.INFO,
@@ -210,11 +232,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     config = loaded.config
+    # Before anything fetches, so no request URL is logged unmasked.
+    firms_key = _firms_key(config)
     delivery, explainer = build_delivery_and_explainer(
         config, broker_from_supervisor=loaded.broker_from_supervisor
     )
     clock = SystemClock()
-    conditions = build_provider(config.conditions.providers, now=clock.now)
+    conditions = build_provider(config.conditions.providers, now=clock.now, firms_key=firms_key)
     service = Service(
         config,
         delivery,

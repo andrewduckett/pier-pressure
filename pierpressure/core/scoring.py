@@ -40,6 +40,7 @@ from datetime import datetime, timedelta
 from .conditions import Conditions, Variable
 from .config import PierConfig
 from .model import AgreementBand, Band, Moon, Verdict, iso_z
+from .observation import Observation, observed_cloud
 
 _HOUR = timedelta(hours=1)
 
@@ -663,14 +664,68 @@ def _agreement_factor(agreement: AgreementTerm | None) -> float:
     }[agreement.band]
 
 
+@dataclass(frozen=True)
+class ObservedTerm:
+    """A station's observed cloud against this hour's forecast low and mid cloud.
+
+    ``observed`` is the report's :func:`~pierpressure.core.observation.observed_cloud`
+    and ``forecast`` the hour's low and mid cloud combined, both in whole points.
+    """
+
+    station: str
+    observed: int
+    forecast: int
+
+    @property
+    def gap(self) -> int:
+        """How far the report is above the forecast; negative when it shows less cloud."""
+        return self.observed - self.forecast
+
+    @property
+    def factor(self) -> float:
+        """``O``: the agreement's bands and factors, applied to the gap.
+
+        The same band reasoning holds for a report against a forecast as for two
+        forecasts, so the numbers are shared; a later change can split them
+        (metar-confidence DD2). A report can only confirm cloud, so less cloud is 1.
+        """
+        if self.gap < AGREE_MAX_GAP:
+            return 1.0
+        if self.gap <= MIXED_MAX_GAP:
+            return _A_MIXED
+        return _A_DISAGREE
+
+
+def observed_term(
+    instant: datetime, conditions: Conditions, observation: Observation | None
+) -> ObservedTerm | None:
+    """The observation against the hour that holds ``instant``, or ``None``.
+
+    ``None`` without an observation, or without both a low and a mid value for
+    that hour. High cloud never counts: a station sees no higher than 12,000 ft.
+    The layers combine as independent covers, the larger plausible forecast, so a
+    thin pair of layers is not mistaken for a contradiction (metar-confidence DD3).
+    """
+    if observation is None:
+        return None
+    slot = instant.replace(minute=0, second=0, microsecond=0)
+    low = conditions.value_at("cloud_low", slot)
+    mid = conditions.value_at("cloud_mid", slot)
+    if low is None or mid is None:
+        return None
+    forecast = round(low + mid - low * mid / 100.0)
+    return ObservedTerm(observation.station, observed_cloud(observation), forecast)
+
+
 def confidence(
     pier: PierConfig,
     instant: datetime,
     window: tuple[datetime, datetime],
     conditions: Conditions,
     agreement: AgreementTerm | None = None,
+    observed: ObservedTerm | None = None,
 ) -> tuple[Band, int]:
-    """The forecast-based confidence ``(band, value)`` = ``max(floor, 100·L·F)·K·A``.
+    """The forecast-based confidence ``(band, value)`` = ``max(floor, 100·L·F)·K·A·O``.
 
     ``window`` is the scored window. Lead time over it equals lead time over the
     dark window: before dusk they are the same span, and once the night has begun
@@ -685,13 +740,16 @@ def confidence(
 
     The agreement factor ``A`` applies after the floor, like ``K``, so the floor
     cannot rescue a disagreeing night. It never takes a value at or above the
-    MEDIUM threshold below it (cloud-agreement DD4).
+    MEDIUM threshold below it (cloud-agreement DD4). The observed factor ``O``
+    multiplies with it, and the same clamp covers the product (metar-confidence
+    DD4).
     """
     lead = lead_time_factor(instant, window)
     fresh = freshness_factor(instant, conditions.issued_at("cloud_cover"))
     complete = completeness_factor(window, conditions, pier.max_gust)
     raw = max(_CONFIDENCE_FLOOR, lead * fresh) * complete * 100.0
-    value = round(raw * _agreement_factor(agreement))
+    observed_factor = observed.factor if observed is not None else 1.0
+    value = round(raw * _agreement_factor(agreement) * observed_factor)
     if round(raw) >= _BAND_MEDIUM:
         value = max(value, _BAND_MEDIUM)
     value = max(0, min(100, value))
@@ -710,7 +768,9 @@ class Decision:
     the span the gates and score judged: the dark window from the scoring instant on
     (score-remaining-night design D1), or ``(None, None)`` without a dark window.
     ``agreement`` is the cloud agreement confidence used, or ``None`` when fewer
-    than two providers shared a scored hour.
+    than two providers shared a scored hour. ``observed`` is the observed term only
+    when it lowered the confidence, so it is exactly "the observed-cloud line is
+    due" (metar-confidence DD5).
     """
 
     verdict: Verdict
@@ -720,6 +780,7 @@ class Decision:
     reasons: list[str]
     scored_window: tuple[datetime, datetime] | tuple[None, None]
     agreement: AgreementTerm | None = None
+    observed: ObservedTerm | None = None
 
 
 # The shortest span of dark time worth setting up for. A scored window under it
@@ -861,6 +922,7 @@ def evaluate(
     window: tuple[datetime, datetime] | tuple[None, None],
     conditions: Conditions,
     moon: Moon,
+    observation: Observation | None = None,
 ) -> Decision:
     """Decide the verdict from astronomy, the conditions groups, and the moon.
 
@@ -875,6 +937,9 @@ def evaluate(
     entirely missing → cloud present (overcast gate, else score). A NO-GO is only
     ever a failed hard gate; a missing observation or a scored window under
     ``MIN_USABLE_WINDOW`` caps the verdict at MAYBE but never fails one.
+
+    ``observation`` is a report the caller has already found usable. It can only
+    lower the confidence, never a gate or the score (metar-confidence DD5).
     """
     dusk = window[0]
     start, end = scored_window(instant, window)
@@ -898,7 +963,12 @@ def evaluate(
     # Measured once, so confidence and the reason line read the same agreement.
     # It always comes last, so every gate and score line keeps its position.
     agreement = cloud_agreement(scored, conditions)
-    band, conf_value = confidence(pier, instant, scored, conditions, agreement)
+    observed = observed_term(instant, conditions, observation)
+    band, conf_value = confidence(pier, instant, scored, conditions, agreement, observed)
+    # A factor below 1 is not enough: the MEDIUM clamp can hold the value, and the
+    # line must not claim a fall that did not happen.
+    unobserved = confidence(pier, instant, scored, conditions, agreement)[1]
+    lowered = observed if conf_value < unobserved else None
     agreed = [_agreement_reason(agreement)] if agreement is not None else []
     # Advice for a night worth judging, so only gate-passing paths carry it, and
     # after the agreement line so no earlier line moves (dew-spread-reason D2).
@@ -913,7 +983,9 @@ def evaluate(
     if pier.max_gust is not None:
         if wind_exceeds_limit(scored, conditions, pier.max_gust):
             reasons = [*span, _wind_reason(pier.max_gust, narrowed), *agreed]
-            return Decision(Verdict.NO_GO, None, band, conf_value, reasons, scored, agreement)
+            return Decision(
+                Verdict.NO_GO, None, band, conf_value, reasons, scored, agreement, lowered
+            )
         if not wind_fully_covered(scored, conditions):
             wind_capped = True
 
@@ -934,7 +1006,7 @@ def evaluate(
     if is_overcast(scored, conditions):
         overcast = _REASON_OVERCAST_REST if narrowed else _REASON_OVERCAST
         reasons = [*span, overcast, *agreed]
-        return Decision(Verdict.NO_GO, None, band, conf_value, reasons, scored, agreement)
+        return Decision(Verdict.NO_GO, None, band, conf_value, reasons, scored, agreement, lowered)
 
     terms = score_terms(scored, conditions, moon)
     score = terms.score
@@ -949,4 +1021,4 @@ def evaluate(
     reasons.extend(dew)
     is_go = score >= pier.go_threshold and not wind_capped and not short
     verdict = Verdict.GO if is_go else Verdict.MAYBE
-    return Decision(verdict, score, band, conf_value, reasons, scored, agreement)
+    return Decision(verdict, score, band, conf_value, reasons, scored, agreement, lowered)
