@@ -39,9 +39,8 @@ and SHALL show no other configuration value.
 
 ### Requirement: A zero-padded integer in the configuration file is a decimal number
 
-When a number setting in the configuration file is given an integer written
-with one or more leading zeros, with or without a sign, the setting SHALL take
-that decimal number.
+When a number setting in the configuration file holds an integer with leading
+zeros, with or without a sign, the setting SHALL take that decimal number.
 
 #### Scenario: A padded go-threshold is read as decimal
 

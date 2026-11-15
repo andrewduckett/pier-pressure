@@ -47,6 +47,10 @@
 - **Existing seams reused:** `load_app_config` in `tests/test_main.py`, with
   `SUPERVISOR_TOKEN` set and a saved form, for the two add-on scenarios (a
   repeated form id, and padded or base-60 form horizon points).
+- **What a test asserts for "verdict" outcomes:** the existing configuration
+  tests already stand in for publishing. A pier in the loaded configuration's
+  `piers` is the pier that gets a verdict. A `ConfigError` from the loader means
+  startup stops before the service connects, so nothing is published.
 
 ## Scrutiny Tier & Blast Radius
 
@@ -125,18 +129,20 @@ behavior is covered by tests through `load_app_config` (D10).
 
 ### DD5: Document the rules in the README
 
-The configuration table's `id` row says that each pier needs its own id. The
-`horizon` row, or a short note under the table, says that a zero-padded number
-such as `045` reads as 45, and that `1:30` is not a number (D12).
+The configuration table's `id` row says that each pier needs its own id. It
+also says to quote an id that looks like a number, such as `"07"`: YAML reads
+`07` as a number, so the id check rejects it, while `08` happens to stay text.
+The `horizon` row, or a short note under the table, says that a zero-padded
+number such as `045` reads as 45, and that `1:30` is not a number (D12).
 
 ## Risks / Trade-offs
 
 - [A setup that runs today with a repeated id stops after the upgrade] → The
   error names the id. Such a setup was already publishing one pier's verdict over
   the other's.
-- [A number setting written with a leading zero takes a new value, such as
-  `port: 01883`, which YAML 1.1 already read as text and still does] → Only
-  values YAML 1.1 read as octal change, and each now means what was written.
+- [A number setting written with a leading zero takes a new value] → Only
+  values YAML 1.1 read as octal change, such as `070`. Each now means what was
+  written. A value such as `port: 01883` was already text, and still is.
 - [Adding constructors to the subclass changes `yaml.safe_load` for the whole
   process] → PyYAML copies the constructor table on a subclass's first
   `add_constructor`. A test asserts that `yaml.safe_load("045")` is still 37.

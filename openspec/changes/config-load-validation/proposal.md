@@ -2,7 +2,7 @@
 
 PierPressure can load a pier with settings the user did not write, and log
 nothing. A zero-padded horizon azimuth such as `045` is read as the octal
-number 37 (#81), and two piers that share an `id` both publish to the same MQTT
+number 37 (#81). Two piers that share an `id` both publish to the same MQTT
 topics, so one verdict silently overwrites the other (#86). Both errors happen
 while the core loads the piers, so one change fixes both (D1).
 

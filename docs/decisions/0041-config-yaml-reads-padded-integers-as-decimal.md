@@ -18,9 +18,9 @@ horizon azimuths from tables that pad them with zeros, so the core loaded wrong
 horizons and logged nothing.
 
 The value is wrong as soon as it is parsed: `045` and `37` are the same integer
-afterwards. So the fix has to be in the reader. YAML 1.2 fixes both forms, but it
-also changes others that users may rely on, such as `yes` and `no` read as true
-and false, and whether `08` is a number or text.
+afterwards. So the fix has to be in the reader. YAML 1.2 fixes both forms. But it
+also changes others that users may rely on: `yes` and `no` read as true and
+false, and whether `08` is a number or text.
 
 ## Decision
 
