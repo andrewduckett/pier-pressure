@@ -41,11 +41,11 @@ None.
 
 ### Modified Capabilities
 
-- `conditions`: new requirements for fetching and parsing FIRMS fire
-  detections, keeping the key secret, and keeping detections out of the
-  provider order and the fill.
-- `night-verdict`: the config gains the `firms` block; new requirements for
-  which detections count and for the fire reason line and its place.
+- `conditions`: new requirements for the `firms` block and its key, for
+  fetching and parsing FIRMS fire detections, for keeping the key secret, and
+  for keeping detections out of the provider order and the fill.
+- `night-verdict`: new requirements for which detections count, and for the
+  fire reason line and its place.
 - `ha-delivery`: the health requirements cover a `FIRMS` health sensor for each
   pier while the key is set.
 
