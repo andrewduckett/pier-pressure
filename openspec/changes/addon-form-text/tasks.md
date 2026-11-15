@@ -1,6 +1,6 @@
 ## 1. Form help text and setup steps
 
-- [ ] 1.1 [easy] Each optional form field's description says `Optional.`, the broker's `host` included, and no required field's description says it (verify: uv run pytest tests/test_ha_addon.py -k optional)
+- [x] 1.1 [easy] Each optional form field's description says `Optional.`, the broker's `host` included, and no required field's description says it (verify: uv run pytest tests/test_ha_addon.py -k optional) (✓ uv run pytest tests/test_ha_addon.py -k optional passed)
 - [ ] 1.2 [easy] The description of `interval_seconds` names seconds, its default of 900, and that a pier's Refresh button recomputes at once (verify: uv run pytest tests/test_ha_addon.py -k interval)
 - [ ] 1.3 [easy] The description of `piers` names the Location, Horizon, Equipment and Verdict sections in order, and says each field's label starts with its section (verify: uv run pytest tests/test_ha_addon.py -k piers_intro)
 - [ ] 1.4 [easy] The description of `mqtt` names `config.yaml` and the Mosquitto add-on as where the broker comes from with no host (verify: uv run pytest tests/test_ha_addon.py -k broker_section)

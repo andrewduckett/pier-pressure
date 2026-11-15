@@ -285,6 +285,28 @@ def test_the_port_label_names_its_default() -> None:
     assert "1883" in port["description"]
 
 
+def _form_fields(addon: dict[str, Any]) -> list[tuple[tuple[str, ...], str]]:
+    """Each form field's path into the translations, with its schema type."""
+    schema = addon["schema"]
+    (pier,) = schema["piers"]
+    return [
+        (("interval_seconds",), schema["interval_seconds"]),
+        *((("piers", "fields", name), kind) for name, kind in pier.items()),
+        *((("mqtt", "fields", name), kind) for name, kind in schema["mqtt"].items()),
+    ]
+
+
+def test_only_optional_fields_say_they_are_optional(addon: dict[str, Any]) -> None:
+    # The same voice as the pier fields: an optional field says so (addon-form-text D3).
+    labels = _load(ADDON_TRANSLATIONS)["configuration"]
+    for path, kind in _form_fields(addon):
+        entry: Any = labels
+        for key in path:
+            entry = entry[key]
+        optional = kind.endswith("?")
+        assert ("Optional." in entry["description"]) == optional, ".".join(path)
+
+
 @pytest.mark.parametrize(
     ("path", "unit"),
     [

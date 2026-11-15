@@ -103,9 +103,10 @@ configuration:
       host:
         name: Host
         description: >-
-          The broker's host name or IP address, such as 192.168.1.10. When you set
-          it, the add-on takes the host, port, username and password from this
-          form only.
+          Optional. The broker's host name or IP address, such as 192.168.1.10
+          or broker.lan. When you set it, the add-on takes the host, port,
+          username and password from this form only, and does not use the
+          Mosquitto add-on or config.yaml. Leave it empty to use one of those.
       port:
         name: Port
         description: >-
