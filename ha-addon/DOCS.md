@@ -16,15 +16,16 @@ file, you add a `config.yaml` file. See
    verdict, in seconds. The default, 900, is 15 minutes.
 3. **Add a pier.** Under **Piers**, add an entry for each place you observe from.
    Give it:
-   - an **ID**, a short name such as `backyard`. Use only letters, digits and
+   - a **Pier ID**, a short name such as `backyard`. Use only letters, digits and
      underscores, because the ID becomes part of the MQTT topics and entity IDs.
-   - its **latitude** and **longitude** in degrees. North and east are positive;
-     south and west are negative. A phone that shows 87.88° W means `-87.88`.
-   - its **elevation** above sea level, in metres.
-   - optionally, its **horizon**. See [Set a pier's horizon](#set-a-piers-horizon).
-   - optionally, its **equipment**. See
+   - the **Location** fields: its latitude and longitude in degrees, and its
+     elevation above sea level, in metres. North and east are positive; south
+     and west are negative. A phone that shows 87.88° W means `-87.88`.
+   - optionally, the **Horizon** fields. See
+     [Set a pier's horizon](#set-a-piers-horizon).
+   - optionally, the **Equipment** fields. See
      [Set a pier's equipment](#set-a-piers-equipment).
-   - optionally, its **GO threshold** and **wind-gust limit**. See
+   - optionally, the **Verdict** fields: its GO threshold and wind-gust limit. See
      [Set a pier's GO threshold and wind-gust limit](#set-a-piers-go-threshold-and-wind-gust-limit).
 4. **Save, then start the add-on.** The add-on reads the tab only when it starts.
    If it is already running, restart it when Home Assistant offers to, or from
@@ -53,9 +54,9 @@ horizon has an open, flat horizon at 0°.
 Each pier on the Configuration tab has two optional horizon fields. Fill in one
 of them at most:
 
-- **Horizon floor** is one altitude, in degrees from 0 to 90, that applies in
+- **Horizon: floor** is one altitude, in degrees from 0 to 90, that applies in
   every direction. For example, `15` hides everything lower than 15°.
-- **Horizon points** is a list of `[azimuth, altitude]` pairs, in degrees, on one
+- **Horizon: points** is a list of `[azimuth, altitude]` pairs, in degrees, on one
   line. Azimuth runs from 0 (north) through 90 (east). Between two points, the
   horizon runs in a straight line. For example:
 
@@ -71,7 +72,7 @@ cannot be read, the add-on skips that pier and logs an error that names it. The
 other piers still publish. To find the error, open the **Log** tab and look for
 `Skipping invalid pier`.
 
-An error about `horizon.points` refers to the **Horizon points** field.
+An error about `horizon.points` refers to the **Horizon: points** field.
 
 ## Set a pier's equipment
 
@@ -83,10 +84,10 @@ Each pier on the Configuration tab has four optional equipment fields:
 
 | Field | What to enter | Example |
 | --- | --- | --- |
-| **Focal length** | The telescope's focal length, in millimetres. | `400` |
-| **Sensor width** | The camera sensor's width, in millimetres. | `23.5` |
-| **Sensor height** | The camera sensor's height, in millimetres. | `15.7` |
-| **Reducer or barlow** | The factor of a focal reducer or barlow, with no unit. Leave it empty if you use neither. | `0.8` |
+| **Equipment: focal length** | The telescope's focal length, in millimetres. | `400` |
+| **Equipment: sensor width** | The camera sensor's width, in millimetres. | `23.5` |
+| **Equipment: sensor height** | The camera sensor's height, in millimetres. | `15.7` |
+| **Equipment: reducer or barlow** | The factor of a focal reducer or barlow, with no unit. Leave it empty if you use neither. | `0.8` |
 
 **Set focal length, sensor width and sensor height together.** If a pier sets
 some equipment fields but not all three, the add-on skips that pier and logs an
@@ -106,10 +107,10 @@ To find the field to fix, match the log's name to the tab's label:
 
 | Label on the tab | Name in the log and in `config.yaml` |
 | --- | --- |
-| Focal length | `equipment.focal_length_mm` |
-| Sensor width | `equipment.sensor_width_mm` |
-| Sensor height | `equipment.sensor_height_mm` |
-| Reducer or barlow | `equipment.reducer` |
+| Equipment: focal length | `equipment.focal_length_mm` |
+| Equipment: sensor width | `equipment.sensor_width_mm` |
+| Equipment: sensor height | `equipment.sensor_height_mm` |
+| Equipment: reducer or barlow | `equipment.reducer` |
 
 The other piers still publish. When no pier is left, the add-on stops with a
 configuration error.
@@ -126,8 +127,8 @@ night is `GO` or `NO-GO`. Both start empty.
 
 | Field | What to enter | If you leave it empty | Example |
 | --- | --- | --- | --- |
-| **GO threshold** | The score, from 0 to 100, that a night needs for `GO`. It has no unit. A lower score gives `MAYBE`. | The pier uses 65. | `75` |
-| **Wind-gust limit** | The wind gust, in km/h, above which the night is `NO-GO`. Use it to protect a long focal length from wind shake. | The pier has no wind gate, so no forecast gust makes the night `NO-GO`. | `30` |
+| **Verdict: GO threshold** | The score, from 0 to 100, that a night needs for `GO`. It has no unit. A lower score gives `MAYBE`. | The pier uses 65. | `75` |
+| **Verdict: wind-gust limit** | The wind gust, in km/h, above which the night is `NO-GO`. Use it to protect a long focal length from wind shake. | The pier has no wind gate, so no forecast gust makes the night `NO-GO`. | `30` |
 
 **The tab refuses a GO threshold below 0 or above 100, or a negative wind-gust
 limit,** when you save. A wind-gust limit of 0 saves, but the add-on skips that
@@ -143,8 +144,8 @@ These fields have the same names in the log and in `config.yaml`:
 
 | Label on the tab | Name in the log and in `config.yaml` |
 | --- | --- |
-| GO threshold | `go_threshold` |
-| Wind-gust limit | `max_gust` |
+| Verdict: GO threshold | `go_threshold` |
+| Verdict: wind-gust limit | `max_gust` |
 
 ## Set a pier's dew margin
 
@@ -275,7 +276,7 @@ below counts as one setting, so set it in one place only:
 
 | Setting | On the Configuration tab | In `config.yaml` |
 | --- | --- | --- |
-| A pier's horizon | **Horizon floor** or **Horizon points** | the pier's `horizon` |
+| A pier's horizon | **Horizon: floor** or **Horizon: points** | the pier's `horizon` |
 | A pier's equipment | any of the four equipment fields | the pier's `equipment` |
 | The broker connection | **Host**, **Port**, **Username** or **Password** | `mqtt.host`, `mqtt.port`, `mqtt.username` or `mqtt.password` |
 | The recompute interval | **Recompute interval** | `recompute` |

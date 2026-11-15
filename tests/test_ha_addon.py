@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parent.parent
 REPOSITORY_FILE = ROOT / "repository.yaml"
 ADDON_CONFIG = ROOT / "ha-addon" / "config.yaml"
 ADDON_TRANSLATIONS = ROOT / "ha-addon" / "translations" / "en.yaml"
+ADDON_DOCS = ROOT / "ha-addon" / "DOCS.md"
 RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
 
 REPOSITORY_URL = "https://github.com/andrewduckett/pier-pressure"
@@ -254,6 +255,18 @@ def test_no_pier_description_names_an_old_label(old: str) -> None:
     pattern = re.compile(rf"(?<!: )\b{re.escape(old)}\b")
     for field, entry in _pier_labels().items():
         assert not pattern.search(entry["description"]), f"{field} names {old!r}"
+
+
+@pytest.mark.parametrize("old", OLD_PIER_LABELS)
+def test_docs_label_is_never_an_old_pier_label(old: str) -> None:
+    # DOCS.md names a field by its label in bold or in a table's first column.
+    # Prose that names a setting as an idea keeps its words (addon-pier-layout D5).
+    docs = ADDON_DOCS.read_text(encoding="utf-8")
+    label = re.escape(old)
+    pattern = re.compile(
+        rf"\*\*{label}\*\*|^\| (\*\*)?{label}(\*\*)? \|", re.IGNORECASE | re.MULTILINE
+    )
+    assert not pattern.search(docs)
 
 
 @pytest.mark.parametrize(
