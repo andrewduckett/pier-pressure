@@ -17,7 +17,10 @@ from typing import Annotated, Any, get_args, get_origin, get_type_hints
 import jsonschema
 import pytest
 
+from pierpressure.core.clock import FixedClock
+from pierpressure.core.conditions import Conditions
 from pierpressure.core.model import TimelineEntry, iso_z
+from pierpressure.core.producer import produce_verdict
 from pierpressure.delivery.ha_schema import SENSOR_SCHEMA
 from pierpressure.delivery.mqtt import (
     PAYLOAD_OFFLINE,
@@ -37,7 +40,14 @@ from pierpressure.delivery.mqtt import (
     timeline_state_topic,
 )
 
-from .conftest import FakeMqttClient, make_document, make_mqtt_config, make_timeline
+from .conftest import (
+    FakeMqttClient,
+    make_document,
+    make_mqtt_config,
+    make_pier,
+    make_timeline,
+)
+from .offline_guard import no_network
 
 BASE = "pierpressure"
 PREFIX = "homeassistant"
@@ -465,3 +475,40 @@ def test_republishing_introduces_no_new_identity(key: str) -> None:
     configs = client.publishes_to(_topics(key)[0])
     assert len(configs) == 2
     assert {json.loads(p.payload)["unique_id"] for p in configs} == {f"pierpressure_backyard_{key}"}
+
+
+# --------------------------------------------------------------------------- #
+# Every forecast fails: the core's astronomy still reaches the sensors
+# --------------------------------------------------------------------------- #
+
+_EVENING = datetime(2026, 9, 8, 18, tzinfo=UTC)
+
+
+def _published_without_forecasts() -> FakeMqttClient:
+    with no_network():
+        document = produce_verdict(make_pier(), FixedClock(_EVENING), Conditions())
+    delivery, client = _connected()
+    delivery.publish_verdict(document)
+    return client
+
+
+@pytest.mark.parametrize("key", ["sun_altitude", "moon_altitude"])
+def test_with_no_forecast_the_altitudes_have_the_current_hours_state(key: str) -> None:
+    client = _published_without_forecasts()
+    _, state_topic, attributes_topic = _topics(key)
+
+    [state] = client.publishes_to(state_topic)
+    [attributes] = client.publishes_to(attributes_topic)
+    assert isinstance(json.loads(state.payload), float)
+    assert json.loads(attributes.payload)["hour"] == "2026-09-08T18:00:00Z"
+
+
+def test_with_no_forecast_cloud_cover_is_unknown_beside_24_null_points() -> None:
+    client = _published_without_forecasts()
+    _, state_topic, attributes_topic = _topics("cloud_cover")
+
+    [state] = client.publishes_to(state_topic)
+    [attributes] = client.publishes_to(attributes_topic)
+    assert state.payload == "None"
+    forecast = json.loads(attributes.payload)["forecast"]
+    assert [point["value"] for point in forecast] == [None] * 24
