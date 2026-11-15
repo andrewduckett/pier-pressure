@@ -204,6 +204,7 @@ firms:
 | Setting | What it does |
 |---|---|
 | `piers` | A list. Each pier is checked on its own: an invalid pier is logged and skipped, and the others keep running. If no pier is valid, PierPressure exits with an error. |
+| `id` | The pier's name, which its MQTT topics and entities use. Each pier needs its own id: if two piers share one, PierPressure exits with an error that names it. Ids that differ only in letter case, such as `backyard` and `Backyard`, are different piers. Put quotes around an id that looks like a number, such as `"07"`. Without them, YAML reads `07` as a number, which is not a valid id. |
 | `go_threshold` | The score a night needs for `GO`. |
 | `max_gust` | Turns on the wind gate. Leave it out to ignore wind gusts. |
 | `dew_margin` | When the air temperature is less than this many °C above the dew point, the reasons say from which hour dew is likely, or frost at 0 °C or below. The default is 4. Set 0 to turn the line off. It never changes the verdict, score or confidence. |
@@ -213,6 +214,11 @@ firms:
 | `explainer` | The optional LLM summary. See [docs/llm-explainer.md](docs/llm-explainer.md). |
 | `firms` | Optional, and one key for every pier. `map_key` is a free NASA FIRMS MAP_KEY, which you request at <https://firms.modaps.eosdis.nasa.gov/api/map_key/>. Write it as `${FIRMS_KEY}` to read it from the environment. With a key, PierPressure asks FIRMS on every recompute for NOAA-20 VIIRS fire detections near each pier. A detection counts when its confidence is `nominal` or `high`, it is from the 24 hours up to the verdict, and it is within 50 km of the pier. When any count, the reasons gain one line about the nearest, after the METAR lines, such as `A satellite detected a fire 23 km NW of the pier at 2026-11-13T07:35:00Z (1 detection within 50 km).` The line never changes the verdict, score or confidence. A key that is empty, or names an environment variable that is not set, turns the line off, and the log says so once. The key never appears in the log, an error or a health sensor. |
 | `conditions` | Optional. `providers` lists the weather providers, preferred first. The default is `[open_meteo, seven_timer, open_meteo_air_quality, computed]`. Each forecast variable, such as cloud cover or seeing, comes from the first provider in the list that returned it. PierPressure will not start if the list is empty, names an unknown provider, names a provider more than once, or has no provider that needs no key and supplies cloud cover. The providers are `open_meteo`, the six Open-Meteo models below, `open_meteo_air_quality` for the air-quality forecast, `nws` for the National Weather Service, `met_norway` for MET Norway, `seven_timer`, and `computed`, which computes transparency and seeing from other providers' values. |
+
+Numbers in `config.yaml` are decimal, even with leading zeros: `045` reads as
+45 and `-045` as -45, also in horizon `points`. A value with a colon, such as
+`1:30`, is not a number but text. So a number setting that holds one, such as an
+azimuth in horizon `points`, makes its pier invalid.
 
 ### Choosing Open-Meteo models
 
