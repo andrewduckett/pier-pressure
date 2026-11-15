@@ -19,6 +19,8 @@ configuration:
       latitude:
         name: 'Location: latitude'
         description: >-
+          Location: where the pier is on Earth, for dusk, dawn and where each
+          target sits in your sky.
           In degrees, from -90 to 90. North is positive and south is negative,
           so 33.87° S is -33.87.
       longitude:
@@ -32,6 +34,7 @@ configuration:
       min_altitude:
         name: 'Horizon: floor'
         description: >-
+          Horizon: what blocks your sky.
           Optional. The lowest altitude a target must reach, in degrees from 0 to
           90, the same in every direction. Leave it empty when you set horizon
           points; the two cannot be used together.
@@ -44,6 +47,8 @@ configuration:
       equipment_focal_length_mm:
         name: 'Equipment: focal length'
         description: >-
+          Equipment: your telescope and camera, so targets that fit your
+          field of view rank higher.
           Optional. Your telescope's focal length, in millimetres. Set it with
           sensor width and sensor height; the three go together.
       equipment_sensor_width_mm:
@@ -64,6 +69,8 @@ configuration:
       go_threshold:
         name: 'Verdict: GO threshold'
         description: >-
+          Verdict: how good a night must be for GO, and how much wind makes it
+          NO-GO.
           Optional. The score from 0 to 100, with no unit, that a night needs for
           GO. Leave it empty for 65.
       max_gust:

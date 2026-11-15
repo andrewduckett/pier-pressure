@@ -203,6 +203,34 @@ def test_each_pier_field_has_its_section_label() -> None:
     }
 
 
+def _section_leaders() -> dict[str, str]:
+    """The first field of each section, by section name."""
+    leaders: dict[str, str] = {}
+    for section, field, _ in PIER_SECTIONS:
+        leaders.setdefault(section, field)
+    return leaders
+
+
+@pytest.mark.parametrize(("section", "field"), _section_leaders().items())
+def test_a_section_intro_opens_its_first_field(section: str, field: str) -> None:
+    # The dialog has no headings, so the first field's help text introduces the
+    # section, in one sentence (addon-pier-layout D2).
+    description = _pier_labels()[field]["description"]
+    intro, _, rest = description.partition(". ")
+    assert intro.startswith(f"{section}: ")
+    assert rest
+
+
+def test_no_other_field_opens_with_a_section_intro() -> None:
+    leaders = set(_section_leaders().values())
+    sections = {section for section, _, _ in PIER_SECTIONS}
+    for field, entry in _pier_labels().items():
+        if field in leaders:
+            continue
+        opening = entry["description"].split(":", 1)[0]
+        assert opening not in sections, f"{field} opens like a section intro"
+
+
 @pytest.mark.parametrize(
     ("field", "meaning"),
     [("go_threshold", "65"), ("max_gust", "no wind gate")],
