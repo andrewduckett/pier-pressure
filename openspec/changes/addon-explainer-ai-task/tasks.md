@@ -23,7 +23,7 @@
 
 ## 5. The whole change [depends-on: 4]
 
-- [ ] 5.1 [easy] The CI gate passes on the finished change (verify: mise run check)
+- [x] 5.1 [easy] The CI gate passes on the finished change (verify: mise run check) (✓ mise run check passed: specs, ruff, mypy, 2722 pytest, 510 card tests, card build)
 
 ## Deviations Ledger
 
