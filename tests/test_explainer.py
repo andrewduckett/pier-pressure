@@ -298,6 +298,19 @@ def test_failure_log_names_the_error_class_without_its_text(
         assert "connection refused" not in _record_text(record)
 
 
+def test_failure_log_carries_no_traceback(caplog: pytest.LogCaptureFixture) -> None:
+    explainer = NarrativeExplainer(
+        _LeakyProvider(RuntimeError("connection refused for key sk-marker"))
+    )
+    with caplog.at_level(logging.WARNING, logger="pierpressure.explain"):
+        explainer(_document())
+    warning = next(r for r in caplog.records if r.levelno == logging.WARNING)
+    assert not warning.exc_info
+    assert not warning.exc_text
+    assert "sk-marker" not in caplog.text
+    assert "connection refused" not in caplog.text
+
+
 # --------------------------------------------------------------------------- #
 # 2.6 — the default Pydantic AI provider, driven by an injected test model
 # --------------------------------------------------------------------------- #
