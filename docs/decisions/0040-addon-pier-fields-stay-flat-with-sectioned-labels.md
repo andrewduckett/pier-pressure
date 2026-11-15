@@ -3,7 +3,7 @@ id: adrs-adr0040
 date: 2026-11-14
 status: accepted
 title: 'ADR0040: A pier''s form fields stay in one flat list, and each label names its section'
-description: Architecture Decision Record for keeping a pier's fields on the add-on Configuration form flat, although Home Assistant now allows nested blocks, and for showing the pier's sections through label prefixes and help text alone.
+description: Architecture Decision Record for keeping a pier's fields flat on the add-on Configuration form, although Home Assistant now allows nested blocks. Label prefixes and help text alone show the pier's sections.
 ---
 
 # ADR-0040: A pier's form fields stay in one flat list, and each label names its section

@@ -33,7 +33,7 @@ name their defaults.
 ## Test Seams
 
 - **Primary test seam:** `tests/test_ha_addon.py`, which loads both add-on files
-  as YAML and checks them. The two new scenarios become tests there.
+  as YAML and checks them. The three new scenarios become tests there.
 - **Existing seams reused:** the same file's `addon` fixture and `_load` helper.
   The form-to-verdict tests in `tests/test_addon_options.py` and
   `tests/test_addon_settings.py` stay as they are and prove D17.

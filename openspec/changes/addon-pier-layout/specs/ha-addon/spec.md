@@ -41,9 +41,12 @@ pier's `id`, grouped in four sections:
 ### Requirement: Each pier field's label names its section
 
 Each pier field's English label SHALL start with its section's name, a colon
-and a space, followed by the field's name in lower-case words. `GO` SHALL stay
-upper case, because it is the verdict's own value. The label of `id` SHALL be
-`Pier ID`, with no section.
+and a space. The labels SHALL be `Location: latitude`, `Location: longitude`,
+`Location: elevation`, `Horizon: floor`, `Horizon: points`,
+`Equipment: focal length`, `Equipment: sensor width`,
+`Equipment: sensor height`, `Equipment: reducer or barlow`,
+`Verdict: GO threshold` and `Verdict: wind-gust limit`, in section order. The
+label of `id` SHALL be `Pier ID`, with no section.
 
 #### Scenario: Each pier label names its section
 
