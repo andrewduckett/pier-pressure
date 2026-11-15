@@ -70,10 +70,11 @@ already decided by astronomy alone.
 ### Requirement: Weather variables are carried as reported and never judged
 
 The weather variables SHALL be carried as the provider reports them, with no
-rounding or conversion: temperature and dew point in degrees Celsius, humidity
-and precipitation probability in percent, wind speed in km/h and wind direction
-in degrees. The verdict, the score, the confidence and the reasons SHALL NOT
-read them.
+rounding: temperature and dew point in degrees Celsius, humidity and
+precipitation probability in percent, wind speed in km/h and wind direction in
+degrees. They SHALL NOT be converted, except where a provider's own requirement
+names a change of unit. The verdict, the score, the confidence and the reasons
+SHALL NOT read them.
 
 #### Scenario: Values are not rounded or converted
 
@@ -174,8 +175,10 @@ fetches conditions for a pier, and SHALL decide the fill after all fetches.
 The failure of one provider SHALL NOT prevent another provider's data from
 being used. A provider whose fetch fails or returns no data SHALL be passed over
 for every variable, and a variable no remaining provider returned SHALL be
-marked unavailable. The system SHALL NOT fill a variable with data from an
-earlier fetch, whether for the same pier or another pier.
+marked unavailable. A failed or empty fetch SHALL NOT be filled from an earlier
+fetch, for the same pier or another. A provider SHALL answer a fetch from an
+earlier response only when its own requirement allows it and its source still
+calls that response current.
 
 #### Scenario: A failed later provider leaves the earlier provider's data intact
 
@@ -255,9 +258,10 @@ series rather than filled in, from any provider.
 
 ### Requirement: Each Open-Meteo model is its own provider
 
-The catalog SHALL offer five providers, each fetching one named Open-Meteo
-model: HRRR, HRDPS, RDPS, ICON and GFS. Each model provider SHALL need no key,
-and SHALL be listed, filled, fetched and reported like any other provider.
+The catalog SHALL offer six providers, each fetching one named Open-Meteo
+model: HRRR, HRDPS, RDPS, ICON, GFS and ECMWF. Each model provider SHALL need
+no key, and SHALL be listed, filled, fetched and reported like any other
+provider.
 
 #### Scenario: The catalog offers the five model providers
 
@@ -271,6 +275,11 @@ and SHALL be listed, filled, fetched and reported like any other provider.
   | `open_meteo_rdps` | Open-Meteo RDPS |
   | `open_meteo_icon` | Open-Meteo ICON |
   | `open_meteo_gfs` | Open-Meteo GFS |
+
+#### Scenario: The catalog offers the ECMWF model provider
+
+- **WHEN** the catalog is read
+- **THEN** it holds `open_meteo_ecmwf`, with the display name `Open-Meteo ECMWF`, and it needs no key
 
 #### Scenario: A model key is accepted in the provider list
 
@@ -306,6 +315,7 @@ Open-Meteo's best match, and SHALL name no model in its request.
   | `open_meteo_rdps` | `gem_regional` |
   | `open_meteo_icon` | `icon_seamless` |
   | `open_meteo_gfs` | `gfs_global` |
+  | `open_meteo_ecmwf` | `ecmwf_ifs` |
 
 - **AND** each request asks for 4 past hours and 72 forecast hours, with wind speed in km/h
 
@@ -321,6 +331,41 @@ Open-Meteo's best match, and SHALL name no model in its request.
 - **THEN** its request to Open-Meteo names no model
 - **AND** it asks for 48 hourly variables: the twelve it asked for before the seeing column was added, and the 36 seeing-column variables
 - **AND** it asks for 4 past hours and 72 forecast hours, with wind speed in km/h
+
+### Requirement: ECMWF declares column water vapour but not the seeing column
+
+The ECMWF model provider SHALL declare the same variables and the cloud bundle
+as `open_meteo`, except the seeing column, which that model does not fully
+supply. It SHALL declare `precipitation_probability` and `column_water_vapour`.
+
+#### Scenario: ECMWF declares every variable but the seeing column
+
+- **WHEN** the `open_meteo_ecmwf` provider's declaration is read
+- **THEN** it lists `cloud_cover`, `cloud_low`, `cloud_mid`, `cloud_high`, `wind_gust`, `temperature`, `dew_point`, `humidity`, `wind_speed`, `wind_direction`, `precipitation_probability` and `column_water_vapour`
+- **AND** it lists no seeing-column variable
+- **AND** its one bundle holds `cloud_cover`, `cloud_low`, `cloud_mid` and `cloud_high`
+
+#### Scenario: ECMWF does not ask for the seeing column
+
+- **WHEN** `open_meteo_ecmwf` is fetched for a pier
+- **THEN** the hourly variables in its request include `precipitation_probability` and `total_column_integrated_water_vapour`
+- **AND** they include no seeing-column variable
+
+#### Scenario: Column water vapour can come from ECMWF
+
+- **WHEN** the order is `open_meteo_hrdps` then `open_meteo_ecmwf`, and both return readings for the dark window
+- **THEN** the `column_water_vapour` series carries the key `open_meteo_ecmwf`
+
+#### Scenario: The seeing column comes from a later provider than ECMWF
+
+- **WHEN** the order is `open_meteo_ecmwf` then `open_meteo_gfs`, and both return readings for the dark window
+- **THEN** the cloud series carry the key `open_meteo_ecmwf`
+- **AND** every seeing-column series carries the key `open_meteo_gfs`
+
+#### Scenario: A live ECMWF recording parses
+
+- **WHEN** a recorded `ecmwf_ifs` response from Open-Meteo is parsed
+- **THEN** each of its hours has a value for `cloud_cover`, `cloud_low`, `cloud_mid`, `cloud_high`, `wind_gust`, `temperature`, `precipitation_probability` and `column_water_vapour`
 
 ### Requirement: A model outside its area is not rejected at startup
 
@@ -916,6 +961,7 @@ since the Unix epoch, in UTC.
   | `open_meteo_rdps` | `cmc_gem_rdps_10km` |
   | `open_meteo_icon` | `dwd_icon` |
   | `open_meteo_gfs` | `ncep_gfs013` |
+  | `open_meteo_ecmwf` | `ecmwf_ifs` |
 
 #### Scenario: The epoch time is read as UTC
 
@@ -1468,7 +1514,7 @@ because the metadata file takes no parameters.
 
 #### Scenario: Every Open-Meteo provider asks for the same hours
 
-- **WHEN** `open_meteo`, `open_meteo_hrrr`, `open_meteo_hrdps`, `open_meteo_rdps`, `open_meteo_icon`, `open_meteo_gfs` and `open_meteo_air_quality` are each fetched for a pier
+- **WHEN** `open_meteo`, `open_meteo_hrrr`, `open_meteo_hrdps`, `open_meteo_rdps`, `open_meteo_icon`, `open_meteo_gfs`, `open_meteo_ecmwf` and `open_meteo_air_quality` are each fetched for a pier
 - **THEN** each request for hourly data asks for 4 past hours and 72 forecast hours
 - **AND** no request asks for a number of forecast days
 - **AND** each request for hourly data asks for times in UTC
@@ -1489,3 +1535,559 @@ time zone. Each such request SHALL keep asking for times in UTC.
 - **WHEN** any Open-Meteo provider is fetched for a pier at 00:05 UTC
 - **THEN** its request for hourly data asks for no number of forecast days
 - **AND** it asks for times in UTC
+
+### Requirement: A pier that names a METAR station has its latest METAR fetched on every fetch
+
+For each pier that names a METAR station, every fetch SHALL make one request to
+`https://aviationweather.gov/api/data/metar?ids=<station>&format=json`, where
+`<station>` is the pier's station. A pier that names no station SHALL make no
+METAR request.
+
+#### Scenario: A pier with a station fetches its METAR
+
+- **WHEN** the system fetches conditions for a pier whose `metar_station` is `KBOS`
+- **THEN** it makes one request to `https://aviationweather.gov/api/data/metar?ids=KBOS&format=json`
+
+#### Scenario: A pier with no station makes no METAR request
+
+- **WHEN** the system fetches conditions for a pier with no `metar_station`
+- **THEN** it makes no request to `aviationweather.gov`
+
+### Requirement: METAR requests carry the fixed User-Agent
+
+Every METAR request SHALL carry the same `User-Agent` header as NWS requests:
+the project name, the running version and the repository URL, with no email
+address. It SHALL NOT be configurable.
+
+#### Scenario: The header names the project, version and repository
+
+- **WHEN** the system makes a METAR request
+- **THEN** its `User-Agent` header contains `PierPressure`, the running version and `https://github.com/andrewduckett/pier-pressure`
+- **AND** it contains no `@`
+
+### Requirement: METAR is not a provider
+
+METAR SHALL NOT be a provider in the catalog or the provider order. An
+observation SHALL NOT fill a variable, and SHALL add no series and no
+alternate to the snapshot.
+
+#### Scenario: Listing metar as a provider stops startup
+
+- **WHEN** the configuration lists `providers: [open_meteo, metar]`
+- **THEN** startup fails with an error that says `metar` is not a known provider
+
+#### Scenario: An observation leaves the snapshot unchanged
+
+- **WHEN** the system fetches conditions twice for the same pier from the same provider responses, once with a METAR station that reports broken cloud and once with no station
+- **THEN** the two snapshots hold the same series and the same alternates
+
+### Requirement: An observation carries its station, time and cloud layers
+
+An observation from a METAR report SHALL carry the station, the time the station
+measured it, the report's overall cover code and its cloud layers. The time
+SHALL be the report's observation time, not its nominal report time or the fetch
+time. Each layer SHALL carry its cover code and its base in feet above ground,
+in the order reported.
+
+#### Scenario: A recorded report becomes an observation
+
+- **WHEN** the response for `KBOS` has observation time `2026-11-14T20:54:00Z`, report time `2026-11-14T21:00:00Z`, cover `OVC` and layers `FEW` at 3000, `BKN` at 4200 and `OVC` at 9500
+- **THEN** the observation's station is `KBOS` and its time is `2026-11-14T20:54:00Z`
+- **AND** its cover is `OVC`
+- **AND** its layers are `FEW` at 3000 ft, `BKN` at 4200 ft and `OVC` at 9500 ft, in that order
+
+### Requirement: An observation keeps cover codes as reported and a missing base as unknown
+
+An observation SHALL keep every cover code as the report gives it, including a
+code it has no wording for. A layer with no base SHALL be kept, with its base
+unknown. A layer whose cover says there is no cloud (`CLR`, `SKC`, `NCD` or
+`NSC`) SHALL be left out. A report with no other layers SHALL give an
+observation with an empty list of layers.
+
+#### Scenario: A layer with no base is kept
+
+- **WHEN** a report has a `BKN` layer with no base
+- **THEN** the observation has a `BKN` layer whose base is unknown
+
+#### Scenario: A clear report has no layers
+
+- **WHEN** a report has cover `CLR` and no layers
+- **THEN** the observation's cover is `CLR` and its list of layers is empty
+
+#### Scenario: A clear layer entry is left out
+
+- **WHEN** a report has cover `CLR` and one layer `CLR` with no base
+- **THEN** the observation's cover is `CLR` and its list of layers is empty
+
+### Requirement: A failed METAR fetch leaves the pier with no observation
+
+When the METAR request fails, times out, or returns a body the system cannot
+read, the pier SHALL have no observation for that fetch. A response with no
+report SHALL count as a failed fetch with the error `no report returned`. A
+failed METAR fetch SHALL NOT change the snapshot or fail the fetch of any
+provider.
+
+#### Scenario: A server error leaves no observation
+
+- **WHEN** the METAR request for a pier answers with status 503
+- **THEN** the pier has no observation for that fetch
+- **AND** the snapshot holds the series the providers returned
+
+#### Scenario: An unknown station returns no report
+
+- **WHEN** the METAR request for `KZZZ` answers with an empty list
+- **THEN** the pier has no observation for that fetch
+- **AND** the METAR fetch is reported as failed with the error `no report returned`
+
+#### Scenario: A 204 response returns no report
+
+- **WHEN** the METAR request for `KZZZ` answers with status 204 and an empty body
+- **THEN** the pier has no observation for that fetch
+- **AND** the METAR fetch is reported as failed with the error `no report returned`
+
+### Requirement: The observation travels beside the snapshot as data
+
+The observation SHALL reach the verdict as a plain data value beside the
+snapshot, obtained before the verdict is produced. Producing the verdict SHALL
+NOT make a METAR request.
+
+#### Scenario: The verdict is produced with no network
+
+- **WHEN** a verdict is produced for a pier with a pinned observation and no network available
+- **THEN** the verdict is produced and makes no network request
+
+### Requirement: The catalog offers MET Norway as a provider
+
+The catalog SHALL offer a provider with the key `met_norway` and the display
+name `MET Norway`. It SHALL need no key. It SHALL declare `cloud_cover`,
+`cloud_low`, `cloud_mid`, `cloud_high`, `wind_gust`, `wind_speed`,
+`wind_direction`, `temperature`, `dew_point`, `humidity` and
+`precipitation_probability`, with the cloud bundle as its one bundle. It SHALL
+be listed, filled, fetched and reported like any other provider, and SHALL NOT
+be in the default provider order.
+
+#### Scenario: The catalog offers MET Norway
+
+- **WHEN** the catalog is read
+- **THEN** it holds `met_norway` with the display name `MET Norway`, needing no key
+- **AND** its declaration lists `cloud_cover`, `cloud_low`, `cloud_mid`, `cloud_high`, `wind_gust`, `wind_speed`, `wind_direction`, `temperature`, `dew_point`, `humidity` and `precipitation_probability`
+- **AND** its one bundle holds `cloud_cover`, `cloud_low`, `cloud_mid` and `cloud_high`
+
+#### Scenario: MET Norway alone satisfies the cloud rule
+
+- **WHEN** the configuration lists `providers: [met_norway]`
+- **THEN** startup succeeds, because `met_norway` needs no key and supplies cloud cover
+
+#### Scenario: The default order does not include MET Norway
+
+- **WHEN** the configuration has no `conditions` block
+- **THEN** the provider order is `open_meteo`, `seven_timer`, `open_meteo_air_quality`, `computed`
+- **AND** it does not include `met_norway`
+
+#### Scenario: MET Norway fills cloud with its layers when it comes first
+
+- **WHEN** the order is `met_norway` then `open_meteo`, and both return cloud cover for the dark window
+- **THEN** the `cloud_cover`, `cloud_low`, `cloud_mid` and `cloud_high` series carry the key `met_norway`
+
+### Requirement: MET Norway is asked for the complete forecast at the pier's rounded coordinates
+
+A fetch of `met_norway` SHALL request
+`https://api.met.no/weatherapi/locationforecast/2.0/complete` with `lat` and
+`lon` set to the pier's latitude and longitude, each rounded to 4 decimal
+places. It SHALL send no other parameter.
+
+#### Scenario: Coordinates are rounded to 4 decimal places
+
+- **WHEN** `met_norway` is fetched for a pier at latitude 59.913868 and longitude 10.752245
+- **THEN** its request asks for `lat` `59.9139` and `lon` `10.7522`, and has no other parameter
+
+### Requirement: MET Norway requests carry the fixed User-Agent
+
+Every request to MET Norway SHALL carry the same `User-Agent` header as NWS
+requests: the project name, the running version and the repository URL, with
+no email address. It SHALL NOT be configurable.
+
+#### Scenario: The header names the project, version and repository
+
+- **WHEN** `met_norway` makes a request
+- **THEN** its `User-Agent` header contains `PierPressure`, the running version and `https://github.com/andrewduckett/pier-pressure`
+- **AND** it contains no `@`
+
+### Requirement: MET Norway values are read from each step's fields
+
+Each MET Norway step SHALL fill the hour at its time from its instant values:
+`cloud_area_fraction` as cloud cover, `cloud_area_fraction_low`,
+`cloud_area_fraction_medium` and `cloud_area_fraction_high` as low, mid and high
+cloud, `wind_speed_of_gust` as gust, `wind_speed`, `wind_from_direction`,
+`air_temperature`, `dew_point_temperature` and `relative_humidity`. A field the
+step lacks SHALL leave its variable absent for that hour, with no error.
+
+#### Scenario: A step's instant values fill its hour
+
+- **WHEN** a step at 21:00 UTC reports `cloud_area_fraction` `80`, `cloud_area_fraction_low` `10`, `cloud_area_fraction_medium` `30`, `cloud_area_fraction_high` `75` and `air_temperature` `4.8`
+- **THEN** the reading for 21:00 carries a cloud cover of `80`, low cloud `10`, mid cloud `30`, high cloud `75` and a temperature of `4.8`
+
+#### Scenario: A pier outside the Nordic area gets no gust or rain chance
+
+- **WHEN** MET Norway returns steps with no `wind_speed_of_gust` and no `probability_of_precipitation`, and the order is `met_norway` then `open_meteo`
+- **THEN** the `met_norway` outcome is successful
+- **AND** the `cloud_cover` series carries the key `met_norway`
+- **AND** the `wind_gust` and `precipitation_probability` series carry the key `open_meteo`
+
+### Requirement: MET Norway values are carried in their expected units or left absent
+
+Each MET Norway value SHALL be carried as reported when the unit its payload
+gives is the expected one: `%` for the cloud fields, humidity and rain chance;
+`celsius` for temperature and dew point; `degrees` for wind direction. Wind
+speed and gust SHALL be expected in `m/s` and multiplied by 3.6 to give km/h,
+unrounded. A variable whose unit is anything else SHALL be left absent in every
+hour, with no conversion.
+
+#### Scenario: Wind in metres per second is carried in km/h
+
+- **WHEN** MET Norway reports a `wind_speed` of `5.0` and a `wind_speed_of_gust` of `10.0` for an hour, both in `m/s`
+- **THEN** that hour's reading carries a wind speed of `18.0` and a gust of `36.0`
+
+#### Scenario: An unexpected unit leaves the variable absent
+
+- **WHEN** MET Norway gives the unit of `wind_speed` as `knots`
+- **THEN** every hour's wind speed is absent
+- **AND** the other variables keep their values
+
+### Requirement: MET Norway keeps only its hourly steps within 72 hours
+
+The MET Norway provider SHALL keep only the leading run of steps that are each
+one hour after the one before. From the first step that is not, every later
+step SHALL be dropped. Of the steps kept, only hours within 72 hours of the
+first step SHALL be kept.
+
+#### Scenario: The 6-hourly steps are dropped
+
+- **WHEN** MET Norway returns steps every hour from 00:00 to 12:00 on day one, then at 18:00 on day one and 00:00 on day two
+- **THEN** readings exist for every hour from 00:00 to 12:00 on day one
+- **AND** no reading exists for 18:00 on day one or 00:00 on day two
+
+#### Scenario: Hourly steps past 72 hours are dropped
+
+- **WHEN** MET Norway returns hourly steps from 00:00 on day one to 06:00 on day four
+- **THEN** the latest reading is for 23:00 on day three
+
+### Requirement: A MET Norway precipitation probability is held one hour after its step
+
+Because a MET Norway `next_1_hours` precipitation probability at a step is the
+chance for the hour that starts there, and PierPressure's rain chance at an hour
+is for the hour that ends there, each value SHALL be held on the hour after its
+step. A value whose next hour is not a kept step SHALL be dropped.
+
+#### Scenario: A rain chance moves one hour later
+
+- **WHEN** the step at 21:00 reports a `next_1_hours` precipitation probability of `40` and a cloud cover of `80`
+- **THEN** the reading for 22:00 carries a precipitation probability of `40`
+- **AND** the reading for 21:00 carries a cloud cover of `80` and no precipitation probability from that step
+
+#### Scenario: A rain chance on the last kept step is dropped
+
+- **WHEN** the last kept step, at 12:00, reports a `next_1_hours` precipitation probability of `30`
+- **THEN** no reading exists for 13:00
+
+### Requirement: MET Norway's issue time is the forecast's update time
+
+Each series filled by `met_norway` SHALL carry the payload's `updated_at` time,
+in UTC, as its issue time. When the payload gives no update time, the issue
+time SHALL be null.
+
+#### Scenario: The update time becomes the issue time
+
+- **WHEN** the payload's `updated_at` is `2026-11-14T19:17:36Z`
+- **THEN** each series `met_norway` fills carries an issue time of 2026-11-14 19:17:36 UTC
+- **AND** the fetch outcome carries that time as its issue time
+
+#### Scenario: No update time gives a null issue time
+
+- **WHEN** the payload has no `updated_at`
+- **THEN** each series `met_norway` fills carries a null issue time
+
+### Requirement: MET Norway is not asked again before its response expires
+
+The provider SHALL remember, for each rounded pair of coordinates and for as
+long as the process runs, its last good forecast and that response's `Expires`
+and `Last-Modified` times. A fetch before the remembered `Expires` time SHALL
+make no request and SHALL return the remembered forecast, as a successful
+outcome with its remembered issue time. Nothing SHALL be written to disk.
+
+#### Scenario: A fetch before Expires makes no request
+
+- **WHEN** a fetch for a pier returns a forecast whose response expires at 20:30 UTC, and the provider is fetched again for that pier at 20:10 UTC
+- **THEN** the second fetch makes no request to MET Norway
+- **AND** its outcome is successful and it fills the same series, with the same issue time, as the first
+
+#### Scenario: Two piers are remembered separately
+
+- **WHEN** `met_norway` is fetched for two piers at different coordinates before either response expires
+- **THEN** each pier's forecast is requested once, and each fetch returns its own pier's forecast
+
+### Requirement: MET Norway is asked with If-Modified-Since after its response expires
+
+A fetch at or after the remembered `Expires` time SHALL send a request with an
+`If-Modified-Since` header set to the remembered `Last-Modified` value. A 304
+answer SHALL return the remembered forecast as a successful outcome and
+remember the 304's `Expires` time. A response with no `Expires` header SHALL
+let the next fetch request again. A response with no `Last-Modified` header
+SHALL leave the next request without `If-Modified-Since`.
+
+#### Scenario: An expired response is asked for with If-Modified-Since
+
+- **WHEN** the remembered response gave `Last-Modified` `Sat, 14 Nov 2026 23:20:27 GMT` and has expired
+- **THEN** the next fetch requests the forecast with `If-Modified-Since` `Sat, 14 Nov 2026 23:20:27 GMT`
+
+#### Scenario: A 304 returns the remembered forecast
+
+- **WHEN** MET Norway answers that request with status 304
+- **THEN** the outcome is successful and the fetch fills the same series, with the same issue time, as the remembered forecast
+
+### Requirement: A failed MET Norway request forgets the remembered response
+
+A MET Norway request that fails, or answers any error status, SHALL fail the
+fetch like any provider, so the next provider fills. It SHALL forget the
+remembered response for those coordinates, so the next fetch makes a request
+with no `If-Modified-Since` header. A status 203 SHALL be a success, and the
+provider SHALL log a warning that the product version is deprecated.
+
+#### Scenario: A 429 fails the fetch and the next provider fills
+
+- **WHEN** the order is `met_norway` then `open_meteo`, and MET Norway answers with status 429
+- **THEN** the `met_norway` outcome is failed, with an error that gives the kind of error, `429` and `Too Many Requests`
+- **AND** the `cloud_cover` series carries the key `open_meteo`
+
+#### Scenario: A failure forgets the remembered response
+
+- **WHEN** an expired remembered response is asked for again and MET Norway answers with status 500, and the provider is fetched again for that pier
+- **THEN** the second request carries no `If-Modified-Since` header
+
+#### Scenario: A 203 is a success with a warning
+
+- **WHEN** MET Norway answers a request with status 203 and a forecast
+- **THEN** the outcome is successful, and a warning that the product version is deprecated is logged
+
+### Requirement: A live MET Norway recording parses
+
+A recorded MET Norway `complete` response for a pier in the Nordic area SHALL
+parse into readings with values for every variable `met_norway` declares.
+
+#### Scenario: A live Oslo recording parses
+
+- **WHEN** a recorded `complete` response for Oslo is parsed
+- **THEN** each of its hours has a value for `cloud_cover`, `cloud_low`, `cloud_mid`, `cloud_high`, `wind_gust`, `wind_speed`, `wind_direction`, `temperature`, `dew_point` and `humidity`
+- **AND** each hour after its first has a value for `precipitation_probability`
+
+### Requirement: The configuration may set a FIRMS key for the whole service
+
+The configuration MAY hold a top-level `firms` block with one setting,
+`map_key`: a NASA FIRMS MAP_KEY, as text. It SHALL apply to every pier. A
+`${VAR}` in it SHALL be expanded from the environment, as elsewhere in the
+configuration. With no `firms` block, an empty one, or no `map_key`, the service
+SHALL have no FIRMS key.
+
+#### Scenario: A key in the file is read
+
+- **WHEN** `config.yaml` sets `firms.map_key: abc123secret`
+- **THEN** the configuration loads with a FIRMS key
+
+#### Scenario: A key from the environment is read
+
+- **WHEN** `config.yaml` sets `firms.map_key: ${FIRMS_KEY}` and the environment sets `FIRMS_KEY` to `abc123secret`
+- **THEN** the configuration loads with the FIRMS key `abc123secret`
+
+#### Scenario: No firms block means no key
+
+- **WHEN** `config.yaml` has no `firms` block
+- **THEN** the configuration loads with no FIRMS key
+
+### Requirement: A FIRMS key that still holds an unexpanded variable counts as no key
+
+When `firms.map_key` is empty text, or still holds `${` after expansion because
+its variable is unset, the service SHALL have no FIRMS key. It SHALL log one
+warning that names `firms.map_key` and does not contain its value.
+
+#### Scenario: An unset variable leaves no key
+
+- **WHEN** `config.yaml` sets `firms.map_key: ${FIRMS_KEY}` and the environment has no `FIRMS_KEY`
+- **THEN** the configuration loads with no FIRMS key
+- **AND** the log has one warning that names `firms.map_key`
+
+### Requirement: An invalid firms block is reported without its values
+
+When the process rejects the `firms` block, the error SHALL name the setting at
+fault and SHALL NOT contain any value from the block. A `firms` value that is
+not a mapping SHALL be an error that says `firms` must be a mapping of
+settings. A key the block does not define SHALL be an error that says the block
+holds a setting it does not know, and lists the settings it defines, without
+the unknown key's name. The log SHALL hold none of these values or names.
+
+#### Scenario: A key that is not text is rejected without its value
+
+- **WHEN** `config.yaml` sets `firms.map_key` to the number `12345`
+- **THEN** the process stops with a configuration error that names `firms.map_key`
+- **AND** neither the error nor the log contains `12345`
+
+#### Scenario: An unknown setting is not named
+
+- **WHEN** the `firms` block holds `mapkey: abc123secret`
+- **THEN** the process stops with a configuration error that says the `firms` block holds a setting it does not know, and lists `map_key`
+- **AND** neither the error nor the log contains `mapkey` or `abc123secret`
+
+#### Scenario: A firms value that is not a mapping is not shown
+
+- **WHEN** `config.yaml` sets `firms: abc123secret`
+- **THEN** the process stops with a configuration error that says `firms` must be a mapping of settings
+- **AND** neither the error nor the log contains `abc123secret`
+
+### Requirement: The FIRMS key never appears in a log, an error or health
+
+The system SHALL NOT write the FIRMS key, or a request URL that contains it, to
+any log line, error, health attribute or MQTT message. Printing or logging the
+settings SHALL show the key as a mask.
+
+#### Scenario: A rejected key stays out of the log and health
+
+- **WHEN** the FIRMS key is `abc123secret` and the FIRMS request answers 400 with the body `Invalid MAP_KEY.`
+- **THEN** no log line and no published health attribute contains `abc123secret`
+
+#### Scenario: A timeout stays out of the log
+
+- **WHEN** the FIRMS key is `abc123secret` and the FIRMS request times out
+- **THEN** no log line contains `abc123secret`
+
+#### Scenario: The settings show a mask
+
+- **WHEN** the configuration sets a FIRMS key and the process prints its settings
+- **THEN** the output does not contain the key
+
+### Requirement: Every pier's fire detections are fetched on every fetch while the key is set
+
+While the service has a FIRMS key, every fetch for every pier SHALL make one
+request to
+`https://firms.modaps.eosdis.nasa.gov/api/area/csv/<key>/VIIRS_NOAA20_NRT/<west>,<south>,<east>,<north>/2`,
+where the four bounds are the pier's FIRMS box. The day range of 2 asks for
+today and yesterday in UTC, so the 24 hours before any instant are covered. With no key, the system SHALL
+make no FIRMS request.
+
+#### Scenario: A pier at 60° north fetches its box
+
+- **WHEN** the FIRMS key is `abc123secret` and the system fetches conditions for a pier at latitude 60.0, longitude 10.0
+- **THEN** it makes one request to `https://firms.modaps.eosdis.nasa.gov/api/area/csv/abc123secret/VIIRS_NOAA20_NRT/9.0000,59.5000,11.0000,60.5000/2`
+
+#### Scenario: No key makes no FIRMS request
+
+- **WHEN** the configuration has no FIRMS key and the system fetches conditions for a pier
+- **THEN** it makes no request to `firms.modaps.eosdis.nasa.gov`
+
+### Requirement: A pier's FIRMS box holds every point within 50 km
+
+The pier's FIRMS box SHALL run from 0.5° south to 0.5° north of the pier, and
+from `0.5 / cos(latitude)` degrees west to the same east of it. It SHALL be
+clamped to latitudes from −90 to 90 and longitudes from −180 to 180, and SHALL
+span every longitude when the pier is within 0.5° of a pole. Each bound SHALL
+have four decimal places.
+
+#### Scenario: A box near the antimeridian is clamped
+
+- **WHEN** the system fetches fire detections for a pier at latitude 0.0, longitude 179.8
+- **THEN** the request's box is `179.3000,-0.5000,180.0000,0.5000`
+
+#### Scenario: A box near a pole spans every longitude
+
+- **WHEN** the system fetches fire detections for a pier at latitude 89.8, longitude 10.0
+- **THEN** the request's box is `-180.0000,89.3000,180.0000,90.0000`
+
+### Requirement: FIRMS is not a provider
+
+FIRMS SHALL NOT be a provider in the catalog or the provider order. A fire
+detection SHALL NOT fill a variable, and SHALL add no series and no alternate
+to the snapshot.
+
+#### Scenario: Listing firms as a provider stops startup
+
+- **WHEN** the configuration lists `providers: [open_meteo, firms]`
+- **THEN** startup fails with an error that says `firms` is not a known provider
+
+#### Scenario: Fire detections leave the snapshot unchanged
+
+- **WHEN** the system fetches conditions twice for the same pier from the same provider responses, once with a FIRMS response holding detections and once with no FIRMS key
+- **THEN** the two snapshots hold the same series and the same alternates
+
+### Requirement: A fire detection carries its place, time and confidence
+
+Each row of a FIRMS response SHALL become one fire detection with its latitude,
+its longitude, the time the satellite passed and its confidence. The time SHALL
+come from the row's `acq_date` and `acq_time` in UTC, where `acq_time` is hours
+and minutes as four digits. The confidence SHALL be the row's `confidence` as
+given: `low`, `nominal` or `high`.
+
+#### Scenario: A recorded row becomes a fire detection
+
+- **WHEN** a FIRMS response row has `latitude` 46.76213, `longitude` -71.00217, `acq_date` 2026-11-13, `acq_time` 0554 and `confidence` nominal
+- **THEN** the fire detection is at latitude 46.76213, longitude -71.00217, detected at `2026-11-13T05:54:00Z`, with confidence `nominal`
+
+### Requirement: A FIRMS response is read by column name and skips rows it cannot read
+
+The system SHALL find each column of a FIRMS response by its name in the header
+row, so a column it does not read, or a change in column order, SHALL NOT change
+the result. A row it cannot read SHALL be left out, and the rest kept.
+
+#### Scenario: An extra column changes nothing
+
+- **WHEN** a FIRMS response has an `instrument` column between `satellite` and `confidence`
+- **THEN** its rows give the same fire detections as the same rows without that column
+
+#### Scenario: A row with no latitude is left out
+
+- **WHEN** a FIRMS response holds two rows and one has an empty `latitude`
+- **THEN** the fetch gives one fire detection
+
+### Requirement: A FIRMS response with only a header has no fire detections
+
+A FIRMS response whose body is the header row alone SHALL be a successful fetch
+with no fire detections.
+
+#### Scenario: No fire near the pier
+
+- **WHEN** the FIRMS request answers 200 with the header row and no other row
+- **THEN** the pier has no fire detections for that fetch
+- **AND** the FIRMS fetch is reported as successful
+
+### Requirement: A failed FIRMS fetch leaves the pier with no fire detections
+
+The pier SHALL have no fire detections for a fetch when the FIRMS request:
+
+- fails or times out;
+- answers with a status that is not a success; or
+- returns a body whose header row lacks `latitude`, `longitude`, `acq_date`,
+  `acq_time` or `confidence`.
+ A body with no such header SHALL count as a failed fetch with
+the error `unexpected response`. A failed FIRMS fetch SHALL NOT change the
+snapshot, the observation, or the fetch of any provider.
+
+#### Scenario: A rejected key leaves no detections
+
+- **WHEN** the FIRMS request answers 400 with the body `Invalid MAP_KEY.`
+- **THEN** the pier has no fire detections for that fetch
+- **AND** the FIRMS fetch is reported as failed with the error `HTTPStatusError: 400 Bad Request`
+- **AND** the snapshot holds the series the providers returned
+
+#### Scenario: A text reply with a success status is a failed fetch
+
+- **WHEN** the FIRMS request answers 200 with the body `Invalid MAP_KEY.`
+- **THEN** the pier has no fire detections for that fetch
+- **AND** the FIRMS fetch is reported as failed with the error `unexpected response`
+
+### Requirement: Fire detections travel beside the snapshot as data
+
+The fire detections SHALL reach the verdict as plain data beside the snapshot
+and the observation, obtained before the verdict is produced. Producing the
+verdict SHALL NOT make a FIRMS request.
+
+#### Scenario: The verdict is produced with no network
+
+- **WHEN** a verdict is produced for a pier with pinned fire detections and no network available
+- **THEN** the verdict is produced and makes no network request

@@ -227,3 +227,22 @@ def test_addon_wants_the_mqtt_service(addon: dict[str, Any]) -> None:
     # "want", not "need": the add-on still installs without a broker add-on
     # (ha-addon-mqtt-service spec "Add-on config declares the service").
     assert "mqtt:want" in addon.get("services", [])
+
+
+def test_the_addon_docs_say_to_set_metar_station_in_config_yaml() -> None:
+    # metar-reason D4: the form gets no field, so DOCS.md says where it goes.
+    docs = (ROOT / "ha-addon" / "DOCS.md").read_text(encoding="utf-8")
+    start = docs.index("## Set a pier's METAR station")
+    section = docs[start : docs.find("\n## ", start + 1)]
+    assert "metar_station" in section
+    assert "config.yaml" in section
+    assert "(#add-settings-with-configyaml)" in section
+
+
+def test_the_addon_docs_say_to_set_the_firms_key_in_config_yaml() -> None:
+    # firms-nearby-fire D4: the form gets no field, so DOCS.md says where it goes.
+    docs = (ROOT / "ha-addon" / "DOCS.md").read_text(encoding="utf-8")
+    start = docs.index("### What the file can add")
+    section = docs[start : docs.find("\n### ", start + 1)]
+    assert "`firms`" in section
+    assert "firms.map_key" in docs

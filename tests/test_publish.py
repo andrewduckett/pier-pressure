@@ -75,7 +75,7 @@ def test_an_empty_timeline_leaves_the_attributes_payload_as_it_was() -> None:
     # The payload before the timeline existed: the whole document, the timeline
     # left out and every other key in place.
     full = doc.to_json()
-    assert full.endswith(',"timeline":[],"agreement":{}}')
+    assert full.endswith(',"timeline":[],"agreement":{},"observation":null}')
     assert attrs.payload == full.replace(',"timeline":[]', "", 1)
 
 
