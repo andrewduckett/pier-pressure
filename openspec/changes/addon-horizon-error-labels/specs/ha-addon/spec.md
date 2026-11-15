@@ -1,15 +1,25 @@
-## ADDED Requirements
+## MODIFIED Requirements
 
-### Requirement: The error for both horizon fields on the form names their labels
+### Requirement: A form pier's horizon that breaks the horizon rules skips the pier
 
-Inside an add-on, a pier on the Configuration form can set both `min_altitude`
-and `horizon_points`. The logged error that skips that pier SHALL name the
-labels `Horizon: floor` and `Horizon: points`. It SHALL say to fill in one of
-them at most. It SHALL NOT contain `min_altitude`. Any other error the service
-logs for a form pier SHALL be the error a `config.yaml` pier with the same
-values gets.
+Inside an add-on, a pier on the Configuration form SHALL be skipped with a
+logged error that names the pier in each of these cases. The other piers SHALL
+still be published.
 
-#### Scenario: Both horizon fields on the form name their labels
+- its horizon points fail the checks for inline points.
+- it sets both `min_altitude` and `horizon_points`, and a horizon has exactly
+  one source. The error SHALL name the labels
+  `Horizon: floor` and `Horizon: points`, SHALL say to fill in one of them at
+  most, and SHALL NOT contain `min_altitude`.
+
+#### Scenario: An out-of-range point skips only that pier
+
+- **WHEN** the form lists two piers
+- **AND** one pier's `horizon_points` holds the pair `[0, 95]`
+- **THEN** the service logs an error that names that pier
+- **AND** it publishes a verdict for the other pier
+
+#### Scenario: Both horizon fields skip the pier
 
 - **WHEN** the form lists two piers
 - **AND** one pier sets `min_altitude` to 10 and `horizon_points` to
@@ -26,6 +36,8 @@ values gets.
 - **THEN** the logged error names `latitude`, as the error for a `config.yaml`
   pier with that latitude does
 - **AND** it does not contain `Horizon: floor`
+
+## ADDED Requirements
 
 ### Requirement: A horizon from config.yaml with two sources keeps the file's names
 
