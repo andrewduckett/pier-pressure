@@ -107,8 +107,10 @@ configuration:
   mqtt:
     name: MQTT broker
     description: >-
-      Optional. The broker to publish to. Leave the host empty to use the broker
-      set in config.yaml, or else the Mosquitto broker add-on.
+      Optional. The MQTT broker PierPressure publishes its verdicts to. Most
+      setups leave every field here empty: the add-on then uses the broker set
+      in config.yaml, or else the Mosquitto broker add-on, and needs no
+      password. Fill in a host only to use another broker.
     fields:
       host:
         name: Host

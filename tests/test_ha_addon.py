@@ -334,6 +334,13 @@ def test_the_piers_intro_names_the_sections_in_order() -> None:
     assert "label" in intro
 
 
+@pytest.mark.parametrize("fallback", ["config.yaml", "Mosquitto"])
+def test_the_broker_section_names_where_an_empty_host_leads(fallback: str) -> None:
+    # addon-form-text D6.
+    mqtt = _load(ADDON_TRANSLATIONS)["configuration"]["mqtt"]
+    assert fallback in mqtt["description"]
+
+
 @pytest.mark.parametrize(
     ("path", "unit"),
     [
