@@ -551,14 +551,19 @@ def load_config(path: str | os.PathLike[str]) -> AppConfig:
     return build_config(read_config(path))
 
 
-def build_config(read: ConfigFile, broker: BrokerSettings | None = None) -> AppConfig:
+def build_config(
+    read: ConfigFile,
+    broker: BrokerSettings | None = None,
+    *,
+    write_error: PierErrorWriter | None = None,
+) -> AppConfig:
     """Validate a read config file into :class:`AppConfig` (design D2, step 2).
 
     When the file names no ``mqtt.host`` and ``broker`` is given, the broker
     supplies the host, port, username and password; ``discovery_prefix`` and
     ``base_topic`` still come from the file or their defaults. When the file names
-    a host, ``broker`` is ignored. Raises :class:`ConfigError` as
-    :func:`load_config` describes.
+    a host, ``broker`` is ignored. ``write_error`` goes to :func:`validate_piers`.
+    Raises :class:`ConfigError` as :func:`load_config` describes.
     """
     raw = read.raw
     raw_mqtt = raw.get("mqtt")
@@ -592,7 +597,7 @@ def build_config(read: ConfigFile, broker: BrokerSettings | None = None) -> AppC
     # a horizon file placed beside config.yaml is found regardless of the process
     # working directory (design D3).
     base_dir = read.base_dir
-    piers = validate_piers(raw_piers, base_dir)
+    piers = validate_piers(raw_piers, base_dir, write_error=write_error)
     if not piers:
         raise ConfigError("No valid pier in configuration; nothing to publish")
 

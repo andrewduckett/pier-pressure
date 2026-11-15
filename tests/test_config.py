@@ -259,6 +259,35 @@ def test_validate_piers_with_no_pier_error_writer_logs_the_core_error(
     assert caplog.messages == [f"Skipping invalid pier 'bad': {error.value}"]
 
 
+def _read_with_bad_pier(tmp_path: Path) -> ConfigFile:
+    good = {"id": "good", "latitude": 51.5, "longitude": -0.12, "elevation_m": 30}
+    raw = {
+        "mqtt": {"host": "broker"},
+        "recompute": {"interval_seconds": 900},
+        "piers": [good, BAD_PIER],
+    }
+    return ConfigFile(raw=raw, base_dir=tmp_path)
+
+
+def test_build_config_error_writer_reaches_the_pier_check(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.ERROR):
+        build_config(_read_with_bad_pier(tmp_path), write_error=lambda _pier, _error: "reworded")
+
+    assert caplog.messages == ["Skipping invalid pier 'bad': reworded"]
+
+
+def test_no_build_config_error_writer_logs_the_core_error(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.ERROR):
+        build_config(_read_with_bad_pier(tmp_path))
+
+    [message] = caplog.messages
+    assert message.startswith("Skipping invalid pier 'bad': 1 validation error for PierConfig")
+
+
 # --------------------------------------------------------------------------- #
 # ha-addon-mqtt-service: read_config / build_config (design D2)
 # --------------------------------------------------------------------------- #
