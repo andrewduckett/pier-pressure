@@ -1069,6 +1069,22 @@ def test_both_horizon_fields_name_labels_at_startup(
     assert "min_altitude" not in error
 
 
+def test_field_error_before_horizon_error_at_startup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    options_file: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # The core checks the horizon only once every field passes.
+    form = {**BACKYARD, **BOTH_HORIZON_FIELDS, "latitude": 95}
+    with caplog.at_level(logging.ERROR):
+        _form_piers(tmp_path, monkeypatch, options_file, form, ROOF_FORM)
+
+    [error] = _errors(caplog)
+    assert "latitude" in error
+    assert "Horizon: floor" not in error
+
+
 def test_malformed_saved_values_skip_only_their_pier(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
