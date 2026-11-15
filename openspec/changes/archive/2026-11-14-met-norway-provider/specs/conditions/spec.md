@@ -24,10 +24,10 @@ SHALL NOT read them.
 The failure of one provider SHALL NOT prevent another provider's data from
 being used. A provider whose fetch fails or returns no data SHALL be passed over
 for every variable, and a variable no remaining provider returned SHALL be
-marked unavailable. A failed or empty fetch SHALL NOT be filled with data from
-an earlier fetch, for the same pier or another. A provider SHALL answer a fetch
-from an earlier response only when its own requirement allows it and its source
-still calls that response current.
+marked unavailable. A failed or empty fetch SHALL NOT be filled from an earlier
+fetch, for the same pier or another. A provider SHALL answer a fetch from an
+earlier response only when its own requirement allows it and its source still
+calls that response current.
 
 #### Scenario: A failed later provider leaves the earlier provider's data intact
 
