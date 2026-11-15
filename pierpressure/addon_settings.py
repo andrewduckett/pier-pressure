@@ -1,6 +1,7 @@
 """The add-on's Configuration form combined with its ``config.yaml``.
 
-Follows addon-form-horizon-file D1-D3 and D5, and ADR-0021.
+Follows addon-form-horizon-file D1-D3 and D5, and ADR-0021. The explainer key
+follows addon-explainer-key-option D5.
 
 Inside an add-on, the form lists the piers, and ``config.yaml`` adds the settings
 the form leaves unset. :func:`combine_settings` builds one config-shaped mapping
@@ -23,7 +24,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from pierpressure.addon_options import is_set, pier_settings, translate_form
-from pierpressure.core.config import AppConfig, ConfigError, MqttConfig
+from pierpressure.core.config import AppConfig, ConfigError, ExplainerConfig, MqttConfig
 
 # The ``mqtt`` keys that make up the broker connection, one setting as a group.
 CONNECTION_KEYS = ("host", "port", "username", "password")
@@ -59,6 +60,7 @@ def combine_settings(options: dict[str, Any], file: dict[str, Any] | None) -> Co
     form_piers = [pier for pier in options.get("piers", []) if isinstance(pier, dict)]
     _check_piers(form_piers, file_piers, problems)
     _check_broker(translated.get("mqtt"), file.get("mqtt"), problems)
+    _check_explainer(translated.get("explainer"), file.get("explainer"), problems)
     if is_set(options.get("interval_seconds")) and _sets_interval(file.get("recompute")):
         problems.append(f"the recompute interval (recompute.interval_seconds) {_BOTH}")
 
@@ -155,6 +157,20 @@ def _check_broker(form_mqtt: Any, file_mqtt: Any, problems: list[str]) -> None:
         problems.append(f"mqtt.{key} {_BOTH}")
 
 
+def _check_explainer(form_explainer: Any, file_explainer: Any, problems: list[str]) -> None:
+    """Report an explainer setting given in both, such as its API key.
+
+    As for the broker, a key the core does not define is not reported
+    (addon-explainer-key-option D5).
+    """
+    if not isinstance(form_explainer, dict) or not isinstance(file_explainer, dict):
+        return
+    form_keys = {key for key, value in form_explainer.items() if is_set(value)}
+    file_keys = {key for key, value in file_explainer.items() if is_set(value)}
+    for key in sorted(form_keys & file_keys & set(ExplainerConfig.model_fields)):
+        problems.append(f"explainer.{key} {_BOTH}")
+
+
 def _sets_interval(recompute: Any) -> bool:
     """Whether the file's ``recompute`` block sets anything; an empty block does not."""
     if isinstance(recompute, dict):
@@ -196,7 +212,27 @@ def _merge(
         if key == "recompute" and not _sets_interval(value):
             continue
         combined[key] = value
+
+    explainer = _merge_explainer(translated.get("explainer"), file.get("explainer"))
+    if explainer is not None:
+        combined["explainer"] = explainer
     return combined
+
+
+def _merge_explainer(form_explainer: Any, file_explainer: Any) -> dict[str, Any] | None:
+    """The form's explainer key added to the file's other explainer settings.
+
+    ``None`` leaves the file's value as it is: when the form sets no key, the file's
+    block reaches the core unchanged, and a block that is not a mapping is
+    rejected there (addon-explainer-key-option D5).
+    """
+    if not isinstance(form_explainer, dict):
+        return None
+    if file_explainer is None:
+        return form_explainer
+    if not isinstance(file_explainer, dict):
+        return None
+    return {**file_explainer, **form_explainer}
 
 
 def _merge_pier(pier: Any, file_piers: dict[str, dict[str, Any]]) -> Any:

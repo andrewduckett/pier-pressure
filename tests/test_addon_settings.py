@@ -99,6 +99,33 @@ def test_the_file_sets_the_broker_when_the_form_sets_none() -> None:
     assert combined.raw["mqtt"] == {"host": "file.lan", "port": 1884, "password": SENTINEL}
 
 
+FORM_KEY = "sk-8c41f2"
+FILE_KEY = "sk-file-5d07"
+
+
+def test_the_file_adds_its_explainer_settings_to_the_form_key() -> None:
+    # addon-explainer-key-option D4, D5.
+    file = {"explainer": {"enabled": True, "model": "openai:gpt-4o"}}
+
+    combined = combine_settings(_form(PIER, explainer={"api_key": FORM_KEY}), file)
+
+    assert combined.raw["explainer"] == {
+        "enabled": True,
+        "model": "openai:gpt-4o",
+        "api_key": FORM_KEY,
+    }
+    assert combined.file_adds
+
+
+def test_the_file_explainer_key_is_used_when_the_form_key_is_blank() -> None:
+    # addon-explainer-key-option D6.
+    file = {"explainer": {"enabled": True, "api_key": FILE_KEY}}
+
+    combined = combine_settings(_form(PIER, explainer={"api_key": "  "}), file)
+
+    assert combined.raw["explainer"] == {"enabled": True, "api_key": FILE_KEY}
+
+
 def test_a_file_pier_with_only_an_id_adds_nothing() -> None:
     combined = combine_settings(_form(PIER), {"piers": [{"id": "backyard"}]})
 
@@ -188,6 +215,18 @@ def test_a_broker_connection_in_both_names_the_broker_connection(
 
     assert "broker connection" in message
     assert SENTINEL not in message
+
+
+def test_an_explainer_key_in_both_names_explainer_api_key() -> None:
+    # addon-explainer-key-option D5, D7.
+    form = _form(PIER, explainer={"api_key": FORM_KEY})
+
+    message = _error(form, {"explainer": {"enabled": True, "api_key": FILE_KEY}})
+
+    assert "explainer.api_key" in message
+    assert "Configuration tab" in message
+    assert FORM_KEY not in message
+    assert FILE_KEY not in message
 
 
 def test_an_unknown_mqtt_key_in_both_is_not_a_conflict() -> None:
