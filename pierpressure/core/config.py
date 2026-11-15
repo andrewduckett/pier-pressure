@@ -581,9 +581,10 @@ def load_config(path: str | os.PathLike[str]) -> AppConfig:
     """Load and validate the YAML config at ``path``.
 
     Raises :class:`ConfigError` if the file is missing/malformed, if ``mqtt``,
-    ``recompute``, ``explainer`` or ``firms`` are invalid, or if no valid pier
-    remains after per-pier validation. An ``mqtt``, ``explainer`` or ``firms``
-    error holds none of the block's text (config-secrets-hidden-in-errors D1).
+    ``recompute``, ``explainer`` or ``firms`` are invalid, if a pier id is listed
+    more than once, or if no valid pier remains after per-pier validation. An
+    ``mqtt``, ``explainer`` or ``firms`` error holds none of the block's text
+    (config-secrets-hidden-in-errors D1).
     """
     return build_config(read_config(path))
 
@@ -629,6 +630,11 @@ def build_config(
     raw_piers = raw.get("piers")
     if not isinstance(raw_piers, list):
         raise ConfigError("Configuration must contain a 'piers' list")
+    # Checked before any pier, because neither pier is wrong on its own (DD3).
+    repeated = _repeated_pier_ids(raw_piers)
+    if repeated:
+        listed = ", ".join(repr(pier_id) for pier_id in repeated)
+        raise ConfigError(f"Pier ids must be unique; listed more than once: {listed}")
 
     # The config file's own directory anchors relative horizon file references, so
     # a horizon file placed beside config.yaml is found regardless of the process
@@ -669,6 +675,24 @@ def build_config(
         return AppConfig.model_validate(assembled, context={"base_dir": base_dir})
     except ValidationError as exc:
         raise ConfigError(f"Invalid configuration: {exc}") from exc
+
+
+def _repeated_pier_ids(raw_piers: list[Any]) -> list[str]:
+    """Each text ``id`` listed more than once, in the order it first repeats (DD3).
+
+    Every entry counts, valid or not. An entry that is not a mapping, or whose
+    ``id`` is not text, is left to its own pier check. Ids are compared exactly.
+    """
+    seen: set[str] = set()
+    repeated: list[str] = []
+    for raw_pier in raw_piers:
+        pier_id = raw_pier.get("id") if isinstance(raw_pier, dict) else None
+        if not isinstance(pier_id, str):
+            continue
+        if pier_id in seen and pier_id not in repeated:
+            repeated.append(pier_id)
+        seen.add(pier_id)
+    return repeated
 
 
 def _conditions_config(raw: Any) -> ConditionsConfig:

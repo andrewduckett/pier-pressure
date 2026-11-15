@@ -968,3 +968,28 @@ def test_a_base_60_id_is_text(tmp_path: Path, value: str) -> None:
     config = load_config(_write(tmp_path, VALID_CONFIG.replace("id: backyard", f"id: {value}")))
 
     assert config.piers[0].id == value
+
+
+# --------------------------------------------------------------------------- #
+# config-load-validation 2: a pier id repeated in the piers list (design DD3)
+# --------------------------------------------------------------------------- #
+
+
+def _piers_config(tmp_path: Path, *piers: str) -> Path:
+    """VALID_CONFIG's blocks with each of ``piers`` as a pier entry, written as YAML."""
+    head = VALID_CONFIG[: VALID_CONFIG.index("piers:")]
+    return _write(tmp_path, head + "piers:\n" + "".join(piers))
+
+
+def _pier(pier_id: str, latitude: float = 51.5) -> str:
+    return (
+        f"  - id: {pier_id}\n    latitude: {latitude}\n    longitude: -0.12\n    elevation_m: 30\n"
+    )
+
+
+@pytest.mark.parametrize("latitude", [51.5, 95], ids=["valid", "otherwise-invalid"])
+def test_a_repeated_id_stops_startup(tmp_path: Path, latitude: float) -> None:
+    path = _piers_config(tmp_path, _pier("backyard"), _pier("backyard", latitude))
+
+    with pytest.raises(ConfigError, match="'backyard'"):
+        load_config(path)
