@@ -307,6 +307,13 @@ def test_only_optional_fields_say_they_are_optional(addon: dict[str, Any]) -> No
         assert ("Optional." in entry["description"]) == optional, ".".join(path)
 
 
+@pytest.mark.parametrize("words", ["seconds", "900", "Refresh"])
+def test_the_interval_names_its_default_and_the_refresh_button(words: str) -> None:
+    # A pier's Refresh button recomputes between intervals (addon-form-text D4).
+    interval = _load(ADDON_TRANSLATIONS)["configuration"]["interval_seconds"]
+    assert words in interval["description"]
+
+
 @pytest.mark.parametrize(
     ("path", "unit"),
     [

@@ -3,7 +3,12 @@
 configuration:
   interval_seconds:
     name: Recompute interval
-    description: How often to recompute the verdict, in seconds. 900 is 15 minutes.
+    description: >-
+      How often PierPressure recomputes every pier's verdict from fresh
+      forecasts, in seconds, a whole number of at least 1. Keep 900, which is
+      15 minutes, unless you need fresher verdicts. To get a new verdict between
+      times, press the Refresh button on the pier's device. This form always sets
+      the interval, so config.yaml cannot.
   piers:
     name: Piers
     description: >-
