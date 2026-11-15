@@ -11,7 +11,7 @@
 - [x] 1.9 [easy] At startup, a form pier whose `config.yaml` entry gives a `horizon` block with `points` and `min_altitude` is skipped with an error that names both keys and no form label (verify: uv run pytest tests/test_main.py -k file_horizon_sources_keep_names) (✓ uv run pytest tests/test_main.py -k file_horizon_sources_keep_names passed)
 - [x] 1.10 [easy] The "Set a pier's horizon" section of `ha-addon/DOCS.md` says the error for both horizon fields names **Horizon: floor** and **Horizon: points** (verify: uv run pytest tests/test_ha_addon.py -k horizon_docs_name_error_labels) (✓ uv run pytest tests/test_ha_addon.py -k horizon_docs_name_error_labels passed)
 - [x] 1.11 [easy] Stage 4 of `openspec/discovery.md` says `supported` and links no issue, once a check of the code shows the fix is in (verify: test -z "$(grep -n 'issues/288' openspec/discovery.md)") (✓ test -z "$(grep -n 'issues/288' openspec/discovery.md)" passed)
-- [ ] 1.12 [easy] The whole project's checks pass (verify: mise run check)
+- [x] 1.12 [easy] The whole project's checks pass (verify: mise run check) (✓ mise run check passed, 2601 tests)
 
 ## Deviations Ledger
 
