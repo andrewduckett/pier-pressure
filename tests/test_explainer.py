@@ -9,6 +9,7 @@ network call — the provider is always a fake or an injected Pydantic AI test m
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -265,6 +266,36 @@ def test_a_failure_never_raises_into_the_caller() -> None:
     explainer = NarrativeExplainer(_RaisingProvider())
     # No exception escapes; the wrapper is the graceful boundary.
     assert explainer(_document(verdict=Verdict.NO_GO, score=None)) is None
+
+
+@dataclass
+class _LeakyProvider:
+    """A provider whose error text quotes a marker key, as a rejected-key reply can."""
+
+    error: Exception
+
+    def generate(self, prompt: PromptInput) -> str:
+        raise self.error
+
+
+def _record_text(record: logging.LogRecord) -> str:
+    return " ".join([record.getMessage(), str(record.msg), repr(record.args)])
+
+
+def test_failure_log_names_the_error_class_without_its_text(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    explainer = NarrativeExplainer(
+        _LeakyProvider(RuntimeError("connection refused for key sk-marker"))
+    )
+    with caplog.at_level(logging.WARNING, logger="pierpressure.explain"):
+        assert explainer(_document()) is None
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    assert "RuntimeError" in warnings[0].getMessage()
+    for record in caplog.records:
+        assert "sk-marker" not in _record_text(record)
+        assert "connection refused" not in _record_text(record)
 
 
 # --------------------------------------------------------------------------- #

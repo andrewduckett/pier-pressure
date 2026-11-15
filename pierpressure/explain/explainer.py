@@ -101,7 +101,9 @@ class NarrativeExplainer:
             logger.warning("explainer provider timed out after %ss; no narrative", self.timeout)
             return None
         except Exception as exc:  # noqa: BLE001 - any provider failure degrades to no-narrative
-            logger.warning("explainer provider failed: %s", exc)
+            # Never the error's text: a provider's reply to a rejected key can quote
+            # part of the key, which the log mask cannot recognize.
+            logger.warning("explainer provider failed: %s; no narrative", type(exc).__name__)
             return None
         if not result or not result.strip():
             return None
