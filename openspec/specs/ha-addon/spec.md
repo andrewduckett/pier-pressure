@@ -123,10 +123,10 @@ no protocol SHALL count as 3.1.1, which is the Supervisor's default.
 - **AND** it tells the user to set `mqtt.host` on the Configuration tab or in
   `config.yaml`
 
-### Requirement: The Configuration form declares the interval, the piers and the broker
+### Requirement: The Configuration form declares the interval, the piers, the broker and the explainer
 
-The add-on SHALL declare a Configuration form in Home Assistant with three
-settings: `interval_seconds`, `piers` and `mqtt`, the broker.
+The add-on SHALL declare a Configuration form with four settings, in this
+order: `interval_seconds`, `piers`, `mqtt`, the broker, and `explainer`.
 
 - `interval_seconds`: the recompute interval in seconds, a whole number of at
   least 1. Its default SHALL be 900.
@@ -138,7 +138,7 @@ settings: `interval_seconds`, `piers` and `mqtt`, the broker.
 
 - **WHEN** the test suite reads the add-on config file
 - **THEN** its `options` set `interval_seconds` to 900, `piers` to an empty
-  list, and `mqtt` to an empty block
+  list, and `mqtt` and `explainer` each to an empty block
 - **AND** its `schema` declares `interval_seconds` as a whole number, and `piers`
   as a list whose items have `id`, `latitude`, `longitude` and `elevation_m`
 - **AND** each pier item has an optional `min_altitude` from 0 to 90 and an
@@ -151,6 +151,10 @@ settings: `interval_seconds`, `piers` and `mqtt`, the broker.
 - **AND** its `schema` declares `mqtt` with an optional text `host`, an optional
   `port`, an optional text `username`, and an optional `password` of the
   password type
+- **AND** its `schema` declares `explainer` with an optional `api_key` of the
+  password type
+- **AND** its `schema` lists `interval_seconds`, `piers`, `mqtt` and
+  `explainer` in that order
 
 ### Requirement: The form's broker block has four optional fields
 
@@ -256,6 +260,7 @@ none.
   field means: a threshold of 65, and no wind gate
 - **AND** it gives a name and a description for `mqtt` and each of its four
   fields
+- **AND** it gives a name and a description for `explainer` and its `api_key`
 
 ### Requirement: A pier's fields appear in four sections after its id
 
@@ -739,8 +744,10 @@ logged error that names the pier in each of these cases. The other piers SHALL
 still be published.
 
 - its horizon points fail the checks for inline points.
-- it sets both `min_altitude` and `horizon_points`. This breaks the rule that a
-  horizon has exactly one source.
+- it sets both `min_altitude` and `horizon_points`, and a horizon has exactly
+  one source. The error SHALL name the labels
+  `Horizon: floor` and `Horizon: points`, SHALL say to fill in one of them at
+  most, and SHALL NOT contain `min_altitude`.
 
 #### Scenario: An out-of-range point skips only that pier
 
@@ -752,9 +759,20 @@ still be published.
 #### Scenario: Both horizon fields skip the pier
 
 - **WHEN** the form lists two piers
-- **AND** one pier sets both `min_altitude` and `horizon_points`
-- **THEN** the service logs an error that names that pier
+- **AND** one pier sets `min_altitude` to 10 and `horizon_points` to
+  `[[0, 5], [180, 10]]`
+- **THEN** the service logs an error that names that pier, `Horizon: floor` and
+  `Horizon: points`
+- **AND** the error does not contain `min_altitude`
 - **AND** it publishes a verdict for the other pier
+
+#### Scenario: A field error comes before the horizon error
+
+- **WHEN** a form pier sets both `min_altitude` and `horizon_points`
+- **AND** the same pier has a latitude of 95
+- **THEN** the logged error names `latitude`, as the error for a `config.yaml`
+  pier with that latitude does
+- **AND** it does not contain `Horizon: floor`
 
 ### Requirement: A horizon value beside a set horizon field skips the form pier
 
@@ -1397,8 +1415,9 @@ SHALL NOT contain it.
 
 - **WHEN** the test suite reads the add-on config file and its English
   translation file
-- **THEN** the description of each optional pier field and each of the four
-  broker fields, `host` included, contains `Optional.`
+- **THEN** the description of each optional pier field, each of the four
+  broker fields, `host` included, and the explainer's `api_key` contains
+  `Optional.`
 - **AND** the descriptions of `interval_seconds`, `id`, `latitude`,
   `longitude` and `elevation_m` do not contain `Optional.`
 
@@ -1453,17 +1472,198 @@ SHALL each say that the field is set only with a host.
 The "Set up the add-on" section of the add-on's documentation SHALL walk
 through the Configuration tab in the order the tab shows it. It SHALL name, in
 bold, the Recompute interval, the Piers, the Pier ID, the Location, Horizon,
-Equipment and Verdict fields, and the MQTT broker, in that order.
+Equipment and Verdict fields, the MQTT broker and the Explainer, in that order.
 
 #### Scenario: The setup steps name the tab's parts in order
 
 - **WHEN** the test suite reads the "Set up the add-on" section of
   `ha-addon/DOCS.md`
 - **THEN** it names in bold `Recompute interval`, `Piers`, `Pier ID`,
-  `Location`, `Horizon`, `Equipment`, `Verdict` and `MQTT broker`, each first
-  named after the one before it
+  `Location`, `Horizon`, `Equipment`, `Verdict`, `MQTT broker` and
+  `Explainer`, each first named after the one before it
 
 #### Scenario: A part out of order fails the check
 
 - **WHEN** the section names **MQTT broker** in bold before **Piers**
 - **THEN** the test suite fails, naming `MQTT broker`
+
+### Requirement: The form's explainer block has one optional key field
+
+The `explainer` setting of the Configuration form SHALL be a block with one
+optional field, `api_key`: the API key of the explainer's LLM provider, in a
+field that hides its value. Its default SHALL be an empty block.
+
+#### Scenario: The form declares the explainer key
+
+- **WHEN** the test suite reads the add-on config file
+- **THEN** its `schema` declares `explainer` with exactly one field, an optional
+  `api_key` of the password type
+- **AND** its `options` set `explainer` to an empty block
+
+### Requirement: An explainer key on the form sets the explainer's API key
+
+Inside an add-on, the Configuration form's `explainer.api_key` SHALL become the
+explainer's API key, as `explainer.api_key` in `config.yaml` does. The other
+explainer settings SHALL still come from `config.yaml` or their defaults.
+
+#### Scenario: The form's key reaches the explainer
+
+- **WHEN** the form lists a pier and sets `explainer.api_key` to `sk-8c41f2`
+- **AND** `config.yaml` sets `explainer.enabled` to true and `explainer.model`
+  to `openai:gpt-4o`
+- **THEN** the explainer runs with the model `openai:gpt-4o` and the API key
+  `sk-8c41f2`
+- **AND** the log says the settings came from the Configuration tab and
+  config.yaml
+
+### Requirement: An explainer key on the form does not turn the explainer on
+
+Inside an add-on, an `explainer.api_key` on the Configuration form SHALL NOT
+turn the explainer on. Without `explainer.enabled` set to true in
+`config.yaml`, the explainer SHALL stay off, as it does with a key in a file.
+
+#### Scenario: A key alone leaves the explainer off
+
+- **WHEN** the form lists a pier and sets `explainer.api_key`
+- **AND** the add-on's config folder holds no `config.yaml`
+- **THEN** the add-on starts and publishes a verdict for that pier
+- **AND** it publishes no narrative entity
+
+### Requirement: A blank explainer key on the form counts as not set
+
+Inside an add-on, an `explainer.api_key` on the Configuration form that is
+absent, null, empty or blank SHALL count as not set.
+
+#### Scenario: A blank key leaves the file's key in use
+
+- **WHEN** the form lists a pier and saves `explainer.api_key` as blank text
+- **AND** `config.yaml` sets `explainer.enabled` to true and
+  `explainer.api_key` to `sk-8c41f2`
+- **THEN** the add-on starts, and reports no conflict for `explainer.api_key`
+- **AND** the explainer runs with the API key `sk-8c41f2`
+
+### Requirement: An explainer key on the form and in config.yaml stops the add-on
+
+Inside an add-on, when the Configuration form and `config.yaml` both set
+`explainer.api_key`, the add-on SHALL stop with a configuration error that
+names `explainer.api_key`. The error SHALL NOT contain either key.
+
+#### Scenario: A key in both stops the add-on
+
+- **WHEN** the form lists a pier and sets `explainer.api_key` to `sk-8c41f2`
+- **AND** `config.yaml` sets `explainer.api_key` to `sk-file-5d07`
+- **THEN** the add-on stops
+- **AND** its configuration error names `explainer.api_key`
+- **AND** no log line or error message contains `sk-8c41f2` or `sk-file-5d07`
+
+#### Scenario: Other explainer settings in the file do not conflict
+
+- **WHEN** the form lists a pier and sets `explainer.api_key`
+- **AND** `config.yaml` sets `explainer.enabled` and `explainer.model`, but not
+  `explainer.api_key`
+- **THEN** the add-on starts, and reports no conflict for the explainer
+
+### Requirement: An explainer in config.yaml that is not a mapping stops the add-on
+
+Inside an add-on, when `config.yaml` gives `explainer` a value that is not a
+mapping, the add-on SHALL stop with a configuration error that says `explainer`
+in `config.yaml` must be a mapping of settings, whatever the form sets. The
+error SHALL NOT contain the file's value.
+
+#### Scenario: An explainer list in the file stops the add-on
+
+- **WHEN** the form lists a pier and sets `explainer.api_key`
+- **AND** `config.yaml` sets `explainer` to the list `[sk-file-5d07]`
+- **THEN** the add-on stops
+- **AND** its configuration error says `explainer` in config.yaml must be a
+  mapping
+- **AND** no log line or error message contains `sk-file-5d07`
+
+#### Scenario: An explainer list in the file stops the add-on without a form key
+
+- **WHEN** the form lists a pier and sets no `explainer.api_key`
+- **AND** `config.yaml` sets `explainer` to the list `[sk-file-5d07]`
+- **THEN** the add-on stops
+- **AND** its configuration error says `explainer` in config.yaml must be a
+  mapping
+- **AND** no log line or error message contains `sk-file-5d07`
+
+### Requirement: No startup error reveals the form's explainer key
+
+Inside an add-on, the service SHALL NOT insert the Configuration form's
+`explainer.api_key` into a startup log line or a configuration error.
+
+#### Scenario: A bad explainer setting does not reveal the form's key
+
+- **WHEN** the form lists a pier and sets `explainer.api_key` to `sk-8c41f2`
+- **AND** `config.yaml` sets `explainer.enabled` to `maybe`
+- **THEN** the add-on stops with a configuration error that names the
+  `explainer` block
+- **AND** no log line or error message contains `sk-8c41f2`
+
+### Requirement: The explainer section says config.yaml turns the explainer on
+
+The English description of the form's `explainer` setting SHALL say that
+`explainer.enabled` in `config.yaml` turns the explainer on.
+
+#### Scenario: The explainer section names the switch
+
+- **WHEN** the test suite reads the English translation file
+- **THEN** the description of `explainer` contains `explainer.enabled` and
+  `config.yaml`
+
+### Requirement: The More settings section names the tab's parts in order
+
+The "More settings" section of the add-on's documentation SHALL name, in bold,
+the Recompute interval, the Piers, the MQTT broker and the Explainer, in the
+order the Configuration tab shows them.
+
+#### Scenario: More settings names the four parts in order
+
+- **WHEN** the test suite reads the "More settings" section of
+  `ha-addon/DOCS.md`
+- **THEN** it names in bold `Recompute interval`, `Piers`, `MQTT broker` and
+  `Explainer`, each first named after the one before it
+
+### Requirement: The add-on docs say where each explainer setting goes
+
+The add-on's documentation SHALL have a section on turning on the explainer. It
+SHALL say to put the API key in the Configuration tab's **API key** field, and
+`explainer.enabled` and `explainer.model` in `config.yaml`.
+
+#### Scenario: The explainer section names both places
+
+- **WHEN** the test suite reads the "Turn on the explainer" section of
+  `ha-addon/DOCS.md`
+- **THEN** it contains `**API key**`, `explainer.enabled`, `explainer.model`
+  and `config.yaml`
+
+### Requirement: A horizon from config.yaml with two sources keeps the file's names
+
+Inside an add-on, a form pier can set neither horizon field while its entry in
+`config.yaml` gives a `horizon` block with both `points` and `min_altitude`.
+The logged error that skips that pier SHALL be the error a `config.yaml` pier
+outside an add-on gets. It SHALL name `points` and `min_altitude`. It SHALL NOT
+name a form label.
+
+#### Scenario: Two horizon sources in config.yaml name the file's keys
+
+- **WHEN** the form lists a pier with no horizon field set
+- **AND** `config.yaml` gives that pier a `horizon` block with `points` and
+  `min_altitude`
+- **THEN** the service logs an error that names that pier, `points` and
+  `min_altitude`
+- **AND** the error does not contain `Horizon: floor`
+
+### Requirement: The horizon docs name both labels for the both-fields error
+
+The "Set a pier's horizon" section of the add-on's documentation SHALL say that
+the error for a pier that fills in both horizon fields names
+**Horizon: floor** and **Horizon: points**.
+
+#### Scenario: The horizon section names the error's labels
+
+- **WHEN** the test suite reads the "Set a pier's horizon" section of
+  `ha-addon/DOCS.md`
+- **THEN** a sentence that contains `error` also contains
+  `**Horizon: floor**` and `**Horizon: points**`

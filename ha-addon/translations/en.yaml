@@ -139,3 +139,20 @@ configuration:
           type, and the add-on never writes it to the log. Set it only with a
           host: without one, the add-on stops at startup with a configuration
           error.
+  explainer:
+    name: Explainer
+    description: >-
+      Optional. The explainer has an AI language model write a short paragraph
+      about each pier's verdict, on the pier's Narrative sensor. It never
+      changes the verdict. To turn it on, set explainer.enabled to true in
+      config.yaml, and pick the model there with explainer.model. Put the
+      model's API key here, so it does not sit in plain text in config.yaml.
+    fields:
+      api_key:
+        name: API key
+        description: >-
+          Optional. The key for the AI provider that explainer.model names, such
+          as Anthropic for anthropic:claude-opus-5. The form hides it as you
+          type. Set it here, not in config.yaml: a key in both places stops the
+          add-on at startup with a configuration error. Leave it empty if your
+          provider needs no key.

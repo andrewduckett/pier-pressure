@@ -31,7 +31,7 @@ from pydantic import SecretStr
 
 from pierpressure import __version__
 from pierpressure.addon_options import OPTIONS_PATH, is_set, read_form_values
-from pierpressure.addon_settings import combine_settings, file_pier_ids
+from pierpressure.addon_settings import combine_settings, file_pier_ids, form_pier_error_writer
 from pierpressure.conditions import build_provider
 from pierpressure.core.clock import SystemClock
 from pierpressure.core.config import (
@@ -39,6 +39,7 @@ from pierpressure.core.config import (
     BrokerSettings,
     ConfigError,
     ConfigFile,
+    PierErrorWriter,
     build_config,
     read_config,
     read_config_mapping,
@@ -117,8 +118,9 @@ def load_app_config(
     :class:`OSError` or :class:`SupervisorError`.
     """
     token = os.environ.get("SUPERVISOR_TOKEN")
+    write_error: PierErrorWriter | None = None
     if token:
-        read, broker_place = _read_addon_settings(config_path, options_path)
+        read, broker_place, write_error = _read_addon_settings(config_path, options_path)
     else:
         read = read_config(config_path)
         broker_place = Path(config_path).name
@@ -127,7 +129,7 @@ def load_app_config(
     broker: BrokerSettings | None = None
     if token and not read.names_broker_host:
         broker = fetch_mqtt_broker(token)
-    config = build_config(read, broker)
+    config = build_config(read, broker, write_error=write_error)
 
     source = "the Supervisor's mqtt service" if broker is not None else broker_place
     logger.info("MQTT broker from %s: %s:%d", source, config.mqtt.host, config.mqtt.port)
@@ -136,10 +138,11 @@ def load_app_config(
 
 def _read_addon_settings(
     config_path: str, options_path: str | os.PathLike[str]
-) -> tuple[ConfigFile, str]:
+) -> tuple[ConfigFile, str, PierErrorWriter]:
     """Combine the add-on's form with its config file (addon-form-horizon-file D4, D6, D8).
 
-    Returns the combined settings, and where a broker host in them came from.
+    Returns the combined settings, where a broker host in them came from, and
+    the writer that words a skipped form pier's error (addon-horizon-error-labels D4).
     The file is read without the broker rule; :class:`ConfigFile` checks that
     rule on the combined settings, so a host on the form and a password in the
     file is reported as a conflict, not as a password without a host. Raises
@@ -161,7 +164,8 @@ def _read_addon_settings(
     form_mqtt = options.get("mqtt")
     form_host = isinstance(form_mqtt, dict) and is_set(form_mqtt.get("host"))
     broker_place = "the Configuration tab" if form_host else path.name
-    return ConfigFile(raw=combined.raw, base_dir=path.resolve().parent), broker_place
+    read = ConfigFile(raw=combined.raw, base_dir=path.resolve().parent)
+    return read, broker_place, form_pier_error_writer(options)
 
 
 def _nothing_set_up(path: Path) -> str:

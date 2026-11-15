@@ -11,9 +11,9 @@ file, you add a `config.yaml` file. See
 
 ## Set up the add-on
 
-The Configuration tab has three parts, from top to bottom: the recompute
-interval, the piers and the MQTT broker. These steps walk through them in that
-order. Each field on the tab also has help text that says what to enter.
+The Configuration tab has four parts, from top to bottom: the recompute
+interval, the piers, the MQTT broker and the explainer. These steps walk through
+them in that order. Each field on the tab also has help text that says what to enter.
 
 1. **Open the add-on's Configuration tab.**
 2. **Check the interval.** **Recompute interval** is how often PierPressure
@@ -45,10 +45,14 @@ order. Each field on the tab also has help text that says what to enter.
    add-on asks Home Assistant's Supervisor for its host, port, username and
    password, so you enter no password. To use another broker, see
    [Use a different broker](#use-a-different-broker).
-5. **Save, then start the add-on.** The add-on reads the tab only when it starts.
+5. **Leave the explainer empty, or add its key.** The last part of the tab is
+   **Explainer**. It holds the API key for the optional explainer, which writes
+   a short paragraph about each verdict. Leave it empty unless you use the
+   explainer. See [Turn on the explainer](#turn-on-the-explainer).
+6. **Save, then start the add-on.** The add-on reads the tab only when it starts.
    If it is already running, restart it when Home Assistant offers to, or from
    the **Info** tab.
-6. **Check the log.** Open the **Log** tab. The first line ends with the
+7. **Check the log.** Open the **Log** tab. The first line ends with the
    version, for example `PierPressure 2026.10.0`. Later lines name where the
    settings and the broker came from:
 
@@ -57,7 +61,7 @@ order. Each field on the tab also has help text that says what to enter.
    MQTT broker from the Supervisor's mqtt service: core-mosquitto:1883
    ```
 
-7. **Find the entities.** Open **Settings → Devices & services → MQTT**. A device
+8. **Find the entities.** Open **Settings → Devices & services → MQTT**. A device
    named `PierPressure <pier>` appears for each pier.
 
 ## Set a pier's horizon
@@ -87,7 +91,9 @@ cannot be read, the add-on skips that pier and logs an error that names it. The
 other piers still publish. To find the error, open the **Log** tab and look for
 `Skipping invalid pier`.
 
-An error about `horizon.points` refers to the **Horizon: points** field.
+If a pier sets both, the error names **Horizon: floor** and **Horizon: points**.
+If its points cannot be read, the error names `horizon.points`, which is the
+**Horizon: points** field.
 
 ## Set a pier's equipment
 
@@ -225,6 +231,43 @@ Every pier's device then also has a **FIRMS health** sensor, which shows when
 the fire detections were last fetched. The key never appears in the log or in
 health.
 
+## Turn on the explainer
+
+The explainer has an AI language model write a short paragraph about each
+pier's verdict. The paragraph appears on the pier's **Narrative** sensor. It
+never changes the verdict, score or confidence. The explainer is off until you
+turn it on.
+
+Its settings live in two places:
+
+| Setting | Where you set it | Example |
+| --- | --- | --- |
+| **API key**, the key your AI provider gives you | The **Explainer** part of the Configuration tab. The tab hides it as you type. | |
+| `explainer.enabled`, which turns the explainer on | `config.yaml` | `true` |
+| `explainer.model`, the provider and model, as `provider:model` | `config.yaml`. Leave it out for `anthropic:claude-opus-5`. | `openai:gpt-4o` |
+
+1. **Enter the key.** On the Configuration tab, fill in **API key** under
+   **Explainer**, then save.
+2. **Turn the explainer on.** Add these lines to the add-on's `config.yaml`, as
+   [Add settings with config.yaml](#add-settings-with-configyaml) describes:
+
+   ```yaml
+   explainer:
+     enabled: true
+     model: anthropic:claude-opus-5
+   ```
+
+3. **Restart the add-on.** The log says
+   `Settings from the Configuration tab and config.yaml`.
+
+**Set the key on the tab, not in `config.yaml`.** The file is plain text that
+anyone who can open the add-on's config folder can read. A key in both places
+stops the add-on, and its configuration error names `explainer.api_key`.
+
+A key on its own does nothing: without `explainer.enabled: true`, the explainer
+stays off. For the models you can use, see the
+[explainer's documentation](https://github.com/andrewduckett/pier-pressure/blob/main/docs/llm-explainer.md).
+
 ## Add settings with config.yaml
 
 The Configuration tab lists your piers. A `config.yaml` file can add the
@@ -252,8 +295,9 @@ The file is optional.
   tab does not show, or any other pier setting the tab leaves empty. List the
   pier under `piers:` with the same `id` as on the tab, and add only the settings
   you want.
-- **For the whole add-on:** `explainer`, `firms`, `mqtt.discovery_prefix` and
-  `mqtt.base_topic`. The file can also set the broker, when the tab's broker
+- **For the whole add-on:** `explainer.enabled` and `explainer.model`, `firms`,
+  `mqtt.discovery_prefix` and `mqtt.base_topic`. The explainer's API key belongs
+  on the tab. See [Turn on the explainer](#turn-on-the-explainer). The file can also set the broker, when the tab's broker
   fields are empty. See [With config.yaml](#with-configyaml).
 
 **The file cannot add a pier.** Every pier in `config.yaml` must also be on the
@@ -295,6 +339,7 @@ below counts as one setting, so set it in one place only:
 | A pier's equipment | any of the four equipment fields | the pier's `equipment` |
 | The broker connection | **Host**, **Port**, **Username** or **Password** | `mqtt.host`, `mqtt.port`, `mqtt.username` or `mqtt.password` |
 | The recompute interval | **Recompute interval** | `recompute` |
+| The explainer's API key | **API key** | `explainer.api_key` |
 
 Every other setting, such as a pier's `latitude`, counts on its own. The tab
 always sets the recompute interval, so a `recompute` block in the file is always
@@ -418,10 +463,11 @@ once the broker is back.
 
 ## More settings
 
-The Configuration tab shows only three parts, so far: the
+The Configuration tab shows only four parts, so far: the
 **Recompute interval**; the **Piers**, each with its Location, Horizon,
-Equipment and Verdict fields; and the **MQTT broker**. Add any other setting,
-such as a horizon file or `explainer`, in `config.yaml`. See
+Equipment and Verdict fields; the **MQTT broker**; and the **Explainer**, which
+holds only its API key. Add any other setting, such as a horizon file or
+`explainer.enabled`, in `config.yaml`. See
 [Add settings with config.yaml](#add-settings-with-configyaml). For every
 setting, see the
 [Configuration section of the README](https://github.com/andrewduckett/pier-pressure#️-configuration).

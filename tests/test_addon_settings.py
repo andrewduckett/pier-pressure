@@ -9,9 +9,10 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
-from pierpressure.addon_settings import combine_settings, file_pier_ids
-from pierpressure.core.config import ConfigError
+from pierpressure.addon_settings import combine_settings, file_pier_ids, form_pier_error_writer
+from pierpressure.core.config import ConfigError, PierConfig
 
 PIER = {"id": "backyard", "latitude": 51.5, "longitude": -0.12, "elevation_m": 30.0}
 ROOF = {**PIER, "id": "roof"}
@@ -97,6 +98,33 @@ def test_the_file_sets_the_broker_when_the_form_sets_none() -> None:
     combined = combine_settings(_form(PIER, mqtt={"host": "", "port": None}), file)
 
     assert combined.raw["mqtt"] == {"host": "file.lan", "port": 1884, "password": SENTINEL}
+
+
+FORM_KEY = "sk-8c41f2"
+FILE_KEY = "sk-file-5d07"
+
+
+def test_the_file_adds_its_explainer_settings_to_the_form_key() -> None:
+    # addon-explainer-key-option D4, D5.
+    file = {"explainer": {"enabled": True, "model": "openai:gpt-4o"}}
+
+    combined = combine_settings(_form(PIER, explainer={"api_key": FORM_KEY}), file)
+
+    assert combined.raw["explainer"] == {
+        "enabled": True,
+        "model": "openai:gpt-4o",
+        "api_key": FORM_KEY,
+    }
+    assert combined.file_adds
+
+
+def test_the_file_explainer_key_is_used_when_the_form_key_is_blank() -> None:
+    # addon-explainer-key-option D6.
+    file = {"explainer": {"enabled": True, "api_key": FILE_KEY}}
+
+    combined = combine_settings(_form(PIER, explainer={"api_key": "  "}), file)
+
+    assert combined.raw["explainer"] == {"enabled": True, "api_key": FILE_KEY}
 
 
 def test_a_file_pier_with_only_an_id_adds_nothing() -> None:
@@ -188,6 +216,32 @@ def test_a_broker_connection_in_both_names_the_broker_connection(
 
     assert "broker connection" in message
     assert SENTINEL not in message
+
+
+def test_an_explainer_key_in_both_names_explainer_api_key() -> None:
+    # addon-explainer-key-option D5, D7.
+    form = _form(PIER, explainer={"api_key": FORM_KEY})
+
+    message = _error(form, {"explainer": {"enabled": True, "api_key": FILE_KEY}})
+
+    assert "explainer.api_key" in message
+    assert "Configuration tab" in message
+    assert FORM_KEY not in message
+    assert FILE_KEY not in message
+
+
+@pytest.mark.parametrize(
+    "form_explainer", [{"api_key": FORM_KEY}, {}], ids=["form-key", "no-form-key"]
+)
+def test_a_file_explainer_that_is_not_a_mapping_says_explainer_mapping(
+    form_explainer: dict[str, Any],
+) -> None:
+    # Whatever the form holds, as for mqtt (addon-explainer-key-option D5).
+    message = _error(_form(PIER, explainer=form_explainer), {"explainer": [FILE_KEY]})
+
+    assert "explainer in config.yaml must be a mapping" in message
+    assert FILE_KEY not in message
+    assert FORM_KEY not in message
 
 
 def test_an_unknown_mqtt_key_in_both_is_not_a_conflict() -> None:
@@ -380,3 +434,47 @@ def test_an_unknown_top_level_key_is_not_an_added_setting() -> None:
 )
 def test_file_pier_ids_names_the_usable_ids_once(file: dict[str, Any], ids: list[str]) -> None:
     assert file_pier_ids(file) == ids
+
+
+# --------------------------------------------------------------------------- #
+# The error that skips a pier (addon-horizon-error-labels D5-D7)
+# --------------------------------------------------------------------------- #
+
+BOTH_HORIZON_FIELDS = {"min_altitude": 10, "horizon_points": "[[0, 5], [180, 10]]"}
+
+
+def _written_error(form: dict[str, Any], file: dict[str, Any] | None = None) -> str:
+    [raw_pier] = combine_settings(form, file).raw["piers"]
+    with pytest.raises(ValidationError) as error:
+        PierConfig.model_validate(raw_pier)
+    return form_pier_error_writer(form)(raw_pier, error.value)
+
+
+def test_horizon_error_in_labels_for_both_form_fields() -> None:
+    assert _written_error(_form({**PIER, **BOTH_HORIZON_FIELDS})) == (
+        "Horizon: floor and Horizon: points are both filled in on the Configuration tab. "
+        "Fill in one of them at most."
+    )
+
+
+def _core_error(form: dict[str, Any], file: dict[str, Any] | None = None) -> str:
+    [raw_pier] = combine_settings(form, file).raw["piers"]
+    with pytest.raises(ValidationError) as error:
+        PierConfig.model_validate(raw_pier)
+    return str(error.value)
+
+
+def test_horizon_error_keeps_file_names_for_a_config_yaml_horizon() -> None:
+    form = _form(PIER)
+    file = {"piers": [{"id": "backyard", "horizon": {"min_altitude": 10, "points": [[0, 5]]}}]}
+
+    written = _written_error(form, file)
+
+    assert written == _core_error(form, file)
+    assert "points, min_altitude" in written
+
+
+def test_horizon_error_keeps_file_names_for_a_field_error() -> None:
+    form = _form({**PIER, **BOTH_HORIZON_FIELDS, "latitude": 95})
+
+    assert _written_error(form) == _core_error(form)
