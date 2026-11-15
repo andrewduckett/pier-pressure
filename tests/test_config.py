@@ -1005,3 +1005,28 @@ def test_a_repeated_id_check_leaves_an_id_that_is_not_text_to_its_pier(tmp_path:
     config = load_config(_piers_config(tmp_path, _pier("backyard"), _pier("5"), _pier("5")))
 
     assert [pier.id for pier in config.piers] == ["backyard"]
+
+
+def _repeated_id_error(tmp_path: Path, *piers: str) -> str:
+    with pytest.raises(ConfigError) as error:
+        load_config(_piers_config(tmp_path, *piers))
+    return str(error.value)
+
+
+def test_a_repeated_id_error_escapes_a_line_break(tmp_path: Path) -> None:
+    message = _repeated_id_error(tmp_path, _pier('"back\\nyard"'), _pier('"back\\nyard"'))
+
+    assert "\n" not in message
+    assert "'back\\nyard'" in message
+
+
+def test_a_repeated_id_error_lists_ids_in_the_order_they_first_repeat(tmp_path: Path) -> None:
+    message = _repeated_id_error(tmp_path, _pier("a"), _pier("b"), _pier("b"), _pier("a"))
+
+    assert message.endswith("listed more than once: 'b', 'a'")
+
+
+def test_a_repeated_id_error_shows_no_other_value(tmp_path: Path) -> None:
+    message = _repeated_id_error(tmp_path, _pier("backyard", 12.3456), _pier("backyard", 95))
+
+    assert message == "Pier ids must be unique; listed more than once: 'backyard'"
