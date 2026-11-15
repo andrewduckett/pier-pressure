@@ -11,6 +11,7 @@ addon-form-text D3-D8, and its explainer key addon-explainer-key-option D1-D9.
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -539,3 +540,16 @@ def test_the_supervisor_scan_reads_a_config_file(path: str) -> None:
 )
 def test_the_supervisor_scan_skips_other_files(path: str) -> None:
     assert not _supervisor_reads_as_addon_config(path)
+
+
+def test_the_supervisor_scan_reads_only_the_two_config_files() -> None:
+    # Tracked files, because the Supervisor clones the repository (addon-store-scan-warnings D7).
+    tracked = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-files"], check=True, capture_output=True, text=True
+    ).stdout.splitlines()
+    read = {path for path in tracked if _supervisor_reads_as_addon_config(path)}
+    allowed = {"ha-addon/config.yaml", "openspec/config.yaml"}
+    assert read - allowed == set(), (
+        f"the Supervisor would read these as add-ons: {sorted(read - allowed)}"
+    )
+    assert read == allowed
