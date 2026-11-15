@@ -14,8 +14,9 @@ while the core loads the piers, so one change fixes both (D1).
 - The rule applies to every value in `config.yaml`, in every install type, and
   to horizon points written as text, such as the add-on form's **Horizon
   points** field (D4). No other way YAML reads a value changes (D5).
-- **BREAKING**, in a narrow case: a text setting written as a zero-padded number,
-  such as `id: 08`, is now read as a number and must be quoted (D6).
+- **BREAKING**, in a narrow case: a number setting written in base-60 form,
+  such as `go_threshold: 1:05`, used to load as 65 and now skips its pier (D3).
+  A text setting such as `id: 08` keeps working (D6).
 - A pier `id` that appears more than once in the piers list stops startup with
   a configuration error that names the id (D7, D8, D11). Ids that differ only
   in letter case stay distinct (D9).

@@ -39,10 +39,9 @@ and SHALL show no other configuration value.
 
 ### Requirement: A zero-padded integer in the configuration file is a decimal number
 
-The system SHALL read a value in the configuration file that is an integer
-written with one or more leading zeros, with or without a sign, as that decimal
-number. A setting that takes text SHALL then reject the value, as it rejects
-any other number.
+When a number setting in the configuration file is given an integer written
+with one or more leading zeros, with or without a sign, the setting SHALL take
+that decimal number.
 
 #### Scenario: A padded go-threshold is read as decimal
 
@@ -54,10 +53,10 @@ any other number.
 - **WHEN** a pier in the configuration file sets `longitude: -045`
 - **THEN** the pier's longitude is -45
 
-#### Scenario: An unquoted padded id is a number, not text
+#### Scenario: A padded number with the digit 8 or 9 is read as decimal
 
-- **WHEN** a pier in the configuration file sets `id: 08`, without quotes
-- **THEN** that pier is reported as invalid because its id is not text
+- **WHEN** a pier in the configuration file sets `go_threshold: 080`
+- **THEN** the pier's go-threshold is 80
 
 ### Requirement: A base-60 value in the configuration file is text
 
