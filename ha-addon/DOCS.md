@@ -461,6 +461,22 @@ once the broker is back.
 | The MQTT client did not send the publish to a topic | The MQTT client refused one message. This is rare. PierPressure keeps running. | Nothing. The next update, or the next reconnect, publishes that topic again. |
 | Could not subscribe to a `refresh/command` topic | PierPressure could not ask the broker for that subscription, usually because the connection dropped at that moment. | Nothing, if a `Reconnected to the MQTT broker` line follows. If not, restart the add-on. |
 
+## If the Supervisor log warns about openspec/config.yaml
+
+The Supervisor reloads the add-on store when Home Assistant starts, every 3
+hours, and when you check the store for updates. Each reload may log a warning
+like this one, followed by the start of the file:
+
+```text
+Can't read …/openspec/config.yaml: Invalid app config!
+```
+
+The Supervisor reads every `config.yaml` in this repository as an add-on's
+settings. This file is not an add-on. It is the project's planning config, and
+the planning tool reads it only at that path. The warning is harmless and needs
+no action. The store still lists PierPressure, and the add-on installs and runs
+as usual.
+
 ## More settings
 
 The Configuration tab shows only four parts, so far: the

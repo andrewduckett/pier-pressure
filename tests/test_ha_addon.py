@@ -553,3 +553,12 @@ def test_the_supervisor_scan_reads_only_the_two_config_files() -> None:
         f"the Supervisor would read these as add-ons: {sorted(read - allowed)}"
     )
     assert read == allowed
+
+
+SUPERVISOR_WARNING = "If the Supervisor log warns about openspec/config.yaml"
+
+
+@pytest.mark.parametrize("words", ["openspec/config.yaml: Invalid app config!", "no action"])
+def test_the_supervisor_warning_section_names_the_warning(words: str) -> None:
+    # The one warning left, explained in the add-on docs (addon-store-scan-warnings D5, D8).
+    assert words in _docs_section(SUPERVISOR_WARNING)
