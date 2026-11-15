@@ -3,13 +3,23 @@
 configuration:
   interval_seconds:
     name: Recompute interval
-    description: How often to recompute the verdict, in seconds. 900 is 15 minutes.
+    description: >-
+      How often PierPressure recomputes every pier's verdict from fresh
+      forecasts, in seconds, a whole number of at least 1. Keep 900, which is
+      15 minutes, unless you need fresher verdicts. To get a new verdict between
+      times, press the Refresh button on the pier's device. This form always sets
+      the interval, so config.yaml cannot.
   piers:
     name: Piers
     description: >-
-      The places you observe from. Each pier gets its own verdict device. List
-      at least one. For a setting this form does not show, such as a horizon
-      file, add the pier to config.yaml with the same ID and only that setting.
+      The places you observe from. List at least one. Each pier gets its own
+      device in Home Assistant, with its own verdict. A pier's dialog starts with
+      its Pier ID, then four sections: Location, where the pier is; Horizon, what
+      blocks your sky; Equipment, your telescope and camera; and Verdict, how good
+      a night must be for GO. Each field's label starts with its section's name,
+      such as Horizon: floor. Only the Pier ID and the Location fields are
+      required. For a setting this form does not show, such as a horizon file,
+      add the pier to config.yaml with the same ID and only that setting.
     fields:
       id:
         name: Pier ID
@@ -97,27 +107,52 @@ configuration:
   mqtt:
     name: MQTT broker
     description: >-
-      Optional. The broker to publish to. Leave the host empty to use the broker
-      set in config.yaml, or else the Mosquitto broker add-on.
+      Optional. The MQTT broker PierPressure publishes its verdicts to. Most
+      setups leave every field here empty: the add-on then uses the broker set
+      in config.yaml, or else the Mosquitto broker add-on, and needs no
+      password. Fill in a host only to use another broker.
     fields:
       host:
         name: Host
         description: >-
-          The broker's host name or IP address, such as 192.168.1.10. When you set
-          it, the add-on takes the host, port, username and password from this
-          form only.
+          Optional. The broker's host name or IP address, such as 192.168.1.10
+          or broker.lan. When you set it, the add-on takes the host, port,
+          username and password from this form only, and does not use the
+          Mosquitto add-on or config.yaml. Leave it empty to use one of those.
       port:
         name: Port
         description: >-
           Optional. The broker's port, a number from 1 to 65535 with no unit.
-          Leave it empty for 1883, the usual MQTT port. Set it only with a host.
+          Leave it empty for 1883, the usual MQTT port. Set it only with a host:
+          without one, the add-on stops at startup with a configuration error.
       username:
         name: Username
         description: >-
           Optional. The name the add-on logs in with, if your broker needs a
-          login. Set it only with a host.
+          login. Leave it empty for a broker with no login. Set it only with a
+          host: without one, the add-on stops at startup with a configuration
+          error.
       password:
         name: Password
         description: >-
-          Optional. The password the add-on logs in with. The form hides it as
-          you type. Set it only with a host.
+          Optional. The password for that username. The form hides it as you
+          type, and the add-on never writes it to the log. Set it only with a
+          host: without one, the add-on stops at startup with a configuration
+          error.
+  explainer:
+    name: Explainer
+    description: >-
+      Optional. The explainer has an AI language model write a short paragraph
+      about each pier's verdict, on the pier's Narrative sensor. It never
+      changes the verdict. To turn it on, set explainer.enabled to true in
+      config.yaml, and pick the model there with explainer.model. Put the
+      model's API key here, so it does not sit in plain text in config.yaml.
+    fields:
+      api_key:
+        name: API key
+        description: >-
+          Optional. The key for the AI provider that explainer.model names, such
+          as Anthropic for anthropic:claude-opus-5. The form hides it as you
+          type. Set it here, not in config.yaml: a key in both places stops the
+          add-on at startup with a configuration error. Leave it empty if your
+          provider needs no key.

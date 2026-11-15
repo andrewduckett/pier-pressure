@@ -231,6 +231,63 @@ def test_validate_piers_isolates_each_entry() -> None:
     assert [pier.id for pier in valid] == ["good"]
 
 
+BAD_PIER = {"id": "bad", "latitude": 999, "longitude": -0.12, "elevation_m": 30}
+
+
+def test_validate_piers_logs_what_the_pier_error_writer_writes(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    def write_error(raw_pier: object, error: ValidationError) -> str:
+        assert raw_pier == BAD_PIER
+        return f"{error.error_count()} problem, worded by the interface"
+
+    with caplog.at_level(logging.ERROR):
+        validate_piers([BAD_PIER], write_error=write_error)
+
+    assert caplog.messages == ["Skipping invalid pier 'bad': 1 problem, worded by the interface"]
+
+
+def test_validate_piers_with_no_pier_error_writer_logs_the_core_error(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with pytest.raises(ValidationError) as error:
+        PierConfig.model_validate(BAD_PIER)
+
+    with caplog.at_level(logging.ERROR):
+        validate_piers([BAD_PIER])
+
+    assert caplog.messages == [f"Skipping invalid pier 'bad': {error.value}"]
+
+
+def _read_with_bad_pier(tmp_path: Path) -> ConfigFile:
+    good = {"id": "good", "latitude": 51.5, "longitude": -0.12, "elevation_m": 30}
+    raw = {
+        "mqtt": {"host": "broker"},
+        "recompute": {"interval_seconds": 900},
+        "piers": [good, BAD_PIER],
+    }
+    return ConfigFile(raw=raw, base_dir=tmp_path)
+
+
+def test_build_config_error_writer_reaches_the_pier_check(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.ERROR):
+        build_config(_read_with_bad_pier(tmp_path), write_error=lambda _pier, _error: "reworded")
+
+    assert caplog.messages == ["Skipping invalid pier 'bad': reworded"]
+
+
+def test_no_build_config_error_writer_logs_the_core_error(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.ERROR):
+        build_config(_read_with_bad_pier(tmp_path))
+
+    [message] = caplog.messages
+    assert message.startswith("Skipping invalid pier 'bad': 1 validation error for PierConfig")
+
+
 # --------------------------------------------------------------------------- #
 # ha-addon-mqtt-service: read_config / build_config (design D2)
 # --------------------------------------------------------------------------- #

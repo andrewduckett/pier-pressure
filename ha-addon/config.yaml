@@ -29,6 +29,9 @@ options:
   # block optional. Its fields are optional instead, and port has no default, so
   # an empty block sets no broker (addon-form-broker D1).
   mqtt: {}
+  # Listed for the same reason; its one field is optional
+  # (addon-explainer-key-option D2).
+  explainer: {}
 schema:
   interval_seconds: int(1,)
   piers:
@@ -61,6 +64,11 @@ schema:
     port: port?
     username: str?
     password: password?
+  # The explainer's key, hidden on the form so it need not sit in plain text in
+  # config.yaml. config.yaml still turns the explainer on and picks its model;
+  # the service joins the two (addon-explainer-key-option D2, D4, D5).
+  explainer:
+    api_key: password?
 # Ask the Supervisor for the broker another add-on (usually Mosquitto) provides.
 # "want", not "need", so the add-on still installs with any other broker. Used
 # only when the settings name no mqtt.host (ha-addon-mqtt-service).

@@ -3,8 +3,9 @@
 The Configuration form's options, schema and labels follow addon-options-form D5, D6,
 its horizon fields addon-form-horizon D4, D5, its equipment fields
 addon-form-equipment D4, D5, its broker fields addon-form-broker D1, its
-gate fields addon-form-gates D2, D4, and its pier sections addon-pier-layout
-D1-D3 and D5.
+gate fields addon-form-gates D2, D4, its pier sections addon-pier-layout
+D1-D3 and D5, the rest of its help text and DOCS.md walkthrough
+addon-form-text D3-D8, and its explainer key addon-explainer-key-option D1-D9.
 """
 
 from __future__ import annotations
@@ -16,6 +17,8 @@ from typing import Any
 import pytest
 import yaml
 from next_version import RELEASE_TAG
+
+from pierpressure.addon_options import HORIZON_LABELS
 
 ROOT = Path(__file__).resolve().parent.parent
 REPOSITORY_FILE = ROOT / "repository.yaml"
@@ -114,13 +117,29 @@ MQTT_FIELDS = {
 
 def test_addon_form_defaults_to_the_interval_and_no_piers(addon: dict[str, Any]) -> None:
     # No equipment default: a new pier starts with no equipment (D4). The broker
-    # block must be in options, because the Supervisor cannot mark a block
-    # optional (addon-form-broker D1).
-    assert addon["options"] == {"interval_seconds": 900, "piers": [], "mqtt": {}}
+    # and explainer blocks must be in options, because the Supervisor cannot mark
+    # a block optional (addon-form-broker D1, addon-explainer-key-option D2).
+    assert addon["options"] == {
+        "interval_seconds": 900,
+        "piers": [],
+        "mqtt": {},
+        "explainer": {},
+    }
 
 
 def test_addon_form_schema_declares_the_broker(addon: dict[str, Any]) -> None:
     assert addon["schema"]["mqtt"] == MQTT_FIELDS
+
+
+def test_addon_form_schema_declares_the_explainer_key(addon: dict[str, Any]) -> None:
+    # Only the key: the other explainer settings stay in config.yaml
+    # (addon-explainer-key-option D1, D4).
+    assert addon["schema"]["explainer"] == {"api_key": "password?"}
+
+
+def test_addon_form_schema_lists_the_explainer_last(addon: dict[str, Any]) -> None:
+    # The form shows the parts in schema order (addon-explainer-key-option D3).
+    assert list(addon["schema"]) == ["interval_seconds", "piers", "mqtt", "explainer"]
 
 
 def test_addon_form_schema_declares_the_interval_and_piers(addon: dict[str, Any]) -> None:
@@ -161,7 +180,12 @@ def test_every_form_field_has_a_label(addon: dict[str, Any]) -> None:
     for key in schema:
         assert labels[key]["name"], f"{key} has no name"
         assert labels[key]["description"], f"{key} has no description"
-    for block, fields in (("piers", schema["piers"][0]), ("mqtt", schema["mqtt"])):
+    blocks = (
+        ("piers", schema["piers"][0]),
+        ("mqtt", schema["mqtt"]),
+        ("explainer", schema["explainer"]),
+    )
+    for block, fields in blocks:
         for field in fields:
             entry = labels[block]["fields"][field]
             assert entry["name"], f"{block}.{field} has no name"
@@ -285,6 +309,119 @@ def test_the_port_label_names_its_default() -> None:
     assert "1883" in port["description"]
 
 
+def _form_fields(addon: dict[str, Any]) -> list[tuple[tuple[str, ...], str]]:
+    """Each form field's path into the translations, with its schema type."""
+    schema = addon["schema"]
+    (pier,) = schema["piers"]
+    return [
+        (("interval_seconds",), schema["interval_seconds"]),
+        *((("piers", "fields", name), kind) for name, kind in pier.items()),
+        *((("mqtt", "fields", name), kind) for name, kind in schema["mqtt"].items()),
+        *((("explainer", "fields", name), kind) for name, kind in schema["explainer"].items()),
+    ]
+
+
+def test_only_optional_fields_say_they_are_optional(addon: dict[str, Any]) -> None:
+    # The same voice as the pier fields: an optional field says so (addon-form-text D3).
+    labels = _load(ADDON_TRANSLATIONS)["configuration"]
+    for path, kind in _form_fields(addon):
+        entry: Any = labels
+        for key in path:
+            entry = entry[key]
+        optional = kind.endswith("?")
+        assert ("Optional." in entry["description"]) == optional, ".".join(path)
+
+
+@pytest.mark.parametrize("words", ["seconds", "900", "Refresh"])
+def test_the_interval_names_its_default_and_the_refresh_button(words: str) -> None:
+    # A pier's Refresh button recomputes between intervals (addon-form-text D4).
+    interval = _load(ADDON_TRANSLATIONS)["configuration"]["interval_seconds"]
+    assert words in interval["description"]
+
+
+def _first_out_of_order(text: str, names: list[str]) -> str | None:
+    """The first name that is missing, or first named before the one ahead of it."""
+    previous = -1
+    for name in names:
+        position = text.find(name)
+        if position <= previous:
+            return name
+        previous = position
+    return None
+
+
+def test_the_piers_intro_names_the_sections_in_order() -> None:
+    # The dialog has no headings, so the list's introduction names the sections
+    # the labels start with (addon-form-text D5).
+    intro = _load(ADDON_TRANSLATIONS)["configuration"]["piers"]["description"]
+    sections = list(_section_leaders())
+    assert _first_out_of_order(intro, sections) is None
+    assert "label" in intro
+
+
+@pytest.mark.parametrize("fallback", ["config.yaml", "Mosquitto"])
+def test_the_broker_section_names_where_an_empty_host_leads(fallback: str) -> None:
+    # addon-form-text D6.
+    mqtt = _load(ADDON_TRANSLATIONS)["configuration"]["mqtt"]
+    assert fallback in mqtt["description"]
+
+
+@pytest.mark.parametrize("words", ["explainer.enabled", "config.yaml"])
+def test_the_explainer_section_names_the_switch(words: str) -> None:
+    # The form's key alone does not turn the explainer on (addon-explainer-key-option D4, D8).
+    explainer = _load(ADDON_TRANSLATIONS)["configuration"]["explainer"]
+    assert words in explainer["description"]
+
+
+@pytest.mark.parametrize("field", ["port", "username", "password"])
+def test_a_broker_login_field_says_it_needs_a_host(field: str) -> None:
+    # Without a host these stop the add-on (addon-form-broker, addon-form-text D6).
+    entry = _load(ADDON_TRANSLATIONS)["configuration"]["mqtt"]["fields"][field]
+    assert "only with a host" in entry["description"]
+
+
+# The Configuration tab's parts, and a pier's dialog inside Piers, top to bottom.
+TAB_ORDER = [
+    "Recompute interval",
+    "Piers",
+    "Pier ID",
+    *_section_leaders(),
+    "MQTT broker",
+    "Explainer",
+]
+
+
+def _docs_section(heading: str) -> str:
+    docs = ADDON_DOCS.read_text(encoding="utf-8")
+    _, found, rest = docs.partition(f"\n## {heading}\n")
+    assert found, f"DOCS.md has no section {heading!r}"
+    return rest.split("\n## ", 1)[0]
+
+
+def _first_part_out_of_order(text: str) -> str | None:
+    bold = [f"**{part}**" for part in TAB_ORDER]
+    out_of_order = _first_out_of_order(text, bold)
+    return out_of_order.strip("*") if out_of_order else None
+
+
+def test_the_setup_steps_follow_the_tab_order() -> None:
+    # addon-form-text D7.
+    assert _first_part_out_of_order(_docs_section("Set up the add-on")) is None
+
+
+def test_the_setup_steps_check_names_a_part_out_of_order() -> None:
+    early_broker = [part for part in TAB_ORDER if part != "MQTT broker"]
+    early_broker.insert(1, "MQTT broker")
+    steps = " then ".join(f"**{part}**" for part in early_broker)
+    assert _first_part_out_of_order(steps) == "MQTT broker"
+
+
+def test_more_settings_names_the_tab_parts_in_order() -> None:
+    # addon-form-text D8, addon-explainer-key-option D9.
+    parts = ["**Recompute interval**", "**Piers**", "**MQTT broker**", "**Explainer**"]
+    assert _first_out_of_order(_docs_section("More settings"), parts) is None
+
+
 @pytest.mark.parametrize(
     ("path", "unit"),
     [
@@ -349,3 +486,28 @@ def test_the_addon_docs_say_to_set_the_firms_key_in_config_yaml() -> None:
     section = docs[start : docs.find("\n### ", start + 1)]
     assert "`firms`" in section
     assert "firms.map_key" in docs
+
+
+@pytest.mark.parametrize(
+    "words", ["**API key**", "explainer.enabled", "explainer.model", "config.yaml"]
+)
+def test_turn_on_the_explainer_names_where_each_setting_goes(words: str) -> None:
+    # The key on the tab, the rest in config.yaml (addon-explainer-key-option D9).
+    assert words in _docs_section("Turn on the explainer")
+
+
+@pytest.mark.parametrize(
+    ("key", "field"), [("min_altitude", "min_altitude"), ("points", "horizon_points")]
+)
+def test_horizon_error_labels_match_the_form(key: str, field: str) -> None:
+    # The add-on names these in the both-fields error (addon-horizon-error-labels D8).
+    fields = _load(ADDON_TRANSLATIONS)["configuration"]["piers"]["fields"]
+    assert HORIZON_LABELS[key] == fields[field]["name"]
+
+
+def test_horizon_docs_name_error_labels() -> None:
+    # A form pier with both horizon fields logs their labels (addon-horizon-error-labels D11).
+    sentences = re.split(r"(?<=\.)\s+", " ".join(_docs_section("Set a pier's horizon").split()))
+    assert any(
+        "error" in s and "**Horizon: floor**" in s and "**Horizon: points**" in s for s in sentences
+    )

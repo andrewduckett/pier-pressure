@@ -1,6 +1,7 @@
 """The add-on's Configuration form combined with its ``config.yaml``.
 
-Follows addon-form-horizon-file D1-D3 and D5, and ADR-0021.
+Follows addon-form-horizon-file D1-D3 and D5, and ADR-0021. The explainer key
+follows addon-explainer-key-option D5.
 
 Inside an add-on, the form lists the piers, and ``config.yaml`` adds the settings
 the form leaves unset. :func:`combine_settings` builds one config-shaped mapping
@@ -15,6 +16,10 @@ skip that pier (D2, addon-options-core-validates D4).
 Every problem goes into one :class:`ConfigError`, on one line. A problem names
 settings by their ``config.yaml`` names and piers by their ids, escaped so a line
 break cannot split the log line. It never holds a setting's value (D5).
+
+The core still checks each pier. :func:`form_pier_error_writer` only rewords
+the core's error for a pier that sets both horizon fields on the form, in the
+form's labels (addon-horizon-error-labels D5-D7).
 """
 
 from __future__ import annotations
@@ -22,8 +27,23 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from pierpressure.addon_options import is_set, pier_settings, translate_form
-from pierpressure.core.config import AppConfig, ConfigError, MqttConfig
+from pydantic import ValidationError
+
+from pierpressure.addon_options import (
+    HORIZON_FIELDS,
+    HORIZON_LABELS,
+    is_set,
+    pier_settings,
+    translate_form,
+)
+from pierpressure.core.config import (
+    AppConfig,
+    ConfigError,
+    ExplainerConfig,
+    HorizonSourcesError,
+    MqttConfig,
+    PierErrorWriter,
+)
 
 # The ``mqtt`` keys that make up the broker connection, one setting as a group.
 CONNECTION_KEYS = ("host", "port", "username", "password")
@@ -59,6 +79,7 @@ def combine_settings(options: dict[str, Any], file: dict[str, Any] | None) -> Co
     form_piers = [pier for pier in options.get("piers", []) if isinstance(pier, dict)]
     _check_piers(form_piers, file_piers, problems)
     _check_broker(translated.get("mqtt"), file.get("mqtt"), problems)
+    _check_explainer(translated.get("explainer"), file.get("explainer"), problems)
     if is_set(options.get("interval_seconds")) and _sets_interval(file.get("recompute")):
         problems.append(f"the recompute interval (recompute.interval_seconds) {_BOTH}")
 
@@ -74,6 +95,40 @@ def combine_settings(options: dict[str, Any], file: dict[str, Any] | None) -> Co
 def file_pier_ids(file: dict[str, Any]) -> list[str]:
     """The text ids of the file's piers, once each, in the file's order (D6)."""
     return list(_file_piers(file, []))
+
+
+def form_pier_error_writer(options: dict[str, Any]) -> PierErrorWriter:
+    """Write a skipped pier's error, in the form's labels for both horizon fields.
+
+    A pier whose horizon came from the form gets the form's wording for the core's
+    horizon-source error. That is a form pier that sets both horizon fields: the
+    combine stops the add-on when ``config.yaml`` sets that pier's horizon too
+    (D6). The core checks the horizon only once every field is valid, so that
+    error is then the pier's only one. Every other error is the core's.
+    """
+    form_horizon_ids = {
+        pier["id"]
+        for pier in options.get("piers", [])
+        if isinstance(pier, dict)
+        and isinstance(pier.get("id"), str)
+        and all(is_set(pier.get(field)) for field in HORIZON_FIELDS)
+    }
+    both_labels = " and ".join(HORIZON_LABELS.values())
+
+    def write_error(raw_pier: Any, error: ValidationError) -> str:
+        pier_id = raw_pier.get("id") if isinstance(raw_pier, dict) else None
+        if isinstance(pier_id, str) and pier_id in form_horizon_ids:
+            [first, *rest] = error.errors()
+            cause = first.get("ctx", {}).get("error")
+            sources = cause.sources if isinstance(cause, HorizonSourcesError) else ()
+            if not rest and set(sources) == set(HORIZON_LABELS):
+                return (
+                    f"{both_labels} are both filled in on the Configuration tab. "
+                    "Fill in one of them at most."
+                )
+        return str(error)
+
+    return write_error
 
 
 def _file_piers(file: dict[str, Any], problems: list[str]) -> dict[str, dict[str, Any]]:
@@ -155,6 +210,28 @@ def _check_broker(form_mqtt: Any, file_mqtt: Any, problems: list[str]) -> None:
         problems.append(f"mqtt.{key} {_BOTH}")
 
 
+def _check_explainer(form_explainer: Any, file_explainer: Any, problems: list[str]) -> None:
+    """Report an explainer setting given in both, such as its API key.
+
+    As for the broker, a file block that is not a mapping is reported whatever the
+    form holds, and a key the core does not define is not reported
+    (addon-explainer-key-option D5).
+    """
+    if file_explainer is None:
+        return
+    if not isinstance(file_explainer, dict):
+        problems.append(
+            "explainer in config.yaml must be a mapping of settings, such as explainer.enabled"
+        )
+        return
+    if not isinstance(form_explainer, dict):
+        return
+    form_keys = {key for key, value in form_explainer.items() if is_set(value)}
+    file_keys = {key for key, value in file_explainer.items() if is_set(value)}
+    for key in sorted(form_keys & file_keys & set(ExplainerConfig.model_fields)):
+        problems.append(f"explainer.{key} {_BOTH}")
+
+
 def _sets_interval(recompute: Any) -> bool:
     """Whether the file's ``recompute`` block sets anything; an empty block does not."""
     if isinstance(recompute, dict):
@@ -196,7 +273,25 @@ def _merge(
         if key == "recompute" and not _sets_interval(value):
             continue
         combined[key] = value
+
+    explainer = _merge_explainer(translated.get("explainer"), file.get("explainer"))
+    if explainer is not None:
+        combined["explainer"] = explainer
     return combined
+
+
+def _merge_explainer(form_explainer: Any, file_explainer: Any) -> dict[str, Any] | None:
+    """The form's explainer key added to the file's other explainer settings.
+
+    ``None`` when the form sets no key, so the file's block reaches the core
+    unchanged. A file block that is not a mapping never gets here, because the
+    combine reports it (addon-explainer-key-option D5).
+    """
+    if not isinstance(form_explainer, dict):
+        return None
+    if isinstance(file_explainer, dict):
+        return {**file_explainer, **form_explainer}
+    return form_explainer
 
 
 def _merge_pier(pier: Any, file_piers: dict[str, dict[str, Any]]) -> Any:
