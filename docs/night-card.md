@@ -217,13 +217,16 @@ The lane **Target 1** reads `sensor.pierpressure_<pier>_target_1`, and so on to
 
 Each lane has a violet bar over the target's observable window: the time when
 the target is above your horizon mask and the sky is astronomically dark. The
-bar holds the target's name. A name too long for its bar
-ends in "…".
+bar holds the target's name and its catalog id, such as
+"Andromeda Galaxy (M31)": the id is what you type into your mount or planetarium
+app. A target the catalog gives no name shows its id alone, such as "IC2184".
+A bar too short for both shortens the name, ending it in "…", and keeps the
+catalog id whole.
 
-Hover over a bar to see the target's name and its window, such as
-"Andromeda Galaxy from 21:00 to 02:00". The times are the window's own, even
-where the strip cuts the bar off. A window of 24 hours or more, as on a polar
-night, shows only the name.
+Hover over a bar to see the target's name, catalog id and window, such as
+"Andromeda Galaxy (M31) from 21:00 to 02:00". The times are the window's own,
+even where the strip cuts the bar off. A window of 24 hours or more, as on a
+polar night, shows only the name and id.
 
 A rank with no target tonight leaves no lane, so the lanes that are there
 follow each other with no gap. On a night with no targets at all, the strip

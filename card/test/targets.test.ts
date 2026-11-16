@@ -4,6 +4,7 @@ import {
   VERDICT,
   bars,
   cardStyles,
+  catalogTarget,
   forecastEntity,
   moonLane,
   mountCard,
@@ -181,13 +182,35 @@ describe("a target bar at the axis ends", () => {
 });
 
 describe("a target bar's look", () => {
-  it("holds the target's name", async () => {
+  // An older PierPressure publishes no id attribute.
+  it("holds the state when the attributes hold no id", async () => {
     const card = await mountCard({
       [VERDICT]: NIGHT,
       [target(1)]: targetEntity("Andromeda Galaxy", EVENING),
     });
 
     expect(targetBar(card, 1)?.textContent?.trim()).toBe("Andromeda Galaxy");
+  });
+
+  it("holds a named target's name and catalog id", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [target(1)]: catalogTarget("M31", "Andromeda Galaxy", EVENING),
+    });
+
+    expect(targetBar(card, 1)?.textContent?.trim()).toBe("Andromeda Galaxy (M31)");
+  });
+
+  it.each([
+    ["no name", "IC2184", null],
+    ["an empty name", "NGC7000", ""],
+  ])("holds the id alone for a target with %s", async (_, id, name) => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [target(1)]: catalogTarget(id, name, EVENING),
+    });
+
+    expect(targetBar(card, 1)?.textContent?.trim()).toBe(id);
   });
 
   it("is marked as a target's bar", async () => {
@@ -222,13 +245,59 @@ describe("a target bar's look", () => {
     expect([/text-indent:\s*4px/.test(rule), /padding/.test(rule)]).toEqual([true, false]);
   });
 
-  it("cuts a long name short with an ellipsis", () => {
+  it("draws the name and the catalog id as two parts", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [target(1)]: catalogTarget("M31", "Andromeda Galaxy", EVENING),
+    });
+
+    const bar = targetBar(card, 1);
+    expect([
+      bar?.querySelector(".name")?.textContent,
+      bar?.querySelector(".id")?.textContent?.trim(),
+    ]).toEqual(["Andromeda Galaxy", "(M31)"]);
+  });
+
+  it.each([
+    ["an unnamed target's id", catalogTarget("IC2184", null, EVENING), "IC2184"],
+    ["a state with no id", targetEntity("Andromeda Galaxy", EVENING), "Andromeda Galaxy"],
+  ])("draws %s as the name part alone", async (_, entity, text) => {
+    const card = await mountCard({ [VERDICT]: NIGHT, [target(1)]: entity });
+
+    const bar = targetBar(card, 1);
+    expect([bar?.querySelector(".name")?.textContent, bar?.querySelector(".id")]).toEqual([
+      text,
+      null,
+    ]);
+  });
+
+  it("lays its parts out in a row and clips them at its end", () => {
     const rule = /\.bar\[data-target\]\s*\{([^}]*)\}/.exec(cardStyles())?.[1] ?? "";
 
     expect([
+      /display:\s*flex/.test(rule),
       /overflow:\s*hidden/.test(rule),
       /white-space:\s*nowrap/.test(rule),
-      /text-overflow:\s*ellipsis/.test(rule),
+    ]).toEqual([true, true, true]);
+  });
+
+  it("cuts a long name short with an ellipsis", () => {
+    const rule = /\.bar\[data-target\] \.name\s*\{([^}]*)\}/.exec(cardStyles())?.[1] ?? "";
+
+    expect([/overflow:\s*hidden/.test(rule), /text-overflow:\s*ellipsis/.test(rule)]).toEqual([
+      true,
+      true,
+    ]);
+  });
+
+  // Flex drops the space between two items, so the id's own leading space must hold.
+  it("keeps the catalog id whole, unindented, after a space", () => {
+    const rule = /\.bar\[data-target\] \.id\s*\{([^}]*)\}/.exec(cardStyles())?.[1] ?? "";
+
+    expect([
+      /flex-shrink:\s*0/.test(rule),
+      /white-space:\s*pre/.test(rule),
+      /text-indent:\s*0/.test(rule),
     ]).toEqual([true, true, true]);
   });
 });
@@ -249,6 +318,44 @@ describe("hovering over a target bar", () => {
       "Andromeda Galaxy from 21:00 to 02:00",
       "Andromeda Galaxy from 21:00 to 02:00",
     ]);
+  });
+
+  it("shows a named target's name, catalog id and window", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [target(1)]: catalogTarget("M31", "Andromeda Galaxy", EVENING),
+    });
+
+    expect(hover(card)).toEqual([
+      "Andromeda Galaxy (M31) from 21:00 to 02:00",
+      "Andromeda Galaxy (M31) from 21:00 to 02:00",
+    ]);
+  });
+
+  it("shows the catalog id and the window's own times where the axis cuts the bar off", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [target(1)]: catalogTarget("M42", "Orion Nebula", {
+        start: "2026-11-01T06:00:00Z",
+        end: "2026-11-01T10:00:00Z",
+      }),
+    });
+
+    expect(hover(card)[0]).toBe("Orion Nebula (M42) from 06:00 to 10:00");
+  });
+
+  it("shows the id alone for an unnamed target up all through a polar night", async () => {
+    const card = await mountCard({
+      [VERDICT]: verdictEntity("GO", {
+        dark_window: { start: "2026-12-21T10:58:02Z", end: "2026-12-22T10:58:32Z" },
+      }),
+      [target(1)]: catalogTarget("IC2184", null, {
+        start: "2026-12-21T10:58:02Z",
+        end: "2026-12-22T10:58:32Z",
+      }),
+    });
+
+    expect(hover(card)[0]).toBe("IC2184");
   });
 
   it("shows the window's own times where the axis cuts the bar off", async () => {
