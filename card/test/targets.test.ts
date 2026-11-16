@@ -274,6 +274,44 @@ describe("hovering over a target bar", () => {
     ]);
   });
 
+  it("shows a named target's name, catalog id and window", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [target(1)]: catalogTarget("M31", "Andromeda Galaxy", EVENING),
+    });
+
+    expect(hover(card)).toEqual([
+      "Andromeda Galaxy (M31) from 21:00 to 02:00",
+      "Andromeda Galaxy (M31) from 21:00 to 02:00",
+    ]);
+  });
+
+  it("shows the catalog id and the window's own times where the axis cuts the bar off", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [target(1)]: catalogTarget("M42", "Orion Nebula", {
+        start: "2026-11-01T06:00:00Z",
+        end: "2026-11-01T10:00:00Z",
+      }),
+    });
+
+    expect(hover(card)[0]).toBe("Orion Nebula (M42) from 06:00 to 10:00");
+  });
+
+  it("shows the id alone for an unnamed target up all through a polar night", async () => {
+    const card = await mountCard({
+      [VERDICT]: verdictEntity("GO", {
+        dark_window: { start: "2026-12-21T10:58:02Z", end: "2026-12-22T10:58:32Z" },
+      }),
+      [target(1)]: catalogTarget("IC2184", null, {
+        start: "2026-12-21T10:58:02Z",
+        end: "2026-12-22T10:58:32Z",
+      }),
+    });
+
+    expect(hover(card)[0]).toBe("IC2184");
+  });
+
   it("shows the window's own times where the axis cuts the bar off", async () => {
     const card = await mountCard({
       [VERDICT]: NIGHT,
