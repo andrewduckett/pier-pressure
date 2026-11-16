@@ -182,7 +182,8 @@ describe("a target bar at the axis ends", () => {
 });
 
 describe("a target bar's look", () => {
-  it("holds the target's name", async () => {
+  // An older PierPressure publishes no id attribute.
+  it("holds the state when the attributes hold no id", async () => {
     const card = await mountCard({
       [VERDICT]: NIGHT,
       [target(1)]: targetEntity("Andromeda Galaxy", EVENING),
