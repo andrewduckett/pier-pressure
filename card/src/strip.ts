@@ -190,7 +190,8 @@ export interface Bar {
 export interface TargetLane {
   rank: number;
   label: string;
-  // The target's name, which a narrow bar shortens.
+  // The target's name, which a narrow bar shortens; its id when the catalog
+  // gives it no name.
   name: string;
   // The target's catalog id, which a narrow bar keeps whole after the name.
   id?: string;
@@ -485,7 +486,8 @@ function targetName(entity: { state: string; attributes: Record<string, unknown>
   const id = entity.attributes["id"];
   const name = entity.attributes["name"];
   if (typeof id !== "string" || id === "") return { name: entity.state };
-  return { name: typeof name === "string" ? name : "", id };
+  if (typeof name !== "string" || name === "") return { name: id };
+  return { name, id };
 }
 
 // As for a Moon up run, HH:MM cannot tell one day from the next. A polar night's

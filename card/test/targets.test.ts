@@ -200,6 +200,18 @@ describe("a target bar's look", () => {
     expect(targetBar(card, 1)?.textContent?.trim()).toBe("Andromeda Galaxy (M31)");
   });
 
+  it.each([
+    ["no name", "IC2184", null],
+    ["an empty name", "NGC7000", ""],
+  ])("holds the id alone for a target with %s", async (_, id, name) => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [target(1)]: catalogTarget(id, name, EVENING),
+    });
+
+    expect(targetBar(card, 1)?.textContent?.trim()).toBe(id);
+  });
+
   it("is marked as a target's bar", async () => {
     const card = await mountCard({
       [VERDICT]: NIGHT,
