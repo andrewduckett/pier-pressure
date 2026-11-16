@@ -190,8 +190,11 @@ export interface Bar {
 export interface TargetLane {
   rank: number;
   label: string;
-  // The Target sensor's state: the target's name.
+  // The target's name, which a narrow bar shortens; its id when the catalog
+  // gives it no name.
   name: string;
+  // The target's catalog id, which a narrow bar keeps whole after the name.
+  id?: string;
   // Absent when the window is wholly off the axis; the lane stays, so the
   // number of lanes never moves with the clock.
   bar?: Bar;
@@ -468,13 +471,23 @@ function targetLanes(
     const start = readTime(window?.["start"]);
     const end = readTime(window?.["end"]);
     if (start === undefined || end === undefined || end <= start) return [];
-    const name = entity.state;
-    const lane: TargetLane = { rank, label: `Target ${rank}`, name };
+    const lane: TargetLane = { rank, label: `Target ${rank}`, ...targetName(entity) };
+    const name = lane.id === undefined ? lane.name : `${lane.name} (${lane.id})`;
     if (end <= axis.start || start >= axis.end) return [lane];
     const from = Math.max(start, axis.start);
     const to = Math.min(end, axis.end);
     return [{ ...lane, bar: { start, end, from, to, text: targetText(name, start, end, time) } }];
   });
+}
+
+// PierPressure before the catalog id was published sends no `id`; its bar keeps
+// the state.
+function targetName(entity: { state: string; attributes: Record<string, unknown> }) {
+  const id = entity.attributes["id"];
+  const name = entity.attributes["name"];
+  if (typeof id !== "string" || id === "") return { name: entity.state };
+  if (typeof name !== "string" || name === "") return { name: id };
+  return { name, id };
 }
 
 // As for a Moon up run, HH:MM cannot tell one day from the next. A polar night's
