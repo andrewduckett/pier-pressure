@@ -7,7 +7,7 @@
 # Keep inside [tool.uv] required-version in pyproject.toml (design D5).
 uv = "0.12"
 node = "26"
-gh = "2.103.3"
+gh = "2.104.0"
 # The OpenSpec CLI is an ordinary pin. Renovate moves it with the other tools.
 "npm:@fission-ai/openspec" = "2.0.0"
 # Let's Spec: the agent skills, OpenSpec schemas and working rules. Renovate moves
