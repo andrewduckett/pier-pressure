@@ -11,6 +11,7 @@ import {
   type Line,
   type Missing,
   type Strip,
+  type TargetLane,
   type TimeLabel,
   asRecord,
   buildStrip,
@@ -247,6 +248,7 @@ export class PierPressureCard extends LitElement {
     /* An indent, not padding: the bar's width is set inline, and padding would
        widen it past the end of the target's window. */
     .bar[data-target] {
+      display: flex;
       background-color: #6250d6;
       color: #ffffff;
       font-size: 0.75em;
@@ -254,7 +256,18 @@ export class PierPressureCard extends LitElement {
       text-indent: 4px;
       overflow: hidden;
       white-space: nowrap;
+    }
+    /* Only the name shortens: the id is what you type into a mount or a
+       planetarium app. */
+    .bar[data-target] .name {
+      overflow: hidden;
       text-overflow: ellipsis;
+    }
+    /* Flex drops the space between two items, so the id keeps its own. */
+    .bar[data-target] .id {
+      flex-shrink: 0;
+      white-space: pre;
+      text-indent: 0;
     }
   `;
 
@@ -659,7 +672,7 @@ function renderStrip(strip: Strip | undefined, input: StripInput) {
         html`<div class="row" data-lane=${`target_${lane.rank}`}>
           <span class="label">${lane.label}</span>
           <div class="track">
-            ${lane.bar === undefined ? nothing : renderBar(lane.bar, strip.axis, lane.id === undefined ? lane.name : `${lane.name} (${lane.id})`)}
+            ${lane.bar === undefined ? nothing : renderBar(lane.bar, strip.axis, lane)}
           </div>
         </div>`,
     )}
@@ -767,13 +780,13 @@ function renderArrow(degrees: number) {
   </svg>`;
 }
 
-// A target's bar carries its name; a Moon up bar has none.
-function renderBar(bar: Bar, axis: Axis, name?: string) {
+// A target's bar carries its name and id; a Moon up bar has neither.
+function renderBar(bar: Bar, axis: Axis, target?: TargetLane) {
   const style = `left: ${offset(bar.from, axis)}%; width: ${share(bar.to - bar.from, axis)}%`;
   return html`<div
     class="bar"
     style=${style}
-    ?data-target=${name !== undefined}
+    ?data-target=${target !== undefined}
     data-start=${iso(bar.start)}
     data-end=${iso(bar.end)}
     data-from=${iso(bar.from)}
@@ -781,8 +794,13 @@ function renderBar(bar: Bar, axis: Axis, name?: string) {
     title=${bar.text}
     aria-label=${bar.text}
   >
-    ${name ?? nothing}
+    ${target === undefined ? nothing : renderTargetName(target)}
   </div>`;
+}
+
+function renderTargetName(target: TargetLane) {
+  const id = target.id === undefined ? nothing : html`<span class="id"> (${target.id})</span>`;
+  return html`<span class="name">${target.name}</span>${id}`;
 }
 
 // Percent of the axis, so the strip reflows with the card's width.

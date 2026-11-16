@@ -245,13 +245,59 @@ describe("a target bar's look", () => {
     expect([/text-indent:\s*4px/.test(rule), /padding/.test(rule)]).toEqual([true, false]);
   });
 
-  it("cuts a long name short with an ellipsis", () => {
+  it("draws the name and the catalog id as two parts", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [target(1)]: catalogTarget("M31", "Andromeda Galaxy", EVENING),
+    });
+
+    const bar = targetBar(card, 1);
+    expect([
+      bar?.querySelector(".name")?.textContent,
+      bar?.querySelector(".id")?.textContent?.trim(),
+    ]).toEqual(["Andromeda Galaxy", "(M31)"]);
+  });
+
+  it.each([
+    ["an unnamed target's id", catalogTarget("IC2184", null, EVENING), "IC2184"],
+    ["a state with no id", targetEntity("Andromeda Galaxy", EVENING), "Andromeda Galaxy"],
+  ])("draws %s as the name part alone", async (_, entity, text) => {
+    const card = await mountCard({ [VERDICT]: NIGHT, [target(1)]: entity });
+
+    const bar = targetBar(card, 1);
+    expect([bar?.querySelector(".name")?.textContent, bar?.querySelector(".id")]).toEqual([
+      text,
+      null,
+    ]);
+  });
+
+  it("lays its parts out in a row and clips them at its end", () => {
     const rule = /\.bar\[data-target\]\s*\{([^}]*)\}/.exec(cardStyles())?.[1] ?? "";
 
     expect([
+      /display:\s*flex/.test(rule),
       /overflow:\s*hidden/.test(rule),
       /white-space:\s*nowrap/.test(rule),
-      /text-overflow:\s*ellipsis/.test(rule),
+    ]).toEqual([true, true, true]);
+  });
+
+  it("cuts a long name short with an ellipsis", () => {
+    const rule = /\.bar\[data-target\] \.name\s*\{([^}]*)\}/.exec(cardStyles())?.[1] ?? "";
+
+    expect([/overflow:\s*hidden/.test(rule), /text-overflow:\s*ellipsis/.test(rule)]).toEqual([
+      true,
+      true,
+    ]);
+  });
+
+  // Flex drops the space between two items, so the id's own leading space must hold.
+  it("keeps the catalog id whole, unindented, after a space", () => {
+    const rule = /\.bar\[data-target\] \.id\s*\{([^}]*)\}/.exec(cardStyles())?.[1] ?? "";
+
+    expect([
+      /flex-shrink:\s*0/.test(rule),
+      /white-space:\s*pre/.test(rule),
+      /text-indent:\s*0/.test(rule),
     ]).toEqual([true, true, true]);
   });
 });
