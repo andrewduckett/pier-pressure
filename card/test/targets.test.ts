@@ -4,6 +4,7 @@ import {
   VERDICT,
   bars,
   cardStyles,
+  catalogTarget,
   forecastEntity,
   moonLane,
   mountCard,
@@ -188,6 +189,15 @@ describe("a target bar's look", () => {
     });
 
     expect(targetBar(card, 1)?.textContent?.trim()).toBe("Andromeda Galaxy");
+  });
+
+  it("holds a named target's name and catalog id", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [target(1)]: catalogTarget("M31", "Andromeda Galaxy", EVENING),
+    });
+
+    expect(targetBar(card, 1)?.textContent?.trim()).toBe("Andromeda Galaxy (M31)");
   });
 
   it("is marked as a target's bar", async () => {

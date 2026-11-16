@@ -659,7 +659,7 @@ function renderStrip(strip: Strip | undefined, input: StripInput) {
         html`<div class="row" data-lane=${`target_${lane.rank}`}>
           <span class="label">${lane.label}</span>
           <div class="track">
-            ${lane.bar === undefined ? nothing : renderBar(lane.bar, strip.axis, lane.name)}
+            ${lane.bar === undefined ? nothing : renderBar(lane.bar, strip.axis, lane.id === undefined ? lane.name : `${lane.name} (${lane.id})`)}
           </div>
         </div>`,
     )}

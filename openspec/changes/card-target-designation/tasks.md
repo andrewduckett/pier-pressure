@@ -1,6 +1,6 @@
 ## 1. Target bars show the catalog id
 
-- [ ] 1.1 [easy] A named target's bar text is `<name> (<id>)`, read from the Target sensor's `name` and `id` attributes, such as `Andromeda Galaxy (M31)` (verify: npm --prefix card test -- targets)
+- [x] 1.1 [easy] A named target's bar text is `<name> (<id>)`, read from the Target sensor's `name` and `id` attributes, such as `Andromeda Galaxy (M31)` (verify: npm --prefix card test -- targets) (✓ npm --prefix card test -- targets passed)
 - [ ] 1.2 [easy] A target whose `name` attribute is null or empty has the bar text `<id>` alone, such as `IC2184` (verify: npm --prefix card test -- targets)
 - [ ] 1.3 [easy] A Target sensor whose attributes hold no `id` keeps its state as the bar text, as an older PierPressure publishes (verify: npm --prefix card test -- targets)
 - [ ] 1.4 [easy] Hovering over a target bar, and its accessible name, give the bar's text with the window, such as `Andromeda Galaxy (M31) from 21:00 to 02:00`, and the text alone for a window of 24 hours or more or with both ends at the same time (verify: npm --prefix card test -- targets)
