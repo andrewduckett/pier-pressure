@@ -40,7 +40,6 @@ Hovering over a target bar SHALL show `<text> from <HH:MM> to <HH:MM>`, and a sc
 
 - that each lane reads one of `sensor.pierpressure_<pier>_target_1` to `sensor.pierpressure_<pier>_target_10`, and is labelled `Target <n>`;
 - that its bar runs from the start to the end of the target's observable window and holds the target's name and catalog id;
-- that a bar too short for both shortens the name and keeps the id;
 - what hovering over a bar shows;
 - that a rank with no target tonight leaves no lane;
 - that the dusk, dawn and now lines cross the target lanes.
@@ -62,3 +61,10 @@ When a target bar is too narrow for `<name> (<id>)`, the card SHALL shorten the 
 #### Scenario: A bar wide enough for the whole text
 - **WHEN** Target 1 has the attributes `name: Andromeda Galaxy` and `id: M31`, and its bar is wider than `Andromeda Galaxy (M31)`
 - **THEN** the bar shows `Andromeda Galaxy (M31)` with no `…`
+
+### Requirement: The docs say a short target bar keeps the id
+The target lanes section of `docs/night-card.md` SHALL say that a target bar too short for both the name and the catalog id shortens the name and keeps the id.
+
+#### Scenario: The page covers a short target bar
+- **WHEN** the target lanes section of `docs/night-card.md` is read
+- **THEN** it says the bar shortens the name and keeps the catalog id
