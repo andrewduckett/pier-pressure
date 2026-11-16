@@ -261,13 +261,20 @@ def test_docs_targets_name_the_sensors_and_lanes(text: str) -> None:
     assert text in _page()
 
 
-@pytest.mark.parametrize("term", ["observable window", "no target tonight", "leaves no lane"])
+@pytest.mark.parametrize(
+    "term", ["observable window", "catalog id", "no target tonight", "leaves no lane"]
+)
 def test_docs_targets_explain_what_they_show(term: str) -> None:
     assert term in _page().lower()
 
 
+@pytest.mark.parametrize("text", ["shortens the name", "keeps the catalog id"])
+def test_docs_targets_say_a_short_bar_keeps_the_id(text: str) -> None:
+    assert text in " ".join(_section("#### The target lanes").split())
+
+
 def test_docs_targets_give_the_hover_text() -> None:
-    assert "Andromeda Galaxy from 21:00 to 02:00" in _page()
+    assert "Andromeda Galaxy (M31) from 21:00 to 02:00" in _page()
 
 
 def test_docs_targets_say_the_lines_cross_them() -> None:
