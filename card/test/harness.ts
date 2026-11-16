@@ -118,6 +118,16 @@ export function targetEntity(
   return { state, attributes: { available: true, name, window } };
 }
 
+// As PierPressure publishes a target now: the state is the name, or the id when
+// the catalog gives no name.
+export function catalogTarget(
+  id: string,
+  name: string | null,
+  window: Record<string, unknown> | undefined,
+): HassEntity {
+  return { state: name || id, attributes: { available: true, id, name, window } };
+}
+
 export function targetLanes(card: PierPressureCard): HTMLElement[] {
   return [
     ...(card.shadowRoot?.querySelectorAll<HTMLElement>('.strip [data-lane^="target_"]') ?? []),
