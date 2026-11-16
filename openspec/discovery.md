@@ -128,7 +128,7 @@ Stage status checked against the code on 2026-11-15.
 
 1. **Open the dev shell** — `mise.toml` gives uv and the dev tasks, and uv gives
    Python; `mise run check` passes inside it — supported
-2. **Pick the next story** — `lets-build` picks from the GitHub Project linked to
+2. **Pick the next story** — `lets-go` picks from the GitHub Project linked to
    the repo, by its Priority field — supported
 3. **Propose → archive** — OpenSpec with Let's Spec's `lets-standard` schema, and
    `lets-minimal` for chores and small stories — supported

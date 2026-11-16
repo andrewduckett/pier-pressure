@@ -1,3 +1,5 @@
+<!-- Plain language: Help the next implementer find the approach, understand the choices and act on the plan. Explain necessary technical terms. Put each risk beside its mitigation and each open question beside the decision it affects. -->
+
 ## Context
 
 <!-- Current state and constraints that shape the approach. See proposal.md for motivation; do not restate it. -->
@@ -19,7 +21,7 @@
 
 ## Scrutiny Tier & Blast Radius
 
-<!-- The review step reads the tier as the reviewer's effort.
+<!-- The plan review reads the tier as the reviewer's effort.
      low: a narrow fix or polish; one package; no new contracts, schema or authorization.
      medium: one subsystem on established patterns; a contained blast radius.
      high: several packages; new contracts, events or migrations; authorization or trust boundaries; architecture-changing; a novel external dependency. -->
