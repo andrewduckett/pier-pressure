@@ -232,6 +232,8 @@ export interface ChartLine {
   // no such neighbour.
   segments: Array<[ChartPoint, ChartPoint]>;
   dots: ChartPoint[];
+  // Only on a line with no number for any hour on the axis.
+  missing?: Missing;
 }
 
 // One hour of the Temperature chart that holds a number on either line, as
@@ -345,14 +347,18 @@ function temperatureChart(
     hourlyValues(forecastOf(states[pierEntityId(pier, key)])),
   );
   const scale = chartScale(forecasts.flatMap((values) => [...values.values()].filter(isNumber)));
-  return {
-    ...(scale && { scale }),
-    lines: CHART_LINES.map((line, index) => ({
-      ...line,
-      ...chartMarks(forecasts[index] ?? new Map(), axis),
-    })),
-    hours: chartHours(forecasts, axis, time),
-  };
+  const lines = CHART_LINES.map((line, index): ChartLine => {
+    const values = forecasts[index] ?? new Map<number, unknown>();
+    const onAxis = [...values].some(
+      ([hour, value]) => isNumber(value) && hour + HOUR > axis.start && hour < axis.end,
+    );
+    if (onAxis) return { ...line, ...chartMarks(values, axis) };
+    // A point just off the axis would be cut off anyway; the message says why
+    // the line is not there.
+    const entityId = pierEntityId(pier, line.key);
+    return { ...line, segments: [], dots: [], missing: missing(entityId, states[entityId]) };
+  });
+  return { ...(scale && { scale }), lines, hours: chartHours(forecasts, axis, time) };
 }
 
 // Each value as the forecast holds it, as a row's hover text writes it.

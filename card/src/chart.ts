@@ -1,4 +1,4 @@
-import { css, html, svg } from "lit";
+import { css, html, nothing, svg } from "lit";
 import { hourPlace, iso, offset } from "./place";
 import type { Axis, ChartHour, ChartLine, ChartPoint, Missing, TemperatureChart } from "./strip";
 
@@ -146,7 +146,8 @@ function height(celsius: number, scale: Scale): string {
 function renderKeyEntry(line: ChartLine) {
   return html`<span class="entry" data-series=${line.key}>
     <span class="swatch" style=${`background-color: ${line.colour}`}></span
-    ><span class="name">${line.label}</span>
+    ><span class="name">${line.label}</span
+    >${line.missing === undefined ? nothing : renderMissing(line.missing)}
   </span>`;
 }
 

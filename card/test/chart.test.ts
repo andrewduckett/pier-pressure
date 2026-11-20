@@ -89,6 +89,14 @@ function hoverAt(card: PierPressureCard, hour: string): HTMLElement | undefined 
   return hoverAreas(card).find((area) => area.dataset["hour"] === hour);
 }
 
+function keyMessage(card: PierPressureCard, series: string): HTMLElement | null {
+  return chart(card)?.querySelector<HTMLElement>(`.key [data-series="${series}"] .missing`) ?? null;
+}
+
+function drawn(card: PierPressureCard, series: string): number {
+  return chart(card)?.querySelectorAll(`svg [data-series="${series}"]`).length ?? 0;
+}
+
 // The colour of a line's sample in the key, as its inline style sets it.
 function swatch(card: PierPressureCard, series: string): string | undefined {
   const style = chart(card)
@@ -166,7 +174,8 @@ describe("a Temperature chart point", () => {
     ]);
   });
 
-  // The axis runs from 16:30 to 08:25, so the hours from 16:00 to 08:00 overlap it.
+  // The axis runs from 16:30 to 08:25, so the hours from 16:00 to 08:00 overlap
+  // it. The point at 23:00 keeps the line on the axis, so it draws.
   it.each([
     ["2026-10-31T14:00:00Z", []],
     ["2026-10-31T15:00:00Z", ["2026-10-31T15:30:00.000Z"]],
@@ -175,10 +184,16 @@ describe("a Temperature chart point", () => {
   ])("at %s is drawn only next to an hour that overlaps the axis", async (hour, drawn) => {
     const card = await mountCard({
       [VERDICT]: NIGHT,
-      [TEMPERATURE]: forecastEntity([[hour, 4]]),
+      [TEMPERATURE]: forecastEntity([
+        [hour, 4],
+        ["2026-10-31T23:00:00Z", 4],
+      ]),
     });
 
-    expect(dotTimes(card, "temperature")).toEqual(drawn);
+    const offAxis = dotTimes(card, "temperature").filter(
+      (at) => at !== "2026-10-31T23:30:00.000Z",
+    );
+    expect(offAxis).toEqual(drawn);
   });
 
   it("is drawn for 0 °C", async () => {
@@ -551,5 +566,84 @@ describe("hovering over a Temperature chart hour", () => {
       "2026-11-01T16:00:00.000Z",
       "2026-11-02T08:00:00.000Z",
     ]);
+  });
+});
+
+describe("a Temperature chart line that cannot draw", () => {
+  it("says Not found beside its key entry when its sensor is not there", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT, [TEMPERATURE]: values(4, 5) });
+
+    expect([keyMessage(card, "dew_point")?.textContent, keyMessage(card, "temperature")]).toEqual(
+      ["Not found", null],
+    );
+  });
+
+  it("names the missing sensor when hovering over its message", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT, [TEMPERATURE]: values(4, 5) });
+
+    expect(keyMessage(card, "dew_point")?.title).toBe(
+      "sensor.pierpressure_backyard_dew_point is not in Home Assistant",
+    );
+  });
+
+  it("leaves the other line drawn", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT, [TEMPERATURE]: values(4, 5) });
+
+    expect([drawn(card, "temperature"), drawn(card, "dew_point")]).toEqual([1, 0]);
+  });
+
+  it("says Unavailable in place of an unavailable sensor's stale line", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [TEMPERATURE]: { ...values(4, 5), state: "unavailable" },
+    });
+
+    expect([keyMessage(card, "temperature")?.textContent, drawn(card, "temperature")]).toEqual([
+      "Unavailable",
+      0,
+    ]);
+  });
+
+  it("says No forecast beside both lines before the first verdict", async () => {
+    const card = await mountCard({
+      [VERDICT]: verdictEntity("unknown"),
+      [TEMPERATURE]: { state: "unknown", attributes: {} },
+      [DEW_POINT]: { state: "unknown", attributes: {} },
+    });
+
+    expect([
+      keyMessage(card, "temperature")?.textContent,
+      keyMessage(card, "dew_point")?.textContent,
+      chart(card)?.querySelectorAll("svg [data-series]").length,
+    ]).toEqual(["No forecast", "No forecast", 0]);
+  });
+
+  it("draws nothing when its only numbers lie just off the axis", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [TEMPERATURE]: forecastEntity([["2026-10-31T15:00:00Z", 4]]),
+    });
+
+    expect([keyMessage(card, "temperature")?.textContent, drawn(card, "temperature")]).toEqual([
+      "No forecast",
+      0,
+    ]);
+  });
+
+  it("says No forecast once the strip pans past its last number", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [TEMPERATURE]: forecastEntity(hourly("2026-10-31T12:00:00Z", 36)),
+      [DEW_POINT]: forecastEntity(hourly("2026-10-31T12:00:00Z", 72)),
+    });
+
+    card.heldStart = Date.parse("2026-11-02T00:00:00Z");
+    await card.updateComplete;
+
+    expect([
+      keyMessage(card, "temperature")?.textContent,
+      keyMessage(card, "dew_point"),
+      drawn(card, "dew_point") > 0,
+    ]).toEqual(["No forecast", null, true]);
   });
 });
