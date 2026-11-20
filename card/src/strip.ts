@@ -540,9 +540,10 @@ function sunShade(degrees: number): string {
   return blue(degrees > 0 ? 0 : degrees > -6 ? 1 : degrees > -12 ? 2 : degrees > -18 ? 3 : 6);
 }
 
-// The moon band: lightest while the moon is down, then one step per 6°.
+// The moon band: darkest while the moon is down, then one step paler per 6°.
+// Altitude alone, so a new moon high up is as pale as a full one.
 function moonShade(degrees: number): string {
-  return blue(degrees <= 0 ? 0 : 1 + Math.floor(degrees / 6));
+  return darkestFirst(degrees <= 0 ? 0 : 1 + Math.floor(degrees / 6));
 }
 
 // A quality from 0 to 1, where 1 is best, so darker is worse.

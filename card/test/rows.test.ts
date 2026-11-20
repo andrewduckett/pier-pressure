@@ -168,20 +168,29 @@ describe("a Rain chance value fills the hour before its time", () => {
   });
 });
 
-describe("the Moon altitude row darkens as the moon climbs", () => {
+describe("the Moon altitude row pales as the moon climbs", () => {
   it("steps from set to high", async () => {
     const altitudes = [-10, 0, 3, 6, 12, 18, 24, 30, 60];
     expect(await shades(MOON_ALTITUDE, "moon_altitude", altitudes)).toEqual([
-      "#cde2fb",
-      "#cde2fb",
-      "#9ec5f4",
-      "#6da7ec",
-      "#3987e5",
-      "#256abf",
+      "#0d366b",
+      "#0d366b",
       "#184f95",
-      "#0d366b",
-      "#0d366b",
+      "#256abf",
+      "#3987e5",
+      "#6da7ec",
+      "#9ec5f4",
+      "#cde2fb",
+      "#cde2fb",
     ]);
+  });
+
+  it.each([0, 1])("ignores the moon's illumination of %d", async (illumination) => {
+    const card = await mountCard({
+      [VERDICT]: verdictEntity("GO", { ...NIGHT.attributes, moon: { illumination } }),
+      [MOON_ALTITUDE]: hourly([12]),
+    });
+
+    expect(cells(card, "moon_altitude")[0]?.dataset["shade"]).toBe("#3987e5");
   });
 });
 
