@@ -3,6 +3,8 @@ import {
   DEW_POINT,
   TEMPERATURE,
   VERDICT,
+  WIND_DIRECTION,
+  cells,
   contrast,
   forecastEntity,
   moonLane,
@@ -77,6 +79,14 @@ function values(...numbers: unknown[]) {
   return forecastEntity(
     numbers.map((value, n) => [new Date(Date.UTC(2026, 9, 31, 21 + n)).toISOString(), value]),
   );
+}
+
+function hoverAreas(card: PierPressureCard): HTMLElement[] {
+  return [...(chart(card)?.querySelectorAll<HTMLElement>(".track .hour") ?? [])];
+}
+
+function hoverAt(card: PierPressureCard, hour: string): HTMLElement | undefined {
+  return hoverAreas(card).find((area) => area.dataset["hour"] === hour);
 }
 
 // The colour of a line's sample in the key, as its inline style sets it.
@@ -443,5 +453,103 @@ describe("the Temperature chart's colours", () => {
     const mounted = await mountCard(LINES);
 
     expect(contrast(swatch(mounted, series) ?? "", card)).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("hovering over a Temperature chart hour", () => {
+  it("shows both values", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [TEMPERATURE]: values(4.2),
+      [DEW_POINT]: values(1.5),
+    });
+
+    const area = hoverAt(card, "2026-10-31T21:00:00.000Z");
+    const text = "The hour from 21:00: Temperature 4.2 °C, Dew point 1.5 °C";
+    expect([area?.title, area?.getAttribute("aria-label")]).toEqual([text, text]);
+  });
+
+  it("leaves out a line with no number for the hour", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [TEMPERATURE]: values(null),
+      [DEW_POINT]: values(-1.5),
+    });
+
+    expect(hoverAt(card, "2026-10-31T21:00:00.000Z")?.title).toBe(
+      "The hour from 21:00: Dew point -1.5 °C",
+    );
+  });
+
+  // The axis runs from 08:00 to 03:00 UTC, so it holds 12:00 UTC, 21:00 in Tokyo.
+  it("names the hour in Home Assistant's time zone", async () => {
+    const card = await mountCard(
+      {
+        [VERDICT]: verdictEntity("GO", {
+          dark_window: { start: "2026-10-31T10:00:00Z", end: "2026-10-31T20:00:00Z" },
+        }),
+        [TEMPERATURE]: forecastEntity([["2026-10-31T12:00:00Z", 4.2]]),
+      },
+      "backyard",
+      "Asia/Tokyo",
+    );
+
+    expect(hoverAt(card, "2026-10-31T12:00:00.000Z")?.title).toBe(
+      "The hour from 21:00: Temperature 4.2 °C",
+    );
+  });
+
+  it("has no area for an hour with neither value", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [TEMPERATURE]: values(4, null),
+      [DEW_POINT]: values(1, null),
+    });
+
+    expect(hoverAreas(card).map((area) => area.dataset["hour"])).toEqual([
+      "2026-10-31T21:00:00.000Z",
+    ]);
+  });
+
+  it("is placed as a row's cell is, cut off at the axis start", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [TEMPERATURE]: forecastEntity([
+        ["2026-10-31T16:00:00Z", 4],
+        ["2026-10-31T21:00:00Z", 4],
+      ]),
+      // An arrow's cell has no shade, so its style is its place alone.
+      [WIND_DIRECTION]: forecastEntity([
+        ["2026-10-31T16:00:00Z", 10],
+        ["2026-10-31T21:00:00Z", 10],
+      ]),
+    });
+
+    expect(hoverAreas(card).map((area) => area.getAttribute("style"))).toEqual(
+      cells(card, "wind_direction").map((cell) => cell.getAttribute("style")),
+    );
+  });
+
+  it("is the full height of the chart", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT, [TEMPERATURE]: values(4) });
+
+    expect(hoverAreas(card)[0]?.classList.contains("cell")).toBe(true);
+  });
+
+  it("follows the strip as it pans", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [TEMPERATURE]: forecastEntity(hourly("2026-10-31T12:00:00Z", 72)),
+    });
+
+    card.heldStart = Date.parse("2026-11-01T16:30:00Z");
+    await card.updateComplete;
+
+    const hours = hoverAreas(card).map((area) => area.dataset["hour"]);
+    expect([hours.length, hours[0], hours.at(-1)]).toEqual([
+      17,
+      "2026-11-01T16:00:00.000Z",
+      "2026-11-02T08:00:00.000Z",
+    ]);
   });
 });

@@ -234,11 +234,21 @@ export interface ChartLine {
   dots: ChartPoint[];
 }
 
+// One hour of the Temperature chart that holds a number on either line, as
+// tall as the chart, for hovering over.
+export interface ChartHour {
+  hour: number;
+  from: number;
+  to: number;
+  text: string;
+}
+
 export interface TemperatureChart {
   // In °C, multiples of 5; absent when neither forecast holds a number.
   scale?: { low: number; high: number };
   // Temperature, then Dew point.
   lines: ChartLine[];
+  hours: ChartHour[];
 }
 
 export interface Strip {
@@ -308,7 +318,7 @@ export function buildStrip(
     moonUp: moonUpBars(forecastOf(states[pierEntityId(pier, "moon_altitude")]), axis, time),
     ...(moonMissing && { moonUpMissing: moonMissing }),
     targets: targetLanes(states, pier, axis, time),
-    chart: temperatureChart(states, pier, axis),
+    chart: temperatureChart(states, pier, axis, time),
     lines: [
       ...(night === undefined ? [] : nightLines(night, axis, time)),
       ...nowLine(now, axis, time),
@@ -325,7 +335,12 @@ const CHART_LINES = [
 
 // The scale comes from both whole forecasts, not the axis, so it stays put
 // while the strip pans.
-function temperatureChart(states: States, pier: string, axis: Axis): TemperatureChart {
+function temperatureChart(
+  states: States,
+  pier: string,
+  axis: Axis,
+  time: (at: number) => string,
+): TemperatureChart {
   const forecasts = CHART_LINES.map(({ key }) =>
     hourlyValues(forecastOf(states[pierEntityId(pier, key)])),
   );
@@ -336,7 +351,35 @@ function temperatureChart(states: States, pier: string, axis: Axis): Temperature
       ...line,
       ...chartMarks(forecasts[index] ?? new Map(), axis),
     })),
+    hours: chartHours(forecasts, axis, time),
   };
+}
+
+// Each value as the forecast holds it, as a row's hover text writes it.
+function chartHours(
+  forecasts: Map<number, unknown>[],
+  axis: Axis,
+  time: (at: number) => string,
+): ChartHour[] {
+  const hours = [...new Set(forecasts.flatMap((values) => [...values.keys()]))].sort(
+    (a, b) => a - b,
+  );
+  return hours.flatMap((hour): ChartHour[] => {
+    if (hour + HOUR <= axis.start || hour >= axis.end) return [];
+    const readings = CHART_LINES.flatMap(({ label }, index) => {
+      const value = forecasts[index]?.get(hour);
+      return isNumber(value) ? [`${label} ${value} °C`] : [];
+    });
+    if (readings.length === 0) return [];
+    return [
+      {
+        hour,
+        from: Math.max(hour, axis.start),
+        to: Math.min(hour + HOUR, axis.end),
+        text: `The hour from ${time(hour)}: ${readings.join(", ")}`,
+      },
+    ];
+  });
 }
 
 // Whole 5 °C steps, and at least two of them.

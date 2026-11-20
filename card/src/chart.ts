@@ -1,6 +1,6 @@
 import { css, html, svg } from "lit";
-import { iso, offset } from "./place";
-import type { Axis, ChartLine, ChartPoint, Missing, TemperatureChart } from "./strip";
+import { hourPlace, iso, offset } from "./place";
+import type { Axis, ChartHour, ChartLine, ChartPoint, Missing, TemperatureChart } from "./strip";
 
 export const chartStyles = css`
   /* The key and the scale side by side, as tall as the chart. */
@@ -60,6 +60,7 @@ export function renderChart(chart: TemperatureChart, axis: Axis) {
         ${scale === undefined ? [] : celsius.map((value) => renderGridline(value, scale))}
         ${scale === undefined ? [] : chart.lines.map((line) => renderLine(line, scale, axis))}
       </svg>
+      ${chart.hours.map((hour) => renderHour(hour, axis))}
     </div>
   </div>`;
 }
@@ -124,6 +125,17 @@ function renderLine(line: ChartLine, scale: Scale, axis: Axis) {
         fill=${line.colour}
       ></circle>`,
   )}`;
+}
+
+// Above the drawing and clear, so it shows nothing until hovered.
+function renderHour(hour: ChartHour, axis: Axis) {
+  return html`<div
+    class="cell hour"
+    style=${hourPlace(hour, axis)}
+    data-hour=${iso(hour.hour)}
+    title=${hour.text}
+    aria-label=${hour.text}
+  ></div>`;
 }
 
 // Percent from the top of the chart.
