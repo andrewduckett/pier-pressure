@@ -23,8 +23,9 @@ that darker always means better for observing. It is the Must story of epic
   greys, because the bar shows where the cloud is and how far the forecasts
   disagree, not good or bad. The bar must reach at least 3:1 contrast against
   its column, and the column at least 3:1 against Home Assistant's default
-  card background in the light and dark themes. Height and bar geometry stay
-  (D6, D7).
+  card background in the light and dark themes. The bar is inset 1 px from
+  each side of its column, so the column frames it on both themes. The row's
+  height and the bar's vertical extent stay (D6, D7, D10).
 - Temperature and Dew point keep their blues, darker is warmer, until
   `card-temp-dew-chart` (#253) replaces them. The docs name them as the one
   exception (D3).
@@ -58,7 +59,8 @@ None.
 - `card/src/strip.ts`: the shade functions for the flipped rows
   (`percentShade`, `moonShade`, `windShade`, `qualityShade`) and their
   comments. `sunShade`, `temperatureShade` and `BLUES` stay.
-- `card/src/pierpressure-card.ts`: the `.column` and `.range` colours.
+- `card/src/pierpressure-card.ts`: the `.column` and `.range` colours, and
+  the `.range` inset.
 - Card tests in `card/test/` that assert shades, chiefly `rows.test.ts`,
   `strip.test.ts` and `range.test.ts`.
 - `openspec/specs/night-card/spec.md`, through this change's delta.
