@@ -327,6 +327,7 @@ export class PierPressureCard extends LitElement {
     super.disconnectedCallback();
     clearInterval(this.timer);
     this.timer = undefined;
+    this.clearPress();
   }
 
   static getConfigElement(): HTMLElement {
@@ -580,17 +581,32 @@ export class PierPressureCard extends LitElement {
 
   // Apart from the strip's drag, so a tap anywhere on the card is seen. The key is
   // taken when the pointer is pressed: the strip's capture retargets the release.
+  // Moves, releases and cancels also listen on window, since presses outside the
+  // strip are not captured and may end off the card.
   private tap: TapInput = {
     pointerdown: (event) => {
-      if (this.press !== undefined || !event.isPrimary || event.button !== 0) return;
-      const item = (event.target as Element).closest("[data-tip]");
+      if (!event.isPrimary || event.button !== 0) return;
+      if (
+        this.press !== undefined &&
+        event.pointerId !== this.press.pointerId &&
+        this.press.target.isConnected
+      ) {
+        return;
+      }
+      this.clearPress();
+      const target = event.target as Element;
+      const item = target.closest("[data-tip]");
       this.press = {
         pointerId: event.pointerId,
         x: event.clientX,
         y: event.clientY,
         key: item?.getAttribute("data-tip") ?? undefined,
+        target,
         moved: false,
       };
+      window.addEventListener("pointermove", this.tap.pointermove);
+      window.addEventListener("pointerup", this.tap.pointerup);
+      window.addEventListener("pointercancel", this.tap.pointercancel);
     },
     // Every drag that pans has moved this far, so none of them is a tap.
     pointermove: (event) => {
@@ -603,15 +619,22 @@ export class PierPressureCard extends LitElement {
     pointerup: (event) => {
       const press = this.press;
       if (press === undefined || event.pointerId !== press.pointerId) return;
-      this.press = undefined;
-      if (press.moved) return;
+      this.clearPress();
+      if (press.moved || !event.composedPath().includes(this)) return;
       this.tipKey = press.key === this.tipKey ? undefined : press.key;
     },
     // The browser took the gesture, to scroll the page.
     pointercancel: (event) => {
-      if (event.pointerId === this.press?.pointerId) this.press = undefined;
+      if (event.pointerId === this.press?.pointerId) this.clearPress();
     },
   };
+
+  private clearPress(): void {
+    this.press = undefined;
+    window.removeEventListener("pointermove", this.tap.pointermove);
+    window.removeEventListener("pointerup", this.tap.pointerup);
+    window.removeEventListener("pointercancel", this.tap.pointercancel);
+  }
 
   private endDrag(event: PointerEvent): Drag | undefined {
     const drag = this.drag;
@@ -643,6 +666,7 @@ interface Press {
   y: number;
   // The pressed item's `data-tip`, if any.
   key: string | undefined;
+  target: Element;
   moved: boolean;
 }
 

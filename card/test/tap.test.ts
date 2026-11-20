@@ -405,6 +405,58 @@ describe("what counts as a tap", () => {
 
     expect(tips(card)).toEqual(["Cloud cover, the hour from 04:00: 52%"]);
   });
+
+  it("recovers when a press outside the strip is released outside the card", async () => {
+    const card = await mountCard(EVERY_ITEM);
+
+    tappable(card, "moon")?.dispatchEvent(pointer("pointerdown", 100, 100, 1, "mouse"));
+    document.body.dispatchEvent(pointer("pointerup", 100, 100, 1, "mouse"));
+    await tapOn(card, COVER_04, "mouse");
+
+    expect(tips(card)).toEqual(["Cloud cover, the hour from 04:00: 52%"]);
+  });
+
+  it("counts moves outside the card against the tap threshold", async () => {
+    const card = await mountCard(EVERY_ITEM);
+
+    tappable(card, "moon")?.dispatchEvent(pointer("pointerdown", 100, 100, 1, "mouse"));
+    document.body.dispatchEvent(pointer("pointermove", 120, 100, 1, "mouse"));
+    tappable(card, "moon")?.dispatchEvent(pointer("pointerup", 100, 100, 1, "mouse"));
+    await card.updateComplete;
+
+    expect(tip(card)).toBeNull();
+  });
+
+  it("recovers when the pressed element is removed before a release arrives", async () => {
+    const card = await mountCard(EVERY_ITEM);
+
+    tappable(card, "moon")?.dispatchEvent(pointer("pointerdown", 100, 100, 1, "touch"));
+    card.hass = {
+      states: { ...EVERY_ITEM, [VERDICT]: verdictEntity("GO", { dark_window: NIGHT.attributes["dark_window"] }) },
+      config: { time_zone: "UTC" },
+    };
+    await card.updateComplete;
+
+    const cell = tappable(card, COVER_04);
+    for (const type of ["pointerdown", "pointerup"]) {
+      cell?.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          composed: true,
+          cancelable: true,
+          clientX: 100,
+          clientY: 100,
+          pointerId: 3,
+          isPrimary: true,
+          button: 0,
+          pointerType: "touch",
+        }),
+      );
+    }
+    await card.updateComplete;
+
+    expect(tips(card)).toEqual(["Cloud cover, the hour from 04:00: 52%"]);
+  });
 });
 
 // A 24-hour opening axis from 06:00 to 06:00 with forecast hours either side of
