@@ -551,6 +551,104 @@ describe("a pan with a box showing", () => {
   });
 });
 
+describe("an open box when the card redraws", () => {
+  async function update(card: PierPressureCard, states: Record<string, HassEntity>) {
+    card.hass = { states, config: { time_zone: "UTC" } };
+    await card.updateComplete;
+  }
+
+  it("shows the now line's latest time after the minute timer", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
+    vi.setSystemTime(new Date("2026-10-31T21:00:00Z"));
+    const card = await mountCard(EVERY_ITEM);
+    await tapOn(card, "line:now", "touch");
+
+    vi.advanceTimersByTime(60_000);
+    await card.updateComplete;
+
+    expect(tips(card)).toEqual(["Now, 21:01"]);
+  });
+
+  it("shows a cell's new value after Home Assistant updates its hour", async () => {
+    const card = await mountCard(EVERY_ITEM);
+    await tapOn(card, COVER_04, "touch");
+
+    await update(card, {
+      ...EVERY_ITEM,
+      [CLOUD_COVER]: forecastEntity([["2026-11-01T04:00:00Z", 60]]),
+    });
+
+    expect(tips(card)).toEqual(["Cloud cover, the hour from 04:00: 60%"]);
+  });
+
+  it("shows the new target in a target lane", async () => {
+    const card = await mountCard(EVERY_ITEM);
+    await tapOn(card, "target:1", "touch");
+
+    await update(card, {
+      ...EVERY_ITEM,
+      [target(1)]: catalogTarget("M42", "Orion Nebula", {
+        start: "2026-11-01T06:00:00Z",
+        end: "2026-11-01T10:00:00Z",
+      }),
+    });
+
+    expect(tips(card)).toEqual(["Orion Nebula (M42) from 06:00 to 10:00"]);
+  });
+
+  it("shows a row's new message", async () => {
+    const card = await mountCard(EVERY_MESSAGE);
+    await tapOn(card, "missing:seeing", "touch");
+
+    await update(card, { ...EVERY_MESSAGE, [SEEING]: { state: "unknown", attributes: {} } });
+
+    expect(tips(card)).toEqual([
+      "sensor.pierpressure_backyard_seeing has no forecast for these hours",
+    ]);
+  });
+
+  it("closes when its hour leaves the axis", async () => {
+    const states = {
+      ...EVERY_ITEM,
+      [CLOUD_COVER]: forecastEntity([["2026-10-31T16:00:00Z", 52]]),
+    };
+    const card = await mountCard(states);
+    await tapOn(card, "cell:cloud_cover:2026-10-31T16:00:00.000Z", "touch");
+
+    vi.setSystemTime(new Date("2026-10-31T21:00:00Z"));
+    await update(card, states);
+
+    expect(tip(card)).toBeNull();
+  });
+
+  it("closes when its Moon up run starts in another hour", async () => {
+    const card = await mountCard(EVERY_ITEM);
+    await tapOn(card, "moon-up:2026-10-31T16:00:00.000Z", "touch");
+
+    await update(card, {
+      ...EVERY_ITEM,
+      [MOON_ALTITUDE]: forecastEntity([
+        ["2026-10-31T16:00:00Z", -2],
+        ["2026-10-31T17:00:00Z", 6],
+      ]),
+    });
+
+    expect(tip(card)).toBeNull();
+  });
+
+  it("closes when the Verdict sensor turns unavailable", async () => {
+    const card = await mountCard(EVERY_ITEM);
+    await tapOn(card, COVER_04, "touch");
+
+    await update(card, { ...EVERY_ITEM, [VERDICT]: verdictEntity("unavailable") });
+
+    expect([card.shadowRoot?.textContent?.includes("PierPressure is offline"), tip(card)]).toEqual([
+      true,
+      null,
+    ]);
+  });
+});
+
 describe("placing the box", () => {
   const card = { left: 50, top: 20, width: 400, height: 300 };
   const box = { width: 100, height: 20 };

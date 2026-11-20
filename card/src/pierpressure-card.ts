@@ -334,10 +334,16 @@ export class PierPressureCard extends LitElement {
 
   // Before each draw, so following the opening axis again costs no second one. A
   // minute's redraw a sleeping tab skipped still counts.
+  // An item no longer on the card closes its box in the same draw.
   override willUpdate(): void {
-    if (this.heldStart === undefined || !this.heldLater) return;
-    const opening = this.shownStrip()?.opening;
-    if (opening !== undefined && opening.start >= this.heldStart) this.heldStart = undefined;
+    if (this.heldStart !== undefined && this.heldLater) {
+      const opening = this.shownStrip()?.opening;
+      if (opening !== undefined && opening.start >= this.heldStart) this.heldStart = undefined;
+    }
+    if (this.tipKey === undefined) return;
+    if (tipText(this.shownStrip(), this.shownMoon(), this.tipKey) === undefined) {
+      this.tipKey = undefined;
+    }
   }
 
   // Three target lanes, or two reasons, are about one of Home Assistant's 50 px
