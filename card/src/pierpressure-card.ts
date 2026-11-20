@@ -916,7 +916,7 @@ function renderBand(band: Band, axis: Axis) {
   const range =
     `bottom: min(${band.low}%, calc(100% - 2px)); ` + `height: max(2px, ${band.high - band.low}%)`;
   return html`<div
-    class="cell column"
+    class=${band.disagree ? "cell column disagree" : "cell column"}
     style=${hourPlace(band, axis)}
     data-hour=${iso(band.hour)}
     data-from=${iso(band.from)}

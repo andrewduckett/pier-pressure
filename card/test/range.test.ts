@@ -125,6 +125,61 @@ describe("a Cloud range bar", () => {
   });
 });
 
+function disagrees(column: HTMLElement | undefined): boolean | undefined {
+  return column?.classList.contains("disagree");
+}
+
+// An hour where the forecasts disagree is one whose drawn bar is more than 35
+// points long, the core's MIXED_MAX_GAP.
+describe("a Cloud range column where the forecasts disagree", () => {
+  it.each([
+    [20, 70],
+    [20, 55.5],
+  ])("is marked for min %s and max %s", async (min, max) => {
+    const card = await oneHour(min, max);
+
+    expect(disagrees(columns(card)[0])).toBe(true);
+  });
+
+  it.each([
+    [20, 55],
+    [35.1, 70.1],
+    [40, 70],
+    [-5, 31],
+  ])("is not marked for min %s and max %s", async (min, max) => {
+    const card = await oneHour(min, max);
+
+    expect(disagrees(columns(card)[0])).toBe(false);
+  });
+
+  it("is marked at an hour the strip is panned to", async () => {
+    const past = "2026-11-01T09:00:00Z";
+    const card = await mountCard(
+      range(
+        forecastEntity([
+          [HOUR_21, 40],
+          [past, 10],
+        ]),
+        forecastEntity([
+          [HOUR_21, 50],
+          [past, 90],
+        ]),
+      ),
+    );
+    const strip = card.shadowRoot?.querySelector<HTMLElement>(".strip");
+    strip?.focus();
+    strip?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true }),
+    );
+    await card.updateComplete;
+
+    const column = columns(card).find(
+      (element) => element.dataset["hour"] === new Date(past).toISOString(),
+    );
+    expect(disagrees(column)).toBe(true);
+  });
+});
+
 // A readable pair at 23:00 keeps the row in the strip, so an empty 21:00 is
 // the hour's own doing.
 const HOUR_23 = "2026-10-31T23:00:00Z";

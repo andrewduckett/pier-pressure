@@ -165,6 +165,8 @@ export interface Band {
   // In percent, clamped to 0–100 for drawing.
   low: number;
   high: number;
+  // Whether the forecasts disagree at this hour, by the drawn bar's length.
+  disagree: boolean;
   // What hovering over the column shows, with the values unclamped.
   text: string;
 }
@@ -499,13 +501,14 @@ function cloudRange(
     const high = highs.get(hour);
     if (!isNumber(low) || !isNumber(high) || low > high) return [];
     if (hour + HOUR <= axis.start || hour >= axis.end) return [];
+    const drawn = { low: percent(low), high: percent(high) };
     return [
       {
         hour,
         from: Math.max(hour, axis.start),
         to: Math.min(hour + HOUR, axis.end),
-        low: percent(low),
-        high: percent(high),
+        ...drawn,
+        disagree: drawn.high - drawn.low > DISAGREE_GAP + 1e-9,
         text: `Cloud range, the hour from ${time(hour)}: ${low}% to ${high}%`,
       },
     ];
@@ -534,6 +537,10 @@ const NO_PAIR_ON_AXIS: Missing = {
   message: "No forecast",
   text: "No hour on the strip has cloud cover from two or more forecasts",
 };
+
+// The core's MIXED_MAX_GAP in pierpressure/core/scoring.py: past it, the
+// forecasts disagree. The tolerance keeps a gap such as 35.1 to 70.1 at 35.
+const DISAGREE_GAP = 35;
 
 function percent(value: number): number {
   return Math.min(100, Math.max(0, value));
