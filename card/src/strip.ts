@@ -509,7 +509,9 @@ function hourlyValues(forecast: unknown): Map<number, unknown> {
   return new Map([...values].sort(([a], [b]) => a - b));
 }
 
-// Seven blues, lightest to darkest.
+// Seven blues, lightest to darkest. Sun altitude, Temperature and Dew point read
+// them in this order; every other shaded row reads them darkest first, through
+// `darkestFirst`, so darker is better for observing.
 const BLUES = [
   "#cde2fb",
   "#9ec5f4",
@@ -546,9 +548,9 @@ function moonShade(degrees: number): string {
   return darkestFirst(degrees <= 0 ? 0 : 1 + Math.floor(degrees / 6));
 }
 
-// A quality from 0 to 1, where 1 is best, so darker is worse.
+// A quality from 0 to 1, where 1 is best, so darker is better.
 function qualityShade(quality: number): string {
-  return blue(Math.round((1 - quality) * 7));
+  return darkestFirst(Math.round((1 - quality) * 7));
 }
 
 // Temperature and Dew point share this scale, so the two rows compare by eye:

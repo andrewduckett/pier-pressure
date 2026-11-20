@@ -210,18 +210,18 @@ describe("less wind is darker", () => {
   });
 });
 
-describe("worse seeing and transparency are darker", () => {
+describe("better seeing and transparency are darker", () => {
   it("steps Seeing from excellent to poor", async () => {
     expect(await shades(SEEING, "seeing", [1, 0.8, 0.5, 0])).toEqual([
-      "#cde2fb",
-      "#9ec5f4",
-      "#256abf",
       "#0d366b",
+      "#184f95",
+      "#6da7ec",
+      "#cde2fb",
     ]);
   });
 
-  it("keeps a Transparency above 1 at the lightest", async () => {
-    expect(await shades(TRANSPARENCY, "transparency", [1.2])).toEqual(["#cde2fb"]);
+  it("keeps a Transparency above 1 at the darkest", async () => {
+    expect(await shades(TRANSPARENCY, "transparency", [1.2])).toEqual(["#0d366b"]);
   });
 });
 
