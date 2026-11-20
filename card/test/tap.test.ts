@@ -700,6 +700,25 @@ describe("an open box when the card redraws", () => {
       null,
     ]);
   });
+
+  it("keeps the box and the strip on the same clock tick during one redraw", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-31T21:00:59.999Z"));
+    const card = await mountCard(EVERY_ITEM);
+    await tapOn(card, "line:now", "touch");
+
+    let ticks = 0;
+    const base = Date.parse("2026-10-31T21:00:59.999Z");
+    const spy = vi.spyOn(Date, "now").mockImplementation(() => base + ticks++ * 60_000);
+    card.requestUpdate();
+    await card.updateComplete;
+    spy.mockRestore();
+
+    expect([tips(card), tappable(card, "line:now")?.getAttribute("aria-label")]).toEqual([
+      ["Now, 21:00"],
+      "Now, 21:00",
+    ]);
+  });
 });
 
 describe("the box on the card", () => {

@@ -314,6 +314,7 @@ export class PierPressureCard extends LitElement {
   private timer?: ReturnType<typeof setInterval>;
   private drag?: Drag;
   private press?: Press;
+  private frame?: { strip: Strip | undefined; moon: MoonDrawing | undefined };
 
   // The now line, and the fallback axis around it, follow the browser's clock
   // between Home Assistant's state updates.
@@ -356,21 +357,29 @@ export class PierPressureCard extends LitElement {
 
   // Before each draw, so following the opening axis again costs no second one. A
   // minute's redraw a sleeping tab skipped still counts.
-  // An item no longer on the card closes its box in the same draw.
+  // An item no longer on the card closes its box in the same draw. One snapshot
+  // serves both the body and the box, so a clock tick mid-draw cannot split them.
   override willUpdate(): void {
+    const now = Date.now();
+    let strip = this.shownStrip(now);
     if (this.heldStart !== undefined && this.heldLater) {
-      const opening = this.shownStrip()?.opening;
-      if (opening !== undefined && opening.start >= this.heldStart) this.heldStart = undefined;
+      const opening = strip?.opening;
+      if (opening !== undefined && opening.start >= this.heldStart) {
+        this.heldStart = undefined;
+        strip = this.shownStrip(now);
+      }
     }
-    if (this.tipKey === undefined) return;
-    if (tipText(this.shownStrip(), this.shownMoon(), this.tipKey) === undefined) {
+    const moon = this.shownMoon();
+    if (this.tipKey !== undefined && tipText(strip, moon, this.tipKey) === undefined) {
       this.tipKey = undefined;
     }
+    this.frame = { strip, moon };
   }
 
   // Before the browser paints, so the box never shows in the wrong place. The box
   // is measured at the card's left edge, where only its max-width limits it.
   override updated(): void {
+    this.frame = undefined;
     if (this.tipKey === undefined) return;
     const box = this.renderRoot.querySelector<HTMLElement>(".tip");
     const card = this.renderRoot.querySelector("ha-card");
@@ -401,24 +410,27 @@ export class PierPressureCard extends LitElement {
 
   override render() {
     if (this.config === undefined) return nothing;
+    const strip = this.frame?.strip ?? this.shownStrip();
+    const moon = this.frame?.moon ?? this.shownMoon();
     return html`<ha-card
       header=${`PierPressure ${this.config.pier}`}
       @pointerdown=${this.tap.pointerdown}
       @pointermove=${this.tap.pointermove}
       @pointerup=${this.tap.pointerup}
       @pointercancel=${this.tap.pointercancel}
-      >${this.renderBody()}${this.renderTip()}</ha-card
+      >${this.renderBody(strip)}${this.renderTip(strip, moon)}</ha-card
     >`;
   }
 
   // The item's aria-label already gives a screen reader the same text.
-  private renderTip() {
+  private renderTip(strip: Strip | undefined, moon: MoonDrawing | undefined) {
     if (this.tipKey === undefined) return nothing;
-    const text = tipText(this.shownStrip(), this.shownMoon(), this.tipKey);
+    const text = tipText(strip, moon, this.tipKey);
+    if (text === undefined) return nothing;
     return html`<div class="tip" aria-hidden="true">${text}</div>`;
   }
 
-  private renderBody() {
+  private renderBody(strip: Strip | undefined) {
     if (this.hass === undefined || this.config === undefined) return nothing;
     const entityId = verdictEntityId(this.config.pier);
     const entity = this.hass.states[entityId];
@@ -431,7 +443,6 @@ export class PierPressureCard extends LitElement {
       return html`<div class="card-content message">PierPressure is offline</div>`;
     }
     const confidence = asRecord(entity.attributes["confidence"]);
-    const strip = this.shownStrip();
     const time = clock(this.hass.config?.time_zone);
     const moon = readMoon(entity.attributes["moon"], time, this.hass.config?.latitude);
     return html`<div class="card-content">
@@ -455,14 +466,14 @@ export class PierPressureCard extends LitElement {
   }
 
   // The strip draws only beside the verdict, never under a message.
-  private shownStrip(): Strip | undefined {
+  private shownStrip(now = Date.now()): Strip | undefined {
     if (this.hass === undefined || this.config === undefined) return undefined;
     const entity = this.hass.states[verdictEntityId(this.config.pier)];
     if (entity === undefined || entity.state === "unavailable") return undefined;
     return buildStrip(
       this.hass.states,
       this.config.pier,
-      Date.now(),
+      now,
       this.hass.config?.time_zone,
       this.heldStart,
     );
