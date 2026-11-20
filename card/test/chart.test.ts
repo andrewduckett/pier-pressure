@@ -3,6 +3,7 @@ import {
   DEW_POINT,
   TEMPERATURE,
   VERDICT,
+  contrast,
   forecastEntity,
   moonLane,
   mountCard,
@@ -76,6 +77,14 @@ function values(...numbers: unknown[]) {
   return forecastEntity(
     numbers.map((value, n) => [new Date(Date.UTC(2026, 9, 31, 21 + n)).toISOString(), value]),
   );
+}
+
+// The colour of a line's sample in the key, as its inline style sets it.
+function swatch(card: PierPressureCard, series: string): string | undefined {
+  const style = chart(card)
+    ?.querySelector(`.key [data-series="${series}"] .swatch`)
+    ?.getAttribute("style");
+  return /background-color: (#[0-9a-f]{6})/.exec(style ?? "")?.[1];
 }
 
 function keyNames(card: PierPressureCard): Array<string | undefined> {
@@ -401,5 +410,38 @@ describe("the Temperature chart's scale", () => {
       chart(card)?.querySelectorAll("svg line.grid").length,
       scaleLabels(card),
     ]).toEqual(["32px", 0, []]);
+  });
+});
+
+describe("the Temperature chart's colours", () => {
+  const LINES = {
+    [VERDICT]: NIGHT,
+    [TEMPERATURE]: values(4, 5, null, 3),
+    [DEW_POINT]: values(1, 2, null, 0),
+  };
+
+  it.each([
+    ["temperature", "#d97706"],
+    ["dew_point", "#15803d"],
+  ])("draws the %s line, its dots and its key sample in %s", async (series, colour) => {
+    const card = await mountCard(LINES);
+
+    const segment = chart(card)?.querySelector(`svg line[data-series="${series}"]`);
+    expect([
+      segment?.getAttribute("stroke"),
+      dots(card, series)[0]?.getAttribute("fill"),
+      swatch(card, series),
+    ]).toEqual([colour, colour, colour]);
+  });
+
+  it.each([
+    ["temperature", "light", "#ffffff"],
+    ["temperature", "dark", "#1c1c1c"],
+    ["dew_point", "light", "#ffffff"],
+    ["dew_point", "dark", "#1c1c1c"],
+  ])("gives the %s line at least 3:1 against the %s card", async (series, _, card) => {
+    const mounted = await mountCard(LINES);
+
+    expect(contrast(swatch(mounted, series) ?? "", card)).toBeGreaterThanOrEqual(3);
   });
 });

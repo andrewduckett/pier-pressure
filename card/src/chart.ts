@@ -109,7 +109,7 @@ function renderLine(line: ChartLine, scale: Scale, axis: Axis) {
         y1=${y(from)}
         x2=${x(to)}
         y2=${y(to)}
-        stroke="currentColor"
+        stroke=${line.colour}
         stroke-width="2"
         stroke-linecap="round"
       ></line>`,
@@ -121,7 +121,7 @@ function renderLine(line: ChartLine, scale: Scale, axis: Axis) {
         cx=${x(dot)}
         cy=${y(dot)}
         r="2.5"
-        fill="currentColor"
+        fill=${line.colour}
       ></circle>`,
   )}`;
 }
@@ -133,7 +133,8 @@ function height(celsius: number, scale: Scale): string {
 
 function renderKeyEntry(line: ChartLine) {
   return html`<span class="entry" data-series=${line.key}>
-    <span class="swatch"></span><span class="name">${line.label}</span>
+    <span class="swatch" style=${`background-color: ${line.colour}`}></span
+    ><span class="name">${line.label}</span>
   </span>`;
 }
 

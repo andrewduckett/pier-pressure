@@ -227,6 +227,7 @@ export interface ChartPoint {
 export interface ChartLine {
   key: "temperature" | "dew_point";
   label: "Temperature" | "Dew point";
+  colour: string;
   // Two neighbouring hours that both hold a number, and the points that have
   // no such neighbour.
   segments: Array<[ChartPoint, ChartPoint]>;
@@ -315,9 +316,11 @@ export function buildStrip(
   };
 }
 
+// Orange and green, each at least 3:1 against Home Assistant's light and dark
+// cards. They differ in lightness too, for a reader who mixes up the two hues.
 const CHART_LINES = [
-  { key: "temperature", label: "Temperature" },
-  { key: "dew_point", label: "Dew point" },
+  { key: "temperature", label: "Temperature", colour: "#d97706" },
+  { key: "dew_point", label: "Dew point", colour: "#15803d" },
 ] as const;
 
 // The scale comes from both whole forecasts, not the axis, so it stays put
