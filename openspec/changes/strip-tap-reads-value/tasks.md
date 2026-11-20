@@ -26,7 +26,7 @@ no layout, so a test that needs sizes stubs `getBoundingClientRect`, as
 
 ## 3. Integration [depends-on: 1, 2]
 
-- [ ] 3.1 [easy] The full CI gate passes: specs, ruff, mypy, pytest, and the card's type check, tests and build (verify: `mise run check`)
+- [x] 3.1 [easy] The full CI gate passes: specs, ruff, mypy, pytest, and the card's type check, tests and build (verify: `mise run check`) (✓ `mise run check` passed)
 
 ## Deviations Ledger
 
