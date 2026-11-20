@@ -194,14 +194,14 @@ export class PierPressureCard extends LitElement {
     }
     /* The hour's 0 to 100% column; its bar keeps to the rounded corners. */
     .column {
-      background-color: #cde2fb;
+      background-color: #8c8c8c;
       overflow: hidden;
     }
     .range {
       position: absolute;
       left: 0;
       right: 0;
-      background-color: #256abf;
+      background-color: #404040;
     }
     .marks {
       color: #898781;
