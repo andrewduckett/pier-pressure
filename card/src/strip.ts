@@ -571,9 +571,10 @@ function compassPoint(degrees: number): string {
   return COMPASS[Math.round(turned / 45) % COMPASS.length] ?? COMPASS[0];
 }
 
-// One step per 7 km/h, so 42 km/h or more is the darkest.
+// One step per 7 km/h, so under 7 km/h is the darkest and 42 km/h or more the
+// lightest.
 function windShade(speed: number): string {
-  return blue(Math.floor(speed / 7));
+  return darkestFirst(Math.floor(speed / 7));
 }
 
 const QUARTER = 15 * 60 * 1000;

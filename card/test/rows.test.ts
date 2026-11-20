@@ -194,14 +194,14 @@ describe("the Moon altitude row pales as the moon climbs", () => {
   });
 });
 
-describe("more wind is darker", () => {
+describe("less wind is darker", () => {
   it("steps Wind gust from calm to gale", async () => {
     expect(await shades(WIND_GUST, "wind_gust", [0, 6.9, 7, 41, 42])).toEqual([
-      "#cde2fb",
-      "#cde2fb",
-      "#9ec5f4",
-      "#184f95",
       "#0d366b",
+      "#0d366b",
+      "#184f95",
+      "#9ec5f4",
+      "#cde2fb",
     ]);
   });
 
