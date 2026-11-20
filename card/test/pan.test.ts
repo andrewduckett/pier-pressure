@@ -3,6 +3,7 @@ import {
   CLOUD_COVER,
   CLOUD_COVER_MAX,
   CLOUD_COVER_MIN,
+  DEW_POINT,
   PRECIPITATION_PROBABILITY,
   SEEING,
   VERDICT,
@@ -50,6 +51,15 @@ describe("the reach", () => {
     const states = { [CLOUD_COVER_MAX]: forecastEntity(hourly("2026-10-31T12:00:00Z", 72)) };
 
     expect(reach(states)).toEqual(["2026-10-31T12:00:00.000Z", "2026-11-03T12:00:00.000Z"]);
+  });
+
+  it("counts the Dew point sensor's hours", () => {
+    const states = {
+      [CLOUD_COVER]: forecastEntity(hourly("2026-10-31T12:00:00Z", 24)),
+      [DEW_POINT]: forecastEntity(hourly("2026-10-31T12:00:00Z", 72)),
+    };
+
+    expect(reach(states)[1]).toBe("2026-11-03T12:00:00.000Z");
   });
 
   it("starts at the hour a Rain chance value fills, the hour before its time", () => {

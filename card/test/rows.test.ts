@@ -2,12 +2,10 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   CLOUD_COVER,
   CLOUD_RANGE_PAIR,
-  DEW_POINT,
   MOON_ALTITUDE,
   HUMIDITY,
   PRECIPITATION_PROBABILITY,
   SEEING,
-  TEMPERATURE,
   TRANSPARENCY,
   VERDICT,
   WIND_DIRECTION,
@@ -72,8 +70,6 @@ describe("every timeline row", () => {
       "Wind gust",
       "Seeing",
       "Transparency",
-      "Temperature",
-      "Dew point",
       "Humidity",
       "Wind speed",
       "Wind direction",
@@ -81,19 +77,24 @@ describe("every timeline row", () => {
     ]);
   });
 
-  it.each([
-    ["dew_point", "sensor.pierpressure_back_yard_dew_point"],
-    ["precipitation_probability", "sensor.pierpressure_back_yard_precipitation_probability"],
-  ])("reads the %s row from its sensor named from the pier", async (key, entityId) => {
+  it("reads the Rain chance row from its sensor named from the pier", async () => {
     const card = await mountCard(
       {
         "sensor.pierpressure_back_yard_verdict": NIGHT,
-        [entityId]: forecastEntity([["2026-10-31T23:00:00Z", 5]]),
+        "sensor.pierpressure_back_yard_precipitation_probability": forecastEntity([
+          ["2026-10-31T23:00:00Z", 5],
+        ]),
       },
       "Back-Yard",
     );
 
-    expect(cells(card, key)).toHaveLength(1);
+    expect(cells(card, "precipitation_probability")).toHaveLength(1);
+  });
+
+  it.each(["temperature", "dew_point"])("has no %s row", async (key) => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect(row(card, key)).toBeUndefined();
   });
 });
 
@@ -225,31 +226,6 @@ describe("better seeing and transparency are darker", () => {
   });
 });
 
-describe("warmer is darker in Temperature and Dew point", () => {
-  it("steps Temperature from a cold night to a warm one", async () => {
-    expect(await shades(TEMPERATURE, "temperature", [-8, -5, 0, 7, 12, 17, 25])).toEqual([
-      "#cde2fb",
-      "#9ec5f4",
-      "#6da7ec",
-      "#3987e5",
-      "#256abf",
-      "#184f95",
-      "#0d366b",
-    ]);
-  });
-
-  it("shades Dew point on the same scale", async () => {
-    const card = await mountCard({
-      [VERDICT]: NIGHT,
-      [TEMPERATURE]: hourly([7]),
-      [DEW_POINT]: hourly([6]),
-    });
-
-    const shaded = ["temperature", "dew_point"].map((key) => cells(card, key)[0]?.dataset["shade"]);
-    expect(shaded).toEqual(["#3987e5", "#3987e5"]);
-  });
-});
-
 describe("less humidity and rain chance is darker", () => {
   it("steps Humidity from dry to saturated", async () => {
     expect(await shades(HUMIDITY, "humidity", [0, 44, 100])).toEqual([
@@ -303,8 +279,6 @@ describe("hovering over a cell shows its unit", () => {
   it.each([
     [WIND_GUST, "wind_gust", 12.5, "Wind gust, the hour from 21:00: 12.5 km/h"],
     [WIND_SPEED, "wind_speed", 8, "Wind speed, the hour from 21:00: 8 km/h"],
-    [TEMPERATURE, "temperature", 4.2, "Temperature, the hour from 21:00: 4.2 °C"],
-    [DEW_POINT, "dew_point", -1.5, "Dew point, the hour from 21:00: -1.5 °C"],
     [HUMIDITY, "humidity", 87, "Humidity, the hour from 21:00: 87%"],
     [MOON_ALTITUDE, "moon_altitude", 23.456, "Moon altitude, the hour from 21:00: 23.456°"],
     [SEEING, "seeing", 0.62, "Seeing, the hour from 21:00: 0.62"],
@@ -351,17 +325,6 @@ describe("a null hour is blank", () => {
 
     expect(cells(card, "seeing")).toEqual([]);
   });
-
-  it("draws a Temperature cell for 0 °C", async () => {
-    const card = await mountCard({
-      [VERDICT]: NIGHT,
-      [TEMPERATURE]: forecastEntity([["2026-10-31T22:00:00Z", 0]]),
-    });
-
-    expect(cells(card, "temperature").map((cell) => cell.dataset["hour"])).toEqual([
-      "2026-10-31T22:00:00.000Z",
-    ]);
-  });
 });
 
 describe("a null Wind direction hour", () => {
@@ -407,6 +370,6 @@ describe("a missing sensor leaves its row empty", () => {
     );
     const drawn = others.flatMap((element) => [...element.querySelectorAll(".cell")]);
     const messages = others.map((element) => element.querySelector(".missing")?.textContent);
-    expect([others.length, drawn, new Set(messages)]).toEqual([11, [], new Set(["Not found"])]);
+    expect([others.length, drawn, new Set(messages)]).toEqual([9, [], new Set(["Not found"])]);
   });
 });

@@ -46,14 +46,20 @@ export function panned(opening: Axis, reach: Axis, start: number): Axis {
   return { start: from, end: from + length };
 }
 
-// How far the axis can pan: every timeline hour a row's sensor holds, and never
-// less than the opening axis. PierPressure publishes every timeline hour in every
+// How far the axis can pan: every timeline hour a row's or the Temperature
+// chart's sensor holds, and never less than the opening axis. PierPressure publishes every timeline hour in every
 // sensor, null where it has no value, so a null still marks a timeline hour. A
 // Rain chance point is the exception: it fills the hour before its time, so it
 // counts that hour, and only when there is a value to fill it with.
 export function stripReach(states: States, pier: string, opening: Axis): Axis {
   const reach = { ...opening };
-  const keys = [...ROWS.map((row) => row.key), "cloud_cover_min", "cloud_cover_max"];
+  const keys = [
+    ...ROWS.map((row) => row.key),
+    "cloud_cover_min",
+    "cloud_cover_max",
+    "temperature",
+    "dew_point",
+  ];
   for (const key of keys) {
     const forecast = forecastOf(states[pierEntityId(pier, key)]);
     if (!Array.isArray(forecast)) continue;
@@ -110,8 +116,6 @@ export const ROWS: readonly RowKind[] = [
   { key: "wind_gust", label: "Wind gust", unit: " km/h", shade: windShade },
   { key: "seeing", label: "Seeing", unit: "", shade: qualityShade },
   { key: "transparency", label: "Transparency", unit: "", shade: qualityShade },
-  { key: "temperature", label: "Temperature", unit: " °C", shade: temperatureShade },
-  { key: "dew_point", label: "Dew point", unit: " °C", shade: temperatureShade },
   { key: "humidity", label: "Humidity", unit: "%", shade: percentShade },
   { key: "wind_speed", label: "Wind speed", unit: " km/h", shade: windShade },
   {
@@ -509,9 +513,9 @@ function hourlyValues(forecast: unknown): Map<number, unknown> {
   return new Map([...values].sort(([a], [b]) => a - b));
 }
 
-// Seven blues, lightest to darkest. Sun altitude, Temperature and Dew point read
-// them in this order; every other shaded row reads them darkest first, through
-// `darkestFirst`, so darker is better for observing.
+// Seven blues, lightest to darkest. Sun altitude reads them in this order;
+// every other shaded row reads them darkest first, through `darkestFirst`, so
+// darker is better for observing.
 const BLUES = [
   "#cde2fb",
   "#9ec5f4",
@@ -551,12 +555,6 @@ function moonShade(degrees: number): string {
 // A quality from 0 to 1, where 1 is best, so darker is better.
 function qualityShade(quality: number): string {
   return darkestFirst(Math.round((1 - quality) * 7));
-}
-
-// Temperature and Dew point share this scale, so the two rows compare by eye:
-// one step per 5 °C, from below −5 °C to 20 °C or more.
-function temperatureShade(celsius: number): string {
-  return blue(Math.floor((celsius + 10) / 5));
 }
 
 // The sensor gives the direction the wind blows from; the arrow points the
