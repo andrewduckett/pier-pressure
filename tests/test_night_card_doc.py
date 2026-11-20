@@ -215,8 +215,6 @@ _ROWS = (
     "Wind gust",
     "Seeing",
     "Transparency",
-    "Temperature",
-    "Dew point",
     "Humidity",
     "Wind speed",
     "Wind direction",
@@ -240,12 +238,19 @@ def test_docs_rows_name_the_new_sensors(sensor: str) -> None:
     assert sensor in _page()
 
 
-@pytest.mark.parametrize(
-    "term",
-    ["darker means better", "exception", "warmer", "same scale", "hour before", "blows to"],
-)
+@pytest.mark.parametrize("term", ["darker means better", "hour before", "blows to"])
 def test_docs_rows_explain_what_they_show(term: str) -> None:
     assert term in _page().lower()
+
+
+def _rows_table() -> str:
+    page = _page()
+    return page[page.index("### The night strip") : page.index("#### How to read the rows")]
+
+
+@pytest.mark.parametrize("row", ["Temperature", "Dew point"])
+def test_docs_rows_table_no_longer_lists_the_temperature_rows(row: str) -> None:
+    assert f"| **{row}** |" not in _rows_table()
 
 
 def test_docs_rows_no_longer_say_darker_means_worse() -> None:
@@ -261,6 +266,11 @@ def _reading_the_rows() -> str:
 
 def test_docs_rows_say_the_moon_altitude_shade_ignores_the_phase() -> None:
     assert "phase" in _reading_the_rows()
+
+
+@pytest.mark.parametrize("term", ["exception", "warmer", "same scale", "Temperature, Dew point"])
+def test_docs_rows_no_longer_name_an_exception_to_darker_is_better(term: str) -> None:
+    assert term not in _reading_the_rows()
 
 
 def _cloud_range_paragraph() -> str:

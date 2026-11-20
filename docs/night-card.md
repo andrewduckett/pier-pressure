@@ -91,8 +91,6 @@ condition, from top to bottom:
 | **Wind gust** | `sensor.pierpressure_<pier>_wind_gust` | km/h |
 | **Seeing** | `sensor.pierpressure_<pier>_seeing` | none: 0 to 1, where 1 is best |
 | **Transparency** | `sensor.pierpressure_<pier>_transparency` | none: 0 to 1, where 1 is best |
-| **Temperature** | `sensor.pierpressure_<pier>_temperature` | °C |
-| **Dew point** | `sensor.pierpressure_<pier>_dew_point` | °C |
 | **Humidity** | `sensor.pierpressure_<pier>_humidity` | % |
 | **Wind speed** | `sensor.pierpressure_<pier>_wind_speed` | km/h |
 | **Wind direction** | `sensor.pierpressure_<pier>_wind_direction` | ° |
@@ -116,8 +114,7 @@ hours of the forecast. See [Panning the strip](#panning-the-strip).
 
 Each cell is one hour, shaded in one of seven blues. On every shaded row,
 darker means better for observing: a darker sky, less cloud, less wind, better
-seeing. Temperature and Dew point are the one exception: on those two rows,
-darker is warmer.
+seeing.
 
 | Row | Darkest | Lightest |
 |---|---|---|
@@ -126,7 +123,6 @@ darker is warmer.
 | Cloud cover, Cloud low, Cloud mid, Cloud high | Clear | Overcast. One step lighter for every 15%. |
 | Wind gust, Wind speed | Calm | 42 km/h or more. One step lighter for every 7 km/h. |
 | Seeing, Transparency | Excellent, 1 | Poor, 0. |
-| Temperature, Dew point | 20 °C or more | Below −5 °C. One step lighter for every 5 °C colder. |
 | Humidity, Rain chance | 0% | 90% or more. One step lighter for every 15%. |
 
 In the **Sun altitude** row, the blue darkens as the sun goes down:
@@ -141,11 +137,6 @@ In the **Sun altitude** row, the blue darkens as the sun goes down:
 
 The sun's and the moon's altitude are for the start of the hour. So the dusk
 line can fall inside an hour still shaded as twilight.
-
-Temperature and Dew point use the same scale, so you can compare the two rows
-by eye. Dew is more likely the closer the dew point comes to the temperature.
-Matching shades only mean that both values are in the same 5 °C step, so hover
-to see the values.
 
 A **Wind direction** cell has no shade. It holds an arrow that points the way
 the wind blows to, as on a weather map. A wind from the south-west has an arrow
