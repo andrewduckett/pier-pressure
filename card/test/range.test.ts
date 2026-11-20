@@ -397,7 +397,7 @@ describe("the Cloud range row's styles", () => {
     },
   );
 
-  it.each(["position: absolute", "left: 0", "right: 0", "background-color: #404040"])(
+  it.each(["position: absolute", "left: 1px", "right: 1px", "background-color: #404040"])(
     "style each range bar with %s",
     (declaration) => {
       expect(declarations(".range")).toContain(declaration);

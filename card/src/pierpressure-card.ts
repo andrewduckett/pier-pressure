@@ -192,15 +192,18 @@ export class PierPressureCard extends LitElement {
     .row[data-row="cloud_range"] .missing {
       line-height: 32px;
     }
-    /* The hour's 0 to 100% column; its bar keeps to the rounded corners. */
+    /* The hour's 0 to 100% column; its bar keeps to the rounded corners. Grey,
+       not blue, since the row shows how far the forecasts agree, not good or bad.
+       The bar keeps 1px in from each side, so the column frames it on a light
+       or a dark card. */
     .column {
       background-color: #8c8c8c;
       overflow: hidden;
     }
     .range {
       position: absolute;
-      left: 0;
-      right: 0;
+      left: 1px;
+      right: 1px;
       background-color: #404040;
     }
     .marks {

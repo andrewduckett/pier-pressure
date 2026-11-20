@@ -15,7 +15,7 @@ Temperature and Dew point tests must pass unchanged throughout.
 ## 2. Cloud range greys
 
 - [x] 2.1 [easy] Each Cloud range column is `#8c8c8c` and each range bar `#404040`, and a new test in `card/test/range.test.ts` computes WCAG 2.2 contrast ratios from the stylesheet's two `background-color` values: bar against column, column against `#ffffff`, and column against `#1c1c1c`, each at least 3 (design decisions 2 and 4). Write the contrast test first; it fails on today's `#cde2fb` and `#256abf`. Change `.column` and `.range` in `card/src/pierpressure-card.ts` and the existing styles test (verify: `npm --prefix card test -- test/range.test.ts`) (✓ `npm --prefix card test -- test/range.test.ts` passed)
-- [ ] 2.2 [easy] Each range bar is inset 1 px from both sides of its column: `.range` declares `left: 1px` and `right: 1px` in place of `left: 0` and `right: 0`, and the bar's inline `bottom` and `height` stay as the existing range tests assert (design decision 3). Update the column's stylesheet comment and the `.range` stylesheet test in `card/test/range.test.ts` to expect `left: 1px` and `right: 1px` (verify: `npm --prefix card test -- test/range.test.ts`)
+- [x] 2.2 [easy] Each range bar is inset 1 px from both sides of its column: `.range` declares `left: 1px` and `right: 1px` in place of `left: 0` and `right: 0`, and the bar's inline `bottom` and `height` stay as the existing range tests assert (design decision 3). Update the column's stylesheet comment and the `.range` stylesheet test in `card/test/range.test.ts` to expect `left: 1px` and `right: 1px` (verify: `npm --prefix card test -- test/range.test.ts`) (✓ `npm --prefix card test -- test/range.test.ts` passed)
 
 ## 3. The docs read darker as better
 
