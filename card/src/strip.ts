@@ -216,6 +216,17 @@ export interface TimeLabel {
   text: string;
 }
 
+// The two lines of the Temperature chart, drawn under the target lanes.
+export interface ChartLine {
+  key: "temperature" | "dew_point";
+  label: "Temperature" | "Dew point";
+}
+
+export interface TemperatureChart {
+  // Temperature, then Dew point.
+  lines: ChartLine[];
+}
+
 export interface Strip {
   axis: Axis;
   // The axis the strip opens on, and how far it can pan from there.
@@ -231,6 +242,7 @@ export interface Strip {
   targets: TargetLane[];
   lines: Line[];
   labels: TimeLabel[];
+  chart: TemperatureChart;
 }
 
 type States = Record<string, { state: string; attributes: Record<string, unknown> } | undefined>;
@@ -282,9 +294,19 @@ export function buildStrip(
     moonUp: moonUpBars(forecastOf(states[pierEntityId(pier, "moon_altitude")]), axis, time),
     ...(moonMissing && { moonUpMissing: moonMissing }),
     targets: targetLanes(states, pier, axis, time),
+    chart: temperatureChart(),
     lines: [
       ...(night === undefined ? [] : nightLines(night, axis, time)),
       ...nowLine(now, axis, time),
+    ],
+  };
+}
+
+function temperatureChart(): TemperatureChart {
+  return {
+    lines: [
+      { key: "temperature", label: "Temperature" },
+      { key: "dew_point", label: "Dew point" },
     ],
   };
 }

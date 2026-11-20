@@ -595,6 +595,18 @@ describe("dragging the strip", () => {
     expect(axisOf(card)).toEqual(["2026-11-01T12:00:00.000Z", "2026-11-02T12:00:00.000Z"]);
   });
 
+  it("pans later when dragged to the left from the Temperature chart", async () => {
+    const card = await mountCard(DAY_AROUND_NOW);
+    const chart = card.shadowRoot?.querySelector('.strip [data-chart="temperature"] .track');
+
+    chart?.dispatchEvent(pointer("pointerdown", 200, 100));
+    chart?.dispatchEvent(pointer("pointermove", 100, 100));
+    chart?.dispatchEvent(pointer("pointerup", 100, 100));
+    await card.updateComplete;
+
+    expect(axisOf(card)).toEqual(["2026-11-01T12:00:00.000Z", "2026-11-02T12:00:00.000Z"]);
+  });
+
   it("pans earlier when swiped to the right", async () => {
     const card = await mountCard(DAY_AROUND_NOW);
     const strip = stripOf(card);

@@ -1,7 +1,9 @@
 import { LitElement, css, html, nothing, svg } from "lit";
+import { chartStyles, renderChart, renderMissing } from "./chart";
 import { EDITOR_TYPE } from "./editor";
 import { listPiers, pierSlug, verdictEntityId } from "./entity";
 import { type MoonDrawing, type MoonView, litPath, readMoon } from "./moon";
+import { hourPlace, iso, offset, share } from "./place";
 import {
   type Axis,
   type Band,
@@ -9,7 +11,6 @@ import {
   type Cell,
   HOUR,
   type Line,
-  type Missing,
   type Strip,
   type TargetLane,
   type TimeLabel,
@@ -63,7 +64,8 @@ export class PierPressureCard extends LitElement {
     heldStart: { state: true },
   };
 
-  static override styles = css`
+  static override styles = [
+    css`
     /* Not stretched: a stretched grid spreads the verdict lines to the Moon
        section's height. */
     .summary {
@@ -272,7 +274,9 @@ export class PierPressureCard extends LitElement {
       white-space: pre;
       text-indent: 0;
     }
-  `;
+  `,
+    chartStyles,
+  ];
 
   // Home Assistant sets hass after setConfig and after the card is attached.
   declare hass?: HomeAssistant;
@@ -630,10 +634,10 @@ function renderBack(strip: Strip | undefined, onBack: () => void) {
 function renderStrip(strip: Strip | undefined, input: StripInput) {
   if (strip === undefined) return nothing;
   // Grid row 1 holds the line labels, then come the rows, the Moon up lane, the
-  // target lanes and the time labels. The lines' overlay spans from the first
-  // row to the last lane.
-  const gridRows = strip.rows.length + strip.targets.length + 3;
-  const laneEnd = strip.rows.length + strip.targets.length + 3;
+  // target lanes, the Temperature chart and the time labels. The lines' overlay
+  // spans from the first row to the bottom of the Temperature chart.
+  const gridRows = strip.rows.length + strip.targets.length + 4;
+  const laneEnd = strip.rows.length + strip.targets.length + 4;
   return html`<div
     class="strip"
     style=${`grid-template-rows: repeat(${gridRows}, auto)`}
@@ -679,6 +683,7 @@ function renderStrip(strip: Strip | undefined, input: StripInput) {
           </div>
         </div>`,
     )}
+    ${renderChart(strip.chart, strip.axis)}
     <span></span>
     <div class="track times">
       ${strip.labels.map((label) => renderTimeLabel(label, strip.axis))}
@@ -687,17 +692,6 @@ function renderStrip(strip: Strip | undefined, input: StripInput) {
       ${strip.lines.map((line) => renderLine(line, strip.axis))}
     </div>
   </div>`;
-}
-
-function renderMissing(missing: Missing) {
-  const kind = missing.message.toLowerCase().replace(/ /g, "-");
-  return html`<span
-    class="missing"
-    data-missing=${kind}
-    title=${missing.text}
-    aria-label=${missing.text}
-    >${missing.message}</span
-  >`;
 }
 
 function renderMark(line: Line, axis: Axis) {
@@ -720,19 +714,6 @@ function renderLine(line: Line, axis: Axis) {
 function renderTimeLabel(label: TimeLabel, axis: Axis) {
   const style = `left: ${offset(label.at, axis)}%`;
   return html`<span class="time" style=${style} data-at=${iso(label.at)}>${label.text}</span>`;
-}
-
-// Neighbouring hours keep a 2 px gap; an edge cut off by
-// the axis stays flush with the axis end instead.
-function hourPlace(hour: { hour: number; from: number; to: number }, axis: Axis): string {
-  const left = offset(hour.from, axis);
-  const width = share(hour.to - hour.from, axis);
-  const insetStart = hour.from === hour.hour ? 1 : 0;
-  const insetEnd = hour.to === hour.hour + HOUR ? 1 : 0;
-  return (
-    `left: calc(${left}% + ${insetStart}px); ` +
-    `width: calc(${width}% - ${insetStart + insetEnd}px)`
-  );
 }
 
 function renderCell(cell: Cell, axis: Axis) {
@@ -804,19 +785,6 @@ function renderBar(bar: Bar, axis: Axis, target?: TargetLane) {
 function renderTargetName(target: TargetLane) {
   const id = target.id === undefined ? nothing : html`<span class="id"> (${target.id})</span>`;
   return html`<span class="name">${target.name}</span>${id}`;
-}
-
-// Percent of the axis, so the strip reflows with the card's width.
-function share(duration: number, axis: Axis): string {
-  return ((duration / (axis.end - axis.start)) * 100).toFixed(4);
-}
-
-function offset(at: number, axis: Axis): string {
-  return share(at - axis.start, axis);
-}
-
-function iso(time: number): string {
-  return new Date(time).toISOString();
 }
 
 // A type check, not a truthiness check: a score or confidence of 0 is a value.

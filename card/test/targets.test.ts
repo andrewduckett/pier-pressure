@@ -434,17 +434,18 @@ describe("the strip with target lanes", () => {
     const card = await threeTargets();
 
     expect(card.shadowRoot?.querySelector(".strip")?.getAttribute("style")).toContain(
-      "grid-template-rows: repeat(20, auto)",
+      "grid-template-rows: repeat(21, auto)",
     );
   });
 
-  // Rows 2 to 15 hold the fourteen rows, 16 the Moon up lane and 17 to 19 the
-  // three target lanes, so the lines run from grid line 2 to line 20.
-  it("runs the lines down to the bottom of the last lane", async () => {
+  // Rows 2 to 15 hold the fourteen rows, 16 the Moon up lane, 17 to 19 the
+  // three target lanes and 20 the Temperature chart, so the lines run from grid
+  // line 2 to line 21.
+  it("runs the lines down to the bottom of the Temperature chart", async () => {
     const card = await threeTargets();
 
     expect(card.shadowRoot?.querySelector(".strip .lines")?.getAttribute("style")).toContain(
-      "grid-row: 2 / 20",
+      "grid-row: 2 / 21",
     );
   });
 });

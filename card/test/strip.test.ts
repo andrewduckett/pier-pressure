@@ -1030,13 +1030,14 @@ describe("the lines' overlay", () => {
     return card.shadowRoot?.querySelector<HTMLElement>(".strip .lines");
   }
 
-  // Grid row 1 holds the line labels, rows 2 to 15 the fourteen rows, and row 16
-  // the Moon up lane, so the overlay runs from line 2 to line 17.
-  it("covers the rows and the Moon up lane", async () => {
+  // Grid row 1 holds the line labels, rows 2 to 15 the fourteen rows, row 16
+  // the Moon up lane and row 17 the Temperature chart, so the overlay runs from
+  // line 2 to line 18.
+  it("covers the rows, the Moon up lane and the Temperature chart", async () => {
     const card = await mountCard({ [VERDICT]: NIGHT });
 
     const style = overlay(card)?.getAttribute("style") ?? "";
-    expect([style.includes("grid-column: 2"), style.includes("grid-row: 2 / 17")]).toEqual([
+    expect([style.includes("grid-column: 2"), style.includes("grid-row: 2 / 18")]).toEqual([
       true,
       true,
     ]);
@@ -1059,7 +1060,8 @@ describe("the lines' overlay", () => {
   });
 
   // With Cloud range left out, rows 2 to 14 hold the thirteen rows, 15 the Moon
-  // up lane and 16 the Target 1 lane, so the overlay still ends at line 17.
+  // up lane, 16 the Target 1 lane and 17 the Temperature chart, so the overlay
+  // still ends at line 18.
   const ONE_FORECAST = {
     [VERDICT]: NIGHT,
     [CLOUD_COVER_MIN]: forecastEntity([["2026-10-31T21:00:00Z", null]]),
@@ -1091,19 +1093,19 @@ describe("the lines' overlay", () => {
     ]);
   });
 
-  it("ends at the last target lane without the Cloud range row", async () => {
+  it("ends at the Temperature chart without the Cloud range row", async () => {
     const card = await mountCard(ONE_FORECAST);
 
     expect([
-      strip(card)?.getAttribute("style")?.includes("grid-template-rows: repeat(17, auto)"),
-      overlay(card)?.getAttribute("style")?.includes("grid-row: 2 / 17"),
+      strip(card)?.getAttribute("style")?.includes("grid-template-rows: repeat(18, auto)"),
+      overlay(card)?.getAttribute("style")?.includes("grid-row: 2 / 18"),
     ]).toEqual([true, true]);
   });
 
   it("gives the strip one explicit grid row for each of its rows", async () => {
     const card = await mountCard({ [VERDICT]: NIGHT });
 
-    expect(strip(card)?.getAttribute("style")).toContain("grid-template-rows: repeat(17, auto)");
+    expect(strip(card)?.getAttribute("style")).toContain("grid-template-rows: repeat(18, auto)");
   });
 });
 
