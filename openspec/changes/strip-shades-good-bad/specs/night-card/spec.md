@@ -32,6 +32,29 @@ The card SHALL shade each cell in a cloud row in one of seven blues. From darkes
 - **WHEN** the Cloud cover forecast holds −5 at one hour and 120 at another
 - **THEN** the cells are shaded `#0d366b` and `#cde2fb`
 
+### Requirement: A null hour is blank
+The card SHALL draw no cell for an hour whose `forecast` value is null or not a number, or for an hour the forecast has no point for. That hour SHALL be blank in its row, distinct from every shade or arrow a value can take.
+
+#### Scenario: Cloud low missing for an hour
+- **WHEN** the Cloud low forecast holds `{"datetime": "2026-10-31T22:00:00Z", "value": null}` inside the axis
+- **THEN** the Cloud low row has no cell for 22:00 UTC
+
+#### Scenario: Cloud mid at zero
+- **WHEN** the Cloud mid forecast holds `{"datetime": "2026-10-31T22:00:00Z", "value": 0}` inside the axis
+- **THEN** the Cloud mid row has a 22:00 UTC cell shaded `#0d366b`
+
+#### Scenario: Seeing missing for an hour
+- **WHEN** the Seeing forecast holds `{"datetime": "2026-10-31T22:00:00Z", "value": null}` inside the axis
+- **THEN** the Seeing row has no cell for 22:00 UTC
+
+#### Scenario: Temperature at zero
+- **WHEN** the Temperature forecast holds `{"datetime": "2026-10-31T22:00:00Z", "value": 0}` inside the axis
+- **THEN** the Temperature row has a 22:00 UTC cell
+
+#### Scenario: Wind direction missing for an hour
+- **WHEN** the Wind direction forecast holds `{"datetime": "2026-10-31T22:00:00Z", "value": null}` inside the axis
+- **THEN** the Wind direction row has no cell and no arrow for 22:00 UTC
+
 ### Requirement: The Moon altitude row pales as the moon climbs
 The card SHALL shade each Moon altitude cell in the strip's seven blues, from darkest to lightest `#0d366b`, `#184f95`, `#256abf`, `#3987e5`, `#6da7ec`, `#9ec5f4` and `#cde2fb`, step 0 the darkest. An altitude `v` of 0° or below SHALL take step 0. An altitude above 0° SHALL take step `min(6, 1 + floor(v / 6))`. The shade SHALL depend on the altitude alone, not on the moon's illumination.
 
