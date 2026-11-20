@@ -24,7 +24,7 @@ there. Rename a test's `describe` when its requirement changes name, such as
 
 ## 3. Integration [depends-on: 1, 2]
 
-- [ ] 3.1 [easy] The full CI gate passes: specs, ruff, mypy, pytest, and the card's type check, tests and build (verify: `mise run check`)
+- [x] 3.1 [easy] The full CI gate passes: specs, ruff, mypy, pytest, and the card's type check, tests and build (verify: `mise run check`) (✓ `mise run check` passed: specs 12/12, ruff, mypy, pytest 2752, card typecheck, 573 card tests and build)
 
 ## Deviations Ledger
 
