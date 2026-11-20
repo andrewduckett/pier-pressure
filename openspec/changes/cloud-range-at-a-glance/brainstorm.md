@@ -27,4 +27,4 @@ https://github.com/andrewduckett/pier-pressure/issues/298
 - Added: the hover text, tap text and aria-label say the forecasts disagree
   (D4), so the warning does not rely on colour alone.
 
-Confirmed by user: no
+Confirmed by user: yes
