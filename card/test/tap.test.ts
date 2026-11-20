@@ -452,6 +452,105 @@ describe("a tap on a strip that can pan", () => {
   });
 });
 
+describe("a pan with a box showing", () => {
+  beforeEach(layOutDayAroundNow);
+  afterEach(() => vi.restoreAllMocks());
+
+  function strip(card: PierPressureCard): HTMLElement | null {
+    return card.shadowRoot?.querySelector<HTMLElement>(".strip") ?? null;
+  }
+
+  async function press(card: PierPressureCard, key: string, times = 1): Promise<void> {
+    for (let index = 0; index < times; index += 1) {
+      strip(card)?.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+      await card.updateComplete;
+    }
+  }
+
+  function backButton(card: PierPressureCard): HTMLButtonElement | null {
+    return card.shadowRoot?.querySelector<HTMLButtonElement>(".back button") ?? null;
+  }
+
+  it("closes the box after a drag", async () => {
+    const card = await mountCard(DAY_AROUND_NOW);
+    await tapOn(card, COVER_14, "touch");
+
+    await gesture(card, COVER_14, [[60, 100]]);
+
+    expect(tip(card)).toBeNull();
+  });
+
+  it("closes the box after a sideways wheel movement", async () => {
+    const card = await mountCard(DAY_AROUND_NOW);
+    await tapOn(card, COVER_14, "touch");
+
+    strip(card)?.dispatchEvent(
+      new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaX: 100 }),
+    );
+    await card.updateComplete;
+
+    expect(tip(card)).toBeNull();
+  });
+
+  it("closes the box after the Right arrow key", async () => {
+    const card = await mountCard(DAY_AROUND_NOW);
+    await tapOn(card, COVER_14, "touch");
+
+    await press(card, "ArrowRight");
+
+    expect([axisStart(card), tip(card)]).toEqual(["2026-11-01T07:00:00.000Z", null]);
+  });
+
+  it("keeps the box after the Right arrow key at the end of the reach", async () => {
+    const card = await mountCard(DAY_AROUND_NOW);
+    await press(card, "ArrowRight", 40);
+    await tapOn(card, "cell:cloud_cover:2026-11-03T04:00:00.000Z", "touch");
+
+    await press(card, "ArrowRight");
+
+    expect(tips(card)).toEqual(["Cloud cover, the hour from 04:00: 40%"]);
+  });
+
+  it("closes the box after Back to tonight is clicked", async () => {
+    const card = await mountCard(DAY_AROUND_NOW);
+    await press(card, "ArrowRight", 24);
+    await tapOn(card, "cell:cloud_cover:2026-11-02T14:00:00.000Z", "touch");
+
+    tap(backButton(card));
+    backButton(card)?.click();
+    await card.updateComplete;
+
+    expect([axisStart(card), tip(card)]).toEqual(["2026-11-01T06:00:00.000Z", null]);
+  });
+
+  // The browser sends a click with no pointer events for the Enter or Space key.
+  it("closes the box after Back to tonight is selected with the keyboard", async () => {
+    const card = await mountCard(DAY_AROUND_NOW);
+    await press(card, "ArrowRight", 24);
+    await tapOn(card, "cell:cloud_cover:2026-11-02T14:00:00.000Z", "touch");
+
+    backButton(card)?.focus();
+    backButton(card)?.click();
+    await card.updateComplete;
+
+    expect([axisStart(card), tip(card)]).toEqual(["2026-11-01T06:00:00.000Z", null]);
+  });
+
+  it("closes the box when the card changes pier", async () => {
+    const card = await mountCard({
+      ...DAY_AROUND_NOW,
+      "sensor.pierpressure_frontyard_verdict": DAY_AROUND_NOW[VERDICT],
+      "sensor.pierpressure_frontyard_cloud_cover": DAY_AROUND_NOW[CLOUD_COVER],
+    });
+    await tapOn(card, COVER_14, "touch");
+
+    card.setConfig({ type: "custom:pierpressure-card", pier: "frontyard" });
+    await card.updateComplete;
+
+    expect(tip(card)).toBeNull();
+  });
+});
+
 describe("placing the box", () => {
   const card = { left: 50, top: 20, width: 400, height: 300 };
   const box = { width: 100, height: 20 };

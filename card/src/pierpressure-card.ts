@@ -324,7 +324,11 @@ export class PierPressureCard extends LitElement {
     if (typeof pier !== "string" || pierSlug(pier) === "") {
       throw new Error("pier is required");
     }
-    if (pier !== this.config?.pier) this.heldStart = undefined;
+    // The same keys would name the other pier's items.
+    if (pier !== this.config?.pier) {
+      this.heldStart = undefined;
+      this.tipKey = undefined;
+    }
     this.config = { type: String(config["type"]), pier };
   }
 
@@ -436,12 +440,14 @@ export class PierPressureCard extends LitElement {
   }
 
   // A pan the reach stops entirely changes nothing, and one that lands on the
-  // opening axis lets the strip follow it again, as Back to tonight does.
+  // opening axis lets the strip follow it again, as Back to tonight does. Any
+  // other pan closes the box, since its item may have moved away.
   private panTo(start: number): void {
     const strip = this.shownStrip();
     if (strip === undefined) return;
     const to = panned(strip.opening, strip.reach, start).start;
     if (to === strip.axis.start) return;
+    this.tipKey = undefined;
     this.heldStart = to === strip.opening.start ? undefined : to;
     this.heldLater = to > strip.opening.start;
   }
@@ -449,6 +455,7 @@ export class PierPressureCard extends LitElement {
   // The button hides itself, so focus moves to the strip it returned.
   private onBack = (): void => {
     this.heldStart = undefined;
+    this.tipKey = undefined;
     this.renderRoot.querySelector<HTMLElement>(".strip")?.focus();
   };
 
