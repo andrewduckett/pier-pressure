@@ -19,7 +19,7 @@ import {
   clock,
   panned,
 } from "./strip";
-import { tipKey } from "./tap";
+import { tipKey, tipText } from "./tap";
 
 declare const __CARD_VERSION__: string;
 
@@ -63,6 +63,7 @@ export class PierPressureCard extends LitElement {
     hass: { attribute: false },
     config: { state: true },
     heldStart: { state: true },
+    tipKey: { state: true },
   };
 
   static override styles = [
@@ -284,11 +285,14 @@ export class PierPressureCard extends LitElement {
   declare config?: CardConfig;
   // Where the user panned the strip to; undefined keeps it on the opening axis.
   declare heldStart?: number;
+  // The key of the item whose text the box shows; undefined shows no box.
+  declare tipKey?: string;
   // Whether the pan was later than the opening axis. The opening axis follows the
   // clock through the night, so it can catch up with a later pan.
   private heldLater = false;
   private timer?: ReturnType<typeof setInterval>;
   private drag?: Drag;
+  private press?: Press;
 
   // The now line, and the fallback axis around it, follow the browser's clock
   // between Home Assistant's state updates.
@@ -347,9 +351,19 @@ export class PierPressureCard extends LitElement {
 
   override render() {
     if (this.config === undefined) return nothing;
-    return html`<ha-card header=${`PierPressure ${this.config.pier}`}
-      >${this.renderBody()}</ha-card
+    return html`<ha-card
+      header=${`PierPressure ${this.config.pier}`}
+      @pointerdown=${this.tap.pointerdown}
+      @pointerup=${this.tap.pointerup}
+      >${this.renderBody()}${this.renderTip()}</ha-card
     >`;
+  }
+
+  // The item's aria-label already gives a screen reader the same text.
+  private renderTip() {
+    if (this.tipKey === undefined) return nothing;
+    const text = tipText(this.shownStrip(), this.shownMoon(), this.tipKey);
+    return html`<div class="tip" aria-hidden="true">${text}</div>`;
   }
 
   private renderBody() {
@@ -400,6 +414,14 @@ export class PierPressureCard extends LitElement {
       this.hass.config?.time_zone,
       this.heldStart,
     );
+  }
+
+  private shownMoon(): MoonDrawing | undefined {
+    if (this.hass === undefined || this.config === undefined) return undefined;
+    const entity = this.hass.states[verdictEntityId(this.config.pier)];
+    if (entity === undefined || entity.state === "unavailable") return undefined;
+    const time = clock(this.hass.config?.time_zone);
+    return readMoon(entity.attributes["moon"], time, this.hass.config?.latitude).drawing;
   }
 
   // The reasons explain a verdict, so a dash in its place shows none, even
@@ -502,6 +524,30 @@ export class PierPressureCard extends LitElement {
     },
   };
 
+  // Apart from the strip's drag, so a tap anywhere on the card is seen. The key is
+  // taken when the pointer is pressed: the strip's capture retargets the release.
+  private tap: TapInput = {
+    pointerdown: (event) => {
+      if (this.press !== undefined || !event.isPrimary || event.button !== 0) return;
+      const item = (event.target as Element).closest("[data-tip]");
+      this.press = {
+        pointerId: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        key: item?.getAttribute("data-tip") ?? undefined,
+        moved: false,
+      };
+    },
+    // A tap on the item the box shows closes it, and a tap off every item too.
+    pointerup: (event) => {
+      const press = this.press;
+      if (press === undefined || event.pointerId !== press.pointerId) return;
+      this.press = undefined;
+      if (press.moved) return;
+      this.tipKey = press.key === this.tipKey ? undefined : press.key;
+    },
+  };
+
   private endDrag(event: PointerEvent): Drag | undefined {
     const drag = this.drag;
     if (drag === undefined || event.pointerId !== drag.pointerId) return undefined;
@@ -523,6 +569,21 @@ interface Drag {
   held: number | undefined;
   heldLater: boolean;
   panning: boolean;
+}
+
+// One pointer's press on the card, which is a tap if it stays in place.
+interface Press {
+  pointerId: number;
+  x: number;
+  y: number;
+  // The pressed item's `data-tip`, if any.
+  key: string | undefined;
+  moved: boolean;
+}
+
+interface TapInput {
+  pointerdown: (event: PointerEvent) => void;
+  pointerup: (event: PointerEvent) => void;
 }
 
 interface StripInput {

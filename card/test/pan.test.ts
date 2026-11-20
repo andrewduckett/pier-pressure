@@ -10,6 +10,7 @@ import {
   cardStyles,
   forecastEntity,
   mountCard,
+  pointer,
   target,
   targetEntity,
   verdictEntity,
@@ -829,29 +830,6 @@ describe("a wheel over the strip", () => {
 
 function backButton(card: PierPressureCard): HTMLButtonElement | null {
   return card.shadowRoot?.querySelector<HTMLButtonElement>(".back button") ?? null;
-}
-
-// A pointer's event as a browser sends it: pointer 1 is the primary one, and a
-// move carries no button.
-function pointer(
-  type: string,
-  clientX: number,
-  clientY = 0,
-  pointerId = 1,
-  pointerType = "mouse",
-  button = 0,
-): PointerEvent {
-  return new PointerEvent(type, {
-    bubbles: true,
-    composed: true,
-    cancelable: true,
-    clientX,
-    clientY,
-    pointerId,
-    isPrimary: pointerId === 1,
-    button: type === "pointermove" ? -1 : button,
-    pointerType,
-  });
 }
 
 const BOTH_PIERS = {

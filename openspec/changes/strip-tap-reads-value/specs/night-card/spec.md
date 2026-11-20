@@ -11,8 +11,8 @@ A tap on an item of the night strip SHALL show that item's hover text in a box o
 - **AND** the cell's hover text is still `Cloud cover, the hour from 04:00: 52%`
 
 #### Scenario: An hour of the Temperature chart
-- **WHEN** Home Assistant's time zone is `UTC`, the Temperature and Dew point forecasts hold 4.2 and 1.0 at 2026-10-31T21:00:00Z, and the user taps that hour of the Temperature chart
-- **THEN** the card shows a box that reads `The hour from 21:00: Temperature 4.2 °C, Dew point 1.0 °C`
+- **WHEN** Home Assistant's time zone is `UTC`, the Temperature and Dew point forecasts hold 4.2 and 1.5 at 2026-10-31T21:00:00Z, and the user taps that hour of the Temperature chart
+- **THEN** the card shows a box that reads `The hour from 21:00: Temperature 4.2 °C, Dew point 1.5 °C`
 
 #### Scenario: A Cloud range column
 - **WHEN** Home Assistant's time zone is `UTC`, the cloud cover min and max forecasts hold 40 and 70.5 at 2026-10-31T21:00:00Z, and the user taps that column

@@ -172,3 +172,32 @@ export function contrast(one: string, other: string): number {
   const [darker, lighter] = [luminance(one), luminance(other)].sort((a, b) => a - b);
   return ((lighter ?? 0) + 0.05) / ((darker ?? 0) + 0.05);
 }
+
+// A pointer's event as a browser sends it: pointer 1 is the primary one, and a
+// move carries no button.
+export function pointer(
+  type: string,
+  clientX: number,
+  clientY = 0,
+  pointerId = 1,
+  pointerType = "mouse",
+  button = 0,
+): PointerEvent {
+  return new PointerEvent(type, {
+    bubbles: true,
+    composed: true,
+    cancelable: true,
+    clientX,
+    clientY,
+    pointerId,
+    isPrimary: pointerId === 1,
+    button: type === "pointermove" ? -1 : button,
+    pointerType,
+  });
+}
+
+// A tap: a press and a release at the same point, on the element pressed.
+export function tap(element: Element | null | undefined, pointerType = "mouse"): void {
+  element?.dispatchEvent(pointer("pointerdown", 100, 100, 1, pointerType));
+  element?.dispatchEvent(pointer("pointerup", 100, 100, 1, pointerType));
+}

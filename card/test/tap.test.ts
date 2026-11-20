@@ -11,6 +11,7 @@ import {
   catalogTarget,
   forecastEntity,
   mountCard,
+  tap,
   target,
   verdictEntity,
 } from "./harness";
@@ -43,7 +44,7 @@ const EVERY_ITEM: Record<string, HassEntity> = {
   [CLOUD_COVER_MIN]: forecastEntity([["2026-10-31T21:00:00Z", 40]]),
   [CLOUD_COVER_MAX]: forecastEntity([["2026-10-31T21:00:00Z", 70.5]]),
   [TEMPERATURE]: forecastEntity([["2026-10-31T21:00:00Z", 4.2]]),
-  [DEW_POINT]: forecastEntity([["2026-10-31T21:00:00Z", 1.0]]),
+  [DEW_POINT]: forecastEntity([["2026-10-31T21:00:00Z", 1.5]]),
   [MOON_ALTITUDE]: forecastEntity([
     ["2026-10-31T16:00:00Z", 4],
     ["2026-10-31T17:00:00Z", 6],
@@ -65,6 +66,23 @@ const EVERY_MESSAGE: Record<string, HassEntity> = {
 function tappable(card: PierPressureCard, key: string): Element | null {
   return card.shadowRoot?.querySelector(`[data-tip="${key}"]`) ?? null;
 }
+
+function tip(card: PierPressureCard): HTMLElement | null {
+  return card.shadowRoot?.querySelector<HTMLElement>(".tip") ?? null;
+}
+
+function tips(card: PierPressureCard): string[] {
+  return [...(card.shadowRoot?.querySelectorAll(".tip") ?? [])].map(
+    (box) => box.textContent?.trim() ?? "",
+  );
+}
+
+async function tapOn(card: PierPressureCard, key: string, pointerType?: string): Promise<void> {
+  tap(tappable(card, key), pointerType);
+  await card.updateComplete;
+}
+
+const COVER_04 = "cell:cloud_cover:2026-11-01T04:00:00.000Z";
 
 // The strip as the card draws it, on the clock mountCard pins.
 function shown(states: Record<string, HassEntity>) {
@@ -140,6 +158,62 @@ describe("the text a key names", () => {
 
   it("is none when the strip is not drawn", () => {
     expect(tipText(undefined, undefined, "line:dusk")).toBeUndefined();
+  });
+});
+
+describe("a tap on a strip item", () => {
+  it.each([
+    ["a Cloud cover cell", COVER_04, "Cloud cover, the hour from 04:00: 52%"],
+    [
+      "a Cloud range column",
+      "column:2026-10-31T21:00:00.000Z",
+      "Cloud range, the hour from 21:00: 40% to 70.5%",
+    ],
+    [
+      "a Temperature chart hour",
+      "hour:2026-10-31T21:00:00.000Z",
+      "The hour from 21:00: Temperature 4.2 °C, Dew point 1.5 °C",
+    ],
+    ["a target bar", "target:1", "Andromeda Galaxy (M31) from 21:00 to 02:00"],
+    ["the dusk line", "line:dusk", "Dusk, 20:30"],
+  ])("on %s shows the item's hover text in one box", async (_, key, text) => {
+    const card = await mountCard(EVERY_ITEM);
+
+    await tapOn(card, key, "touch");
+
+    expect(tips(card)).toEqual([text]);
+  });
+
+  it("puts the box last in the card", async () => {
+    const card = await mountCard(EVERY_ITEM);
+
+    await tapOn(card, COVER_04, "touch");
+
+    expect(card.shadowRoot?.querySelector("ha-card")?.lastElementChild).toBe(tip(card));
+  });
+
+  it("hides the box from screen readers, which read the item's own label", async () => {
+    const card = await mountCard(EVERY_ITEM);
+
+    await tapOn(card, COVER_04, "touch");
+
+    expect(tip(card)?.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("leaves the item's hover text as it was", async () => {
+    const card = await mountCard(EVERY_ITEM);
+
+    await tapOn(card, COVER_04, "touch");
+
+    expect(tappable(card, COVER_04)?.getAttribute("title")).toBe(
+      "Cloud cover, the hour from 04:00: 52%",
+    );
+  });
+
+  it("shows no box before a tap", async () => {
+    const card = await mountCard(EVERY_ITEM);
+
+    expect(tip(card)).toBeNull();
   });
 });
 
