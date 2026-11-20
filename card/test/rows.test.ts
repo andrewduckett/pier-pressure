@@ -241,18 +241,18 @@ describe("warmer is darker in Temperature and Dew point", () => {
   });
 });
 
-describe("more humidity and rain chance is darker", () => {
+describe("less humidity and rain chance is darker", () => {
   it("steps Humidity from dry to saturated", async () => {
     expect(await shades(HUMIDITY, "humidity", [0, 44, 100])).toEqual([
-      "#cde2fb",
-      "#6da7ec",
       "#0d366b",
+      "#256abf",
+      "#cde2fb",
     ]);
   });
 
   it("shades Rain chance on the same scale", async () => {
     const key = "precipitation_probability";
-    expect(await shades(PRECIPITATION_PROBABILITY, key, [90])).toEqual(["#0d366b"]);
+    expect(await shades(PRECIPITATION_PROBABILITY, key, [90])).toEqual(["#cde2fb"]);
   });
 });
 

@@ -525,8 +525,13 @@ function blue(step: number): string {
   return BLUES[Math.min(BLUES.length - 1, Math.max(0, step))] ?? BLUES[0];
 }
 
+// For a row where less is better for observing, so the best step is the darkest.
+function darkestFirst(step: number): string {
+  return blue(BLUES.length - 1 - step);
+}
+
 function percentShade(percent: number): string {
-  return blue(Math.floor(percent / 15));
+  return darkestFirst(Math.floor(percent / 15));
 }
 
 // The twilight band: sun up, civil, nautical and astronomical
