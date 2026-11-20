@@ -22,8 +22,11 @@ Scope: the verdict document and its delivery. Code and specs use `timeline`.
 ## Night strip
 
 A dashboard rendering of the timeline: hours across, one row per condition,
-with dusk, dawn and the moon on the same time axis. A strip is a view of the
-data. Nothing in the core or the delivery computes or publishes a strip.
+and the Temperature chart, with dusk, dawn and the moon on the same time axis.
+The Temperature chart is part of the strip: a Temperature line and a Dew point
+line on a °C scale, drawn under the target lanes on the strip's time axis, so
+it pans with the rows. A strip is a view of the data. Nothing in the core or
+the delivery computes or publishes a strip.
 
 Scope: dashboards and their documentation only.
 
