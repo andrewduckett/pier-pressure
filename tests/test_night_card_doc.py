@@ -278,9 +278,19 @@ def _cloud_range_paragraph() -> str:
     return paragraphs.split("A blank hour", 1)[0]
 
 
-@pytest.mark.parametrize("term", ["grey", "agree"])
+@pytest.mark.parametrize("term", ["grey", "amber", "agree"])
 def test_docs_cloud_range_paragraph_says_why_the_row_is_grey(term: str) -> None:
     assert term in _cloud_range_paragraph()
+
+
+@pytest.mark.parametrize("term", ["35", "confidence"])
+def test_docs_cloud_range_paragraph_says_what_an_amber_column_means(term: str) -> None:
+    assert term in _cloud_range_paragraph()
+
+
+def test_docs_cloud_range_paragraph_gives_the_hover_text_of_an_amber_column() -> None:
+    example = '"Cloud range, the hour from 21:00: 20% to 70%, the forecasts disagree"'
+    assert example in _cloud_range_paragraph()
 
 
 def test_docs_cloud_range_paragraph_no_longer_calls_the_row_blue() -> None:
