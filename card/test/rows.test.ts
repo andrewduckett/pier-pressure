@@ -168,31 +168,40 @@ describe("a Rain chance value fills the hour before its time", () => {
   });
 });
 
-describe("the Moon altitude row darkens as the moon climbs", () => {
+describe("the Moon altitude row pales as the moon climbs", () => {
   it("steps from set to high", async () => {
     const altitudes = [-10, 0, 3, 6, 12, 18, 24, 30, 60];
     expect(await shades(MOON_ALTITUDE, "moon_altitude", altitudes)).toEqual([
-      "#cde2fb",
-      "#cde2fb",
-      "#9ec5f4",
-      "#6da7ec",
-      "#3987e5",
-      "#256abf",
+      "#0d366b",
+      "#0d366b",
       "#184f95",
-      "#0d366b",
-      "#0d366b",
+      "#256abf",
+      "#3987e5",
+      "#6da7ec",
+      "#9ec5f4",
+      "#cde2fb",
+      "#cde2fb",
     ]);
+  });
+
+  it.each([0, 1])("ignores the moon's illumination of %d", async (illumination) => {
+    const card = await mountCard({
+      [VERDICT]: verdictEntity("GO", { ...NIGHT.attributes, moon: { illumination } }),
+      [MOON_ALTITUDE]: hourly([12]),
+    });
+
+    expect(cells(card, "moon_altitude")[0]?.dataset["shade"]).toBe("#3987e5");
   });
 });
 
-describe("more wind is darker", () => {
+describe("less wind is darker", () => {
   it("steps Wind gust from calm to gale", async () => {
     expect(await shades(WIND_GUST, "wind_gust", [0, 6.9, 7, 41, 42])).toEqual([
-      "#cde2fb",
-      "#cde2fb",
-      "#9ec5f4",
-      "#184f95",
       "#0d366b",
+      "#0d366b",
+      "#184f95",
+      "#9ec5f4",
+      "#cde2fb",
     ]);
   });
 
@@ -201,18 +210,18 @@ describe("more wind is darker", () => {
   });
 });
 
-describe("worse seeing and transparency are darker", () => {
+describe("better seeing and transparency are darker", () => {
   it("steps Seeing from excellent to poor", async () => {
     expect(await shades(SEEING, "seeing", [1, 0.8, 0.5, 0])).toEqual([
-      "#cde2fb",
-      "#9ec5f4",
-      "#256abf",
       "#0d366b",
+      "#184f95",
+      "#6da7ec",
+      "#cde2fb",
     ]);
   });
 
-  it("keeps a Transparency above 1 at the lightest", async () => {
-    expect(await shades(TRANSPARENCY, "transparency", [1.2])).toEqual(["#cde2fb"]);
+  it("keeps a Transparency above 1 at the darkest", async () => {
+    expect(await shades(TRANSPARENCY, "transparency", [1.2])).toEqual(["#0d366b"]);
   });
 });
 
@@ -241,18 +250,18 @@ describe("warmer is darker in Temperature and Dew point", () => {
   });
 });
 
-describe("more humidity and rain chance is darker", () => {
+describe("less humidity and rain chance is darker", () => {
   it("steps Humidity from dry to saturated", async () => {
     expect(await shades(HUMIDITY, "humidity", [0, 44, 100])).toEqual([
-      "#cde2fb",
-      "#6da7ec",
       "#0d366b",
+      "#256abf",
+      "#cde2fb",
     ]);
   });
 
   it("shades Rain chance on the same scale", async () => {
     const key = "precipitation_probability";
-    expect(await shades(PRECIPITATION_PROBABILITY, key, [90])).toEqual(["#0d366b"]);
+    expect(await shades(PRECIPITATION_PROBABILITY, key, [90])).toEqual(["#cde2fb"]);
   });
 });
 

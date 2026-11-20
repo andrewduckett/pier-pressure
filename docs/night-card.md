@@ -114,19 +114,20 @@ hours of the forecast. See [Panning the strip](#panning-the-strip).
 
 #### How to read the rows
 
-Each cell is one hour, shaded in one of seven blues. Darker means more of what
-the row names. Seeing and Transparency are the exception: for those two rows,
-darker means worse.
+Each cell is one hour, shaded in one of seven blues. On every shaded row,
+darker means better for observing: a darker sky, less cloud, less wind, better
+seeing. Temperature and Dew point are the one exception: on those two rows,
+darker is warmer.
 
-| Row | Lightest | Darkest |
+| Row | Darkest | Lightest |
 |---|---|---|
-| Sun altitude | Sun above the horizon | Astronomical night. See the steps below. |
-| Moon altitude | Moon on or below the horizon | Moon 30° high or more. One step darker for every 6°. |
-| Cloud cover, Cloud low, Cloud mid, Cloud high | Clear | Overcast. One step darker for every 15%. |
-| Wind gust, Wind speed | Calm | 42 km/h or more. One step darker for every 7 km/h. |
+| Sun altitude | Astronomical night. See the steps below. | Sun above the horizon |
+| Moon altitude | Moon on or below the horizon | Moon 30° high or more. One step lighter for every 6°. The shade ignores the moon's phase, so a crescent and a full moon at the same height match. |
+| Cloud cover, Cloud low, Cloud mid, Cloud high | Clear | Overcast. One step lighter for every 15%. |
+| Wind gust, Wind speed | Calm | 42 km/h or more. One step lighter for every 7 km/h. |
 | Seeing, Transparency | Excellent, 1 | Poor, 0. |
-| Temperature, Dew point | Below −5 °C | 20 °C or more. One step darker for every 5 °C. |
-| Humidity, Rain chance | 0% | 90% or more. One step darker for every 15%. |
+| Temperature, Dew point | 20 °C or more | Below −5 °C. One step lighter for every 5 °C colder. |
+| Humidity, Rain chance | 0% | 90% or more. One step lighter for every 15%. |
 
 In the **Sun altitude** row, the blue darkens as the sun goes down:
 
@@ -155,8 +156,9 @@ time. So its cell fills the hour before that time: the chance at 22:00 fills
 the cell from 21:00 to 22:00.
 
 The **Cloud range** row shows how far the weather forecasts agree on cloud
-cover. Each hour has a light blue column. Its height runs from 0% at the bottom
-to 100% at the top. A dark blue bar in the column runs from the lowest to the
+cover. It is grey because it shows agreement, not whether an hour is good or
+bad for observing. Each hour has a grey column. Its height runs from 0% at the
+bottom to 100% at the top. A darker grey bar in the column runs from the lowest to the
 highest cloud cover any forecast gives for the hour. A tall bar means the
 forecasts disagree; a short bar means they agree, and where it sits says how
 cloudy they expect it to be. When the forecasts give the same value, the bar is

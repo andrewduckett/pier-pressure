@@ -509,7 +509,9 @@ function hourlyValues(forecast: unknown): Map<number, unknown> {
   return new Map([...values].sort(([a], [b]) => a - b));
 }
 
-// Seven blues, lightest to darkest.
+// Seven blues, lightest to darkest. Sun altitude, Temperature and Dew point read
+// them in this order; every other shaded row reads them darkest first, through
+// `darkestFirst`, so darker is better for observing.
 const BLUES = [
   "#cde2fb",
   "#9ec5f4",
@@ -525,8 +527,13 @@ function blue(step: number): string {
   return BLUES[Math.min(BLUES.length - 1, Math.max(0, step))] ?? BLUES[0];
 }
 
+// For a row where less is better for observing, so the best step is the darkest.
+function darkestFirst(step: number): string {
+  return blue(BLUES.length - 1 - step);
+}
+
 function percentShade(percent: number): string {
-  return blue(Math.floor(percent / 15));
+  return darkestFirst(Math.floor(percent / 15));
 }
 
 // The twilight band: sun up, civil, nautical and astronomical
@@ -535,14 +542,15 @@ function sunShade(degrees: number): string {
   return blue(degrees > 0 ? 0 : degrees > -6 ? 1 : degrees > -12 ? 2 : degrees > -18 ? 3 : 6);
 }
 
-// The moon band: lightest while the moon is down, then one step per 6°.
+// The moon band: darkest while the moon is down, then one step paler per 6°.
+// Altitude alone, so a new moon high up is as pale as a full one.
 function moonShade(degrees: number): string {
-  return blue(degrees <= 0 ? 0 : 1 + Math.floor(degrees / 6));
+  return darkestFirst(degrees <= 0 ? 0 : 1 + Math.floor(degrees / 6));
 }
 
-// A quality from 0 to 1, where 1 is best, so darker is worse.
+// A quality from 0 to 1, where 1 is best, so darker is better.
 function qualityShade(quality: number): string {
-  return blue(Math.round((1 - quality) * 7));
+  return darkestFirst(Math.round((1 - quality) * 7));
 }
 
 // Temperature and Dew point share this scale, so the two rows compare by eye:
@@ -565,9 +573,10 @@ function compassPoint(degrees: number): string {
   return COMPASS[Math.round(turned / 45) % COMPASS.length] ?? COMPASS[0];
 }
 
-// One step per 7 km/h, so 42 km/h or more is the darkest.
+// One step per 7 km/h, so under 7 km/h is the darkest and 42 km/h or more the
+// lightest.
 function windShade(speed: number): string {
-  return blue(Math.floor(speed / 7));
+  return darkestFirst(Math.floor(speed / 7));
 }
 
 const QUARTER = 15 * 60 * 1000;

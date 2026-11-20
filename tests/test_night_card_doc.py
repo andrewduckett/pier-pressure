@@ -240,9 +240,41 @@ def test_docs_rows_name_the_new_sensors(sensor: str) -> None:
     assert sensor in _page()
 
 
-@pytest.mark.parametrize("term", ["darker means worse", "same scale", "hour before", "blows to"])
+@pytest.mark.parametrize(
+    "term",
+    ["darker means better", "exception", "warmer", "same scale", "hour before", "blows to"],
+)
 def test_docs_rows_explain_what_they_show(term: str) -> None:
     assert term in _page().lower()
+
+
+def test_docs_rows_no_longer_say_darker_means_worse() -> None:
+    assert "darker means worse" not in " ".join(_page().lower().split())
+
+
+def _reading_the_rows() -> str:
+    page = _page()
+    heading = "#### How to read the rows"
+    section = page[page.index(heading) + len(heading) :]
+    return " ".join(section[: section.index("\n#### ")].split())
+
+
+def test_docs_rows_say_the_moon_altitude_shade_ignores_the_phase() -> None:
+    assert "phase" in _reading_the_rows()
+
+
+def _cloud_range_paragraph() -> str:
+    paragraphs = _reading_the_rows().split("The **Cloud range** row shows", 1)[1]
+    return paragraphs.split("A blank hour", 1)[0]
+
+
+@pytest.mark.parametrize("term", ["grey", "agree"])
+def test_docs_cloud_range_paragraph_says_why_the_row_is_grey(term: str) -> None:
+    assert term in _cloud_range_paragraph()
+
+
+def test_docs_cloud_range_paragraph_no_longer_calls_the_row_blue() -> None:
+    assert "blue" not in _cloud_range_paragraph()
 
 
 def test_docs_rows_no_longer_promise_the_other_conditions_later() -> None:

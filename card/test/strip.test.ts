@@ -261,17 +261,17 @@ describe("a value fills its hour", () => {
   });
 });
 
-describe("more cloud is darker", () => {
+describe("less cloud is darker", () => {
   it.each([
-    [0, "#cde2fb"],
-    [14, "#cde2fb"],
-    [15, "#9ec5f4"],
-    [44, "#6da7ec"],
-    [89, "#184f95"],
-    [90, "#0d366b"],
-    [100, "#0d366b"],
-    [-5, "#cde2fb"],
-    [120, "#0d366b"],
+    [0, "#0d366b"],
+    [14, "#0d366b"],
+    [15, "#184f95"],
+    [44, "#256abf"],
+    [89, "#9ec5f4"],
+    [90, "#cde2fb"],
+    [100, "#cde2fb"],
+    [-5, "#0d366b"],
+    [120, "#cde2fb"],
   ])("shades %d%% as %s", async (value, colour) => {
     const card = await mountCard({
       [VERDICT]: NIGHT,
@@ -329,7 +329,7 @@ describe("a null hour is blank", () => {
       [CLOUD_MID]: forecastEntity([["2026-10-31T22:00:00Z", 0]]),
     });
 
-    expect(cells(card, "cloud_mid").map((cell) => cell.dataset["shade"])).toEqual(["#cde2fb"]);
+    expect(cells(card, "cloud_mid").map((cell) => cell.dataset["shade"])).toEqual(["#0d366b"]);
   });
 
   it("skips a point without a readable datetime", async () => {

@@ -346,6 +346,41 @@ function declarations(selector: string): string[] {
     .flatMap(([, , body]) => (body ?? "").split(";").map((part) => part.trim()));
 }
 
+// The colour a rule's `background-color` declares, as `#rrggbb`.
+function background(selector: string): string {
+  const prefix = "background-color: ";
+  const declaration = declarations(selector).find((part) => part.startsWith(prefix));
+  return declaration?.slice(prefix.length) ?? "";
+}
+
+// WCAG 2.2 relative luminance of a `#rrggbb` colour.
+function luminance(hex: string): number {
+  const [r = 0, g = 0, b = 0] = [1, 3, 5].map((at) => {
+    const channel = parseInt(hex.slice(at, at + 2), 16) / 255;
+    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+// WCAG 2.2 contrast ratio, lighter over darker, so the order of the two does not matter.
+function contrast(one: string, other: string): number {
+  const [darker, lighter] = [luminance(one), luminance(other)].sort((a, b) => a - b);
+  return ((lighter ?? 0) + 0.05) / ((darker ?? 0) + 0.05);
+}
+
+describe("the Cloud range greys stand out on the default themes", () => {
+  it("give each range bar at least 3:1 against its column", () => {
+    expect(contrast(background(".range"), background(".column"))).toBeGreaterThanOrEqual(3);
+  });
+
+  it.each([
+    ["light", "#ffffff"],
+    ["dark", "#1c1c1c"],
+  ])("give each column at least 3:1 against the %s card", (_, card) => {
+    expect(contrast(background(".column"), card)).toBeGreaterThanOrEqual(3);
+  });
+});
+
 describe("the Cloud range row's styles", () => {
   it("make the row's track twice a shaded row's height", () => {
     expect(declarations('.row[data-row="cloud_range"] .track')).toContain("height: 32px");
@@ -355,14 +390,14 @@ describe("the Cloud range row's styles", () => {
     expect(declarations(`.row[data-row="cloud_range"] ${part}`)).toContain("line-height: 32px");
   });
 
-  it.each(["background-color: #cde2fb", "overflow: hidden"])(
+  it.each(["background-color: #8c8c8c", "overflow: hidden"])(
     "style each column with %s",
     (declaration) => {
       expect(declarations(".column")).toContain(declaration);
     },
   );
 
-  it.each(["position: absolute", "left: 0", "right: 0", "background-color: #256abf"])(
+  it.each(["position: absolute", "left: 1px", "right: 1px", "background-color: #404040"])(
     "style each range bar with %s",
     (declaration) => {
       expect(declarations(".range")).toContain(declaration);
