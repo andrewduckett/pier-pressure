@@ -46,13 +46,14 @@ None.
 ### Modified Capabilities
 
 - `night-card`: the requirements that fix each row's shades change direction
-  ("More cloud is darker", "The Moon altitude row darkens as the moon climbs",
-  "More wind is darker", "Worse seeing and transparency are darker", "More
-  humidity and rain chance is darker"), the Cloud range row's shades become
-  two greys with a contrast rule ("The Cloud range row has its own shades and
-  height"), and the docs requirements stop asking for "darker means worse"
-  ("The docs describe every row") and describe the Cloud range row in greys
-  ("The docs say what the Cloud range row reads and shows").
+  and are renamed to match ("More cloud is darker", "The Moon altitude row
+  darkens as the moon climbs", "More wind is darker", "Worse seeing and
+  transparency are darker", "More humidity and rain chance is darker"). The
+  Cloud range row's shades become two greys ("The Cloud range row has its own
+  shades and height"), with new requirements for their contrast and the bar's
+  inset. "The docs describe every row" stops asking for "darker means worse",
+  and new docs requirements ask for "darker is better for observing" and for
+  the Cloud range row's greys.
 
 ## Impact
 
