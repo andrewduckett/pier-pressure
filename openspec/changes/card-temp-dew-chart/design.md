@@ -176,18 +176,23 @@ keeps the key's two lines, 16 px each, inside the label cell.
 ### 6. The label cell holds the key and the scale side by side
 
 The label cell is `display: grid; grid-template-columns: max-content
-max-content; column-gap: 8px`, as tall as the track:
+minmax(40px, max-content); column-gap: 8px`, as tall as the track:
 
 - Left: the key, two lines of 16 px from the top. Each line is a 12 × 3 px
   swatch in the line's colour, the name, and the row message from
   `renderMissing` when the line has one.
 - Right: the scale labels, `<value> °C` at `0.75em`, absolutely positioned
-  at each gridline's `top` percent with `translateY(-50%)`, right-aligned.
+  at each gridline's `top` percent, right-aligned. Boundary labels are
+  edge-aligned to stay within the row: the top label (`high`, `top: 0%`) uses
+  `translateY(0)`, the bottom label (`low`, `top: 100%`) uses
+  `translateY(-100%)`, and interior labels use `translateY(-50%)`, preventing
+  vertical protrusion into adjacent lanes or rows.
 
 The strip's label column is `max-content`, so it widens to fit this cell:
-about 40 px for the scale labels, and more while a message shows. D8 and
-D11 put both the scale and the messages in the label column; a wider label
-column is the cost.
+about 40 px for the scale labels (reserved by `minmax(40px, max-content)` so
+absolutely positioned labels do not collapse the column width), and more
+while a message shows. D8 and D11 put both the scale and the messages in the
+label column; a wider label column is the cost.
 
 Alternative: scale labels inside the track at its left edge. It keeps the
 label column narrow but breaks D8, and the labels would cover the first
