@@ -64,7 +64,7 @@ Each Cloud range bar SHALL have a contrast ratio of at least 3:1 against its col
 ### Requirement: Hovering over a Cloud range column shows both values
 Hovering over a Cloud range column SHALL show `Cloud range, the hour from <HH:MM>: <min>% to <max>%`, with the values as the forecasts hold them. For an hour where the forecasts disagree, the text SHALL end `, the forecasts disagree`. A screen reader SHALL read the same text.
 
-#### Scenario: Forecasts that disagree
+#### Scenario: Forecasts 35 points or fewer apart
 - **WHEN** Home Assistant's time zone is `UTC` and the min and max forecasts hold 40 and 70.5 at 2026-10-31T21:00:00Z
 - **THEN** hovering over that column shows `Cloud range, the hour from 21:00: 40% to 70.5%`
 
