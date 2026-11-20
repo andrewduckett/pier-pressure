@@ -502,14 +502,16 @@ function cloudRange(
     if (!isNumber(low) || !isNumber(high) || low > high) return [];
     if (hour + HOUR <= axis.start || hour >= axis.end) return [];
     const drawn = { low: percent(low), high: percent(high) };
+    const disagree = drawn.high - drawn.low > DISAGREE_GAP + 1e-9;
+    const values = `Cloud range, the hour from ${time(hour)}: ${low}% to ${high}%`;
     return [
       {
         hour,
         from: Math.max(hour, axis.start),
         to: Math.min(hour + HOUR, axis.end),
         ...drawn,
-        disagree: drawn.high - drawn.low > DISAGREE_GAP + 1e-9,
-        text: `Cloud range, the hour from ${time(hour)}: ${low}% to ${high}%`,
+        disagree,
+        text: disagree ? `${values}, the forecasts disagree` : values,
       },
     ];
   });

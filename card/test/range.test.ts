@@ -266,10 +266,32 @@ describe("hovering over a Cloud range column", () => {
     ]);
   });
 
+  it("says the forecasts disagree when they are more than 35 points apart", async () => {
+    const card = await oneHour(20, 70);
+
+    const column = columns(card)[0];
+    expect([column?.title, column?.getAttribute("aria-label")]).toEqual([
+      "Cloud range, the hour from 21:00: 20% to 70%, the forecasts disagree",
+      "Cloud range, the hour from 21:00: 20% to 70%, the forecasts disagree",
+    ]);
+  });
+
+  it("says nothing more when they are exactly 35 points apart", async () => {
+    const card = await oneHour(20, 55);
+
+    const column = columns(card)[0];
+    expect([column?.title, column?.getAttribute("aria-label")]).toEqual([
+      "Cloud range, the hour from 21:00: 20% to 55%",
+      "Cloud range, the hour from 21:00: 20% to 55%",
+    ]);
+  });
+
   it("shows a value outside 0 to 100 unclamped", async () => {
     const card = await oneHour(-5, 120);
 
-    expect(columns(card)[0]?.title).toBe("Cloud range, the hour from 21:00: -5% to 120%");
+    expect(columns(card)[0]?.title).toBe(
+      "Cloud range, the hour from 21:00: -5% to 120%, the forecasts disagree",
+    );
   });
 });
 
