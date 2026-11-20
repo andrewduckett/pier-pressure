@@ -156,8 +156,9 @@ time. So its cell fills the hour before that time: the chance at 22:00 fills
 the cell from 21:00 to 22:00.
 
 The **Cloud range** row shows how far the weather forecasts agree on cloud
-cover. Each hour has a light blue column. Its height runs from 0% at the bottom
-to 100% at the top. A dark blue bar in the column runs from the lowest to the
+cover. It is grey because it shows agreement, not whether an hour is good or
+bad for observing. Each hour has a grey column. Its height runs from 0% at the
+bottom to 100% at the top. A darker grey bar in the column runs from the lowest to the
 highest cloud cover any forecast gives for the hour. A tall bar means the
 forecasts disagree; a short bar means they agree, and where it sits says how
 cloudy they expect it to be. When the forecasts give the same value, the bar is

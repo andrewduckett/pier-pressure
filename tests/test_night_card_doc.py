@@ -263,6 +263,20 @@ def test_docs_rows_say_the_moon_altitude_shade_ignores_the_phase() -> None:
     assert "phase" in _reading_the_rows()
 
 
+def _cloud_range_paragraph() -> str:
+    paragraphs = _reading_the_rows().split("The **Cloud range** row shows", 1)[1]
+    return paragraphs.split("A blank hour", 1)[0]
+
+
+@pytest.mark.parametrize("term", ["grey", "agree"])
+def test_docs_cloud_range_paragraph_says_why_the_row_is_grey(term: str) -> None:
+    assert term in _cloud_range_paragraph()
+
+
+def test_docs_cloud_range_paragraph_no_longer_calls_the_row_blue() -> None:
+    assert "blue" not in _cloud_range_paragraph()
+
+
 def test_docs_rows_no_longer_promise_the_other_conditions_later() -> None:
     assert "Later releases add the other conditions" not in _page()
 
