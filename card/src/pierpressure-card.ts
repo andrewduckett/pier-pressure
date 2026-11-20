@@ -19,6 +19,7 @@ import {
   clock,
   panned,
 } from "./strip";
+import { tipKey } from "./tap";
 
 declare const __CARD_VERSION__: string;
 
@@ -575,6 +576,7 @@ function renderDrawing(drawing: MoonDrawing) {
     data-lit=${drawing.lit}
     data-mirrored=${drawing.mirrored}
     role="img"
+    data-tip=${tipKey.moon}
     aria-label=${drawing.text}
   >
     <title>${drawing.text}</title>
@@ -661,17 +663,21 @@ function renderStrip(strip: Strip | undefined, input: StripInput) {
         html`<div class="row" data-row=${row.key}>
           <span class="label">${row.label}</span>
           <div class="track">
-            ${row.cells.map((cell) => renderCell(cell, strip.axis))}
+            ${row.cells.map((cell) => renderCell(cell, row.key, strip.axis))}
             ${(row.bands ?? []).map((band) => renderBand(band, strip.axis))}
-            ${row.missing === undefined ? nothing : renderMissing(row.missing)}
+            ${row.missing === undefined ? nothing : renderMissing(row.missing, tipKey.missing(row.key))}
           </div>
         </div>`,
     )}
     <div class="row" data-lane="moon_up">
       <span class="label">Moon up</span>
       <div class="track">
-        ${strip.moonUp.map((bar) => renderBar(bar, strip.axis))}
-        ${strip.moonUpMissing === undefined ? nothing : renderMissing(strip.moonUpMissing)}
+        ${strip.moonUp.map((bar) => renderBar(bar, tipKey.moonUp(bar.start), strip.axis))}
+        ${
+          strip.moonUpMissing === undefined
+            ? nothing
+            : renderMissing(strip.moonUpMissing, tipKey.missing("moon_up"))
+        }
       </div>
     </div>
     ${strip.targets.map(
@@ -679,7 +685,11 @@ function renderStrip(strip: Strip | undefined, input: StripInput) {
         html`<div class="row" data-lane=${`target_${lane.rank}`}>
           <span class="label">${lane.label}</span>
           <div class="track">
-            ${lane.bar === undefined ? nothing : renderBar(lane.bar, strip.axis, lane)}
+            ${
+              lane.bar === undefined
+                ? nothing
+                : renderBar(lane.bar, tipKey.target(lane.rank), strip.axis, lane)
+            }
           </div>
         </div>`,
     )}
@@ -706,6 +716,7 @@ function renderLine(line: Line, axis: Axis) {
     style=${style}
     data-line=${line.kind}
     data-at=${iso(line.at)}
+    data-tip=${tipKey.line(line.kind)}
     title=${line.text}
     aria-label=${line.text}
   ></div>`;
@@ -716,7 +727,7 @@ function renderTimeLabel(label: TimeLabel, axis: Axis) {
   return html`<span class="time" style=${style} data-at=${iso(label.at)}>${label.text}</span>`;
 }
 
-function renderCell(cell: Cell, axis: Axis) {
+function renderCell(cell: Cell, row: string, axis: Axis) {
   const place = hourPlace(cell, axis);
   const style = cell.shade === undefined ? place : `${place}; background-color: ${cell.shade}`;
   // `nothing` leaves an attribute out; `undefined` would leave it empty.
@@ -728,6 +739,7 @@ function renderCell(cell: Cell, axis: Axis) {
     data-to=${iso(cell.to)}
     data-shade=${cell.shade ?? nothing}
     data-arrow=${cell.arrow ?? nothing}
+    data-tip=${tipKey.cell(row, cell.hour)}
     title=${cell.text}
     aria-label=${cell.text}
   >
@@ -748,6 +760,7 @@ function renderBand(band: Band, axis: Axis) {
     data-to=${iso(band.to)}
     data-low=${band.low}
     data-high=${band.high}
+    data-tip=${tipKey.column(band.hour)}
     title=${band.text}
     aria-label=${band.text}
   >
@@ -765,7 +778,7 @@ function renderArrow(degrees: number) {
 }
 
 // A target's bar carries its name and id; a Moon up bar has neither.
-function renderBar(bar: Bar, axis: Axis, target?: TargetLane) {
+function renderBar(bar: Bar, key: string, axis: Axis, target?: TargetLane) {
   const style = `left: ${offset(bar.from, axis)}%; width: ${share(bar.to - bar.from, axis)}%`;
   return html`<div
     class="bar"
@@ -775,6 +788,7 @@ function renderBar(bar: Bar, axis: Axis, target?: TargetLane) {
     data-end=${iso(bar.end)}
     data-from=${iso(bar.from)}
     data-to=${iso(bar.to)}
+    data-tip=${key}
     title=${bar.text}
     aria-label=${bar.text}
   >

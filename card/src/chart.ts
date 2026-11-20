@@ -1,6 +1,7 @@
 import { css, html, nothing, svg } from "lit";
 import { hourPlace, iso, offset } from "./place";
 import type { Axis, ChartHour, ChartLine, ChartPoint, Missing, TemperatureChart } from "./strip";
+import { tipKey } from "./tap";
 
 export const chartStyles = css`
   /* The key and the scale side by side, as tall as the chart. */
@@ -133,6 +134,7 @@ function renderHour(hour: ChartHour, axis: Axis) {
     class="cell hour"
     style=${hourPlace(hour, axis)}
     data-hour=${iso(hour.hour)}
+    data-tip=${tipKey.hour(hour.hour)}
     title=${hour.text}
     aria-label=${hour.text}
   ></div>`;
@@ -144,18 +146,23 @@ function height(celsius: number, scale: Scale): string {
 }
 
 function renderKeyEntry(line: ChartLine) {
+  const missing =
+    line.missing === undefined
+      ? nothing
+      : renderMissing(line.missing, tipKey.missing(`chart:${line.key}`));
   return html`<span class="entry" data-series=${line.key}>
     <span class="swatch" style=${`background-color: ${line.colour}`}></span
-    ><span class="name">${line.label}</span
-    >${line.missing === undefined ? nothing : renderMissing(line.missing)}
+    ><span class="name">${line.label}</span>${missing}
   </span>`;
 }
 
-export function renderMissing(missing: Missing) {
+// The key names the row, lane or key entry the message is drawn on.
+export function renderMissing(missing: Missing, key: string) {
   const kind = missing.message.toLowerCase().replace(/ /g, "-");
   return html`<span
     class="missing"
     data-missing=${kind}
+    data-tip=${key}
     title=${missing.text}
     aria-label=${missing.text}
     >${missing.message}</span
