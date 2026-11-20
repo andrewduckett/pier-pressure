@@ -27,4 +27,4 @@ https://github.com/andrewduckett/pier-pressure/issues/253
 
 None. The story stands as written.
 
-Confirmed by user: no
+Confirmed by user: yes
