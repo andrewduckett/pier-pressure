@@ -8,6 +8,7 @@ import {
   SEEING,
   TEMPERATURE,
   VERDICT,
+  cardStyles,
   catalogTarget,
   forecastEntity,
   mountCard,
@@ -646,6 +647,83 @@ describe("an open box when the card redraws", () => {
       true,
       null,
     ]);
+  });
+});
+
+describe("the box on the card", () => {
+  function rule(selector: string): string {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(?:^|[}\\s])${escaped}\\s*\\{([^}]*)\\}`).exec(cardStyles())?.[1] ?? "";
+  }
+
+  it("is taken out of the card's flow, so showing it moves nothing", () => {
+    expect([rule("ha-card"), rule(".tip")]).toEqual([
+      expect.stringMatching(/position:\s*relative/),
+      expect.stringMatching(/position:\s*absolute/),
+    ]);
+  });
+
+  it("sits above the dusk, dawn and now lines", () => {
+    expect(rule(".tip")).toMatch(/z-index:\s*2;/);
+  });
+
+  it("lets a tap through to the item under it", () => {
+    expect(rule(".tip")).toMatch(/pointer-events:\s*none/);
+  });
+
+  it("wraps a long text inside the card", () => {
+    expect(rule(".tip")).toMatch(
+      /max-width:\s*min\(280px, calc\(100% - 16px\)\);[^}]*overflow-wrap:\s*anywhere/,
+    );
+  });
+
+  it("leaves the strip as it was", async () => {
+    const card = await mountCard(EVERY_ITEM);
+    const before = card.shadowRoot?.querySelector(".strip")?.innerHTML;
+
+    await tapOn(card, COVER_04, "touch");
+
+    expect([tip(card), card.shadowRoot?.querySelector(".strip")?.innerHTML]).toEqual([
+      expect.any(HTMLElement),
+      before,
+    ]);
+  });
+
+  describe("with a laid-out card", () => {
+    let item = new DOMRect(180, 100, 40, 16);
+
+    // The card 400 px wide, the box 100 by 20 px, and the tapped cell at `item`.
+    beforeEach(() => {
+      item = new DOMRect(180, 100, 40, 16);
+      vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+        this: HTMLElement,
+      ) {
+        if (this.localName === "ha-card") return new DOMRect(0, 0, 400, 300);
+        if (this.classList.contains("tip")) return new DOMRect(0, 0, 100, 20);
+        if (this.dataset["tip"] === COVER_04) return item;
+        return new DOMRect(0, 0, 0, 0);
+      });
+    });
+    afterEach(() => vi.restoreAllMocks());
+
+    it("places the box above its item", async () => {
+      const card = await mountCard(EVERY_ITEM);
+
+      await tapOn(card, COVER_04, "touch");
+
+      expect([tip(card)?.style.left, tip(card)?.style.top]).toEqual(["150px", "76px"]);
+    });
+
+    it("moves the box with its item when the card redraws", async () => {
+      const card = await mountCard(EVERY_ITEM);
+      await tapOn(card, COVER_04, "touch");
+
+      item = new DOMRect(300, 150, 40, 16);
+      card.requestUpdate();
+      await card.updateComplete;
+
+      expect([tip(card)?.style.left, tip(card)?.style.top]).toEqual(["270px", "126px"]);
+    });
   });
 });
 

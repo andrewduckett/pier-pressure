@@ -19,7 +19,7 @@ import {
   clock,
   panned,
 } from "./strip";
-import { tipKey, tipText } from "./tap";
+import { placeTip, tipKey, tipText } from "./tap";
 
 declare const __CARD_VERSION__: string;
 
@@ -68,6 +68,27 @@ export class PierPressureCard extends LitElement {
 
   static override styles = [
     css`
+    /* Holds the tap box, which is placed in px from the card's corner. */
+    ha-card {
+      position: relative;
+    }
+    /* Out of the flow, so showing it moves nothing, and above the lines. A tap
+       goes through it to the item under it. The colours swap the card's, so it
+       reads on a light or a dark theme. */
+    .tip {
+      position: absolute;
+      z-index: 2;
+      pointer-events: none;
+      max-width: min(280px, calc(100% - 16px));
+      box-sizing: border-box;
+      padding: 4px 8px;
+      border-radius: 4px;
+      background-color: var(--primary-text-color);
+      color: var(--card-background-color);
+      font-size: 0.85em;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
     /* Not stretched: a stretched grid spreads the verdict lines to the Moon
        section's height. */
     .summary {
@@ -344,6 +365,24 @@ export class PierPressureCard extends LitElement {
     if (tipText(this.shownStrip(), this.shownMoon(), this.tipKey) === undefined) {
       this.tipKey = undefined;
     }
+  }
+
+  // Before the browser paints, so the box never shows in the wrong place. The box
+  // is measured at the card's left edge, where only its max-width limits it.
+  override updated(): void {
+    if (this.tipKey === undefined) return;
+    const box = this.renderRoot.querySelector<HTMLElement>(".tip");
+    const card = this.renderRoot.querySelector("ha-card");
+    const item = this.renderRoot.querySelector(`[data-tip="${this.tipKey}"]`);
+    if (box === null || card === null || item === null) return;
+    box.style.left = "0px";
+    const place = placeTip(
+      item.getBoundingClientRect(),
+      card.getBoundingClientRect(),
+      box.getBoundingClientRect(),
+    );
+    box.style.left = `${place.left}px`;
+    box.style.top = `${place.top}px`;
   }
 
   // Three target lanes, or two reasons, are about one of Home Assistant's 50 px
