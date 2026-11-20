@@ -22,7 +22,7 @@ no layout, so a test that needs sizes stubs `getBoundingClientRect`, as
 
 ## 2. The docs
 
-- [ ] 2.1 [parallel] [easy] A new "Reading a value on a phone" subsection of `docs/night-card.md`, after "The lines" and before "Panning the strip", names tap, phone and box in the same paragraph as hover; lists the cell, column, bar, line, Temperature chart hour, message and moon drawing; says any pointer can tap; and says a tap elsewhere, a second tap on the same item, or a pan closes the box. The moon drawing paragraph says "Hover over or tap the drawing". Add tests for these words to `tests/test_night_card_doc.py` (design decision 8) (verify: `uv run pytest tests/test_night_card_doc.py`)
+- [x] 2.1 [parallel] [easy] A new "Reading a value on a phone" subsection of `docs/night-card.md`, after "The lines" and before "Panning the strip", names tap, phone and box in the same paragraph as hover; lists the cell, column, bar, line, Temperature chart hour, message and moon drawing; says any pointer can tap; and says a tap elsewhere, a second tap on the same item, or a pan closes the box. The moon drawing paragraph says "Hover over or tap the drawing". Add tests for these words to `tests/test_night_card_doc.py` (design decision 8) (verify: `uv run pytest tests/test_night_card_doc.py`) (✓ `uv run pytest tests/test_night_card_doc.py` passed)
 
 ## 3. Integration [depends-on: 1, 2]
 

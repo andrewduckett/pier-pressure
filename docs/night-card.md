@@ -70,7 +70,7 @@ still right.
 
 A new moon is drawn unlit and a full moon fully lit, even when the illumination
 is a few percent off. The phase does not say which side such a sliver is on.
-Hover over the drawing to see its phase and illumination, such as
+Hover over or tap the drawing to see its phase and illumination, such as
 "Moon: waxing gibbous, 78% lit". The drawing is left out when the phase or the
 illumination is missing.
 
@@ -272,6 +272,25 @@ lanes and the Temperature chart:
   every minute, and shows only while now is on the strip.
 
 Hover over a line to see its time, such as "Dusk, 20:30".
+
+#### Reading a value on a phone
+
+A phone has no pointer to hover with, so tap instead. Tap a cell, a Cloud
+range column, a Moon up or target bar, a line, a Temperature chart hour, a
+message or the moon drawing, and a small box shows the same text that hovering
+shows. The box sits just above the item, or just below it near the top of the
+card, and moves nothing else on the card.
+
+A tap works with any pointer: a finger, a pen or a mouse click. On a computer,
+the box shows beside the browser's own hover text. A press that moves more
+than a few pixels is not a tap, so a drag or a swipe opens no box.
+
+One box shows at a time. A tap on another item shows that item's text
+instead. A tap elsewhere on the card closes the box, such as on a row's label
+or the verdict. A second tap on the same item closes the box too. Any pan of
+the strip closes the box: a drag, a swipe, the arrow keys or
+**Back to tonight**. While the box shows, it keeps up with new forecasts, and
+it closes when its item leaves the strip.
 
 #### Panning the strip
 
