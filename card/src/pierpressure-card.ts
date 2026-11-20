@@ -354,7 +354,9 @@ export class PierPressureCard extends LitElement {
     return html`<ha-card
       header=${`PierPressure ${this.config.pier}`}
       @pointerdown=${this.tap.pointerdown}
+      @pointermove=${this.tap.pointermove}
       @pointerup=${this.tap.pointerup}
+      @pointercancel=${this.tap.pointercancel}
       >${this.renderBody()}${this.renderTip()}</ha-card
     >`;
   }
@@ -538,6 +540,13 @@ export class PierPressureCard extends LitElement {
         moved: false,
       };
     },
+    // Every drag that pans has moved this far, so none of them is a tap.
+    pointermove: (event) => {
+      const press = this.press;
+      if (press === undefined || event.pointerId !== press.pointerId) return;
+      const far = Math.max(Math.abs(event.clientX - press.x), Math.abs(event.clientY - press.y));
+      if (far > DRAG_SLOP) press.moved = true;
+    },
     // A tap on the item the box shows closes it, and a tap off every item too.
     pointerup: (event) => {
       const press = this.press;
@@ -545,6 +554,10 @@ export class PierPressureCard extends LitElement {
       this.press = undefined;
       if (press.moved) return;
       this.tipKey = press.key === this.tipKey ? undefined : press.key;
+    },
+    // The browser took the gesture, to scroll the page.
+    pointercancel: (event) => {
+      if (event.pointerId === this.press?.pointerId) this.press = undefined;
     },
   };
 
@@ -583,7 +596,9 @@ interface Press {
 
 interface TapInput {
   pointerdown: (event: PointerEvent) => void;
+  pointermove: (event: PointerEvent) => void;
   pointerup: (event: PointerEvent) => void;
+  pointercancel: (event: PointerEvent) => void;
 }
 
 interface StripInput {
