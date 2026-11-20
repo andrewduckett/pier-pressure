@@ -420,6 +420,19 @@ describe("the Cloud range greys stand out on the default themes", () => {
   ])("give each column at least 3:1 against the %s card", (_, card) => {
     expect(contrast(background(".column"), card)).toBeGreaterThanOrEqual(3);
   });
+
+  it("give each range bar at least 3:1 against an amber column", () => {
+    expect(contrast(background(".range"), background(".column.disagree"))).toBeGreaterThanOrEqual(
+      3,
+    );
+  });
+
+  it.each([
+    ["light", "#ffffff"],
+    ["dark", "#1c1c1c"],
+  ])("give each amber column at least 3:1 against the %s card", (_, card) => {
+    expect(contrast(background(".column.disagree"), card)).toBeGreaterThanOrEqual(3);
+  });
 });
 
 describe("the Cloud range row's styles", () => {
@@ -444,6 +457,19 @@ describe("the Cloud range row's styles", () => {
       expect(declarations(".range")).toContain(declaration);
     },
   );
+
+  it("shade a column where the forecasts disagree amber", () => {
+    expect(declarations(".column.disagree")).toContain("background-color: #b58900");
+  });
+
+  it("leave the range bar grey in an amber column", () => {
+    const css = cardStyles().replace(/\/\*[\s\S]*?\*\//g, "");
+    const selectors = [...css.matchAll(/([^{}]+)\{/g)].flatMap(([, list]) =>
+      (list ?? "").split(",").map((part) => part.trim()),
+    );
+
+    expect(selectors.filter((selector) => /disagree.*\.range/.test(selector))).toEqual([]);
+  });
 
   it("mark each column for those styles", async () => {
     const card = await oneHour(40, 70);
