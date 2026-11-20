@@ -3,6 +3,7 @@ import {
   CLOUD_COVER,
   CLOUD_COVER_MAX,
   CLOUD_COVER_MIN,
+  DEW_POINT,
   PRECIPITATION_PROBABILITY,
   SEEING,
   VERDICT,
@@ -50,6 +51,15 @@ describe("the reach", () => {
     const states = { [CLOUD_COVER_MAX]: forecastEntity(hourly("2026-10-31T12:00:00Z", 72)) };
 
     expect(reach(states)).toEqual(["2026-10-31T12:00:00.000Z", "2026-11-03T12:00:00.000Z"]);
+  });
+
+  it("counts the Dew point sensor's hours", () => {
+    const states = {
+      [CLOUD_COVER]: forecastEntity(hourly("2026-10-31T12:00:00Z", 24)),
+      [DEW_POINT]: forecastEntity(hourly("2026-10-31T12:00:00Z", 72)),
+    };
+
+    expect(reach(states)[1]).toBe("2026-11-03T12:00:00.000Z");
   });
 
   it("starts at the hour a Rain chance value fills, the hour before its time", () => {
@@ -581,6 +591,18 @@ describe("dragging the strip", () => {
     const card = await mountCard(DAY_AROUND_NOW);
 
     await drag(card, [[100, 100]]);
+
+    expect(axisOf(card)).toEqual(["2026-11-01T12:00:00.000Z", "2026-11-02T12:00:00.000Z"]);
+  });
+
+  it("pans later when dragged to the left from the Temperature chart", async () => {
+    const card = await mountCard(DAY_AROUND_NOW);
+    const chart = card.shadowRoot?.querySelector('.strip [data-chart="temperature"] .track');
+
+    chart?.dispatchEvent(pointer("pointerdown", 200, 100));
+    chart?.dispatchEvent(pointer("pointermove", 100, 100));
+    chart?.dispatchEvent(pointer("pointerup", 100, 100));
+    await card.updateComplete;
 
     expect(axisOf(card)).toEqual(["2026-11-01T12:00:00.000Z", "2026-11-02T12:00:00.000Z"]);
   });

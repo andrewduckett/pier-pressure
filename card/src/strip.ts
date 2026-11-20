@@ -46,14 +46,20 @@ export function panned(opening: Axis, reach: Axis, start: number): Axis {
   return { start: from, end: from + length };
 }
 
-// How far the axis can pan: every timeline hour a row's sensor holds, and never
-// less than the opening axis. PierPressure publishes every timeline hour in every
+// How far the axis can pan: every timeline hour a row's or the Temperature
+// chart's sensor holds, and never less than the opening axis. PierPressure publishes every timeline hour in every
 // sensor, null where it has no value, so a null still marks a timeline hour. A
 // Rain chance point is the exception: it fills the hour before its time, so it
 // counts that hour, and only when there is a value to fill it with.
 export function stripReach(states: States, pier: string, opening: Axis): Axis {
   const reach = { ...opening };
-  const keys = [...ROWS.map((row) => row.key), "cloud_cover_min", "cloud_cover_max"];
+  const keys = [
+    ...ROWS.map((row) => row.key),
+    "cloud_cover_min",
+    "cloud_cover_max",
+    "temperature",
+    "dew_point",
+  ];
   for (const key of keys) {
     const forecast = forecastOf(states[pierEntityId(pier, key)]);
     if (!Array.isArray(forecast)) continue;
@@ -110,8 +116,6 @@ export const ROWS: readonly RowKind[] = [
   { key: "wind_gust", label: "Wind gust", unit: " km/h", shade: windShade },
   { key: "seeing", label: "Seeing", unit: "", shade: qualityShade },
   { key: "transparency", label: "Transparency", unit: "", shade: qualityShade },
-  { key: "temperature", label: "Temperature", unit: " °C", shade: temperatureShade },
-  { key: "dew_point", label: "Dew point", unit: " °C", shade: temperatureShade },
   { key: "humidity", label: "Humidity", unit: "%", shade: percentShade },
   { key: "wind_speed", label: "Wind speed", unit: " km/h", shade: windShade },
   {
@@ -212,6 +216,43 @@ export interface TimeLabel {
   text: string;
 }
 
+// One hour's value on a Temperature chart line, drawn at the middle of the hour.
+export interface ChartPoint {
+  hour: number;
+  at: number;
+  value: number;
+}
+
+// The two lines of the Temperature chart, drawn under the target lanes.
+export interface ChartLine {
+  key: "temperature" | "dew_point";
+  label: "Temperature" | "Dew point";
+  colour: string;
+  // Two neighbouring hours that both hold a number, and the points that have
+  // no such neighbour.
+  segments: Array<[ChartPoint, ChartPoint]>;
+  dots: ChartPoint[];
+  // Only on a line with no number for any hour on the axis.
+  missing?: Missing;
+}
+
+// One hour of the Temperature chart that holds a number on either line, as
+// tall as the chart, for hovering over.
+export interface ChartHour {
+  hour: number;
+  from: number;
+  to: number;
+  text: string;
+}
+
+export interface TemperatureChart {
+  // In °C, multiples of 5; absent when neither forecast holds a number.
+  scale?: { low: number; high: number };
+  // Temperature, then Dew point.
+  lines: ChartLine[];
+  hours: ChartHour[];
+}
+
 export interface Strip {
   axis: Axis;
   // The axis the strip opens on, and how far it can pan from there.
@@ -227,6 +268,7 @@ export interface Strip {
   targets: TargetLane[];
   lines: Line[];
   labels: TimeLabel[];
+  chart: TemperatureChart;
 }
 
 type States = Record<string, { state: string; attributes: Record<string, unknown> } | undefined>;
@@ -278,11 +320,103 @@ export function buildStrip(
     moonUp: moonUpBars(forecastOf(states[pierEntityId(pier, "moon_altitude")]), axis, time),
     ...(moonMissing && { moonUpMissing: moonMissing }),
     targets: targetLanes(states, pier, axis, time),
+    chart: temperatureChart(states, pier, axis, time),
     lines: [
       ...(night === undefined ? [] : nightLines(night, axis, time)),
       ...nowLine(now, axis, time),
     ],
   };
+}
+
+// Orange and green, each at least 3:1 against Home Assistant's light and dark
+// cards. They differ in lightness too, for a reader who mixes up the two hues.
+const CHART_LINES = [
+  { key: "temperature", label: "Temperature", colour: "#d97706" },
+  { key: "dew_point", label: "Dew point", colour: "#15803d" },
+] as const;
+
+// The scale comes from both whole forecasts, not the axis, so it stays put
+// while the strip pans.
+function temperatureChart(
+  states: States,
+  pier: string,
+  axis: Axis,
+  time: (at: number) => string,
+): TemperatureChart {
+  const forecasts = CHART_LINES.map(({ key }) =>
+    hourlyValues(forecastOf(states[pierEntityId(pier, key)])),
+  );
+  const scale = chartScale(forecasts.flatMap((values) => [...values.values()].filter(isNumber)));
+  const lines = CHART_LINES.map((line, index): ChartLine => {
+    const values = forecasts[index] ?? new Map<number, unknown>();
+    const onAxis = [...values].some(
+      ([hour, value]) => isNumber(value) && hour + HOUR > axis.start && hour < axis.end,
+    );
+    if (onAxis) return { ...line, ...chartMarks(values, axis) };
+    // A point just off the axis would be cut off anyway; the message says why
+    // the line is not there.
+    const entityId = pierEntityId(pier, line.key);
+    return { ...line, segments: [], dots: [], missing: missing(entityId, states[entityId]) };
+  });
+  return { ...(scale && { scale }), lines, hours: chartHours(forecasts, axis, time) };
+}
+
+// Each value as the forecast holds it, as a row's hover text writes it.
+function chartHours(
+  forecasts: Map<number, unknown>[],
+  axis: Axis,
+  time: (at: number) => string,
+): ChartHour[] {
+  const hours = [...new Set(forecasts.flatMap((values) => [...values.keys()]))].sort(
+    (a, b) => a - b,
+  );
+  return hours.flatMap((hour): ChartHour[] => {
+    if (hour + HOUR <= axis.start || hour >= axis.end) return [];
+    const readings = CHART_LINES.flatMap(({ label }, index) => {
+      const value = forecasts[index]?.get(hour);
+      return isNumber(value) ? [`${label} ${value} °C`] : [];
+    });
+    if (readings.length === 0) return [];
+    return [
+      {
+        hour,
+        from: Math.max(hour, axis.start),
+        to: Math.min(hour + HOUR, axis.end),
+        text: `The hour from ${time(hour)}: ${readings.join(", ")}`,
+      },
+    ];
+  });
+}
+
+// Whole 5 °C steps, and at least two of them.
+function chartScale(values: number[]): { low: number; high: number } | undefined {
+  if (values.length === 0) return undefined;
+  const low = Math.floor(Math.min(...values) / 5) * 5;
+  const high = Math.ceil(Math.max(...values) / 5) * 5;
+  return { low, high: Math.max(high, low + 10) };
+}
+
+// Every hour that overlaps the axis, and the hour on each side, so a line runs
+// on to the axis ends, where the chart cuts it off. A neighbour outside those
+// hours still counts, so a point beside them is not drawn as a false dot.
+function chartMarks(
+  values: Map<number, unknown>,
+  axis: Axis,
+): Pick<ChartLine, "segments" | "dots"> {
+  const point = (hour: number): ChartPoint | undefined => {
+    const value = values.get(hour);
+    return isNumber(value) ? { hour, at: hour + HOUR / 2, value } : undefined;
+  };
+  const segments: ChartLine["segments"] = [];
+  const dots: ChartPoint[] = [];
+  for (const hour of values.keys()) {
+    const here = point(hour);
+    if (here === undefined || hour + 2 * HOUR <= axis.start || hour - HOUR >= axis.end) continue;
+    const next = point(hour + HOUR);
+    if (next !== undefined) segments.push([here, next]);
+    else if (point(hour - HOUR) === undefined) dots.push(here);
+  }
+  return { segments, dots };
 }
 
 // Late in the night dusk is off the opening axis; a panned axis may hold either line or neither.
@@ -509,9 +643,9 @@ function hourlyValues(forecast: unknown): Map<number, unknown> {
   return new Map([...values].sort(([a], [b]) => a - b));
 }
 
-// Seven blues, lightest to darkest. Sun altitude, Temperature and Dew point read
-// them in this order; every other shaded row reads them darkest first, through
-// `darkestFirst`, so darker is better for observing.
+// Seven blues, lightest to darkest. Sun altitude reads them in this order;
+// every other shaded row reads them darkest first, through `darkestFirst`, so
+// darker is better for observing.
 const BLUES = [
   "#cde2fb",
   "#9ec5f4",
@@ -551,12 +685,6 @@ function moonShade(degrees: number): string {
 // A quality from 0 to 1, where 1 is best, so darker is better.
 function qualityShade(quality: number): string {
   return darkestFirst(Math.round((1 - quality) * 7));
-}
-
-// Temperature and Dew point share this scale, so the two rows compare by eye:
-// one step per 5 °C, from below −5 °C to 20 °C or more.
-function temperatureShade(celsius: number): string {
-  return blue(Math.floor((celsius + 10) / 5));
 }
 
 // The sensor gives the direction the wind blows from; the arrow points the

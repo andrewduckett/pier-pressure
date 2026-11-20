@@ -6,6 +6,7 @@ import {
   VERDICT,
   cardStyles,
   cells,
+  contrast,
   forecastEntity,
   mountCard,
   rowMessage,
@@ -351,21 +352,6 @@ function background(selector: string): string {
   const prefix = "background-color: ";
   const declaration = declarations(selector).find((part) => part.startsWith(prefix));
   return declaration?.slice(prefix.length) ?? "";
-}
-
-// WCAG 2.2 relative luminance of a `#rrggbb` colour.
-function luminance(hex: string): number {
-  const [r = 0, g = 0, b = 0] = [1, 3, 5].map((at) => {
-    const channel = parseInt(hex.slice(at, at + 2), 16) / 255;
-    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
-  });
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-// WCAG 2.2 contrast ratio, lighter over darker, so the order of the two does not matter.
-function contrast(one: string, other: string): number {
-  const [darker, lighter] = [luminance(one), luminance(other)].sort((a, b) => a - b);
-  return ((lighter ?? 0) + 0.05) / ((darker ?? 0) + 0.05);
 }
 
 describe("the Cloud range greys stand out on the default themes", () => {
