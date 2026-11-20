@@ -252,6 +252,17 @@ def test_docs_rows_no_longer_say_darker_means_worse() -> None:
     assert "darker means worse" not in " ".join(_page().lower().split())
 
 
+def _reading_the_rows() -> str:
+    page = _page()
+    heading = "#### How to read the rows"
+    section = page[page.index(heading) + len(heading) :]
+    return " ".join(section[: section.index("\n#### ")].split())
+
+
+def test_docs_rows_say_the_moon_altitude_shade_ignores_the_phase() -> None:
+    assert "phase" in _reading_the_rows()
+
+
 def test_docs_rows_no_longer_promise_the_other_conditions_later() -> None:
     assert "Later releases add the other conditions" not in _page()
 

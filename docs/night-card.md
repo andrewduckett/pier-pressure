@@ -122,7 +122,7 @@ darker is warmer.
 | Row | Darkest | Lightest |
 |---|---|---|
 | Sun altitude | Astronomical night. See the steps below. | Sun above the horizon |
-| Moon altitude | Moon on or below the horizon | Moon 30° high or more. One step lighter for every 6°. |
+| Moon altitude | Moon on or below the horizon | Moon 30° high or more. One step lighter for every 6°. The shade ignores the moon's phase, so a crescent and a full moon at the same height match. |
 | Cloud cover, Cloud low, Cloud mid, Cloud high | Clear | Overcast. One step lighter for every 15%. |
 | Wind gust, Wind speed | Calm | 42 km/h or more. One step lighter for every 7 km/h. |
 | Seeing, Transparency | Excellent, 1 | Poor, 0. |
