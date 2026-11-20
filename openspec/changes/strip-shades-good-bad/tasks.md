@@ -25,7 +25,7 @@ Temperature and Dew point tests must pass unchanged throughout.
 
 ## 4. Integration [depends-on: 1, 2, 3]
 
-- [ ] 4.1 [easy] The full CI gate passes: specs, ruff, mypy, pytest, and the card's type check, tests and build (verify: `mise run check`)
+- [x] 4.1 [easy] The full CI gate passes: specs, ruff, mypy, pytest, and the card's type check, tests and build (verify: `mise run check`) (✓ `mise run check` passed)
 
 ## Deviations Ledger
 
