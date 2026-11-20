@@ -35,6 +35,7 @@ const MOON = { phase: "waxing gibbous", illumination: 0.78 };
 const NIGHT = verdictEntity("GO", {
   dark_window: { start: "2026-10-31T20:30:00Z", end: "2026-11-01T03:25:00Z" },
   moon: MOON,
+  reasons: ["Cloud cover 52% at its worst"],
 });
 
 // A card with an item of every kind.
@@ -261,6 +262,47 @@ describe("a tap on the moon drawing", () => {
     await card.updateComplete;
 
     expect(tips(card)).toEqual(["Moon: waxing gibbous, 78% lit"]);
+  });
+});
+
+describe("a tap with a box showing", () => {
+  const SEEING_21 = "cell:seeing:2026-10-31T21:00:00.000Z";
+
+  function at(card: PierPressureCard, selector: string): Element | null {
+    return card.shadowRoot?.querySelector(selector) ?? null;
+  }
+
+  it("on the same item closes the box", async () => {
+    const card = await mountCard(EVERY_ITEM);
+    await tapOn(card, COVER_04, "touch");
+
+    await tapOn(card, COVER_04, "touch");
+
+    expect(tip(card)).toBeNull();
+  });
+
+  it("on another item shows that item's text in the one box", async () => {
+    const card = await mountCard(EVERY_ITEM);
+    await tapOn(card, COVER_04, "touch");
+
+    await tapOn(card, SEEING_21, "touch");
+
+    expect(tips(card)).toEqual(["Seeing, the hour from 21:00: 0.62"]);
+  });
+
+  it.each([
+    ["a row's label", '[data-row="seeing"] .label'],
+    ["an empty part of a track", '[data-row="cloud_cover"] .track'],
+    ["the verdict", '[data-field="verdict"]'],
+    ["the reasons", ".reasons li"],
+  ])("on %s closes the box", async (_, selector) => {
+    const card = await mountCard(EVERY_ITEM);
+    await tapOn(card, COVER_04, "touch");
+
+    tap(at(card, selector), "touch");
+    await card.updateComplete;
+
+    expect([at(card, selector), tip(card)]).toEqual([expect.any(Element), null]);
   });
 });
 
