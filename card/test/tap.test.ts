@@ -187,6 +187,20 @@ describe("a tap on a strip item", () => {
     expect(tips(card)).toEqual([text]);
   });
 
+  it("on a Cloud range column where the forecasts disagree says so", async () => {
+    const card = await mountCard({
+      ...EVERY_ITEM,
+      [CLOUD_COVER_MIN]: forecastEntity([["2026-10-31T21:00:00Z", 20]]),
+      [CLOUD_COVER_MAX]: forecastEntity([["2026-10-31T21:00:00Z", 70]]),
+    });
+
+    await tapOn(card, "column:2026-10-31T21:00:00.000Z", "touch");
+
+    expect(tips(card)).toEqual([
+      "Cloud range, the hour from 21:00: 20% to 70%, the forecasts disagree",
+    ]);
+  });
+
   it("puts the box last in the card", async () => {
     const card = await mountCard(EVERY_ITEM);
 
