@@ -217,6 +217,52 @@ describe("a tap on a strip item", () => {
   });
 });
 
+describe("a tap on a message", () => {
+  it.each([
+    ["the Seeing row's", "missing:seeing", "sensor.pierpressure_backyard_seeing is unavailable"],
+    [
+      "the Moon up lane's",
+      "missing:moon_up",
+      "sensor.pierpressure_backyard_moon_altitude is not in Home Assistant",
+    ],
+    [
+      "the Dew point one in the Temperature chart's key",
+      "missing:chart:dew_point",
+      "sensor.pierpressure_backyard_dew_point is not in Home Assistant",
+    ],
+    [
+      "the Cloud range row's",
+      "missing:cloud_range",
+      "sensor.pierpressure_backyard_cloud_cover_max is not in Home Assistant",
+    ],
+  ])("on %s shows its hover text", async (_, key, text) => {
+    const card = await mountCard(EVERY_MESSAGE);
+
+    await tapOn(card, key, "touch");
+
+    expect(tips(card)).toEqual([text]);
+  });
+});
+
+describe("a tap on the moon drawing", () => {
+  it("shows the drawing's text", async () => {
+    const card = await mountCard(EVERY_ITEM);
+
+    await tapOn(card, "moon", "touch");
+
+    expect(tips(card)).toEqual(["Moon: waxing gibbous, 78% lit"]);
+  });
+
+  it("shows the drawing's text from a shape inside it", async () => {
+    const card = await mountCard(EVERY_ITEM);
+
+    tap(tappable(card, "moon")?.querySelector("circle"), "touch");
+    await card.updateComplete;
+
+    expect(tips(card)).toEqual(["Moon: waxing gibbous, 78% lit"]);
+  });
+});
+
 describe("placing the box", () => {
   const card = { left: 50, top: 20, width: 400, height: 300 };
   const box = { width: 100, height: 20 };
