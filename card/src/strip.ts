@@ -216,13 +216,26 @@ export interface TimeLabel {
   text: string;
 }
 
+// One hour's value on a Temperature chart line, drawn at the middle of the hour.
+export interface ChartPoint {
+  hour: number;
+  at: number;
+  value: number;
+}
+
 // The two lines of the Temperature chart, drawn under the target lanes.
 export interface ChartLine {
   key: "temperature" | "dew_point";
   label: "Temperature" | "Dew point";
+  // Two neighbouring hours that both hold a number, and the points that have
+  // no such neighbour.
+  segments: Array<[ChartPoint, ChartPoint]>;
+  dots: ChartPoint[];
 }
 
 export interface TemperatureChart {
+  // In °C, multiples of 5; absent when neither forecast holds a number.
+  scale?: { low: number; high: number };
   // Temperature, then Dew point.
   lines: ChartLine[];
 }
@@ -294,7 +307,7 @@ export function buildStrip(
     moonUp: moonUpBars(forecastOf(states[pierEntityId(pier, "moon_altitude")]), axis, time),
     ...(moonMissing && { moonUpMissing: moonMissing }),
     targets: targetLanes(states, pier, axis, time),
-    chart: temperatureChart(),
+    chart: temperatureChart(states, pier, axis),
     lines: [
       ...(night === undefined ? [] : nightLines(night, axis, time)),
       ...nowLine(now, axis, time),
@@ -302,13 +315,56 @@ export function buildStrip(
   };
 }
 
-function temperatureChart(): TemperatureChart {
+const CHART_LINES = [
+  { key: "temperature", label: "Temperature" },
+  { key: "dew_point", label: "Dew point" },
+] as const;
+
+// The scale comes from both whole forecasts, not the axis, so it stays put
+// while the strip pans.
+function temperatureChart(states: States, pier: string, axis: Axis): TemperatureChart {
+  const forecasts = CHART_LINES.map(({ key }) =>
+    hourlyValues(forecastOf(states[pierEntityId(pier, key)])),
+  );
+  const scale = chartScale(forecasts.flatMap((values) => [...values.values()].filter(isNumber)));
   return {
-    lines: [
-      { key: "temperature", label: "Temperature" },
-      { key: "dew_point", label: "Dew point" },
-    ],
+    ...(scale && { scale }),
+    lines: CHART_LINES.map((line, index) => ({
+      ...line,
+      ...chartMarks(forecasts[index] ?? new Map(), axis),
+    })),
   };
+}
+
+// Whole 5 °C steps, and at least two of them.
+function chartScale(values: number[]): { low: number; high: number } | undefined {
+  if (values.length === 0) return undefined;
+  const low = Math.floor(Math.min(...values) / 5) * 5;
+  const high = Math.ceil(Math.max(...values) / 5) * 5;
+  return { low, high: Math.max(high, low + 10) };
+}
+
+// Every hour that overlaps the axis, and the hour on each side, so a line runs
+// on to the axis ends, where the chart cuts it off. A neighbour outside those
+// hours still counts, so a point beside them is not drawn as a false dot.
+function chartMarks(
+  values: Map<number, unknown>,
+  axis: Axis,
+): Pick<ChartLine, "segments" | "dots"> {
+  const point = (hour: number): ChartPoint | undefined => {
+    const value = values.get(hour);
+    return isNumber(value) ? { hour, at: hour + HOUR / 2, value } : undefined;
+  };
+  const segments: ChartLine["segments"] = [];
+  const dots: ChartPoint[] = [];
+  for (const hour of values.keys()) {
+    const here = point(hour);
+    if (here === undefined || hour + 2 * HOUR <= axis.start || hour - HOUR >= axis.end) continue;
+    const next = point(hour + HOUR);
+    if (next !== undefined) segments.push([here, next]);
+    else if (point(hour - HOUR) === undefined) dots.push(here);
+  }
+  return { segments, dots };
 }
 
 // Late in the night dusk is off the opening axis; a panned axis may hold either line or neither.
