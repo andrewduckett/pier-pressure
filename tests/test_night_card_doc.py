@@ -326,6 +326,63 @@ def test_docs_targets_say_the_lines_cross_them() -> None:
     assert "target lanes" in " ".join(lines.split())
 
 
+def test_docs_targets_say_the_temperature_chart_follows_the_moon_up_lane() -> None:
+    lanes = " ".join(_section("#### The target lanes").split("\n#### ", 1)[0].split())
+
+    assert "the Temperature chart follows the Moon up lane" in lanes
+
+
+def _temperature_chart() -> str:
+    section = _section("#### The Temperature chart").split("\n#### ", 1)[0]
+    return " ".join(section.split())
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Temperature chart",
+        "sensor.pierpressure_<pier>_temperature",
+        "sensor.pierpressure_<pier>_dew_point",
+    ],
+)
+def test_docs_temperature_chart_names_the_chart_and_its_sensors(text: str) -> None:
+    assert text in _temperature_chart()
+
+
+@pytest.mark.parametrize(
+    "term",
+    ["middle of the hour", "break", "°C", "orange", "green", "key", "dew", "hover"],
+)
+def test_docs_temperature_chart_explains_what_it_shows(term: str) -> None:
+    assert term.lower() in _temperature_chart().lower()
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "stays put while you pan",
+        "normally the lower one",
+        "Dew is more likely the closer the two lines come",
+    ],
+)
+def test_docs_temperature_chart_says_how_to_read_it(text: str) -> None:
+    assert text in _temperature_chart()
+
+
+@pytest.mark.parametrize("message", ["Not found", "Unavailable", "No forecast"])
+def test_docs_temperature_chart_names_the_messages_beside_the_key(message: str) -> None:
+    sentences = _temperature_chart().split(". ")
+
+    assert any(message in s and "beside" in s for s in sentences)
+
+
+def test_docs_lines_say_they_cross_the_temperature_chart() -> None:
+    page = _page()
+    lines = page[page.index("Three lines cross the strip") : page.index("Hover over a line")]
+
+    assert "Temperature chart" in " ".join(lines.split())
+
+
 def test_docs_targets_named_in_the_opening() -> None:
     opening = _page().split("\n\n")[1]
 

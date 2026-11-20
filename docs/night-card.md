@@ -98,7 +98,9 @@ condition, from top to bottom:
 
 Under the rows is the **Moon up** lane, which also reads
 `sensor.pierpressure_<pier>_moon_altitude`. Under that is one lane for each
-[ranked target](target-ranking.md) tonight.
+[ranked target](target-ranking.md) tonight. Under the lanes, the Temperature
+chart draws the temperature and the dew point as two lines. See
+[The Temperature chart](#the-temperature-chart).
 
 The strip opens from 4 hours before dusk to 5 hours after dawn, the dark window
 on the Verdict sensor. Once the night has started, the strip opens
@@ -222,13 +224,46 @@ even where the strip cuts the bar off. A window of 24 hours or more, as on a
 polar night, shows only the name and id.
 
 A rank with no target tonight leaves no lane, so the lanes that are there
-follow each other with no gap. On a night with no targets at all, the strip
-ends at the Moon up lane.
+follow each other with no gap. On a night with no targets at all, the
+Temperature chart follows the Moon up lane.
+
+#### The Temperature chart
+
+Under the last target lane, the **Temperature chart** draws two lines on the
+strip's time axis. Dew is more likely the closer the two lines come: when the
+temperature falls to the dew point, dew forms on your optics.
+
+| Line | Colour | Sensor |
+|---|---|---|
+| **Temperature** | Orange | `sensor.pierpressure_<pier>_temperature` |
+| **Dew point** | Green | `sensor.pierpressure_<pier>_dew_point` |
+
+The key in the label column names each line beside a sample of its colour. The
+dew point line is normally the lower one. It can cross above the temperature
+line when the two values come from different weather sources.
+
+Each point sits at the middle of the hour it is for, so it lines up with that
+hour's cells in the rows above. A line has a break where an hour has no value.
+A value with no value on either side of it shows as a dot.
+
+The scale is in °C, with a gridline and a label every 5 °C. It fits both
+lines' values over the whole forecast, not only the hours on the strip, so it
+stays put while you pan. The chart is 16 px tall for every 5 °C, and covers at
+least 10 °C.
+
+Hover over an hour to see both values, such as
+"The hour from 21:00: Temperature 4.2 °C, Dew point 1.5 °C". An hour with a
+value on only one line shows that one value.
+
+A line with no value for any hour on the strip draws nothing, and shows
+**Not found**, **Unavailable** or **No forecast** beside its key entry. These
+mean what they mean on a row. Hover over the message to see the sensor's
+entity id. The other line still draws.
 
 #### The lines
 
-Three lines cross the strip, through every row, the Moon up lane and the target
-lanes:
+Three lines cross the strip, through every row, the Moon up lane, the target
+lanes and the Temperature chart:
 
 - A dashed grey line labelled **dusk** at the start of the dark window, and
   one labelled **dawn** at its end. On a night with no astronomical darkness,
@@ -251,8 +286,9 @@ the strip sideways:
   Right arrow keys. Each press moves the strip one hour.
 
 Drag to the left to see later hours, as if you were moving the strip itself.
-Every row and lane moves together, and so do the lines and the time labels.
-The row labels stay where they are. The strip keeps its length: it shows as
+Every row and lane moves together, and so do the Temperature chart's lines,
+the lines across the strip and the time labels. The row labels, and the
+Temperature chart's key and scale, stay where they are. The strip keeps its length: it shows as
 many hours as when it opened.
 
 The strip stops at the first and last forecast hour. How far ahead that is
@@ -408,7 +444,8 @@ find your **Verdict** sensor under **Settings** > **Entities**. Then use, as
     [Watching provider health](../README.md#watching-provider-health).
 
   Before PierPressure's first verdict, every row says "No forecast" too, and
-  the strip has no Cloud range row. The rows fill in when it publishes.
+  so do both lines of the Temperature chart. The strip has no Cloud range
+  row. The rows fill in when it publishes.
 - **The strip has no Cloud range row.** No hour of the forecast has cloud
   cover from two or more weather forecasts, so the card leaves the row out.
   There are two causes:
