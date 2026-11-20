@@ -57,6 +57,27 @@ function hourly(first: string, count: number): Array<[string, unknown]> {
   ]);
 }
 
+function scaleLabels(card: PierPressureCard): Array<string | undefined> {
+  return [...(chart(card)?.querySelectorAll(".scale [data-celsius]") ?? [])].map((label) =>
+    label.textContent?.trim(),
+  );
+}
+
+function gridline(card: PierPressureCard, celsius: number): SVGElement | null {
+  return chart(card)?.querySelector<SVGElement>(`svg line.grid[data-celsius="${celsius}"]`) ?? null;
+}
+
+function trackHeight(card: PierPressureCard): string | undefined {
+  return chart(card)?.querySelector<HTMLElement>(".track")?.style.height;
+}
+
+// A forecast with `values` an hour apart from 21:00 UTC, inside the axis.
+function values(...numbers: unknown[]) {
+  return forecastEntity(
+    numbers.map((value, n) => [new Date(Date.UTC(2026, 9, 31, 21 + n)).toISOString(), value]),
+  );
+}
+
 function keyNames(card: PierPressureCard): Array<string | undefined> {
   return [...(chart(card)?.querySelectorAll(".key [data-series] .name") ?? [])].map((name) =>
     name.textContent?.trim(),
@@ -243,5 +264,142 @@ describe("a Temperature chart line", () => {
     );
 
     expect([dots(card, "temperature").length, dots(card, "dew_point").length]).toEqual([1, 1]);
+  });
+});
+
+describe("the Temperature chart's scale", () => {
+  const BOTH = {
+    [VERDICT]: NIGHT,
+    [TEMPERATURE]: values(3.2, 14.8),
+    [DEW_POINT]: values(-1.5, 9),
+  };
+
+  it("runs from both lines' lowest number to their highest, in 5 °C steps", async () => {
+    const card = await mountCard(BOTH);
+
+    expect(scaleLabels(card)).toEqual(["15 °C", "10 °C", "5 °C", "0 °C", "-5 °C"]);
+  });
+
+  it("is 16 px tall for each 5 °C step", async () => {
+    const card = await mountCard(BOTH);
+
+    expect(trackHeight(card)).toBe("64px");
+  });
+
+  it("is raised to 10 °C above its bottom when the numbers span less", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [TEMPERATURE]: values(6, 8),
+      [DEW_POINT]: values(7),
+    });
+
+    expect(scaleLabels(card)).toEqual(["15 °C", "10 °C", "5 °C"]);
+  });
+
+  it("is not widened by numbers that lie on a step", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [TEMPERATURE]: values(0, 10),
+      [DEW_POINT]: values(5),
+    });
+
+    expect(scaleLabels(card)).toEqual(["10 °C", "5 °C", "0 °C"]);
+  });
+
+  it("counts a number on a later night, off the axis", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [TEMPERATURE]: forecastEntity([
+        ["2026-10-31T21:00:00Z", 5],
+        ["2026-10-31T22:00:00Z", 10],
+        ["2026-11-02T22:00:00Z", -3],
+      ]),
+    });
+
+    expect(scaleLabels(card)).toEqual(["10 °C", "5 °C", "0 °C", "-5 °C"]);
+  });
+
+  it("leaves out an unavailable sensor's stale forecast", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [TEMPERATURE]: values(5, 10),
+      [DEW_POINT]: { ...values(-12), state: "unavailable" },
+    });
+
+    expect(scaleLabels(card)).toEqual(["15 °C", "10 °C", "5 °C"]);
+  });
+
+  it("puts each label level with its gridline", async () => {
+    const card = await mountCard(BOTH);
+
+    const labels = [...(chart(card)?.querySelectorAll<HTMLElement>(".scale [data-celsius]") ?? [])];
+    expect(
+      labels.map((label) => [
+        label.style.top,
+        gridline(card, Number(label.dataset["celsius"]))?.getAttribute("y1"),
+      ]),
+    ).toEqual([
+      ["0.0000%", "0.0000%"],
+      ["25.0000%", "25.0000%"],
+      ["50.0000%", "50.0000%"],
+      ["75.0000%", "75.0000%"],
+      ["100.0000%", "100.0000%"],
+    ]);
+  });
+
+  // An end label kept level with a gridline at the chart's edge would stick
+  // out into the next row.
+  it("keeps its top and bottom labels inside the chart", async () => {
+    const card = await mountCard(BOTH);
+
+    const labels = [...(chart(card)?.querySelectorAll<HTMLElement>(".scale [data-celsius]") ?? [])];
+    expect(labels.map((label) => label.style.transform)).toEqual([
+      "translateY(0)",
+      "translateY(-50%)",
+      "translateY(-50%)",
+      "translateY(-50%)",
+      "translateY(-100%)",
+    ]);
+  });
+
+  it("draws a 0 °C point level with the 0 °C gridline", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [TEMPERATURE]: forecastEntity([["2026-10-31T22:00:00Z", 0]]),
+    });
+
+    expect(dots(card, "temperature")[0]?.getAttribute("cy")).toBe(
+      gridline(card, 0)?.getAttribute("y1"),
+    );
+  });
+
+  it("keeps its labels while the strip pans", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [TEMPERATURE]: forecastEntity([
+        ...hourly("2026-10-31T12:00:00Z", 72),
+        ["2026-11-03T12:00:00Z", 14.8],
+      ]),
+      [DEW_POINT]: values(-1.5),
+    });
+
+    card.heldStart = Date.parse("2026-11-01T16:30:00Z");
+    await card.updateComplete;
+
+    expect(scaleLabels(card)).toEqual(["15 °C", "10 °C", "5 °C", "0 °C", "-5 °C"]);
+  });
+
+  it("is 32 px tall with no gridline or label when neither forecast has a number", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [TEMPERATURE]: { state: "unknown", attributes: {} },
+      [DEW_POINT]: { state: "unknown", attributes: {} },
+    });
+
+    expect([
+      trackHeight(card),
+      chart(card)?.querySelectorAll("svg line.grid").length,
+      scaleLabels(card),
+    ]).toEqual(["32px", 0, []]);
   });
 });

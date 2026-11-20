@@ -20,6 +20,16 @@ export const chartStyles = css`
     width: 12px;
     height: 3px;
   }
+  .scale {
+    position: relative;
+  }
+  .scale .step {
+    position: absolute;
+    right: 0;
+    font-size: 0.75em;
+    line-height: 1;
+    white-space: nowrap;
+  }
   /* Fills the track and cuts the lines off at the axis ends. */
   .plot {
     position: absolute;
@@ -35,16 +45,54 @@ type Scale = NonNullable<TemperatureChart["scale"]>;
 // The chart's grid row: its key in the label column, its lines in the track.
 export function renderChart(chart: TemperatureChart, axis: Axis) {
   const scale = chart.scale;
+  const celsius = scale === undefined ? [] : steps(scale);
+  // One step is as tall as a row.
+  const tall = scale === undefined ? 32 : ((scale.high - scale.low) / STEP) * 16;
   return html`<div class="row" data-chart="temperature">
     <div class="label chart-label">
       <div class="key">${chart.lines.map(renderKeyEntry)}</div>
+      <div class="scale">
+        ${scale === undefined ? [] : celsius.map((value) => renderStep(value, scale))}
+      </div>
     </div>
-    <div class="track" style="height: 32px">
+    <div class="track" style=${`height: ${tall}px`}>
       <svg class="plot" aria-hidden="true">
+        ${scale === undefined ? [] : celsius.map((value) => renderGridline(value, scale))}
         ${scale === undefined ? [] : chart.lines.map((line) => renderLine(line, scale, axis))}
       </svg>
     </div>
   </div>`;
+}
+
+const STEP = 5;
+
+// From the top of the scale down.
+function steps(scale: Scale): number[] {
+  const count = (scale.high - scale.low) / STEP;
+  return Array.from({ length: count + 1 }, (_, index) => scale.high - index * STEP);
+}
+
+// The end labels align to the chart's edges, so neither sticks out into the
+// next row.
+function renderStep(celsius: number, scale: Scale) {
+  const shift = celsius === scale.high ? "0" : celsius === scale.low ? "-100%" : "-50%";
+  const style = `top: ${height(celsius, scale)}%; transform: translateY(${shift})`;
+  return html`<span class="step" style=${style} data-celsius=${celsius}>${celsius} °C</span>`;
+}
+
+function renderGridline(celsius: number, scale: Scale) {
+  const y = `${height(celsius, scale)}%`;
+  return svg`<line
+    class="grid"
+    data-celsius=${celsius}
+    x1="0"
+    x2="100%"
+    y1=${y}
+    y2=${y}
+    stroke="#898781"
+    stroke-opacity="0.4"
+    stroke-width="1"
+  ></line>`;
 }
 
 // Percent coordinates, so the chart reflows with the card as the cells do.
