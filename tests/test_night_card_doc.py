@@ -240,9 +240,16 @@ def test_docs_rows_name_the_new_sensors(sensor: str) -> None:
     assert sensor in _page()
 
 
-@pytest.mark.parametrize("term", ["darker means worse", "same scale", "hour before", "blows to"])
+@pytest.mark.parametrize(
+    "term",
+    ["darker means better", "exception", "warmer", "same scale", "hour before", "blows to"],
+)
 def test_docs_rows_explain_what_they_show(term: str) -> None:
     assert term in _page().lower()
+
+
+def test_docs_rows_no_longer_say_darker_means_worse() -> None:
+    assert "darker means worse" not in " ".join(_page().lower().split())
 
 
 def test_docs_rows_no_longer_promise_the_other_conditions_later() -> None:
