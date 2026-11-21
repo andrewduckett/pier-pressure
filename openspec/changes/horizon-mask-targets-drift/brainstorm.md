@@ -16,6 +16,7 @@ https://github.com/andrewduckett/pier-pressure/issues/273
 | D5 | What does the new scenario assert? | Two verdicts for one pier, instant and conditions, one with a horizon that hides a target listed without it: their `targets` differ, and every other field is byte-identical. | Evidence: `tests/test_horizon_contract.py` |
 | D6 | Does this change need new code or tests? | No: `tests/test_horizon_contract.py::test_horizon_changes_only_targets` already asserts the corrected behavior; the build only runs the checks. | Evidence: #273 scope, `tests/test_horizon_contract.py` |
 | D7 | Does target-ranking's horizon requirement change? | No: "A target must clear the horizon mask for the minimum duration" already matches the code and stays as it is. | Evidence: #273 scope, `openspec/specs/target-ranking/spec.md` |
+| D8 | How does the spec delta make the rename in D3, given that OpenSpec 2.0.0 rejects a MODIFIED block that drops the old scenario name? | REMOVED plus ADDED: remove "The horizon mask has no consumer in the verdict document" with a reason and a migration note, and add "The horizon mask changes only the targets in the verdict document" with the scenario "A horizon that hides a target changes only the targets". The requirement moves to the end of the main spec. This supersedes the RENAMED plus MODIFIED form in D3. | Assumption |
 
 ## Changes from the story
 
