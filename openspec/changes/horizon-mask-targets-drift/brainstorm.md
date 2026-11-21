@@ -23,6 +23,6 @@ https://github.com/andrewduckett/pier-pressure/issues/273
 ## Changes from the story
 
 - Added: the Purpose sentence in `openspec/specs/horizon-mask/spec.md` is corrected too (D4). It is the same drift, and the issue excludes only code, tests and target-ranking requirements.
-- Clarified: the issue's "It changes no other field, topic or entity" becomes "changes only `targets` and the top-pick sentences in `reasons`, and adds, removes or reshapes no field, topic or entity" (D1, D2). Entities fed by `targets` and `reasons` show their new values even though no topic or entity changes.
+- Clarified: the issue's "It changes no other field, topic or entity" becomes "changes only `targets` and the top-pick sentences in `reasons`, and adds, removes or reshapes no field, topic or entity" (D1, D2). Entities fed by `targets` and `reasons` show their new values even though no topic or entity is added, removed or reshaped.
 
 Confirmed by user: yes
