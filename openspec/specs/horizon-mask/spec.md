@@ -315,21 +315,6 @@ has exactly one source.
 - **WHEN** a pier configures more than one horizon source (for example inline points together with an imported file, or inline points together with a flat floor)
 - **THEN** the pier's configuration is reported as invalid
 
-### Requirement: The horizon mask has no consumer in the verdict document
-
-In this milestone the horizon mask SHALL have no consumer in the verdict document: it is
-configuration and a query only. A verdict for a pier with a horizon configured SHALL be
-byte-identical to the one for the same pier, instant and conditions with no horizon.
-The `targets` list SHALL remain empty and no field, topic, or entity SHALL be added or
-changed. This protects the frozen delivery contract until a later milestone gives the
-horizon a consumer.
-
-#### Scenario: A configured horizon leaves the verdict document unchanged
-
-- **WHEN** two verdicts are produced for the same pier, instant, and conditions, one with a horizon configured and one without
-- **THEN** the two verdict documents are byte-identical
-- **AND** the `targets` list is empty in both
-
 ### Requirement: A zero-padded azimuth in inline points is a decimal number
 
 An azimuth or altitude in a pier's inline points that is an integer written with
@@ -364,3 +349,19 @@ name the pier and `horizon.points`.
 - **WHEN** a pier configures `horizon.points` as the text `"[[1:30, 20], [180, 5]]"`
 - **THEN** the pier's configuration is reported as invalid
 - **AND** the error names the pier and `horizon.points`
+
+### Requirement: The horizon mask changes only the targets and the top-pick reasons
+
+A pier's horizon mask SHALL change only the verdict document's `targets` and, through
+the top pick, the top-pick sentences in `reasons`: the framing sentence and the sentence
+that calls the top pick bright. Every other field and every other reason SHALL be
+identical to the verdict for the same pier, instant and conditions with no horizon. The
+horizon SHALL NOT add, remove or reshape any field, topic or entity. Entities fed by
+these two fields show their new values.
+
+#### Scenario: A horizon that changes no top-pick sentence changes only the targets
+
+- **WHEN** two verdicts are produced for the same pier, instant and conditions, one with no horizon and one with a horizon that hides a target listed in the verdict without it
+- **AND** neither verdict's `reasons` holds a top-pick sentence
+- **THEN** the two verdicts' `targets` lists differ
+- **AND** every other field of the two verdicts is identical
