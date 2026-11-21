@@ -225,6 +225,12 @@ export class PierPressureCard extends LitElement {
       background-color: #8c8c8c;
       overflow: hidden;
     }
+    /* The column, not the bar, turns amber where the forecasts disagree: no
+       amber bar keeps 3:1 against the grey column, but this column keeps 3:1
+       against the grey bar and against a light or a dark card. */
+    .column.disagree {
+      background-color: #b58900;
+    }
     .range {
       position: absolute;
       left: 1px;
@@ -916,7 +922,7 @@ function renderBand(band: Band, axis: Axis) {
   const range =
     `bottom: min(${band.low}%, calc(100% - 2px)); ` + `height: max(2px, ${band.high - band.low}%)`;
   return html`<div
-    class="cell column"
+    class=${band.disagree ? "cell column disagree" : "cell column"}
     style=${hourPlace(band, axis)}
     data-hour=${iso(band.hour)}
     data-from=${iso(band.from)}

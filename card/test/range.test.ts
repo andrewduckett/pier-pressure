@@ -125,6 +125,61 @@ describe("a Cloud range bar", () => {
   });
 });
 
+function disagrees(column: HTMLElement | undefined): boolean | undefined {
+  return column?.classList.contains("disagree");
+}
+
+// An hour where the forecasts disagree is one whose drawn bar is more than 35
+// points long, the core's MIXED_MAX_GAP.
+describe("a Cloud range column where the forecasts disagree", () => {
+  it.each([
+    [20, 70],
+    [20, 55.5],
+  ])("is marked for min %s and max %s", async (min, max) => {
+    const card = await oneHour(min, max);
+
+    expect(disagrees(columns(card)[0])).toBe(true);
+  });
+
+  it.each([
+    [20, 55],
+    [35.1, 70.1],
+    [40, 70],
+    [-5, 31],
+  ])("is not marked for min %s and max %s", async (min, max) => {
+    const card = await oneHour(min, max);
+
+    expect(disagrees(columns(card)[0])).toBe(false);
+  });
+
+  it("is marked at an hour the strip is panned to", async () => {
+    const past = "2026-11-01T09:00:00Z";
+    const card = await mountCard(
+      range(
+        forecastEntity([
+          [HOUR_21, 40],
+          [past, 10],
+        ]),
+        forecastEntity([
+          [HOUR_21, 50],
+          [past, 90],
+        ]),
+      ),
+    );
+    const strip = card.shadowRoot?.querySelector<HTMLElement>(".strip");
+    strip?.focus();
+    strip?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true }),
+    );
+    await card.updateComplete;
+
+    const column = columns(card).find(
+      (element) => element.dataset["hour"] === new Date(past).toISOString(),
+    );
+    expect(disagrees(column)).toBe(true);
+  });
+});
+
 // A readable pair at 23:00 keeps the row in the strip, so an empty 21:00 is
 // the hour's own doing.
 const HOUR_23 = "2026-10-31T23:00:00Z";
@@ -211,10 +266,32 @@ describe("hovering over a Cloud range column", () => {
     ]);
   });
 
+  it("says the forecasts disagree when they are more than 35 points apart", async () => {
+    const card = await oneHour(20, 70);
+
+    const column = columns(card)[0];
+    expect([column?.title, column?.getAttribute("aria-label")]).toEqual([
+      "Cloud range, the hour from 21:00: 20% to 70%, the forecasts disagree",
+      "Cloud range, the hour from 21:00: 20% to 70%, the forecasts disagree",
+    ]);
+  });
+
+  it("says nothing more when they are exactly 35 points apart", async () => {
+    const card = await oneHour(20, 55);
+
+    const column = columns(card)[0];
+    expect([column?.title, column?.getAttribute("aria-label")]).toEqual([
+      "Cloud range, the hour from 21:00: 20% to 55%",
+      "Cloud range, the hour from 21:00: 20% to 55%",
+    ]);
+  });
+
   it("shows a value outside 0 to 100 unclamped", async () => {
     const card = await oneHour(-5, 120);
 
-    expect(columns(card)[0]?.title).toBe("Cloud range, the hour from 21:00: -5% to 120%");
+    expect(columns(card)[0]?.title).toBe(
+      "Cloud range, the hour from 21:00: -5% to 120%, the forecasts disagree",
+    );
   });
 });
 
@@ -365,6 +442,19 @@ describe("the Cloud range greys stand out on the default themes", () => {
   ])("give each column at least 3:1 against the %s card", (_, card) => {
     expect(contrast(background(".column"), card)).toBeGreaterThanOrEqual(3);
   });
+
+  it("give each range bar at least 3:1 against an amber column", () => {
+    expect(contrast(background(".range"), background(".column.disagree"))).toBeGreaterThanOrEqual(
+      3,
+    );
+  });
+
+  it.each([
+    ["light", "#ffffff"],
+    ["dark", "#1c1c1c"],
+  ])("give each amber column at least 3:1 against the %s card", (_, card) => {
+    expect(contrast(background(".column.disagree"), card)).toBeGreaterThanOrEqual(3);
+  });
 });
 
 describe("the Cloud range row's styles", () => {
@@ -389,6 +479,19 @@ describe("the Cloud range row's styles", () => {
       expect(declarations(".range")).toContain(declaration);
     },
   );
+
+  it("shade a column where the forecasts disagree amber", () => {
+    expect(declarations(".column.disagree")).toContain("background-color: #b58900");
+  });
+
+  it("leave the range bar grey in an amber column", () => {
+    const css = cardStyles().replace(/\/\*[\s\S]*?\*\//g, "");
+    const selectors = [...css.matchAll(/([^{}]+)\{/g)].flatMap(([, list]) =>
+      (list ?? "").split(",").map((part) => part.trim()),
+    );
+
+    expect(selectors.filter((selector) => /disagree.*\.range/.test(selector))).toEqual([]);
+  });
 
   it("mark each column for those styles", async () => {
     const card = await oneHour(40, 70);

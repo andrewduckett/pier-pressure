@@ -149,14 +149,21 @@ time. So its cell fills the hour before that time: the chance at 22:00 fills
 the cell from 21:00 to 22:00.
 
 The **Cloud range** row shows how far the weather forecasts agree on cloud
-cover. It is grey because it shows agreement, not whether an hour is good or
-bad for observing. Each hour has a grey column. Its height runs from 0% at the
-bottom to 100% at the top. A darker grey bar in the column runs from the lowest to the
-highest cloud cover any forecast gives for the hour. A tall bar means the
-forecasts disagree; a short bar means they agree, and where it sits says how
-cloudy they expect it to be. When the forecasts give the same value, the bar is
+cover. Its bar is grey and its column grey or amber, because the row shows
+agreement, not whether an hour is good or bad for observing. Each hour has a
+column. Its height runs from 0% at the bottom to 100% at the top. A darker grey
+bar in the column runs from the lowest to the highest cloud cover any forecast
+gives for the hour. Where the bar sits says how cloudy the forecasts expect it
+to be. Its length says how far they disagree: a short bar means they agree, a
+long bar that they disagree. When the forecasts give the same value, the bar is
 a thin line. An hour with fewer than two forecasts is blank. The row is twice as
 tall as the others, so you can read the bar's ends.
+
+An amber column marks an hour where the forecasts disagree by more than 35
+points, so its cloud forecast is not to be trusted. It is the same 35-point
+edge PierPressure uses when it lowers its confidence because the forecasts
+disagree. Hover over such an hour to see, for example,
+"Cloud range, the hour from 21:00: 20% to 70%, the forecasts disagree".
 
 A blank hour in a row means the weather source has no value for that hour.
 
