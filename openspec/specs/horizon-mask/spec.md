@@ -314,21 +314,6 @@ has exactly one source.
 - **WHEN** a pier configures more than one horizon source (for example inline points together with an imported file, or inline points together with a flat floor)
 - **THEN** the pier's configuration is reported as invalid
 
-### Requirement: The horizon mask has no consumer in the verdict document
-
-In this milestone the horizon mask SHALL have no consumer in the verdict document: it is
-configuration and a query only. A verdict for a pier with a horizon configured SHALL be
-byte-identical to the one for the same pier, instant and conditions with no horizon.
-The `targets` list SHALL remain empty and no field, topic, or entity SHALL be added or
-changed. This protects the frozen delivery contract until a later milestone gives the
-horizon a consumer.
-
-#### Scenario: A configured horizon leaves the verdict document unchanged
-
-- **WHEN** two verdicts are produced for the same pier, instant, and conditions, one with a horizon configured and one without
-- **THEN** the two verdict documents are byte-identical
-- **AND** the `targets` list is empty in both
-
 ### Requirement: A zero-padded azimuth in inline points is a decimal number
 
 An azimuth or altitude in a pier's inline points that is an integer written with
@@ -363,3 +348,17 @@ name the pier and `horizon.points`.
 - **WHEN** a pier configures `horizon.points` as the text `"[[1:30, 20], [180, 5]]"`
 - **THEN** the pier's configuration is reported as invalid
 - **AND** the error names the pier and `horizon.points`
+
+### Requirement: The horizon mask changes only the targets in the verdict document
+
+A pier's horizon mask SHALL change only the `targets` field of the verdict document.
+A verdict for a pier with a horizon configured SHALL be byte-identical, in every field
+except `targets`, to the one for the same pier, instant and conditions with no horizon.
+The horizon SHALL add, remove and reshape no field, topic or entity. Entities that
+display `targets` show the changed list.
+
+#### Scenario: A horizon that hides a target changes only the targets
+
+- **WHEN** two verdicts are produced for the same pier, instant and conditions, one with no horizon and one with a horizon that hides a target listed in the verdict without it
+- **THEN** the two verdict documents' `targets` lists differ
+- **AND** every other field of the two verdict documents is byte-identical
