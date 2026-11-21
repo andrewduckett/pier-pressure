@@ -2,4 +2,4 @@
 
 - [x] 1.1 [easy] Confirm that the existing test `test_horizon_changes_only_targets` asserts the new scenario "A horizon that hides a target changes only the targets": the two verdicts' `targets` differ and every other field is byte-identical. Change no code or test; if the test does not pass, stop and report (verify: uv run pytest tests/test_horizon_contract.py) (✓ uv run pytest tests/test_horizon_contract.py passed: 1 passed)
 - [x] 1.2 [easy] In `openspec/specs/horizon-mask/spec.md`, rewrite the end of the Purpose sentence, "so a later milestone can rank out targets that never clear it", to say that target ranking uses the horizon to leave out targets that never clear it. Change no requirement in the main spec; the delta changes the requirement at archive (verify: mise run specs) (✓ mise run specs passed: 12 passed, 0 failed)
-- [ ] 1.3 [easy] Run the full gate on the branch (verify: mise run check)
+- [x] 1.3 [easy] Run the full gate on the branch (verify: mise run check) (✓ mise run check passed: specs 12/12, ruff, mypy, pytest 2770 passed, card 668 passed)
