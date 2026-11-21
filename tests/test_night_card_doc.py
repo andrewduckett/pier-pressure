@@ -606,3 +606,47 @@ def _reasons_line() -> str:
 @pytest.mark.parametrize("term", ["`NO-GO`", "gate", "in order", "time zone", "equipment"])
 def test_docs_reasons_line_says_what_the_list_shows(term: str) -> None:
     assert term in _reasons_line()
+
+
+_TAP = "#### Reading a value on a phone"
+
+
+def _tap_section() -> str:
+    return " ".join(_section(_TAP).split("\n#### ", 1)[0].split())
+
+
+def test_docs_tap_section_sits_between_the_lines_and_panning() -> None:
+    page = _page()
+
+    assert page.index("#### The lines") < page.index(_TAP) < page.index("#### Panning the strip")
+
+
+def test_docs_tap_section_names_tap_phone_and_box_beside_hover() -> None:
+    paragraphs = _section(_TAP).split("\n#### ", 1)[0].split("\n\n")
+
+    assert any(
+        all(word in p.lower() for word in ("tap", "phone", "box", "hover")) for p in paragraphs
+    )
+
+
+@pytest.mark.parametrize(
+    "item",
+    ["cell", "column", "bar", "line", "Temperature chart hour", "message", "moon drawing"],
+)
+def test_docs_tap_section_lists_what_a_tap_reads(item: str) -> None:
+    assert item in _tap_section()
+
+
+def test_docs_tap_section_says_any_pointer_can_tap() -> None:
+    assert "any pointer" in _tap_section()
+
+
+@pytest.mark.parametrize("closer", ["tap elsewhere", "second tap on the same item", "pan"])
+def test_docs_tap_section_says_what_closes_the_box(closer: str) -> None:
+    sentences = _tap_section().split(". ")
+
+    assert any(closer in s and "closes the box" in s for s in sentences)
+
+
+def test_docs_moon_drawing_says_it_can_be_tapped() -> None:
+    assert "Hover over or tap the drawing" in _moon_drawing_paragraphs()

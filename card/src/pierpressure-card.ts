@@ -19,6 +19,7 @@ import {
   clock,
   panned,
 } from "./strip";
+import { placeTip, tipKey, tipText } from "./tap";
 
 declare const __CARD_VERSION__: string;
 
@@ -62,10 +63,32 @@ export class PierPressureCard extends LitElement {
     hass: { attribute: false },
     config: { state: true },
     heldStart: { state: true },
+    tipKey: { state: true },
   };
 
   static override styles = [
     css`
+    /* Holds the tap box, which is placed in px from the card's corner. */
+    ha-card {
+      position: relative;
+    }
+    /* Out of the flow, so showing it moves nothing, and above the lines. A tap
+       goes through it to the item under it. The colours swap the card's, so it
+       reads on a light or a dark theme. */
+    .tip {
+      position: absolute;
+      z-index: 2;
+      pointer-events: none;
+      max-width: min(280px, calc(100% - 16px));
+      box-sizing: border-box;
+      padding: 4px 8px;
+      border-radius: 4px;
+      background-color: var(--primary-text-color);
+      color: var(--card-background-color);
+      font-size: 0.85em;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
     /* Not stretched: a stretched grid spreads the verdict lines to the Moon
        section's height. */
     .summary {
@@ -283,11 +306,15 @@ export class PierPressureCard extends LitElement {
   declare config?: CardConfig;
   // Where the user panned the strip to; undefined keeps it on the opening axis.
   declare heldStart?: number;
+  // The key of the item whose text the box shows; undefined shows no box.
+  declare tipKey?: string;
   // Whether the pan was later than the opening axis. The opening axis follows the
   // clock through the night, so it can catch up with a later pan.
   private heldLater = false;
   private timer?: ReturnType<typeof setInterval>;
   private drag?: Drag;
+  private press?: Press;
+  private frame?: { strip: Strip | undefined; moon: MoonDrawing | undefined };
 
   // The now line, and the fallback axis around it, follow the browser's clock
   // between Home Assistant's state updates.
@@ -301,6 +328,7 @@ export class PierPressureCard extends LitElement {
     super.disconnectedCallback();
     clearInterval(this.timer);
     this.timer = undefined;
+    this.clearPress();
   }
 
   static getConfigElement(): HTMLElement {
@@ -319,16 +347,52 @@ export class PierPressureCard extends LitElement {
     if (typeof pier !== "string" || pierSlug(pier) === "") {
       throw new Error("pier is required");
     }
-    if (pier !== this.config?.pier) this.heldStart = undefined;
+    // The same keys would name the other pier's items.
+    if (pier !== this.config?.pier) {
+      this.heldStart = undefined;
+      this.tipKey = undefined;
+    }
     this.config = { type: String(config["type"]), pier };
   }
 
   // Before each draw, so following the opening axis again costs no second one. A
   // minute's redraw a sleeping tab skipped still counts.
+  // An item no longer on the card closes its box in the same draw. One snapshot
+  // serves both the body and the box, so a clock tick mid-draw cannot split them.
   override willUpdate(): void {
-    if (this.heldStart === undefined || !this.heldLater) return;
-    const opening = this.shownStrip()?.opening;
-    if (opening !== undefined && opening.start >= this.heldStart) this.heldStart = undefined;
+    const now = Date.now();
+    let strip = this.shownStrip(now);
+    if (this.heldStart !== undefined && this.heldLater) {
+      const opening = strip?.opening;
+      if (opening !== undefined && opening.start >= this.heldStart) {
+        this.heldStart = undefined;
+        strip = this.shownStrip(now);
+      }
+    }
+    const moon = this.shownMoon();
+    if (this.tipKey !== undefined && tipText(strip, moon, this.tipKey) === undefined) {
+      this.tipKey = undefined;
+    }
+    this.frame = { strip, moon };
+  }
+
+  // Before the browser paints, so the box never shows in the wrong place. The box
+  // is measured at the card's left edge, where only its max-width limits it.
+  override updated(): void {
+    this.frame = undefined;
+    if (this.tipKey === undefined) return;
+    const box = this.renderRoot.querySelector<HTMLElement>(".tip");
+    const card = this.renderRoot.querySelector("ha-card");
+    const item = this.renderRoot.querySelector(`[data-tip="${this.tipKey}"]`);
+    if (box === null || card === null || item === null) return;
+    box.style.left = "0px";
+    const place = placeTip(
+      item.getBoundingClientRect(),
+      card.getBoundingClientRect(),
+      box.getBoundingClientRect(),
+    );
+    box.style.left = `${place.left}px`;
+    box.style.top = `${place.top}px`;
   }
 
   // Three target lanes, or two reasons, are about one of Home Assistant's 50 px
@@ -346,12 +410,27 @@ export class PierPressureCard extends LitElement {
 
   override render() {
     if (this.config === undefined) return nothing;
-    return html`<ha-card header=${`PierPressure ${this.config.pier}`}
-      >${this.renderBody()}</ha-card
+    const strip = this.frame?.strip ?? this.shownStrip();
+    const moon = this.frame?.moon ?? this.shownMoon();
+    return html`<ha-card
+      header=${`PierPressure ${this.config.pier}`}
+      @pointerdown=${this.tap.pointerdown}
+      @pointermove=${this.tap.pointermove}
+      @pointerup=${this.tap.pointerup}
+      @pointercancel=${this.tap.pointercancel}
+      >${this.renderBody(strip)}${this.renderTip(strip, moon)}</ha-card
     >`;
   }
 
-  private renderBody() {
+  // The item's aria-label already gives a screen reader the same text.
+  private renderTip(strip: Strip | undefined, moon: MoonDrawing | undefined) {
+    if (this.tipKey === undefined) return nothing;
+    const text = tipText(strip, moon, this.tipKey);
+    if (text === undefined) return nothing;
+    return html`<div class="tip" aria-hidden="true">${text}</div>`;
+  }
+
+  private renderBody(strip: Strip | undefined) {
     if (this.hass === undefined || this.config === undefined) return nothing;
     const entityId = verdictEntityId(this.config.pier);
     const entity = this.hass.states[entityId];
@@ -364,7 +443,6 @@ export class PierPressureCard extends LitElement {
       return html`<div class="card-content message">PierPressure is offline</div>`;
     }
     const confidence = asRecord(entity.attributes["confidence"]);
-    const strip = this.shownStrip();
     const time = clock(this.hass.config?.time_zone);
     const moon = readMoon(entity.attributes["moon"], time, this.hass.config?.latitude);
     return html`<div class="card-content">
@@ -388,17 +466,25 @@ export class PierPressureCard extends LitElement {
   }
 
   // The strip draws only beside the verdict, never under a message.
-  private shownStrip(): Strip | undefined {
+  private shownStrip(now = Date.now()): Strip | undefined {
     if (this.hass === undefined || this.config === undefined) return undefined;
     const entity = this.hass.states[verdictEntityId(this.config.pier)];
     if (entity === undefined || entity.state === "unavailable") return undefined;
     return buildStrip(
       this.hass.states,
       this.config.pier,
-      Date.now(),
+      now,
       this.hass.config?.time_zone,
       this.heldStart,
     );
+  }
+
+  private shownMoon(): MoonDrawing | undefined {
+    if (this.hass === undefined || this.config === undefined) return undefined;
+    const entity = this.hass.states[verdictEntityId(this.config.pier)];
+    if (entity === undefined || entity.state === "unavailable") return undefined;
+    const time = clock(this.hass.config?.time_zone);
+    return readMoon(entity.attributes["moon"], time, this.hass.config?.latitude).drawing;
   }
 
   // The reasons explain a verdict, so a dash in its place shows none, even
@@ -411,12 +497,14 @@ export class PierPressureCard extends LitElement {
   }
 
   // A pan the reach stops entirely changes nothing, and one that lands on the
-  // opening axis lets the strip follow it again, as Back to tonight does.
+  // opening axis lets the strip follow it again, as Back to tonight does. Any
+  // other pan closes the box, since its item may have moved away.
   private panTo(start: number): void {
     const strip = this.shownStrip();
     if (strip === undefined) return;
     const to = panned(strip.opening, strip.reach, start).start;
     if (to === strip.axis.start) return;
+    this.tipKey = undefined;
     this.heldStart = to === strip.opening.start ? undefined : to;
     this.heldLater = to > strip.opening.start;
   }
@@ -424,6 +512,7 @@ export class PierPressureCard extends LitElement {
   // The button hides itself, so focus moves to the strip it returned.
   private onBack = (): void => {
     this.heldStart = undefined;
+    this.tipKey = undefined;
     this.renderRoot.querySelector<HTMLElement>(".strip")?.focus();
   };
 
@@ -501,6 +590,63 @@ export class PierPressureCard extends LitElement {
     },
   };
 
+  // Apart from the strip's drag, so a tap anywhere on the card is seen. The key is
+  // taken when the pointer is pressed: the strip's capture retargets the release.
+  // Moves, releases and cancels also listen on window, since presses outside the
+  // strip are not captured and may end off the card.
+  private tap: TapInput = {
+    pointerdown: (event) => {
+      if (!event.isPrimary || event.button !== 0) return;
+      if (
+        this.press !== undefined &&
+        event.pointerId !== this.press.pointerId &&
+        this.press.target.isConnected
+      ) {
+        return;
+      }
+      this.clearPress();
+      const target = event.target as Element;
+      const item = target.closest("[data-tip]");
+      this.press = {
+        pointerId: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        key: item?.getAttribute("data-tip") ?? undefined,
+        target,
+        moved: false,
+      };
+      window.addEventListener("pointermove", this.tap.pointermove);
+      window.addEventListener("pointerup", this.tap.pointerup);
+      window.addEventListener("pointercancel", this.tap.pointercancel);
+    },
+    // Every drag that pans has moved this far, so none of them is a tap.
+    pointermove: (event) => {
+      const press = this.press;
+      if (press === undefined || event.pointerId !== press.pointerId) return;
+      const far = Math.max(Math.abs(event.clientX - press.x), Math.abs(event.clientY - press.y));
+      if (far > DRAG_SLOP) press.moved = true;
+    },
+    // A tap on the item the box shows closes it, and a tap off every item too.
+    pointerup: (event) => {
+      const press = this.press;
+      if (press === undefined || event.pointerId !== press.pointerId) return;
+      this.clearPress();
+      if (press.moved || !event.composedPath().includes(this)) return;
+      this.tipKey = press.key === this.tipKey ? undefined : press.key;
+    },
+    // The browser took the gesture, to scroll the page.
+    pointercancel: (event) => {
+      if (event.pointerId === this.press?.pointerId) this.clearPress();
+    },
+  };
+
+  private clearPress(): void {
+    this.press = undefined;
+    window.removeEventListener("pointermove", this.tap.pointermove);
+    window.removeEventListener("pointerup", this.tap.pointerup);
+    window.removeEventListener("pointercancel", this.tap.pointercancel);
+  }
+
   private endDrag(event: PointerEvent): Drag | undefined {
     const drag = this.drag;
     if (drag === undefined || event.pointerId !== drag.pointerId) return undefined;
@@ -522,6 +668,24 @@ interface Drag {
   held: number | undefined;
   heldLater: boolean;
   panning: boolean;
+}
+
+// One pointer's press on the card, which is a tap if it stays in place.
+interface Press {
+  pointerId: number;
+  x: number;
+  y: number;
+  // The pressed item's `data-tip`, if any.
+  key: string | undefined;
+  target: Element;
+  moved: boolean;
+}
+
+interface TapInput {
+  pointerdown: (event: PointerEvent) => void;
+  pointermove: (event: PointerEvent) => void;
+  pointerup: (event: PointerEvent) => void;
+  pointercancel: (event: PointerEvent) => void;
 }
 
 interface StripInput {
@@ -575,6 +739,7 @@ function renderDrawing(drawing: MoonDrawing) {
     data-lit=${drawing.lit}
     data-mirrored=${drawing.mirrored}
     role="img"
+    data-tip=${tipKey.moon}
     aria-label=${drawing.text}
   >
     <title>${drawing.text}</title>
@@ -661,17 +826,21 @@ function renderStrip(strip: Strip | undefined, input: StripInput) {
         html`<div class="row" data-row=${row.key}>
           <span class="label">${row.label}</span>
           <div class="track">
-            ${row.cells.map((cell) => renderCell(cell, strip.axis))}
+            ${row.cells.map((cell) => renderCell(cell, row.key, strip.axis))}
             ${(row.bands ?? []).map((band) => renderBand(band, strip.axis))}
-            ${row.missing === undefined ? nothing : renderMissing(row.missing)}
+            ${row.missing === undefined ? nothing : renderMissing(row.missing, tipKey.missing(row.key))}
           </div>
         </div>`,
     )}
     <div class="row" data-lane="moon_up">
       <span class="label">Moon up</span>
       <div class="track">
-        ${strip.moonUp.map((bar) => renderBar(bar, strip.axis))}
-        ${strip.moonUpMissing === undefined ? nothing : renderMissing(strip.moonUpMissing)}
+        ${strip.moonUp.map((bar) => renderBar(bar, tipKey.moonUp(bar.start), strip.axis))}
+        ${
+          strip.moonUpMissing === undefined
+            ? nothing
+            : renderMissing(strip.moonUpMissing, tipKey.missing("moon_up"))
+        }
       </div>
     </div>
     ${strip.targets.map(
@@ -679,7 +848,11 @@ function renderStrip(strip: Strip | undefined, input: StripInput) {
         html`<div class="row" data-lane=${`target_${lane.rank}`}>
           <span class="label">${lane.label}</span>
           <div class="track">
-            ${lane.bar === undefined ? nothing : renderBar(lane.bar, strip.axis, lane)}
+            ${
+              lane.bar === undefined
+                ? nothing
+                : renderBar(lane.bar, tipKey.target(lane.rank), strip.axis, lane)
+            }
           </div>
         </div>`,
     )}
@@ -706,6 +879,7 @@ function renderLine(line: Line, axis: Axis) {
     style=${style}
     data-line=${line.kind}
     data-at=${iso(line.at)}
+    data-tip=${tipKey.line(line.kind)}
     title=${line.text}
     aria-label=${line.text}
   ></div>`;
@@ -716,7 +890,7 @@ function renderTimeLabel(label: TimeLabel, axis: Axis) {
   return html`<span class="time" style=${style} data-at=${iso(label.at)}>${label.text}</span>`;
 }
 
-function renderCell(cell: Cell, axis: Axis) {
+function renderCell(cell: Cell, row: string, axis: Axis) {
   const place = hourPlace(cell, axis);
   const style = cell.shade === undefined ? place : `${place}; background-color: ${cell.shade}`;
   // `nothing` leaves an attribute out; `undefined` would leave it empty.
@@ -728,6 +902,7 @@ function renderCell(cell: Cell, axis: Axis) {
     data-to=${iso(cell.to)}
     data-shade=${cell.shade ?? nothing}
     data-arrow=${cell.arrow ?? nothing}
+    data-tip=${tipKey.cell(row, cell.hour)}
     title=${cell.text}
     aria-label=${cell.text}
   >
@@ -748,6 +923,7 @@ function renderBand(band: Band, axis: Axis) {
     data-to=${iso(band.to)}
     data-low=${band.low}
     data-high=${band.high}
+    data-tip=${tipKey.column(band.hour)}
     title=${band.text}
     aria-label=${band.text}
   >
@@ -765,7 +941,7 @@ function renderArrow(degrees: number) {
 }
 
 // A target's bar carries its name and id; a Moon up bar has neither.
-function renderBar(bar: Bar, axis: Axis, target?: TargetLane) {
+function renderBar(bar: Bar, key: string, axis: Axis, target?: TargetLane) {
   const style = `left: ${offset(bar.from, axis)}%; width: ${share(bar.to - bar.from, axis)}%`;
   return html`<div
     class="bar"
@@ -775,6 +951,7 @@ function renderBar(bar: Bar, axis: Axis, target?: TargetLane) {
     data-end=${iso(bar.end)}
     data-from=${iso(bar.from)}
     data-to=${iso(bar.to)}
+    data-tip=${key}
     title=${bar.text}
     aria-label=${bar.text}
   >
