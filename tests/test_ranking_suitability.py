@@ -189,3 +189,10 @@ def test_no_equipment_emits_no_framing_reason() -> None:
 
 def test_bright_target_sentence_needs_no_equipment() -> None:
     assert equipment_reasons(None, _pleiades_target()) == ["Top pick Pleiades is a bright target."]
+
+
+def test_bright_target_sentence_follows_the_framing_sentence() -> None:
+    framing, bright = equipment_reasons(_equipment(60.0), _pleiades_target())
+    assert framing.startswith("Top pick Pleiades ")
+    assert framing.endswith(" your field of view.")
+    assert bright == "Top pick Pleiades is a bright target."
