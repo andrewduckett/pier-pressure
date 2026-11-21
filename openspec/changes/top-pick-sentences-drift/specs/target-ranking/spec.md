@@ -35,16 +35,15 @@ SHALL NOT change any other reason.
 ### Requirement: A bright top pick gets the bright-target sentence
 
 The system SHALL add "Top pick `<name>` is a bright target." to `reasons[]`,
-naming the top pick by its name, else its designation, with or without
-equipment, only when all of these hold:
+naming the top pick by name, else designation, with or without equipment,
+only when all of these hold:
 
 - The verdict passes its gates and has at least one target.
 - The scored window lasts at least one hour.
-- The top pick is a catalog object that the ranking's own brightness judgment
-  counts as bright.
+- The top pick is a catalog object that the ranking judges bright.
 
-It SHALL come straight after the framing sentence when both appear. It SHALL NOT
-change any other reason.
+It SHALL follow the gate and score terms, straight after the framing sentence
+when both appear, and SHALL NOT change any other reason.
 
 #### Scenario: A bright top pick on a pier without equipment gets only the bright-target sentence
 
