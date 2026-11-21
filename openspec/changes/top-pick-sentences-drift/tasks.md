@@ -1,0 +1,11 @@
+## 1. Spec and test the top-pick sentences
+
+The code already emits every sentence this change specs. Do not change which
+sentences `pierpressure/core/` emits, nor the framing sentences' wording.
+
+- [ ] 1.1 [easy] In `tests/test_ranking_suitability.py`, add a test, with `bright_target` in its name, that `equipment_reasons(None, <Pleiades target>)` returns exactly `["Top pick Pleiades is a bright target."]`, building the target from catalog object `Mel022` the way `_m31_target()` builds M31. Because the code already passes it, prove the test can fail: turn off the bright branch in `equipment_reasons` (`pierpressure/core/ranking.py`), watch the test fail, then restore the code exactly (verify: uv run pytest tests/test_ranking_suitability.py -k bright_target)
+- [ ] 1.2 [easy] In `tests/test_ranking_suitability.py`, add a test, with `bright_target` in its name, that `equipment_reasons` with equipment configured and the Pleiades target returns two sentences: a framing sentence for Pleiades first, then exactly "Top pick Pleiades is a bright target.". Prove it can fail the same way as 1.1, then restore the code exactly (verify: uv run pytest tests/test_ranking_suitability.py -k bright_target)
+- [ ] 1.3 [easy] Confirm that the existing test `test_no_equipment_emits_no_framing_reason` covers the scenario "A faint top pick gets no bright-target sentence": it asserts that Andromeda Galaxy (`NGC0224`) gets no reasons at all, so no bright-target sentence. Change no code or test; if the test does not pass, stop and report (verify: uv run pytest tests/test_ranking_suitability.py -k no_equipment_emits_no_framing_reason)
+- [ ] 1.4 [easy] Confirm that the existing test `test_a_window_not_worth_setting_up_for_carries_no_equipment_reason` covers the scenario "A scored window under one hour gets no top-pick sentence": thirty minutes before dawn on an equipped pier, the verdict has a score and no reason starts "Top pick". Change no code or test; if the test does not pass, stop and report (verify: uv run pytest tests/test_producer_targets.py -k window_not_worth_setting_up_for)
+- [ ] 1.5 [easy] Check that the branch changes no code under `pierpressure/`, so the emitted sentences stay as they were (verify: git diff --exit-code horizon-mask-targets-drift -- pierpressure/)
+- [ ] 1.6 [easy] Run the full gate on the branch (verify: mise run check)
