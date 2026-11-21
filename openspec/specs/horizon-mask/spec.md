@@ -5,7 +5,8 @@
 The horizon-mask capability gives each pier a model of the terrain that blocks its
 sky — trees, buildings, hills — as a canonical set of `(azimuth, altitude)` samples
 with a query that answers how high the terrain rises in any direction. Target ranking
-uses the horizon to leave out targets that never clear it.
+uses the horizon to leave out targets that never clear it, or clear it for less than
+the minimum duration, and to bound each listed target's window.
 
 ## Requirements
 
