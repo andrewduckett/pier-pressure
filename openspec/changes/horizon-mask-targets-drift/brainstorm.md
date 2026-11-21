@@ -22,4 +22,4 @@ https://github.com/andrewduckett/pier-pressure/issues/273
 - Added: the Purpose sentence in `openspec/specs/horizon-mask/spec.md` is corrected too (D4). It is the same drift, and the issue excludes only code, tests and target-ranking requirements.
 - Clarified: the issue's "It changes no other field, topic or entity" becomes "changes only the `targets` field and adds, removes or reshapes no field, topic or entity" (D2). The top-target and rank sensors and the narrative display `targets`, so their state follows the list even though no topic or entity changes.
 
-Confirmed by user: no
+Confirmed by user: yes
