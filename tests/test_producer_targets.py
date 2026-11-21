@@ -144,3 +144,27 @@ def test_targets_are_actually_populated_when_a_night_exists() -> None:
         document = produce_verdict(pier, FixedClock(_INSTANT), conditions)
     assert document.targets
     assert all(0 <= t.score <= 100 for t in document.targets)
+
+
+def test_a_bright_top_pick_on_a_pier_without_equipment_gets_the_bright_target_sentence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # No fixture night ranks a bright object first, so the ranking is patched to put
+    # the Pleiades on top. That pins the producer's wiring: the bright-target
+    # sentence needs no equipment (#274).
+    from pierpressure.core import producer
+
+    from .test_ranking_suitability import _pleiades_target
+
+    real_rank = producer.rank_targets
+    monkeypatch.setattr(
+        producer, "rank_targets", lambda *args: [_pleiades_target(), *real_rank(*args)]
+    )
+    pier = PierConfig(id="backyard", latitude=51.5, longitude=-0.12, elevation_m=30.0)
+    conditions = assemble_snapshot([(OPEN_METEO, _base_full()), (SEVEN_TIMER, _secondary_full())])
+    with no_network():
+        document = produce_verdict(pier, FixedClock(_INSTANT), conditions)
+    assert document.score is not None
+    top_pick = [r for r in document.reasons if r.startswith("Top pick")]
+    assert top_pick == ["Top pick Pleiades is a bright target."], document.reasons
+    assert document.reasons[-1] == "Top pick Pleiades is a bright target."

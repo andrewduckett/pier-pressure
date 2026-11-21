@@ -123,24 +123,34 @@ _WINDOW = TargetWindow(
 )
 
 
-def _m31_target() -> Target:
-    # A Target whose id maps to a real catalog object (M31, size 177.83′), so
-    # equipment_reasons classifies from the object's raw size.
-    m31 = next(o for o in load_catalog() if o.id == "NGC0224")
+def _catalog_target(object_id: str) -> Target:
+    # A Target whose id maps to a real catalog object, so equipment_reasons
+    # classifies from the object's raw catalog facts.
+    obj = next(o for o in load_catalog() if o.id == object_id)
     return Target(
-        id=m31.id,
-        name=m31.name,
-        type=m31.type,
+        id=obj.id,
+        name=obj.name,
+        type=obj.type,
         score=90,
         window=_WINDOW,
         remaining_window=_WINDOW,
         max_altitude=60.0,
         transit_time=datetime(2026, 9, 8, 23, 30, tzinfo=UTC),
         moon_separation=100.0,
-        size_arcmin=m31.size_arcmin,
-        magnitude=m31.magnitude,
-        surface_brightness=m31.surface_brightness,
+        size_arcmin=obj.size_arcmin,
+        magnitude=obj.magnitude,
+        surface_brightness=obj.surface_brightness,
     )
+
+
+def _m31_target() -> Target:
+    # M31, size 177.83′; its surface brightness does not count as bright.
+    return _catalog_target("NGC0224")
+
+
+def _pleiades_target() -> Target:
+    # The Pleiades count as bright, so they get the bright-target sentence.
+    return _catalog_target("Mel022")
 
 
 def _equipment(focal_length_mm: float) -> Equipment:
@@ -170,3 +180,19 @@ def test_framing_reason_names_each_region_truthfully() -> None:
 
 def test_no_equipment_emits_no_framing_reason() -> None:
     assert equipment_reasons(None, _m31_target()) == []
+
+
+# --------------------------------------------------------------------------- #
+# #274 — a bright top pick gets the bright-target sentence
+# --------------------------------------------------------------------------- #
+
+
+def test_bright_target_sentence_needs_no_equipment() -> None:
+    assert equipment_reasons(None, _pleiades_target()) == ["Top pick Pleiades is a bright target."]
+
+
+def test_bright_target_sentence_follows_the_framing_sentence() -> None:
+    framing, bright = equipment_reasons(_equipment(60.0), _pleiades_target())
+    assert framing.startswith("Top pick Pleiades ")
+    assert framing.endswith(" your field of view.")
+    assert bright == "Top pick Pleiades is a bright target."
