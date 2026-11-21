@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from skyfield.api import load, load_file, wgs84
 
 from pierpressure.core.config import PierConfig
@@ -103,17 +104,43 @@ def test_continuous_astronomical_night_is_nonnull_and_stable() -> None:
     assert window_a == window_b
 
 
-def test_exact_pole_falls_back_to_utc_day_anchor() -> None:
+@pytest.mark.parametrize(
+    ("pier_id", "latitude", "instant", "expected_start", "expected_end"),
+    [
+        (
+            "north-pole",
+            90.0,
+            datetime(2026, 12, 21, 12, 0, tzinfo=UTC),
+            datetime(2026, 12, 21, 0, 0, 0, tzinfo=UTC),
+            datetime(2026, 12, 22, 0, 0, 0, tzinfo=UTC),
+        ),
+        (
+            "south-pole",
+            -90.0,
+            datetime(2026, 6, 21, 12, 0, tzinfo=UTC),
+            datetime(2026, 6, 21, 0, 0, 0, tzinfo=UTC),
+            datetime(2026, 6, 22, 0, 0, 0, tzinfo=UTC),
+        ),
+    ],
+    ids=["north-pole-december", "south-pole-june"],
+)
+def test_exact_pole_falls_back_to_utc_day_anchor(
+    pier_id: str,
+    latitude: float,
+    instant: datetime,
+    expected_start: datetime,
+    expected_end: datetime,
+) -> None:
     # At the exact pole the sun does not transit a meridian, so the anchor falls
-    # back to the UTC calendar day (design D1a). Winter => continuous night.
-    pier = PierConfig(id="north-pole", latitude=90.0, longitude=0.0, elevation_m=0.0)
-    instant = datetime(2026, 12, 21, 12, 0, tzinfo=UTC)
+    # back to the UTC calendar day (design D1a). Each date is that pole's winter,
+    # so the night is continuous.
+    pier = PierConfig(id=pier_id, latitude=latitude, longitude=0.0, elevation_m=0.0)
 
     with no_network():
         start, end = dark_window(pier, instant)
 
-    assert start == datetime(2026, 12, 21, 0, 0, 0, tzinfo=UTC)
-    assert end == datetime(2026, 12, 22, 0, 0, 0, tzinfo=UTC)
+    assert start == expected_start
+    assert end == expected_end
 
 
 def test_subsecond_night_collapses_to_null_on_whole_second_truncation() -> None:
