@@ -5,8 +5,9 @@
 At a pier whose latitude is exactly 90 or −90 degrees, the sun has no local
 solar noon. There, the day that anchors continuous polar night SHALL be the
 UTC calendar day that holds the evaluation instant, from 00:00 UTC to 00:00
-UTC the next day. It SHALL take the place of the local solar day wherever this
-spec names that day.
+UTC the next day. It SHALL take the place of the local solar day only where
+that day anchors continuous polar night; other uses of the solar day, such as
+the timeline's hours, are outside this requirement.
 
 #### Scenario: At the north pole in December, the dark window is the UTC day
 
