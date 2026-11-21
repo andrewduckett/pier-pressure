@@ -5,7 +5,8 @@
 The horizon-mask capability gives each pier a model of the terrain that blocks its
 sky — trees, buildings, hills — as a canonical set of `(azimuth, altitude)` samples
 with a query that answers how high the terrain rises in any direction. Target ranking
-uses the horizon to leave out targets that never clear it.
+uses the horizon to leave out targets that never clear it, or clear it for less than
+the minimum duration, and to bound each listed target's window.
 
 ## Requirements
 
@@ -349,16 +350,18 @@ name the pier and `horizon.points`.
 - **THEN** the pier's configuration is reported as invalid
 - **AND** the error names the pier and `horizon.points`
 
-### Requirement: The horizon mask changes only the targets in the verdict document
+### Requirement: The horizon mask changes only the targets and the top-pick reasons
 
-A pier's horizon mask SHALL change only the `targets` field of the verdict document.
-A verdict for a pier with a horizon configured SHALL be byte-identical, in every field
-except `targets`, to the one for the same pier, instant and conditions with no horizon.
-The horizon SHALL add, remove and reshape no field, topic or entity. Entities that
-display `targets` show the changed list.
+A pier's horizon mask SHALL change only the verdict document's `targets` and, through
+the top pick, the top-pick sentences in `reasons`: the framing sentence and the sentence
+that calls the top pick bright. Every other field and every other reason SHALL be
+identical to the verdict for the same pier, instant and conditions with no horizon. The
+horizon SHALL NOT add, remove or reshape any field, topic or entity. Entities fed by
+these two fields show their new values.
 
-#### Scenario: A horizon that hides a target changes only the targets
+#### Scenario: A horizon that changes no top-pick sentence changes only the targets
 
 - **WHEN** two verdicts are produced for the same pier, instant and conditions, one with no horizon and one with a horizon that hides a target listed in the verdict without it
-- **THEN** the two verdict documents' `targets` lists differ
-- **AND** every other field of the two verdict documents is byte-identical
+- **AND** neither verdict's `reasons` holds a top-pick sentence
+- **THEN** the two verdicts' `targets` lists differ
+- **AND** every other field of the two verdicts is identical
