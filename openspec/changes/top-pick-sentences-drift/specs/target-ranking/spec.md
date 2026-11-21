@@ -2,18 +2,17 @@
 
 ### Requirement: The verdict gets one framing sentence about the top pick
 
-The system SHALL add one framing sentence about the top pick to the verdict's
-`reasons[]`, naming the top pick by its name, else by its designation. It SHALL
-add the sentence only when all of these hold:
+The system SHALL add one framing sentence about the top pick to `reasons[]`,
+naming the top pick by name, else designation, only when all of these hold:
 
 - The verdict passes its gates, so it has a score.
 - The target list is not empty.
-- The scored window is at least one hour long (`MIN_USABLE_WINDOW`).
+- The scored window is at least one hour (`MIN_USABLE_WINDOW`).
 - The pier has equipment configured.
 - The top pick is a catalog object with a known size.
 
-The framing sentence SHALL follow the verdict's gate and score terms. Adding it
-SHALL NOT change any other reason.
+It SHALL follow the verdict's gate and score terms, and SHALL NOT change any
+other reason.
 
 #### Scenario: A pier without equipment gets no framing sentence
 
