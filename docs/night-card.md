@@ -321,9 +321,14 @@ The strip stops at the first and last forecast hour. How far ahead that is
 depends on your weather sources. Each forecasts its own distance ahead:
 Open-Meteo, for example, about three days.
 
-PierPressure judges one night, so only that night has a dusk line, a dawn line
-and target bars. Another night has no dusk line, dawn line or target bar. Its
-**Sun altitude** row still shows when it is dark.
+Up to three later nights have a dusk line and a dawn line too, as far as the
+forecast reaches. The card reads them from the Night 2 to Night 4 sensors,
+`sensor.pierpressure_<pier>_night_2` to `sensor.pierpressure_<pier>_night_4`.
+A later night with no astronomical darkness has neither line, and its
+**Sun altitude** row still shows how dark it gets.
+
+PierPressure judges one night, so only that night has target bars. A later
+night has no target bars.
 
 Once you have panned, the strip stays on the same hours when PierPressure
 publishes a new verdict. The exception is a pan to later hours: once the

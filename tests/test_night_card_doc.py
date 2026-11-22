@@ -596,8 +596,23 @@ def test_docs_pan_says_how_far_open_meteo_reaches() -> None:
     assert "Open-Meteo, for example, about three days" in _section("#### Panning the strip")
 
 
-def test_docs_pan_says_other_nights_have_no_dusk_or_dawn() -> None:
-    assert "no dusk line, dawn line or target bar" in _section("#### Panning the strip")
+def test_docs_pan_says_up_to_three_later_nights_have_dusk_and_dawn_lines() -> None:
+    section = " ".join(_section("#### Panning the strip").split())
+    assert "Up to three later nights have a dusk line and a dawn line" in section
+
+
+def test_docs_pan_names_the_night_2_sensor() -> None:
+    assert "`sensor.pierpressure_<pier>_night_2`" in _section("#### Panning the strip")
+
+
+def test_docs_pan_says_a_later_night_has_no_target_bars() -> None:
+    section = " ".join(_section("#### Panning the strip").split())
+    assert "A later night has no target bars" in section
+
+
+def test_docs_pan_no_longer_says_another_night_has_no_dusk_or_dawn() -> None:
+    section = " ".join(_section("#### Panning the strip").split())
+    assert "no dusk line, dawn line" not in section
 
 
 def test_docs_pan_no_forecast_names_a_later_night_as_a_cause() -> None:
