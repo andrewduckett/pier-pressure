@@ -64,6 +64,26 @@ When the axis pans, the card SHALL draw for the new axis, by the rules of the op
 - **WHEN** `docs/night-card.md` is read
 - **THEN** it does not say that another night has no dusk line or dawn line
 
+### Requirement: An item is the same after a redraw when it has the same place in the strip
+After a redraw, the card SHALL take as the same item: the cell or Cloud range column of the same row for the same hour; the Temperature chart hour with the same start; the Moon up bar whose run starts in the same hour; the bar in the same target lane; the line of the same kind for the same night; the message on the same row, lane or key entry; and the moon drawing.
+
+#### Scenario: A new target in the lane
+- **WHEN** the box shows the text of the bar in the lane labelled `Target 1`, and Home Assistant updates Target 1 to the Orion Nebula (M42) with a window from 06:00 to 10:00
+- **THEN** the box reads `Orion Nebula (M42) from 06:00 to 10:00`
+
+#### Scenario: The moon rises an hour later
+- **WHEN** the box shows the text of a Moon up bar whose run starts in the hour from 16:00, and Home Assistant updates the moon altitude forecast so that the run starts in the hour from 17:00
+- **THEN** the card shows no box
+
+#### Scenario: The message changes
+- **WHEN** the box shows `sensor.pierpressure_backyard_seeing is unavailable` from a tap on the Seeing row's message, and the sensor's state becomes `unknown` with no forecast
+- **THEN** the box reads `sensor.pierpressure_backyard_seeing has no forecast for these hours`
+
+#### Scenario: Two dusk lines on one axis
+- **WHEN** Home Assistant's time zone is `UTC`, the Night 2 sensor's `dark_window` is `{start: 2026-12-11T11:53:13Z, end: 2026-12-12T11:53:41Z}`, the Night 3 sensor's is `{start: 2026-12-12T11:53:41Z, end: 2026-12-13T11:54:09Z}`, the axis holds both dusk lines, and the box shows the text of the Night 3 dusk line
+- **AND** the card redraws
+- **THEN** the box reads `Dusk, 11:53` and stays on the line at 2026-12-12T11:53:41Z
+
 ## ADDED Requirements
 
 ### Requirement: The card reads the Night sensors
@@ -95,7 +115,7 @@ For each Night sensor whose `dark_window` has a readable `start` and a readable 
 - **THEN** hovering over that dusk line shows `Dusk, 20:28`
 
 ### Requirement: A Night sensor without a readable dark window draws no line
-A Night sensor that is missing, unavailable or unknown, or whose `dark_window` is missing, has a null or unreadable `start` or `end`, or has an `end` not after its `start`, SHALL add no line. The card SHALL show no message and no note for it, and every other line SHALL still draw.
+A Night sensor that is missing, unavailable or unknown, or whose `dark_window` is missing, has a null or unreadable `start` or `end`, has an `end` not after its `start`, or is more than 48 hours long, SHALL add no line. The card SHALL show no message and no note for it, and every other line SHALL still draw.
 
 #### Scenario: An unavailable Night 4
 - **WHEN** the Night 4 sensor is `unavailable`, and the Night 2 sensor's `dark_window` is `{start: 2026-11-01T20:28:00Z, end: 2026-11-02T03:27:00Z}`, on the axis
