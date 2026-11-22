@@ -13,7 +13,9 @@ window per night, so the targets story (#319) only adds fields.
   per local solar day, while the timeline holds an hour that starts inside that
   solar day (D1, D2). With no provider data there are no later nights.
 - Each later night has a dark window: the whole astronomical night inside its
-  solar day, or null bounds when it has no astronomical darkness (D4).
+  solar day, however short, or null bounds when it has no astronomical
+  darkness (D4). On a day when polar night starts or ends, the window stops at
+  the solar day's edge (D14).
 - The verdict document gains a `later_nights` list after `observation`. Each
   entry holds a `dark_window` in the top-level shape (D3). This is additive:
   every existing field keeps its meaning and position.
@@ -28,10 +30,13 @@ window per night, so the targets story (#319) only adds fields.
   whenever their time is on the axis (D8). It adds no darkness note for later
   nights (D9). Tonight's lines and the opening axis do not change (D13).
 - A decision record settles the document shape and the delivery (D12).
-- The README's entity list and `docs/night-card.md` describe the Night sensors
-  and the later-night lines (D12).
+- The README and `docs/night-card.md` describe the Night sensors and the
+  later-night lines (D12). The README's entity table, MQTT topics, verdict
+  document and "Removing the entities" sections all name them.
 
-No change is **BREAKING**. The narrative is unchanged (D11).
+No change is **BREAKING**. The narrative is unchanged (D11). Tonight's
+`dark_window` is unchanged too; a separate bug covers the faults the plan
+review found in it (D16).
 
 ## Capabilities
 
@@ -58,8 +63,9 @@ No change is **BREAKING**. The narrative is unchanged (D11).
   and attributes; the Verdict attributes leave out `later_nights`).
 - **Card:** `card/src/strip.ts` and `card/src/pierpressure-card.ts` (read the
   Night sensors and draw their lines), with tests in `card/test/`.
-- **Docs:** a new decision record in `docs/decisions/`, `README.md`'s
-  "Home Assistant entities" table, `docs/night-card.md`.
+- **Docs:** decision records in `docs/decisions/`; `README.md`'s
+  "Home Assistant entities", "MQTT topics", "The verdict document" and
+  "Removing the entities" sections; `docs/night-card.md`.
 - **Contract:** additive only. Home Assistant gains three entities per pier, and
   existing topics, entities and fields are unchanged.
 - **Dependencies:** none.

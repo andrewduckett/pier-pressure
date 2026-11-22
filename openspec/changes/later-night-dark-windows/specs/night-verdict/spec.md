@@ -35,6 +35,21 @@ in that order, with `base_ft` null when the base is unknown.
 - **THEN** `observation` is null
 - **AND** the verdict is produced as it would be with no station
 
+### Requirement: The timeline is evidence beside the verdict
+
+The timeline SHALL be filled whether or not a provider returned rows, and whether or not the selected night has a dark window. It SHALL NOT change the verdict, the score, the confidence, the reasons or any other existing field. Only `later_nights`, which counts the timeline's hours, can follow it. It carries no verdict of its own: the verdict judges the one night the dark window names, however far the timeline reaches.
+
+#### Scenario: The timeline fills without a dark window
+
+- **WHEN** a verdict is produced for a pier whose selected night has no dark window and a provider returned rows
+- **THEN** the `timeline` holds one entry per returned hour and per hour of the selected night, each hour once
+- **AND** the document with `timeline` and `later_nights` removed equals the document produced for the same pier and instant from the empty conditions value
+
+#### Scenario: Hours outside the dark window change no other field
+
+- **WHEN** a verdict is produced twice for the same pier and instant, once with the providers' hours limited to the dark window and once with extra hours before and after it
+- **THEN** the two documents differ only in `timeline` and `later_nights`
+
 ## ADDED Requirements
 
 ### Requirement: The document carries the later nights after the observation
@@ -100,10 +115,11 @@ reach a later night, so with no provider rows `later_nights` SHALL be empty.
 ### Requirement: A later night's dark window is the whole astronomical night in its solar day
 
 A later night's `dark_window` SHALL run from the astronomical dusk to the
-astronomical dawn that both fall inside its solar day, at whole-second
-precision, with `start` strictly before `end`. It SHALL keep the whole night
-even where the night runs past the `timeline`. In continuous astronomical night
-it SHALL be that solar day, as the top-level `dark_window` is.
+astronomical dawn inside its solar day, however short the night, at
+whole-second precision, with `start` strictly before `end`. When the solar day
+starts dark, `start` SHALL be the day's start; when it ends dark, `end` SHALL be
+the day's end. So continuous astronomical night gives the whole solar day. It
+SHALL keep the whole night even where the night runs past the `timeline`.
 
 #### Scenario: The last night runs past the timeline
 
@@ -115,6 +131,20 @@ it SHALL be that solar day, as the top-level `dark_window` is.
 - **WHEN** a verdict is produced for a pier at latitude 88.0, longitude 0.0, elevation 0 m, at 2026-12-10T12:00:00Z, with a `cloud_cover` series that covers every hour from 2026-12-10T12:00:00Z to 2026-12-13T11:00:00Z
 - **THEN** the top-level `dark_window` is `{start: 2026-12-10T11:52:46Z, end: 2026-12-11T11:53:13Z}`
 - **AND** `later_nights` holds two entries, whose `dark_window` values are `{start: 2026-12-11T11:53:13Z, end: 2026-12-12T11:53:41Z}` and `{start: 2026-12-12T11:53:41Z, end: 2026-12-13T11:54:09Z}`
+
+#### Scenario: Polar night begins
+
+- **WHEN** a verdict is produced for a pier at latitude 88.0, longitude 0.0, elevation 0 m, at 2026-11-20T00:00:00Z, with a `cloud_cover` series that covers every hour from 2026-11-20T00:00:00Z to 2026-11-22T23:00:00Z
+- **THEN** the top-level `dark_window` is `{start: 2026-11-19T14:23:06Z, end: 2026-11-20T09:45:15Z}`
+- **AND** `later_nights` holds three entries, whose `dark_window` values are `{start: 2026-11-20T13:37:18Z, end: 2026-11-21T11:04:35Z}`, `{start: 2026-11-21T12:19:00Z, end: 2026-11-22T11:46:06Z}` and `{start: 2026-11-22T11:46:06Z, end: 2026-11-23T11:46:23Z}`, in that order
+- **AND** the second entry's `end` is the end of its solar day, which has no astronomical dawn
+
+#### Scenario: Polar night ends
+
+- **WHEN** a verdict is produced for the same pier at 2026-01-18T00:00:00Z, with a `cloud_cover` series that covers every hour from 2026-01-18T00:00:00Z to 2026-01-20T23:00:00Z
+- **THEN** the top-level `dark_window` is `{start: 2026-01-17T12:10:04Z, end: 2026-01-18T12:10:23Z}`
+- **AND** `later_nights` holds three entries, whose `dark_window` values are `{start: 2026-01-18T12:10:23Z, end: 2026-01-19T12:10:42Z}`, `{start: 2026-01-19T12:10:42Z, end: 2026-01-20T12:11:00Z}` and `{start: 2026-01-20T12:11:00Z, end: 2026-01-21T10:41:22Z}`, in that order
+- **AND** the third entry's `start` is the start of its solar day, which has no astronomical dusk
 
 ### Requirement: A later night with no astronomical darkness has null dark-window bounds
 

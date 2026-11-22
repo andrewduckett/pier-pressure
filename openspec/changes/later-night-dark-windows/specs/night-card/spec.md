@@ -97,6 +97,11 @@ The card SHALL read the `dark_window` attribute of `sensor.pierpressure_<slug>_n
 For each Night sensor whose `dark_window` has a readable `start` and a readable `end` after it, the card SHALL draw a `dusk` line at `start` and a `dawn` line at `end`, like tonight's lines, each only while its time lies on the axis. It SHALL draw them whether the opening axis comes from the Verdict sensor or falls back to the browser's clock.
 
 #### Scenario: Tomorrow's dusk on the opening axis
+- **WHEN** the Verdict sensor's `dark_window` is `{start: 2026-10-31T20:30:00Z, end: 2026-11-01T03:25:00Z}`, the browser's clock reads 2026-11-01T12:00:00Z, the user has not panned the strip, and the Night 2 sensor's `dark_window` is `{start: 2026-11-01T20:28:00Z, end: 2026-11-02T03:27:00Z}`
+- **THEN** the strip's axis runs from 2026-11-01T08:00:00Z to 2026-11-01T23:55:00Z
+- **AND** the strip has a dashed grey `#898781` line labelled `dusk` at 2026-11-01T20:28:00Z, and no line labelled `dawn`
+
+#### Scenario: Tomorrow's dusk off the opening axis
 - **WHEN** the Verdict sensor's `dark_window` is `{start: 2026-10-31T20:30:00Z, end: 2026-11-01T03:25:00Z}`, the browser's clock reads 2026-11-01T03:00:00Z, and the Night 2 sensor's `dark_window` is `{start: 2026-11-01T20:28:00Z, end: 2026-11-02T03:27:00Z}`
 - **THEN** the strip's axis runs from 2026-10-31T23:00:00Z to 2026-11-01T14:55:00Z
 - **AND** the strip has a dashed grey `#898781` line labelled `dawn` at 2026-11-01T03:25:00Z, and no line at 2026-11-01T20:28:00Z
