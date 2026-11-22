@@ -558,9 +558,9 @@ def build_night_discovery(pier_id: str, base_topic: str, night: int) -> dict[str
 
 
 def _later_night(document: VerdictDocument, night: int) -> LaterNight | None:
-    """The ``later_nights`` entry Night ``night`` shows, or ``None`` past the list."""
+    """The ``later_nights`` entry Night ``night`` shows, or ``None`` outside the list."""
     index = night - NIGHTS.start
-    return document.later_nights[index] if index < len(document.later_nights) else None
+    return document.later_nights[index] if 0 <= index < len(document.later_nights) else None
 
 
 def night_state(document: VerdictDocument, night: int) -> str:

@@ -25,7 +25,9 @@ from pierpressure.delivery.mqtt import (
     availability_topic,
     build_night_discovery,
     discovery_topic,
+    night_attributes,
     night_attributes_topic,
+    night_state,
     night_state_topic,
     timeline_attributes_topic,
 )
@@ -259,3 +261,10 @@ def test_the_nights_come_before_the_narrative() -> None:
 
     narrative = topics.index(discovery_topic(PREFIX, "sensor", "backyard", "narrative"))
     assert topics.index(night_attributes_topic(BASE, "backyard", NIGHTS[-1])) < narrative
+
+
+@pytest.mark.parametrize("night", [0, 1, MAX_LATER_NIGHTS + 2])
+def test_a_night_outside_the_night_sensors_has_no_entry(night: int) -> None:
+    document = make_document(later_nights=make_later_nights(MAX_LATER_NIGHTS))
+    assert night_state(document, night) == "None"
+    assert night_attributes(document, night) == {"available": False, "night": night}
