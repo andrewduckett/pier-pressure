@@ -61,7 +61,7 @@ from typing import Any, Protocol
 import paho.mqtt.client as mqtt
 
 from pierpressure.core.config import MqttConfig
-from pierpressure.core.model import Target, TimelineEntry, VerdictDocument, iso_z
+from pierpressure.core.model import LaterNight, Target, TimelineEntry, VerdictDocument, iso_z
 from pierpressure.core.providers import COMPUTED
 from pierpressure.core.ranking import TOP_N
 from pierpressure.core.sky import MAX_LATER_NIGHTS
@@ -555,6 +555,35 @@ def build_night_discovery(pier_id: str, base_topic: str, night: int) -> dict[str
         "icon": "mdi:weather-night",
         "device": _device_block(pier_id),
     }
+
+
+def _later_night(document: VerdictDocument, night: int) -> LaterNight | None:
+    """The ``later_nights`` entry Night ``night`` shows, or ``None`` past the list."""
+    index = night - NIGHTS.start
+    return document.later_nights[index] if index < len(document.later_nights) else None
+
+
+def night_state(document: VerdictDocument, night: int) -> str:
+    """The night's dusk, or the literal ``None`` for no darkness or no entry.
+
+    ``None`` reads as unknown and replaces an earlier retained dusk.
+    """
+    entry = _later_night(document, night)
+    return (_iso(entry.dark_window.start) if entry else None) or "None"
+
+
+def night_attributes(document: VerdictDocument, night: int) -> dict[str, Any]:
+    """The JSON attributes payload: the flag, the night's number, then its entry."""
+    import json
+
+    entry = _later_night(document, night)
+    if entry is None:
+        return {"available": False, "night": night}
+    payload = {"available": True, "night": night, **json.loads(entry.model_dump_json())}
+    # Re-assert the adapter's keys so a future entry field of the same name can't
+    # replace them; ``update`` keeps them first in the payload.
+    payload.update(available=True, night=night)
+    return payload
 
 
 def build_narrative_discovery(pier_id: str, base_topic: str) -> dict[str, Any]:
@@ -1176,10 +1205,24 @@ class MqttDelivery:
                 retain=True,
                 pier=pier,
             )
+        # Every night is written on every publish, filled or not, so a shrinking list
+        # never leaves an earlier night retained.
         for night in NIGHTS:
             self._publish(
                 discovery_topic(prefix, "sensor", pier, f"night_{night}"),
                 json.dumps(build_night_discovery(pier, base, night)),
+                retain=True,
+                pier=pier,
+            )
+            self._publish(
+                night_state_topic(base, pier, night),
+                night_state(document, night),
+                retain=True,
+                pier=pier,
+            )
+            self._publish(
+                night_attributes_topic(base, pier, night),
+                json.dumps(night_attributes(document, night)),
                 retain=True,
                 pier=pier,
             )
