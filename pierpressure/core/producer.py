@@ -16,7 +16,7 @@ document.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from .clock import Clock
 from .conditions import TIMELINE_VARIABLES, Conditions
@@ -27,6 +27,7 @@ from .model import (
     CloudLayerEntry,
     Confidence,
     DarkWindow,
+    LaterNight,
     ObservationEntry,
     TimelineEntry,
     VerdictDocument,
@@ -34,7 +35,7 @@ from .model import (
 from .observation import Observation, observation_reason, usable
 from .ranking import equipment_reasons, rank_targets
 from .scoring import MIN_USABLE_WINDOW, AgreementTerm, ObservedTerm, evaluate
-from .sky import altitudes_at, dark_window, moon_info, night_hours
+from .sky import altitudes_at, dark_window, later_night_windows, moon_info, night_hours
 
 
 def produce_verdict(
@@ -56,7 +57,8 @@ def produce_verdict(
     verdict (a NO-GO) and ignores the conditions, matching the rule that no dark
     window means conditions are not required. The ``timeline`` always holds the
     selected night's hours, beside every hour the providers returned: it is
-    evidence beside the verdict, never an input to it (ADR-0025).
+    evidence beside the verdict, never an input to it (ADR-0025). The same hours
+    decide how many ``later_nights`` the forecast reaches (ADR-0043).
 
     ``observation`` is the pier's latest METAR, fetched beside ``conditions``. It
     reaches the document when it is usable at the instant (metar-reason DD1), and
@@ -119,7 +121,23 @@ def produce_verdict(
         timeline=_timeline(pier, instant, window, conditions),
         agreement=_agreement(decision.agreement),
         observation=_observation_entry(observation),
+        later_nights=_later_nights(pier, instant, window, conditions),
     )
+
+
+def _later_nights(
+    pier: PierConfig,
+    instant: datetime,
+    window: tuple[datetime, datetime] | tuple[None, None],
+    conditions: Conditions,
+) -> list[LaterNight]:
+    """One entry per later night the shown variables' filled series reach."""
+    hours = conditions.hours(TIMELINE_VARIABLES)
+    reach_end = hours[-1] + timedelta(hours=1) if hours else None
+    return [
+        LaterNight(dark_window=DarkWindow(start=start, end=end))
+        for start, end in later_night_windows(pier, instant, window, reach_end)
+    ]
 
 
 def _observed_reason(term: ObservedTerm) -> str:
