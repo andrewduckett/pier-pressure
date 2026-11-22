@@ -19,6 +19,17 @@ the timeline reaches.
 
 Scope: the verdict document and its delivery. Code and specs use `timeline`.
 
+## Later night
+
+A night after the selected night, one for each local solar day after the
+selected night's solar day, from solar noon to the next solar noon. A later
+night counts only while the timeline holds an hour that starts inside its solar
+day, and there are at most three. It carries its own dark window. It has no
+verdict, score or confidence; those judge only the selected night.
+
+Scope: the verdict document, its delivery and dashboards. Code and specs use
+`later_nights`.
+
 ## Night strip
 
 A dashboard rendering of the timeline: hours across, one row per condition,
