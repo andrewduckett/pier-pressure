@@ -322,7 +322,11 @@ def test_existing_entities_publish_the_same_topics_and_payloads() -> None:
             True,
         ),
         (verdict_state_topic(BASE, "backyard"), document.verdict.value, True),
-        (attributes_topic(BASE, "backyard"), document.model_dump_json(exclude={"timeline"}), True),
+        (
+            attributes_topic(BASE, "backyard"),
+            document.model_dump_json(exclude={"timeline", "later_nights"}),
+            True,
+        ),
         (top_target_state_topic(BASE, "backyard"), top_target_state(document), True),
         (
             top_target_attributes_topic(BASE, "backyard"),

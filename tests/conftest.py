@@ -24,6 +24,7 @@ from pierpressure.core.model import (
     Band,
     Confidence,
     DarkWindow,
+    LaterNight,
     Moon,
     MoonPhase,
     TimelineEntry,
@@ -513,6 +514,7 @@ def make_document(
     score: int | None = 50,
     generated_at: datetime | None = None,
     timeline: list[TimelineEntry] | None = None,
+    later_nights: list[LaterNight] | None = None,
 ) -> VerdictDocument:
     return VerdictDocument(
         pier=pier,
@@ -526,7 +528,21 @@ def make_document(
         scored_window=DarkWindow(start=None, end=None),
         moon=Moon(illumination=0.0, phase=MoonPhase.NEW),
         timeline=timeline or [],
+        later_nights=later_nights or [],
     )
+
+
+def make_later_nights(count: int) -> list[LaterNight]:
+    """``count`` later nights, one a day after 2026-09-08, each from 20:00 to 03:00."""
+    first = datetime(2026, 9, 8, 20, tzinfo=UTC)
+    return [
+        LaterNight(
+            dark_window=DarkWindow(
+                start=first + timedelta(days=i), end=first + timedelta(days=i, hours=7)
+            )
+        )
+        for i in range(count)
+    ]
 
 
 def make_timeline(
