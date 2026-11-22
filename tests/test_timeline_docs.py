@@ -115,7 +115,7 @@ def test_readme_lists_the_cloud_cover_topics(readme_text: str) -> None:
 
 def test_readme_labels_the_verdict_attributes_topic_without_timeline(readme_text: str) -> None:
     assert (
-        "| Verdict attributes (the document without `timeline`) "
+        "| Verdict attributes (the document without `timeline` and `later_nights`) "
         "| `pierpressure/<pier>/verdict/attributes`" in readme_text
     )
 

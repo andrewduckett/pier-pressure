@@ -525,3 +525,61 @@ def test_watching_provider_health_explains_firms() -> None:
     section = _section(_readme(), "### Watching provider health")
     assert "**FIRMS health**" in section
     assert "unexpected response" in section
+
+
+# --------------------------------------------------------------------------- #
+# later-night-dark-windows 2.4: the README documents the Night sensors
+# --------------------------------------------------------------------------- #
+
+
+def _entities() -> str:
+    return _section(_README.read_text(encoding="utf-8"), "## 🏠 Home Assistant entities")
+
+
+def _row(table: str, starts: str) -> str:
+    [row] = [line for line in table.splitlines() if line.startswith(starts)]
+    return row
+
+
+def test_the_entity_table_has_a_night_row() -> None:
+    row = _row(_entities(), "| **Night 2** to **Night 4**").lower()
+    assert "dusk" in row
+    assert "`dark_window`" in row
+    assert "unknown" in row and "no astronomical darkness" in row
+    assert "unavailable" in row and "does not reach" in row
+
+
+def test_the_verdict_row_leaves_out_the_timeline_and_the_later_nights() -> None:
+    row = _row(_entities(), "| **Verdict** (sensor)")
+    assert "except `timeline` and `later_nights`" in row
+
+
+def test_the_discovery_configs_list_the_nights() -> None:
+    row = _row(_entities(), "| Discovery configs |")
+    assert "night_<n>" in row
+
+
+def test_the_topic_table_has_a_night_row() -> None:
+    row = _row(_entities(), "| Night `<n>` (2 to 4) state and attributes |")
+    assert "`pierpressure/<pier>/night_<n>/state`" in row
+    assert "`.../night_<n>/attributes`" in row
+
+
+def test_the_verdict_attributes_topic_leaves_out_the_later_nights() -> None:
+    _row(_entities(), "| Verdict attributes (the document without `timeline` and `later_nights`) |")
+
+
+def test_the_document_section_says_the_attributes_leave_out_the_later_nights() -> None:
+    section = _section(_README.read_text(encoding="utf-8"), "### The verdict document")
+    assert "every key except `timeline` and `later_nights`" in " ".join(section.split())
+
+
+def test_the_document_table_has_a_later_nights_row() -> None:
+    section = _section(_README.read_text(encoding="utf-8"), "### The verdict document")
+    row = _row(section, "| `later_nights` |")
+    assert "`dark_window`" in row and "Night 2" in row
+
+
+def test_the_clean_up_loop_lists_the_night_sensors() -> None:
+    removing = _section(_README.read_text(encoding="utf-8"), "### Removing the entities")
+    assert "sensor/pierpressure_backyard/night_{2..4}" in removing
