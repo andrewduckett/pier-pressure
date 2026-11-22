@@ -1,0 +1,28 @@
+<!-- Plain language: Each task must make sense to an agent and reviewer without the planning conversation. Name an observable outcome, its location when needed, and how to verify it. Preserve checkbox syntax and tags. -->
+
+## 1. Core: the later nights in the verdict document
+
+- [ ] 1.1 [easy] `VerdictDocument` always carries `later_nights` as its last key, after `observation`, defaulting to an empty list; each entry is a `LaterNight` with exactly one key, `dark_window`, in the `DarkWindow` shape, and rejects any other key (design DD4; spec night-verdict "The document carries the later nights", "A later night entry holds only its dark window") (verify: `uv run pytest tests/test_model.py`)
+- [ ] 1.2 [complex] A new `sky.later_night_windows(pier, instant, window, reach_end)` returns up to three windows, one per local solar day after the selected night's solar day, while each day starts before `reach_end`, and none when `reach_end` is None; each window is the `dark_window` selected one minute after its day's noon, kept only when its midpoint lies in that day, else `(None, None)`. Cover the spec's London, May 52° N, June 55° N and 88° N polar-night values (design DD1 to DD3) (verify: `uv run pytest tests/test_sky_later_nights.py`)
+- [ ] 1.3 [medium] `produce_verdict` fills `later_nights` from `later_night_windows`, with `reach_end` one hour after the last hour `conditions.hours(TIMELINE_VARIABLES)` returns, so empty conditions, an alternate alone and a hidden variable alone add no later night; every night-verdict scenario of this change passes, and the goldens are regenerated with `PP_WRITE_GOLDENS=1` so that their diff adds only `later_nights` (verify: `uv run pytest tests/test_producer_later_nights.py tests/test_golden_verdict.py tests/test_determinism.py`)
+
+## 2. Delivery: Night 2 to Night 4 sensors [depends-on: 1]
+
+- [ ] 2.1 [easy] The Verdict sensor's attributes payload leaves out `later_nights` as well as `timeline`, and is otherwise byte-identical to the document's JSON (spec ha-delivery "The verdict attributes leave out the timeline and the later nights") (verify: `uv run pytest tests/test_publish.py`)
+- [ ] 2.2 [medium] Each publish announces three retained Night sensors per pier, `Night 2` to `Night 4`, on `<prefix>/sensor/pierpressure_<pier>/night_<n>/config`, with unique id `pierpressure_<pier>_night_<n>`, device class `timestamp`, the pier's device, and an availability that needs both the last-will topic and the attributes' `available` flag; the count comes from the core's `MAX_LATER_NIGHTS` (design DD5) (verify: `uv run pytest tests/test_night_sensors.py`)
+- [ ] 2.3 [medium] Each publish writes every Night sensor's state and attributes, after the timeline sensors and before the narrative: the state is the entry's dusk with a `+00:00` offset, or `None` for a null dusk or a missing entry; the attributes are `{"available": true, "night": n, "dark_window": ...}` or `{"available": false, "night": n}`, so a shrinking list clears the later sensors (spec ha-delivery Night sensor requirements) (verify: `uv run pytest tests/test_night_sensors.py`)
+- [ ] 2.4 [parallel] [easy] The README's Home Assistant entity table has a **Night 2** to **Night 4** row: state is that night's dusk, attributes hold its `dark_window`, unknown on a night with no astronomical darkness, unavailable when the forecast does not reach that night; the Verdict row says its attributes leave out `timeline` and `later_nights`. A test in `tests/test_docs.py` checks both (verify: `uv run pytest tests/test_docs.py`)
+
+## 3. Card: dusk and dawn on every later night
+
+- [ ] 3.1 [medium] The strip draws dusk and dawn lines for each readable `dark_window` on `sensor.pierpressure_<slug>_night_2` to `_night_4`, styled and labelled as tonight's, whatever the Verdict sensor's window; a missing, `unavailable`, null or unreadable window draws nothing and shows no darkness note. Each `Line` carries its night (1 for tonight, 2 to 4 later), and the harness gains a helper that returns every line of a kind (spec night-card "Dusk and dawn lines mark each later night", "Everything on the strip pans together"; design DD6) (verify: `cd card && npx vitest run test/strip.test.ts test/pan.test.ts`)
+- [ ] 3.2 [easy] A tap box on a dusk or dawn line follows the line of the same kind for the same night after a redraw, keyed `line:<kind>:<night>`, while the now line stays `line:now` (spec night-card "An item is the same after a redraw when it has the same place in the strip") (verify: `cd card && npx vitest run test/tap.test.ts`)
+- [ ] 3.3 [parallel] [easy] `docs/night-card.md`'s panning section says up to three later nights have dusk and dawn lines, read from `sensor.pierpressure_<pier>_night_2` to `_night_4`, and no target bars, and no longer says another night has no dusk or dawn line (spec night-card "The docs describe panning the strip") (verify: `uv run pytest tests/test_night_card_doc.py`)
+
+## 4. Integration [depends-on: 2, 3]
+
+- [ ] 4.1 [easy] The whole CI gate passes: specs, lint, types, Python tests and the card's type-check, tests and build (verify: `mise run check`)
+
+## Deviations Ledger
+
+<!-- Dated notes on small departures from the plan, written during apply. Stop and ask the user about a large one. -->
