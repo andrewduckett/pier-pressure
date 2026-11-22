@@ -13,7 +13,8 @@
 - **Who**: an amateur astrophotographer who runs long imaging sessions from a fixed
   pier at home, and whose house already runs on Home Assistant.
 - **Goal**: know early in the evening whether tonight is worth a full imaging setup,
-  and what to point at from this pier with this equipment.
+  and what to point at from this pier with this equipment; and, looking ahead, when
+  each of the next few nights is dark and what it is good for.
 - **Pain today**: answering means checking several weather sites, a moon calendar, a
   planetarium app, and his own memory of which trees block which part of the sky.
   Good nights get missed, and poor nights waste an hour of setup.
@@ -52,18 +53,18 @@
 
 ## Journey Map
 
-Stage status checked against the code on 2026-11-15.
+Stage status checked against the code on 2026-11-21.
 
 ### People who use PierPressure
 
 **Tonight at the pier** (Andrew, the adopter):
 
 ```
- Find the  ─► Install  ─► Connect ─► Describe ─► See      ─► Get      ─► Choose  ─► Stay current
- project      & run       to HA      my site     tonight's    told in     a target    through the
- (adopter)                (MQTT)                 verdict      time                    night
-    │           │           │           │           │            │           │            │
- supported   supported   supported   supported   partial     supported   supported  supported
+ Find the  ─► Install  ─► Connect ─► Describe ─► See      ─► Look ahead ─► Get      ─► Choose  ─► Stay current
+ project      & run       to HA      my site     tonight's    to the next   told in     a target    through the
+ (adopter)                (MQTT)                 verdict      nights        time                    night
+    │           │           │           │           │            │            │           │            │
+ supported   supported   supported   supported   supported    partial      supported   supported  supported
 ```
 
 1. **Find the project** (adopter) — the README explains what it does, how to set it
@@ -96,18 +97,21 @@ Stage status checked against the code on 2026-11-15.
    quote, and which lowers confidence when it shows more cloud than the forecast.
    With a NASA FIRMS key, the reasons name an active fire near the pier. The
    PierPressure card, installed through HACS, draws the strip, shades the range
-   between the forecasts' cloud, and pans through the forecast. The timeline
-   still loses the sun and moon for hours no forecast returned. The strip's
-   shades show how much of something there is, and whether darker is good or bad
-   changes from row to row; on a phone it shows no values, because they sit in
-   hovers — partial
-   ([#174](https://github.com/andrewduckett/pier-pressure/issues/174),
-   [#252](https://github.com/andrewduckett/pier-pressure/issues/252), [#253](https://github.com/andrewduckett/pier-pressure/issues/253), [#254](https://github.com/andrewduckett/pier-pressure/issues/254))
-6. **Get told in time** — the README gives a Home Assistant automation that
+   between the forecasts' cloud, and pans through the forecast. The timeline always
+   carries the sun and moon for the judged night, even when every forecast fails.
+   On every shaded row, darker blue is better for observing. Temperature and dew
+   point are two lines under the target lanes. On a phone, a tap shows what a
+   hover shows — supported
+6. **Look ahead to the next nights** — the strip pans through about 72 hours of
+   forecast and draws each later night's weather and its sun and moon altitude.
+   Only tonight has dusk and dawn lines and target lanes — partial
+   ([#318](https://github.com/andrewduckett/pier-pressure/issues/318),
+   [#319](https://github.com/andrewduckett/pier-pressure/issues/319))
+7. **Get told in time** — the README gives a Home Assistant automation that
    notifies at a chosen time — supported
-7. **Choose a target** — the Top target sensor and one sensor per rank, Target 1
+8. **Choose a target** — the Top target sensor and one sensor per rank, Target 1
    to Target 10, so any dashboard card can list the ranking — supported
-8. **Stay current through the night** — the container recomputes on its interval
+9. **Stay current through the night** — the container recomputes on its interval
    and keeps the verdict fresh when Home Assistant restarts — supported
 
 > **Implication**: running on or off Home Assistant differs only at stages 2 and 4.
