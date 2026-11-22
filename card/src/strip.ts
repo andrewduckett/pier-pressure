@@ -209,6 +209,8 @@ export interface TargetLane {
 export interface Line {
   kind: "dusk" | "dawn" | "now";
   at: number;
+  // 1 for the judged night, 2 to 4 for a later night; the now line has none.
+  night?: number;
   // What hovering over the line shows.
   text: string;
 }
@@ -324,10 +326,30 @@ export function buildStrip(
     targets: targetLanes(states, pier, axis, time),
     chart: temperatureChart(states, pier, axis, time),
     lines: [
-      ...(night === undefined ? [] : nightLines(night, axis, time)),
+      ...(night === undefined ? [] : nightLines(night, 1, axis, time)),
+      ...laterNightLines(states, pier, axis, time),
       ...nowLine(now, axis, time),
     ],
   };
+}
+
+// PierPressure publishes one Night sensor for each night after tonight.
+const LATER_NIGHTS = [2, 3, 4];
+
+// A Night sensor is unavailable when the forecast does not reach its night, and
+// its attributes may still hold the window it had before.
+function laterNightLines(
+  states: States,
+  pier: string,
+  axis: Axis,
+  time: (at: number) => string,
+): Line[] {
+  return LATER_NIGHTS.flatMap((number) => {
+    const entity = states[pierEntityId(pier, `night_${number}`)];
+    if (entity === undefined || entity.state === "unavailable") return [];
+    const night = darkWindow(entity.attributes["dark_window"]);
+    return night === undefined ? [] : nightLines(night, number, axis, time);
+  });
 }
 
 // Orange and green, each at least 3:1 against Home Assistant's light and dark
@@ -422,10 +444,15 @@ function chartMarks(
 }
 
 // Late in the night dusk is off the opening axis; a panned axis may hold either line or neither.
-function nightLines(night: Night, axis: Axis, time: (at: number) => string): Line[] {
+function nightLines(
+  night: Night,
+  number: number,
+  axis: Axis,
+  time: (at: number) => string,
+): Line[] {
   const lines: Line[] = [
-    { kind: "dusk", at: night.dusk, text: `Dusk, ${time(night.dusk)}` },
-    { kind: "dawn", at: night.dawn, text: `Dawn, ${time(night.dawn)}` },
+    { kind: "dusk", at: night.dusk, night: number, text: `Dusk, ${time(night.dusk)}` },
+    { kind: "dawn", at: night.dawn, night: number, text: `Dawn, ${time(night.dawn)}` },
   ];
   return lines.filter((line) => line.at >= axis.start && line.at <= axis.end);
 }
