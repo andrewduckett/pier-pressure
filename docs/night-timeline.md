@@ -110,11 +110,12 @@ the **Refresh** button to recompute now.
 Home Assistant does not store state attributes larger than 16 KiB. A timeline of
 around 120 hours with eighteen values each would push the Verdict sensor past that
 limit. So the Verdict sensor's attributes hold every field of the verdict
-document except `timeline`. Each timeline value reaches Home Assistant on its own
-sensor instead: Cloud cover, Cloud low, Cloud mid, Cloud high, Wind gust,
+document except `timeline` and `later_nights`. Each timeline value reaches Home
+Assistant on its own sensor instead: Cloud cover, Cloud low, Cloud mid, Cloud high, Wind gust,
 Seeing, Transparency, Sun altitude, Moon altitude, Temperature, Dew point,
 Humidity, Wind speed, Wind direction, Precipitation probability,
-Cloud cover min and Cloud cover max.
+Cloud cover min and Cloud cover max. The later nights reach it on the
+Night 2 to Night 4 sensors.
 
 ## Chart the forecast
 
