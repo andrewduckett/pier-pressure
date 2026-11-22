@@ -21,7 +21,7 @@
 
 ## 4. Integration [depends-on: 2, 3]
 
-- [ ] 4.1 [easy] The whole CI gate passes: specs, lint, types, Python tests and the card's type-check, tests and build (verify: `mise run check`)
+- [x] 4.1 [easy] The whole CI gate passes: specs, lint, types, Python tests and the card's type-check, tests and build (verify: `mise run check`) (✓ `mise run check` passed: 12 specs, ruff, mypy, 2842 Python tests, 684 card tests and the card build)
 
 ## Deviations Ledger
 
