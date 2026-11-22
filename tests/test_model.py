@@ -15,6 +15,7 @@ from pierpressure.core.model import (
     CloudLayerEntry,
     Confidence,
     DarkWindow,
+    LaterNight,
     Moon,
     MoonPhase,
     ObservationEntry,
@@ -37,6 +38,7 @@ EXPECTED_KEY_ORDER = [
     "timeline",
     "agreement",
     "observation",
+    "later_nights",
 ]
 
 TIMELINE_ENTRY_KEY_ORDER = [
@@ -271,10 +273,49 @@ def _entry(**overrides: object) -> TimelineEntry:
     return TimelineEntry.model_validate(fields)
 
 
-def test_timeline_defaults_to_an_empty_list_and_precedes_only_agreement_and_observation() -> None:
+def test_timeline_defaults_to_an_empty_list_and_precedes_agreement() -> None:
     payload = json.loads(_gated_no_go().to_json())
     assert payload["timeline"] == []
-    assert list(payload)[-3:] == ["timeline", "agreement", "observation"]
+    assert list(payload)[-4:] == ["timeline", "agreement", "observation", "later_nights"]
+
+
+def test_later_nights_defaults_to_an_empty_list_after_observation() -> None:
+    payload = json.loads(_gated_no_go().to_json())
+    assert payload["later_nights"] == []
+    assert list(payload)[-2:] == ["observation", "later_nights"]
+
+
+def _later_night() -> LaterNight:
+    return LaterNight(
+        dark_window=DarkWindow(
+            start=datetime(2026, 9, 9, 20, 27, 57, tzinfo=UTC),
+            end=datetime(2026, 9, 10, 3, 28, 2, tzinfo=UTC),
+        )
+    )
+
+
+def test_a_later_night_serializes_only_its_dark_window() -> None:
+    doc = _gated_no_go().model_copy(update={"later_nights": [_later_night()]})
+    assert json.dumps(json.loads(doc.to_json())["later_nights"]) == json.dumps(
+        [{"dark_window": {"start": "2026-09-09T20:27:57Z", "end": "2026-09-10T03:28:02Z"}}]
+    )
+
+
+def test_a_later_night_without_darkness_serializes_null_bounds() -> None:
+    doc = _gated_no_go().model_copy(update={"later_nights": [LaterNight(dark_window=DarkWindow())]})
+    assert json.loads(doc.to_json())["later_nights"] == [
+        {"dark_window": {"start": None, "end": None}}
+    ]
+
+
+def test_later_nights_round_trip_through_json() -> None:
+    doc = _gated_no_go().model_copy(update={"later_nights": [_later_night()]})
+    assert VerdictDocument.model_validate_json(doc.to_json()) == doc
+
+
+def test_a_later_night_rejects_unknown_keys() -> None:
+    with pytest.raises(ValidationError):
+        LaterNight.model_validate({"dark_window": {"start": None, "end": None}, "score": 50})
 
 
 def test_agreement_defaults_to_the_empty_object() -> None:

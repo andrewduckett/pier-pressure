@@ -36,10 +36,10 @@ def test_filling_targets_leaves_other_fields_byte_identical(case: str) -> None:
         document = produce_verdict(pier, FixedClock(_INSTANT), conditions)
 
     # Everything except targets must equal the pre-change stub byte for byte. The
-    # stub predates the timeline, agreement and observation too, so those later
-    # additive keys are left out.
+    # stub predates the timeline, agreement, observation and later nights too, so
+    # those later additive keys are left out.
     without_targets = document.model_copy(update={"targets": []}).model_dump_json(
-        exclude={"timeline", "agreement", "observation"}
+        exclude={"timeline", "agreement", "observation", "later_nights"}
     )
     baseline = (_STUB / f"{case}.json").read_text(encoding="utf-8").rstrip("\n")
     assert without_targets == baseline

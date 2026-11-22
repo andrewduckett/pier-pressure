@@ -367,6 +367,18 @@ class ObservationEntry(BaseModel):
         return iso_z(value)
 
 
+class LaterNight(BaseModel):
+    """One night after the selected night, one local solar day on (ADR-0043).
+
+    It carries only its own dark window, null-bounded when its solar day holds
+    no astronomical night, and no verdict, score or confidence of its own.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    dark_window: DarkWindow
+
+
 class VerdictDocument(BaseModel):
     """The one JSON document the whole system is built around.
 
@@ -395,6 +407,9 @@ class VerdictDocument(BaseModel):
     # Null unless the pier's station gave a usable report. Last, so every
     # earlier key keeps its position.
     observation: ObservationEntry | None = None
+    # In date order, empty when the forecast reaches no later night. Last, so
+    # every earlier key keeps its position.
+    later_nights: list[LaterNight] = Field(default_factory=list)
 
     @field_validator("generated_at")
     @classmethod
