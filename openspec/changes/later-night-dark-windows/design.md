@@ -71,10 +71,14 @@
 ### DD1. Chain the later solar days from the selected night's solar day
 
 Start from the end of `night_solar_day(pier, instant, window)`. Each next solar
-day is `_local_solar_day(pier, previous_end + half a day)`, searched from the
-middle of the day, never from the noon itself, so millisecond jitter cannot
-return the previous day. Floor each day's start and end to whole seconds, as
-`night_solar_day` does.
+day starts exactly at the previous day's end. Its end is the end of
+`_local_solar_day(pier, previous_end + half a day)`, searched from the middle
+of the day, never from the noon itself, so millisecond jitter cannot return
+the previous day. Floor each end to whole seconds, as `night_solar_day` does.
+Reusing the previous end, rather than looking the same noon up again, matters
+because two lookups with different search brackets can differ by about 0.1 ms,
+and such a difference can cross a whole second and floor to a 1-second gap or
+overlap.
 
 - *Alternative:* add 24 hours to each noon. Rejected: solar noon drifts by up
   to about 30 seconds a day, so the days would drift off the real noons the
@@ -88,7 +92,10 @@ midpoint lies in `[day_start, day_end)`; otherwise the window is
 `(None, None)`. The minute keeps the selection, and the continuous-night
 anchor, inside the day despite noon jitter. The midpoint check stops a day with
 no darkness from borrowing the next day's night, which `dark_window` would
-otherwise select.
+otherwise select. When a kept window starts within one second of `day_start`
+and ends within one second of `day_end`, it is the continuous-night window,
+which `dark_window` anchors to its own lookup of the solar day: use the
+chained `(day_start, day_end)` instead, so consecutive windows meet exactly.
 
 Checked against the bundled ephemeris for the spec's scenarios: London in
 September, the end of darkness at 52° N in May, and continuous polar night at
@@ -172,6 +179,11 @@ the Verdict attributes, and one Night sensor per slot. The ADR step records it.
 - [Risk] The golden documents change. → Regenerate them once, in the same
   commit as the producer change, and check that the diff adds only
   `later_nights`.
+- [Trade-off] In continuous polar night, one night's dawn and the next night's
+  dusk fall at the same instant, so their lines and labels are drawn on top of
+  each other, and hover or tap reaches only the line drawn last. → Accepted:
+  it happens only above about 84.5° latitude in polar night, and both lines
+  name the same time. The card does not merge or offset them.
 - [Trade-off] A later night with no darkness shows unknown rather than
   unavailable, so a user can tell "no darkness" from "beyond the forecast"
   (D7). Home Assistant cannot show both a state and a reason, so the

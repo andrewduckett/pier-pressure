@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Dusk and dawn lines mark each later night
-For each of Night 2 to Night 4, the card SHALL read the `dark_window` attribute of `sensor.pierpressure_<slug>_night_<n>`, named from the same slug as the Verdict sensor. It SHALL draw a dusk and a dawn line at its `start` and `end`, styled, placed and labelled as the selected night's, each only while its time lies on the axis. It SHALL draw them whatever the Verdict sensor's `dark_window`. It SHALL draw neither when the window would make the opening axis fall back.
+For each of Night 2 to Night 4, the card SHALL read the `dark_window` attribute of `sensor.pierpressure_<slug>_night_<n>`, named from the Verdict sensor's slug, and draw a dusk and a dawn line at its `start` and `end`, styled, placed and labelled as the selected night's, each only while its time lies on the axis, whatever the Verdict sensor's `dark_window`. It SHALL draw neither for a missing or `unavailable` sensor, or a window that would make the opening axis fall back.
 
 #### Scenario: The next night after a pan
 - **WHEN** the card is configured with `pier: Back-Yard`, the Verdict sensor's `dark_window` is `{start: 2026-10-31T20:30:00Z, end: 2026-11-01T03:25:00Z}`, the browser's clock reads 2026-10-31T12:00:00Z, `sensor.pierpressure_back_yard_night_2` has the `dark_window` `{start: 2026-11-01T20:32:00Z, end: 2026-11-02T03:23:00Z}`, and the user pans the axis 24 hours later

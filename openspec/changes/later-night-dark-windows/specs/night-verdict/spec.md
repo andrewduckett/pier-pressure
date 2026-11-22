@@ -128,6 +128,21 @@ in that order, with `base_ft` null when the base is unknown.
 - **THEN** `observation` is null
 - **AND** the verdict is produced as it would be with no station
 
+### Requirement: The timeline is evidence beside the verdict
+
+The timeline SHALL be filled whether or not a provider returned rows, and whether or not the selected night has a dark window. It SHALL NOT change the verdict, the score, the confidence, the reasons or any other existing field. It carries no verdict of its own: the verdict judges the one night the dark window names, however far the timeline reaches. Provider hours past the selected night's solar day can add later nights.
+
+#### Scenario: The timeline fills without a dark window
+
+- **WHEN** a verdict is produced for a pier whose selected night has no dark window and a provider returned rows
+- **THEN** the `timeline` holds one entry per returned hour and per hour of the selected night, each hour once
+- **AND** the document with `timeline` and `later_nights` removed equals the document produced for the same pier and instant from the empty conditions value
+
+#### Scenario: Hours outside the dark window change no other field
+
+- **WHEN** a verdict is produced twice for the same pier and instant, once with the providers' hours limited to the dark window and once with extra hours before and after it
+- **THEN** the two documents differ only in `timeline` and `later_nights`
+
 ### Requirement: Variables the timeline does not show leave the document unchanged
 
 The timeline does not show these variables in the conditions: today,
