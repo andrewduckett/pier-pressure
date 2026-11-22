@@ -28,12 +28,15 @@ Refresh discovery cfg        ``P/button/pierpressure_<pier>/refresh/config``    
 Rank n discovery cfg         ``P/sensor/pierpressure_<pier>/target_<n>/config``    yes
 Health discovery cfg         ``P/sensor/pierpressure_<pier>/<key>_health/config``  yes
 Timeline discovery cfg       ``P/sensor/pierpressure_<pier>/<var>/config``         yes
+Night n discovery cfg        ``P/sensor/pierpressure_<pier>/night_<n>/config``     yes
 Verdict state                ``B/<pier>/verdict/state``                            yes
 Document attributes (JSON)   ``B/<pier>/verdict/attributes``                       yes
 Rank n state                 ``B/<pier>/target_<n>/state``                         yes
 Rank n attributes (JSON)     ``B/<pier>/target_<n>/attributes``                    yes
 Timeline state               ``B/<pier>/<var>/state``                              yes
 Timeline attributes (JSON)   ``B/<pier>/<var>/attributes``                         yes
+Night n state                ``B/<pier>/night_<n>/state``                          yes
+Night n attributes (JSON)    ``B/<pier>/night_<n>/attributes``                     yes
 Health state                 ``B/<pier>/health/<key>/state``                       yes
 Health attributes (JSON)     ``B/<pier>/health/<key>/attributes``                  yes
 Refresh command              ``B/<pier>/refresh/command``                          no
@@ -61,12 +64,17 @@ from pierpressure.core.config import MqttConfig
 from pierpressure.core.model import Target, TimelineEntry, VerdictDocument, iso_z
 from pierpressure.core.providers import COMPUTED
 from pierpressure.core.ranking import TOP_N
+from pierpressure.core.sky import MAX_LATER_NIGHTS
 from pierpressure.health import ProviderHealth
 
 logger = logging.getLogger(__name__)
 
 # The rank sensors, Target 1 to Target TOP_N: one per place the ranking can emit.
 RANKS = range(1, TOP_N + 1)
+
+# The Night sensors, Night 2 to Night MAX_LATER_NIGHTS + 1: tonight is night 1,
+# and each later night the core can emit has one (ADR-0043).
+NIGHTS = range(2, MAX_LATER_NIGHTS + 2)
 
 PAYLOAD_ONLINE = "online"
 PAYLOAD_OFFLINE = "offline"
@@ -200,6 +208,14 @@ def cloud_cover_state_topic(base_topic: str, pier_id: str) -> str:
 
 def cloud_cover_attributes_topic(base_topic: str, pier_id: str) -> str:
     return timeline_attributes_topic(base_topic, pier_id, "cloud_cover")
+
+
+def night_state_topic(base_topic: str, pier_id: str, night: int) -> str:
+    return f"{base_topic}/{pier_id}/night_{night}/state"
+
+
+def night_attributes_topic(base_topic: str, pier_id: str, night: int) -> str:
+    return f"{base_topic}/{pier_id}/night_{night}/attributes"
 
 
 def narrative_state_topic(base_topic: str, pier_id: str) -> str:
@@ -506,6 +522,39 @@ def cloud_cover_state(document: VerdictDocument) -> str:
 
 def cloud_cover_attributes(document: VerdictDocument) -> dict[str, Any]:
     return timeline_attributes(document, _CLOUD_COVER.key)
+
+
+def build_night_discovery(pier_id: str, base_topic: str, night: int) -> dict[str, Any]:
+    """The sensor for one later night, Night 2 to Night 4 (ADR-0043).
+
+    Its state is the night's dusk, and its ``later_nights`` entry rides along as
+    JSON attributes. Availability follows the rank sensors: the shared LWT topic
+    AND the attributes' ``available`` flag, so a night the forecast does not reach
+    is unavailable, while a night with no darkness stays available as unknown.
+    """
+    attrs = night_attributes_topic(base_topic, pier_id, night)
+    return {
+        "name": f"Night {night}",
+        "has_entity_name": True,
+        "unique_id": f"{node_id(pier_id)}_night_{night}",
+        "state_topic": night_state_topic(base_topic, pier_id, night),
+        "json_attributes_topic": attrs,
+        "device_class": "timestamp",
+        "availability_mode": "all",
+        "availability": [
+            {
+                "topic": availability_topic(base_topic),
+                "payload_available": PAYLOAD_ONLINE,
+                "payload_not_available": PAYLOAD_OFFLINE,
+            },
+            {
+                "topic": attrs,
+                "value_template": ("{{ 'online' if value_json.available else 'offline' }}"),
+            },
+        ],
+        "icon": "mdi:weather-night",
+        "device": _device_block(pier_id),
+    }
 
 
 def build_narrative_discovery(pier_id: str, base_topic: str) -> dict[str, Any]:
@@ -1124,6 +1173,13 @@ class MqttDelivery:
             self._publish(
                 timeline_attributes_topic(base, pier, sensor.key),
                 json.dumps(timeline_attributes(document, sensor.key)),
+                retain=True,
+                pier=pier,
+            )
+        for night in NIGHTS:
+            self._publish(
+                discovery_topic(prefix, "sensor", pier, f"night_{night}"),
+                json.dumps(build_night_discovery(pier, base, night)),
                 retain=True,
                 pier=pier,
             )

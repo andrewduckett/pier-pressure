@@ -19,6 +19,7 @@ from pierpressure.core.model import Target, TargetWindow, VerdictDocument
 from pierpressure.core.ranking import TOP_N
 from pierpressure.delivery.ha_schema import SENSOR_SCHEMA
 from pierpressure.delivery.mqtt import (
+    NIGHTS,
     TIMELINE_SENSORS,
     MqttDelivery,
     attributes_topic,
@@ -29,6 +30,8 @@ from pierpressure.delivery.mqtt import (
     build_top_target_discovery,
     build_verdict_discovery,
     discovery_topic,
+    night_attributes_topic,
+    night_state_topic,
     rank_target_attributes,
     rank_target_attributes_topic,
     rank_target_state,
@@ -294,10 +297,19 @@ def test_existing_entities_publish_the_same_topics_and_payloads() -> None:
             timeline_attributes_topic(BASE, "backyard", sensor.key),
         )
     }
+    night_topics = {
+        topic
+        for night in NIGHTS
+        for topic in (
+            discovery_topic(PREFIX, "sensor", "backyard", f"night_{night}"),
+            night_state_topic(BASE, "backyard", night),
+            night_attributes_topic(BASE, "backyard", night),
+        )
+    }
     others = [
         (p.topic, p.payload, p.retain)
         for p in client.published
-        if p.topic not in rank_topics | timeline_topics
+        if p.topic not in rank_topics | timeline_topics | night_topics
     ]
     assert others == [
         (availability_topic(BASE), "online", True),
