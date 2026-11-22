@@ -126,8 +126,7 @@ conditions, and the rule is about the timeline.
 Add `LaterNight(BaseModel)` with `extra="forbid"` and one field,
 `dark_window: DarkWindow`. Add `later_nights: list[LaterNight] =
 Field(default_factory=list)` as the last field of `VerdictDocument`. #319 adds
-`moon` and `targets` to `LaterNight` after `dark_window`. Recorded in the ADR
-step (document shape).
+`moon` and `targets` to `LaterNight` after `dark_window`. Recorded in ADR-0043.
 
 ### DD5. Night sensors copy the rank sensors' availability and the health sensors' timestamp
 
@@ -148,8 +147,7 @@ replace them. `publish_verdict` writes discovery, state and attributes for all
 three nights on every publish, after the timeline sensors.
 
 The Verdict attributes become
-`model_dump_json(exclude={"timeline", "later_nights"})`. Recorded in the ADR
-step (delivery).
+`model_dump_json(exclude={"timeline", "later_nights"})`. Recorded in ADR-0044.
 
 *Rejected: one sensor holding every later night.* Its state could not be a
 timestamp, and the card would need a second way of finding a night. One sensor
