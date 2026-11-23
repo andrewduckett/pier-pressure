@@ -79,10 +79,18 @@ A later night's target bar SHALL show `<name> (<id>)`, read from the `name` and 
 - **WHEN** Night 2's first `targets` entry has `name: Orion Nebula`, no `id` and a window on the axis
 - **THEN** the lane labelled `Target 1` has a bar whose text is `Orion Nebula`
 
+### Requirement: The docs describe a later night's target bars
+`docs/night-card.md` SHALL say, under its target lanes, that a later night's bars read the `targets` attribute of its Night sensor, from Night 2 to Night 4. It SHALL say that a lane can hold a bar for each night, each named for that night's target, and that each night is ranked on its own moon.
+
+#### Scenario: The page covers a later night's target bars
+- **WHEN** `docs/night-card.md` is read
+- **THEN** its target lanes section names `targets` and Night 2, and says a lane can hold a bar for each night
+- **AND** the page names the words own moon
+
 ## MODIFIED Requirements
 
 ### Requirement: The card draws a lane per ranked target
-Under the Moon up lane, the strip SHALL have one lane for each rank from Target 1 to Target 10 that has a target on any night, tonight or a later night, in rank order. The lane for rank `<n>` SHALL be labelled `Target <n>` and SHALL read `sensor.pierpressure_<slug>_target_<n>` for tonight and the `targets` attribute of `sensor.pierpressure_<slug>_night_2` to `_night_4` for later nights, named from the same slug as the Verdict sensor. A rank with no lane SHALL leave no gap: the next lane follows straight on.
+Under the Moon up lane, the strip SHALL have one lane for each rank from Target 1 to Target 10 that has a target on any night, in rank order. The lane for rank `<n>` SHALL be labelled `Target <n>`. It SHALL read `sensor.pierpressure_<slug>_target_<n>` for tonight and the `targets` attribute of `sensor.pierpressure_<slug>_night_2` to `_night_4` for later nights, named from the same slug as the Verdict sensor. A rank with no lane SHALL leave no gap: the next lane follows straight on.
 
 #### Scenario: Two targets tonight
 - **WHEN** the card is configured with `pier: Back-Yard`, the Verdict sensor has the state `GO`, `sensor.pierpressure_back_yard_target_1` and `sensor.pierpressure_back_yard_target_2` each have a target tonight, Target 3 to Target 10 are unavailable, and no Night sensor has a target
@@ -195,9 +203,8 @@ After a redraw, the card SHALL take as the same item: the cell or Cloud range co
 ### Requirement: The docs describe the target lanes
 `docs/night-card.md` SHALL describe the target lanes:
 
-- that tonight's bars read `sensor.pierpressure_<pier>_target_1` to `sensor.pierpressure_<pier>_target_10`, a later night's bars read its Night sensor's `targets`, and each lane is labelled `Target <n>`;
+- that each lane is labelled `Target <n>`, and tonight's bars read `sensor.pierpressure_<pier>_target_1` to `sensor.pierpressure_<pier>_target_10`;
 - that a bar runs from the start to the end of the target's observable window and holds the target's name and catalog id;
-- that a lane can hold a bar for each night, each named for that night's target, ranked on that night's own moon;
 - what hovering over a bar shows;
 - that a rank with no target on any night leaves no lane;
 - that the dusk, dawn and now lines cross the target lanes.
@@ -205,7 +212,7 @@ After a redraw, the card SHALL take as the same item: the cell or Cloud range co
 #### Scenario: The page covers the target lanes
 - **WHEN** `docs/night-card.md` is read
 - **THEN** it names the sensors `sensor.pierpressure_<pier>_target_1` and `sensor.pierpressure_<pier>_target_10` and the lane label `Target 1`
-- **AND** it names the words observable window, catalog id, own moon, no target on any night and leaves no lane
+- **AND** it names the words observable window, catalog id, no target on any night and leaves no lane
 
 ## REMOVED Requirements
 
