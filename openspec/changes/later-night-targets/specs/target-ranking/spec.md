@@ -46,3 +46,17 @@ those of a first computation at the same instant.
 - **WHEN** a pier at latitude 51.5, longitude −0.12, elevation 30 m is computed at 2026-09-08T18:00:00Z with three later nights, and recomputed at 2026-09-09T18:00:00Z with a forecast that also reaches three later nights
 - **THEN** the recompute scans the catalog for one night only: its third later night, whose solar day starts on 2026-09-12
 - **AND** the selected night of the recompute, from 2026-09-09T20:27:57Z to 2026-09-10T03:28:02Z, is not scanned again
+
+### Requirement: A recompute reuses a later night's ranked list
+
+Within one running process, a recompute for a pier SHALL NOT rank a later
+night again when that pier's previous recompute ranked it over the same dark
+window, with the same moon illumination and the same equipment. It SHALL give
+that later night the list it gave before, byte-identical to a fresh ranking.
+The selected night SHALL be ranked again on every recompute.
+
+#### Scenario: A recompute in the same night
+
+- **WHEN** a pier at latitude 51.5, longitude −0.12, elevation 30 m is computed at 2026-09-08T18:00:00Z with three later nights, and recomputed at 2026-09-08T19:00:00Z with the same `cloud_cover` series
+- **THEN** the recompute ranks the selected night again and none of the three later nights
+- **AND** each later night's `targets` are byte-identical to those of the first computation

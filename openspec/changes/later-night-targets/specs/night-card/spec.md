@@ -107,9 +107,28 @@ Each target lane SHALL hold one violet `#6250d6` bar for each night that has a t
 - **WHEN** the axis runs from 2026-10-31T16:30:00Z to 2026-11-01T08:25:00Z, Target 1's `window` is `{start: 2026-11-02T21:00:00Z, end: 2026-11-03T02:00:00Z}`, and no Night sensor has a target at rank 1
 - **THEN** the strip has a lane labelled `Target 1` with no bar
 
-#### Scenario: Only a later night's bar on the axis
+#### Scenario: A rank filled only on a later night, off the axis
 - **WHEN** the axis runs from 2026-10-31T16:30:00Z to 2026-11-01T08:25:00Z, Target 1 has a target tonight with a window on the axis, Target 2 is unavailable, and Night 2 has a target at rank 2 whose window is from 2026-11-01T22:00:00Z to 2026-11-02T03:00:00Z
 - **THEN** the strip has a lane labelled `Target 2` with no bar
+
+### Requirement: A target bar holds the target's name
+Tonight's target bar SHALL show the target's name and its catalog id as `<name> (<id>)`, read from the Target sensor's `name` and `id` attributes. A later night's bar follows the requirement "A later night's target bar holds that night's target's name". When `name` is null or empty, the bar SHALL show `<id>` alone. When the attributes hold no `id`, the bar SHALL show the Target sensor's state.
+
+#### Scenario: A named target
+- **WHEN** `sensor.pierpressure_backyard_target_1` has the state `Andromeda Galaxy`, the attributes `name: Andromeda Galaxy` and `id: M31`, and a window on the axis
+- **THEN** the lane labelled `Target 1` has a bar whose text is `Andromeda Galaxy (M31)`
+
+#### Scenario: A target the catalog does not name
+- **WHEN** Target 1 has the state `IC2184`, the attributes `name: null` and `id: IC2184`, and a window on the axis
+- **THEN** the lane labelled `Target 1` has a bar whose text is `IC2184`
+
+#### Scenario: An empty name
+- **WHEN** Target 1 has the state `NGC7000`, the attributes `name: ""` and `id: NGC7000`, and a window on the axis
+- **THEN** the lane labelled `Target 1` has a bar whose text is `NGC7000`
+
+#### Scenario: An older PierPressure with no id attribute
+- **WHEN** Target 1 has the state `Andromeda Galaxy`, no `id` attribute, and a window on the axis
+- **THEN** the lane labelled `Target 1` has a bar whose text is `Andromeda Galaxy`
 
 ### Requirement: Everything on the strip pans together
 When the axis pans, the card SHALL draw for the new axis, by the rules of the opening axis, every row's cells, the Cloud range columns, the Moon up bars, the target bars, the Temperature chart's lines, dots and hover areas, the lines with their labels, and the time labels. The row and lane labels, and the Temperature chart's key and scale, SHALL stay put. Target bars come from every night: tonight's from the Target sensors, and each later night's from its Night sensor.
@@ -139,7 +158,7 @@ After a redraw, the card SHALL take as the same item: the cell or Cloud range co
 - **THEN** the box reads `Orion Nebula (M42) from 06:00 to 10:00`
 
 #### Scenario: A later night's target changes
-- **WHEN** Home Assistant's time zone is `UTC`, the box shows the text of Night 2's bar in the lane labelled `Target 1`, and Home Assistant updates Night 2's first target to the Pleiades (M45) with a window from 2026-11-01T21:00:00Z to 2026-11-02T04:00:00Z
+- **WHEN** Home Assistant's time zone is `UTC`, the axis runs from 2026-10-31T16:30:00Z to 2026-11-02T08:25:00Z, Target 1 is the Andromeda Galaxy (M31) with a window from 2026-10-31T21:00:00Z to 2026-11-01T02:00:00Z, the box shows the text of Night 2's bar in the lane labelled `Target 1`, and Home Assistant updates Night 2's first target to the Pleiades (M45) with a window from 2026-11-01T21:00:00Z to 2026-11-02T04:00:00Z
 - **THEN** the box reads `Pleiades (M45) from 21:00 to 04:00`, above Night 2's bar
 - **AND** tonight's bar in the same lane keeps its own text
 

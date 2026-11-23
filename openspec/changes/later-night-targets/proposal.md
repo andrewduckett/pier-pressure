@@ -23,8 +23,11 @@ entry and a Night sensor, so this story only adds fields and lanes.
   `set`, and `targets` is empty (D4). Tonight's fields do not change.
 - **Scan cache:** the per-night scan cache keeps every night of every
   configured pier, so a recompute never rescans a night it already scanned
-  (D7). The cold first verdict after a restart takes about 20 s per pier
-  instead of about 5 s; the user accepted this (D6).
+  (D7). It also keeps each later night's ranked list, so a recompute does not
+  rank a later night again on the same moon; the user chose this in plan
+  review, because a pier with a tight horizon mask would otherwise spend about
+  14 s a night on every recompute. The cold first verdict after a restart
+  takes about 20 s per pier instead of about 5 s; the user accepted this (D6).
 - **Home Assistant delivery:** no new entity, topic or state. The Night 2 to
   Night 4 sensors' attributes already carry the whole entry, so `moon` and
   `targets` appear there (D8). The Verdict attributes still leave out
@@ -52,8 +55,8 @@ None.
   `targets`, no longer only its dark window; adds when a later night's moon is
   computed and what its moon and targets hold.
 - `target-ranking`: adds that a later night is ranked like tonight, over its
-  whole dark window on its own moon, and that a recompute reuses the scan of
-  every night it ranked before.
+  whole dark window on its own moon, that a recompute reuses the scan of
+  every night it ranked before, and that it reuses a later night's ranked list.
 - `ha-delivery`: a Night sensor's attributes carry the entry's `moon` and
   `targets` as well as its `dark_window`.
 - `night-card`: lanes come from every night's targets, not only tonight's; a

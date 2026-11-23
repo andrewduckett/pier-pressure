@@ -17,7 +17,7 @@
 | D7 | How many night scans does the cache keep? | Every night of every configured pier, so a recompute never rescans a night it already scanned. Today `_CACHE_MAXSIZE` is 8. | Evidence: #319 Scope |
 | D8 | How do the Night sensors deliver the new fields? | Their attributes carry the whole entry, so `moon` and `targets` appear there with no new entity, topic or state change. The Verdict attributes still leave out `later_nights`. | Evidence: `pierpressure/delivery/mqtt.py` (`night_attributes`), ADR-0043 |
 | D9 | Which target lanes does the card draw, and what goes in them? | A lane for each rank that has a target on any night: tonight from its Target sensor, a later night from its available Night sensor's `targets`. Each night's bar sits in its rank's lane and is named for that night's target. Lane labels stay `Target <n>`. | Assumption |
-| D10 | When does a later night's rank count as having a target? | By the same rule as tonight: the Night sensor is available, and the entry at that rank has a name and a readable `window` with `end` after `start`. | Assumption |
+| D10 | When does a later night's rank count as having a target? | By the same rule as tonight: the Night sensor is available, and the entry at that rank has a non-empty `name` or `id` and a readable `window` with `end` after `start`. | Assumption |
 | D11 | What does a later night's bar say on hover or tap? | The same text as tonight's bars: the target's name, catalog id and window times. | Assumption |
 
 D1, D2 and the delivery half of D8 come from the Shared decisions in epic #299, which `lets-go` accepted on the shaping step's recommendation; the user did not decide them. D9 to D11 follow the story's scope and the card's existing rules for tonight.

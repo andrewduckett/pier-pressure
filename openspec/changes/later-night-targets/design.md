@@ -37,7 +37,8 @@
 - One ranking for every night: a later night goes through the same
   `rank_targets` path as tonight, with only its window and moon changed.
 - Tonight's fields stay byte-identical to what they are without later nights.
-- A recompute rescans no night it scanned before, for any number of piers.
+- A recompute rescans no night it scanned before, for any number of piers,
+  and ranks no later night again that it ranked before on the same moon.
 - The card treats a later night's target like tonight's, with one bar per
   night in each lane.
 
@@ -133,6 +134,30 @@ rolls into the past is dropped on that pier's next recompute, and a new later
 night is the only one scanned. Two piers never evict each other, whatever
 their number.
 
+A later night's ranked list is kept beside its scan. The cache entry for a
+later night also holds the target list its last ranking gave, with the moon
+illumination and the equipment it was ranked with. When a recompute ranks that
+later night again, with the same scan key, illumination and equipment, it
+returns the kept list without calling `_rank`. This is sound because a later
+night is always ranked over its whole dark window (D5) and its moon is taken at
+a fixed instant, its local solar midnight (DD2): the kept list is byte-identical
+to a fresh ranking. Tonight is ranked again on every recompute, as today: after
+dusk its scored window shrinks, and its moon is taken at the evaluation
+instant.
+
+This matters for a pier with a tight horizon mask. Ranking from a cached scan
+refines every candidate with any grid point above the mask, and gives up only
+when ten pass the minimum window or the candidates run out. Measured during
+plan review, for London with the horizon points
+`[[0, 88], [170, 88], [175, 40], [185, 40], [190, 88]]` at 2026-09-08T18:00Z:
+cold 19 s and warm 14 s for one night, with no target. Over four nights a warm
+recompute would take about 57 s on the service's single thread. An open-sky
+London pier takes 4.6 s cold and 0.25 s warm. The user chose to keep the list
+over accepting that cost (plan review, round 1).
+
+- *Alternative:* accept the warm cost and record it as a risk. Rejected by the
+  user.
+
 - *Alternative:* raise `_CACHE_MAXSIZE` to 32. Rejected: an LRU smaller than
   the number of scans in one pass misses every time, so nine piers or more
   would rescan every night on every recompute.
@@ -199,7 +224,9 @@ ADR-0043. DD1 to DD8 are recoverable from the code and the specs.
 - [Risk] The cold first verdict after a restart takes about 20 s per pier,
   and piers run one after another (D6). → Accepted by the user. DD5 stops a
   short night adding about 40 s more. Later recomputes that night use the
-  cache.
+  cache. A pier with a tight horizon mask takes about 19 s per night cold
+  (DD4), so about 76 s for its first verdict; D6 was accepted on the open-sky
+  figure of about 5 s per night.
 - [Risk] Python tests that produce a verdict with a forecast reaching later
   nights now rank them, at about 5 s a night, and the suite slows. → Tests
   that do not assert on later nights' targets scan an empty catalog, by
