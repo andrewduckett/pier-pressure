@@ -6,6 +6,7 @@ Each test is a night-verdict scenario of the later-night-dark-windows change.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -350,8 +351,16 @@ def _counting_scans(monkeypatch: pytest.MonkeyPatch) -> list[tuple[datetime, dat
     return scanned
 
 
-def test_a_recompute_a_day_on_scans_only_the_new_night(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.fixture
+def fresh_scan_cache() -> Iterator[None]:
+    """Clear the scan cache on both sides, so a failing test leaves no scan behind."""
     ranking._scan_cache.clear()
+    yield
+    ranking._scan_cache.clear()
+
+
+@pytest.mark.usefixtures("fresh_scan_cache")
+def test_a_recompute_a_day_on_scans_only_the_new_night(monkeypatch: pytest.MonkeyPatch) -> None:
     scanned = _counting_scans(monkeypatch)
     _london(_cloud("2026-09-08T18:00:00Z", "2026-09-14T18:00:00Z"))
     del scanned[:]
@@ -366,16 +375,15 @@ def test_a_recompute_a_day_on_scans_only_the_new_night(monkeypatch: pytest.Monke
     }
     assert len(scanned) == 1
     assert scanned[0][0].date().isoformat() == "2026-09-12"
-    ranking._scan_cache.clear()
 
 
+@pytest.mark.usefixtures("fresh_scan_cache")
 def test_a_recompute_in_the_same_night_ranks_tonight_only(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # A slice of the catalog keeps four scans quick and the lists non-empty.
     sample = load_catalog()[::40]
     monkeypatch.setattr(ranking, "load_catalog", lambda: sample)
-    ranking._scan_cache.clear()
     week = _cloud("2026-09-08T18:00:00Z", "2026-09-14T18:00:00Z")
     first = _london(week)
     ranks = {"count": 0}
@@ -387,7 +395,6 @@ def test_a_recompute_in_the_same_night_ranks_tonight_only(
 
     monkeypatch.setattr(ranking, "_rank", counting)
     again = _payload(LONDON, datetime(2026, 9, 8, 19, 0, tzinfo=UTC), week)
-    ranking._scan_cache.clear()
     assert ranks["count"] == 1
     assert all(n["targets"] for n in first["later_nights"])
     assert [n["targets"] for n in again["later_nights"]] == [
