@@ -14,6 +14,7 @@ import {
   mountCard,
   night,
   nightEntity,
+  nightTarget,
   pointer,
   tap,
   target,
@@ -119,7 +120,7 @@ describe("the key on each tappable item", () => {
       '[data-chart="temperature"] .hour',
     ],
     ["a Moon up bar", "moon-up:2026-10-31T16:00:00.000Z", '[data-lane="moon_up"] .bar'],
-    ["a target bar", "target:1", '[data-lane="target_1"] .bar'],
+    ["a target bar", "target:1:1", '[data-lane="target_1"] .bar'],
     ["the dusk line", "line:dusk:1", '.line[data-line="dusk"]'],
     ["the now line", "line:now", '.line[data-line="now"]'],
     ["the moon drawing", "moon", "section.moon svg"],
@@ -163,7 +164,7 @@ describe("the text a key names", () => {
   it.each([
     ["an hour off the axis", "cell:cloud_cover:2026-11-02T04:00:00.000Z"],
     ["a run that starts in another hour", "moon-up:2026-10-31T17:00:00.000Z"],
-    ["a target lane with no bar", "target:2"],
+    ["a target lane with no bar", "target:2:1"],
     ["a row with no message", "missing:cloud_cover"],
   ])("is none for %s", async (_, key) => {
     const { strip, moon } = shown(EVERY_ITEM);
@@ -189,7 +190,7 @@ describe("a tap on a strip item", () => {
       "hour:2026-10-31T21:00:00.000Z",
       "The hour from 21:00: Temperature 4.2 °C, Dew point 1.5 °C",
     ],
-    ["a target bar", "target:1", "Andromeda Galaxy (M31) from 21:00 to 02:00"],
+    ["a target bar", "target:1:1", "Andromeda Galaxy (M31) from 21:00 to 02:00"],
     ["the dusk line", "line:dusk:1", "Dusk, 20:30"],
   ])("on %s shows the item's hover text in one box", async (_, key, text) => {
     const card = await mountCard(EVERY_ITEM);
@@ -636,6 +637,52 @@ const BOTH_NIGHTS: Record<string, HassEntity> = {
   [night(2)]: nightEntity({ start: "2026-11-01T05:00:00Z", end: "2026-11-01T06:00:00Z" }),
 };
 
+const NEXT_DARK = { start: "2026-11-01T20:32:00Z", end: "2026-11-02T03:23:00Z" };
+
+// The axis runs from 2026-10-31T16:30:00Z to 2026-11-02T08:25:00Z, over two nights.
+const TWO_NIGHTS_OF_TARGETS: Record<string, HassEntity> = {
+  ...EVERY_ITEM,
+  [VERDICT]: verdictEntity("GO", {
+    dark_window: { start: "2026-10-31T20:30:00Z", end: "2026-11-02T03:25:00Z" },
+  }),
+};
+
+describe("a tap on one of two nights' target bars", () => {
+  it("names each bar by its rank and night", async () => {
+    const card = await mountCard({
+      ...TWO_NIGHTS_OF_TARGETS,
+      [night(2)]: nightEntity(NEXT_DARK, undefined, [
+        nightTarget("M42", "Orion Nebula", {
+          start: "2026-11-01T22:00:00Z",
+          end: "2026-11-02T03:00:00Z",
+        }),
+      ]),
+    });
+
+    expect(
+      [...(card.shadowRoot?.querySelectorAll('[data-lane="target_1"] .bar') ?? [])].map((bar) =>
+        bar.getAttribute("data-tip"),
+      ),
+    ).toEqual(["target:1:1", "target:1:2"]);
+  });
+
+  it("on Night 2's bar shows Night 2's target", async () => {
+    const card = await mountCard({
+      ...TWO_NIGHTS_OF_TARGETS,
+      [night(2)]: nightEntity(NEXT_DARK, undefined, [
+        nightTarget("M42", "Orion Nebula", {
+          start: "2026-11-01T22:00:00Z",
+          end: "2026-11-02T03:00:00Z",
+        }),
+      ]),
+    });
+
+    await tapOn(card, "target:1:2", "touch");
+
+    expect(tips(card)).toEqual(["Orion Nebula (M42) from 22:00 to 03:00"]);
+  });
+});
+
 describe("a tap on one of two dusk lines", () => {
   it.each([
     ["tonight's", "line:dusk:1", "Dusk, 20:30"],
@@ -712,7 +759,7 @@ describe("an open box when the card redraws", () => {
 
   it("shows the new target in a target lane", async () => {
     const card = await mountCard(EVERY_ITEM);
-    await tapOn(card, "target:1", "touch");
+    await tapOn(card, "target:1:1", "touch");
 
     await update(card, {
       ...EVERY_ITEM,
@@ -723,6 +770,40 @@ describe("an open box when the card redraws", () => {
     });
 
     expect(tips(card)).toEqual(["Orion Nebula (M42) from 06:00 to 10:00"]);
+  });
+
+  it("shows a later night's new target above that night's bar", async () => {
+    const states = {
+      ...TWO_NIGHTS_OF_TARGETS,
+      [night(2)]: nightEntity(NEXT_DARK, undefined, [
+        nightTarget("M42", "Orion Nebula", {
+          start: "2026-11-01T22:00:00Z",
+          end: "2026-11-02T03:00:00Z",
+        }),
+      ]),
+    };
+    const card = await mountCard(states);
+    await tapOn(card, "target:1:2", "touch");
+
+    await update(card, {
+      ...states,
+      [night(2)]: nightEntity(NEXT_DARK, undefined, [
+        nightTarget("M45", "Pleiades", {
+          start: "2026-11-01T21:00:00Z",
+          end: "2026-11-02T04:00:00Z",
+        }),
+      ]),
+    });
+
+    expect([
+      tips(card),
+      (tappable(card, "target:1:2") as HTMLElement)?.dataset["start"],
+      tappable(card, "target:1:1")?.getAttribute("title"),
+    ]).toEqual([
+      ["Pleiades (M45) from 21:00 to 04:00"],
+      "2026-11-01T21:00:00.000Z",
+      "Andromeda Galaxy (M31) from 21:00 to 02:00",
+    ]);
   });
 
   it("shows a row's new message", async () => {

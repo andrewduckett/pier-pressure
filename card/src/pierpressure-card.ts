@@ -855,7 +855,7 @@ function renderStrip(strip: Strip | undefined, input: StripInput) {
           <span class="label">${lane.label}</span>
           <div class="track">
             ${lane.bars.map((bar) =>
-              renderBar(bar, tipKey.target(lane.rank), strip.axis, bar),
+              renderBar(bar, tipKey.target(lane.rank, bar.night), strip.axis, bar),
             )}
           </div>
         </div>`,
