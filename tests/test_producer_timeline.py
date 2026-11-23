@@ -278,9 +278,9 @@ def test_the_timeline_fills_without_a_dark_window() -> None:
     assert doc.dark_window.start is None
     night = night_hours(pier, clock.now(), (None, None))
     assert [entry.time for entry in doc.timeline] == sorted({*times, *night})
-    assert doc.model_dump_json(exclude={"timeline"}) == baseline.model_dump_json(
-        exclude={"timeline"}
-    )
+    # Provider hours past the selected night's solar day can add later nights.
+    shown = {"timeline", "later_nights"}
+    assert doc.model_dump_json(exclude=shown) == baseline.model_dump_json(exclude=shown)
 
 
 def test_hours_outside_the_dark_window_change_no_other_field() -> None:
@@ -298,7 +298,9 @@ def test_hours_outside_the_dark_window_change_no_other_field() -> None:
             secondary=_secondary(times, seeing=0.8, transparency=0.7),
         )
         with no_network():
-            return produce_verdict(pier, clock, conditions).model_dump_json(exclude={"timeline"})
+            return produce_verdict(pier, clock, conditions).model_dump_json(
+                exclude={"timeline", "later_nights"}
+            )
 
     assert _doc(inside) == _doc(wider)
 

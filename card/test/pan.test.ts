@@ -10,6 +10,8 @@ import {
   cardStyles,
   forecastEntity,
   mountCard,
+  night,
+  nightEntity,
   pointer,
   target,
   targetEntity,
@@ -195,10 +197,30 @@ describe("a strip with a held start", () => {
     expect(kinds).toEqual(["dawn"]);
   });
 
-  it("has no dusk or dawn line on the next night", () => {
+  it("has no dusk or dawn line on the next night without a Night 2 sensor", () => {
     const kinds = held(THREE_DAYS, "2026-11-01T16:30:00Z").lines.map((line) => line.kind);
 
     expect(kinds).toEqual([]);
+  });
+
+  it("has the next night's dusk and dawn lines, and no target bar", () => {
+    const states = {
+      ...THREE_DAYS,
+      [target(1)]: targetEntity("Andromeda Galaxy", {
+        start: "2026-10-31T21:00:00Z",
+        end: "2026-11-01T02:00:00Z",
+      }),
+      [night(2)]: nightEntity({ start: "2026-11-01T20:32:00Z", end: "2026-11-02T03:23:00Z" }),
+    };
+
+    const strip = held(states, "2026-11-01T16:30:00Z");
+
+    expect(iso(strip.axis)).toEqual(["2026-11-01T16:30:00.000Z", "2026-11-02T08:25:00.000Z"]);
+    expect(strip.lines.map((line) => [line.kind, new Date(line.at).toISOString()])).toEqual([
+      ["dusk", "2026-11-01T20:32:00.000Z"],
+      ["dawn", "2026-11-02T03:23:00.000Z"],
+    ]);
+    expect(strip.targets.map((lane) => [lane.label, lane.bar])).toEqual([["Target 1", undefined]]);
   });
 
   // The row is judged on the whole forecast, so panning never takes it away.

@@ -15,15 +15,18 @@ import {
   cells,
   forecastEntity,
   line,
+  lines,
   mark,
   moonLane,
   mountCard,
+  night,
+  nightEntity,
   rowMessage,
   target,
   targetEntity,
   verdictEntity,
 } from "./harness";
-import type { PierPressureCard } from "../src/pierpressure-card";
+import type { HassEntity, PierPressureCard } from "../src/pierpressure-card";
 import { HOUR, buildStrip } from "../src/strip";
 
 beforeAll(async () => {
@@ -896,6 +899,150 @@ describe("the dusk and dawn lines", () => {
       mark(card, "dusk"),
       line(card, "dawn")?.dataset["at"],
     ]).toEqual([null, null, "2026-11-01T03:25:00.000Z"]);
+  });
+});
+
+// Three days of hourly points from `first`, so a strip can pan a day on.
+function threeDays(first: string): Array<[string, unknown]> {
+  const start = Date.parse(first);
+  return Array.from({ length: 72 }, (_, index) => [
+    new Date(start + index * HOUR).toISOString(),
+    40,
+  ]);
+}
+
+function iso(at: number): string {
+  return new Date(at).toISOString();
+}
+
+const NEXT_NIGHT = nightEntity({ start: "2026-11-01T20:32:00Z", end: "2026-11-02T03:23:00Z" });
+// A Night 2 window on the opening axis, so the card draws it without a pan.
+const EARLY_NIGHT = nightEntity({ start: "2026-11-01T05:00:00Z", end: "2026-11-01T06:00:00Z" });
+
+describe("the later nights' dusk and dawn lines", () => {
+  const BEFORE_DUSK = Date.parse("2026-10-31T12:00:00Z");
+  const A_DAY_ON = Date.parse("2026-11-01T16:30:00Z");
+  const STATES = {
+    [VERDICT]: NIGHT,
+    [CLOUD_COVER]: forecastEntity(threeDays("2026-10-31T12:00:00Z")),
+    [night(2)]: NEXT_NIGHT,
+  };
+
+  function panned(states: Record<string, HassEntity>) {
+    return buildStrip(states, "backyard", BEFORE_DUSK, "UTC", A_DAY_ON);
+  }
+
+  function dusksAndDawns(strip: ReturnType<typeof buildStrip>): Array<[string, string]> {
+    return strip.lines
+      .filter((line) => line.kind !== "now")
+      .map((line) => [line.kind, iso(line.at)]);
+  }
+
+  it("mark the next night after a pan", () => {
+    const states = {
+      "sensor.pierpressure_back_yard_verdict": NIGHT,
+      "sensor.pierpressure_back_yard_cloud_cover": forecastEntity(
+        threeDays("2026-10-31T12:00:00Z"),
+      ),
+      "sensor.pierpressure_back_yard_night_2": NEXT_NIGHT,
+    };
+
+    const strip = buildStrip(states, "Back-Yard", BEFORE_DUSK, "UTC", A_DAY_ON);
+
+    expect(dusksAndDawns(strip)).toEqual([
+      ["dusk", "2026-11-01T20:32:00.000Z"],
+      ["dawn", "2026-11-02T03:23:00.000Z"],
+    ]);
+  });
+
+  it("carry the number of their night", () => {
+    const states = { ...STATES, [night(2)]: EARLY_NIGHT };
+    // Before dusk, with the now line on the opening axis.
+    const strip = buildStrip(states, "backyard", Date.parse("2026-10-31T18:00:00Z"), "UTC");
+
+    expect(strip.lines.map((line) => [line.kind, line.night])).toEqual([
+      ["dusk", 1],
+      ["dawn", 1],
+      ["dusk", 2],
+      ["dawn", 2],
+      ["now", undefined],
+    ]);
+  });
+
+  it("mark a later night when tonight has no astronomical darkness", () => {
+    const states = {
+      [VERDICT]: verdictEntity("GO", { dark_window: { start: null, end: null } }),
+      [CLOUD_COVER]: forecastEntity(threeDays("2026-06-21T06:00:00Z")),
+      [night(2)]: nightEntity({ start: "2026-06-22T23:40:00Z", end: "2026-06-23T00:20:00Z" }),
+    };
+
+    const strip = buildStrip(
+      states,
+      "backyard",
+      Date.parse("2026-06-21T12:00:00Z"),
+      "UTC",
+      Date.parse("2026-06-22T06:00:00Z"),
+    );
+
+    expect([iso(strip.axis.start), iso(strip.axis.end)]).toEqual([
+      "2026-06-22T06:00:00.000Z",
+      "2026-06-23T06:00:00.000Z",
+    ]);
+    expect(dusksAndDawns(strip)).toEqual([
+      ["dusk", "2026-06-22T23:40:00.000Z"],
+      ["dawn", "2026-06-23T00:20:00.000Z"],
+    ]);
+  });
+
+  it("are missing on a later night with no astronomical darkness", () => {
+    const strip = panned({ ...STATES, [night(2)]: nightEntity({ start: null, end: null }) });
+
+    expect([dusksAndDawns(strip), strip.noDarkness]).toEqual([[], false]);
+  });
+
+  it("are missing for an unavailable Night sensor", () => {
+    const unavailable = { state: "unavailable", attributes: { available: false } };
+
+    expect(dusksAndDawns(panned({ ...STATES, [night(2)]: unavailable }))).toEqual([]);
+  });
+
+  it("are missing for an unavailable Night sensor that still holds a window", () => {
+    const stale = { ...NEXT_NIGHT, state: "unavailable" };
+
+    expect(dusksAndDawns(panned({ ...STATES, [night(2)]: stale }))).toEqual([]);
+  });
+
+  it("leave the rest of the strip as it was for an unavailable night", () => {
+    const unavailable = { state: "unavailable", attributes: { available: false } };
+
+    expect(panned({ ...STATES, [night(3)]: unavailable })).toEqual(panned(STATES));
+  });
+
+  it("are missing for an unreadable window", () => {
+    const unreadable = nightEntity({ start: "soon", end: "2026-11-02T03:23:00Z" }, "unknown");
+
+    expect(dusksAndDawns(panned({ ...STATES, [night(2)]: unreadable }))).toEqual([]);
+  });
+
+  it("show a later night's dusk time on hover", () => {
+    const dusk = panned(STATES).lines.find((line) => line.kind === "dusk");
+
+    expect(dusk?.text).toBe("Dusk, 20:32");
+  });
+
+  it("are drawn in the lines' overlay, as tonight's are", async () => {
+    const card = await mountCard({ ...STATES, [night(2)]: EARLY_NIGHT });
+
+    expect(
+      lines(card, "dusk").map((element) => [
+        element.dataset["at"],
+        element.parentElement?.classList.contains("lines"),
+        element.getAttribute("title"),
+      ]),
+    ).toEqual([
+      ["2026-10-31T20:30:00.000Z", true, "Dusk, 20:30"],
+      ["2026-11-01T05:00:00.000Z", true, "Dusk, 05:00"],
+    ]);
   });
 });
 

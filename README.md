@@ -496,12 +496,13 @@ Each pier becomes one device, `PierPressure <pier>`, with these entities:
 
 | Entity | State | Notes |
 |---|---|---|
-| **Verdict** (sensor) | `GO`, `MAYBE`, or `NO-GO` | Its attributes hold the verdict document, except `timeline`. |
+| **Verdict** (sensor) | `GO`, `MAYBE`, or `NO-GO` | Its attributes hold the verdict document, except `timeline` and `later_nights`. |
 | **Score** (sensor) | 0–100 | Shows as unavailable on a `NO-GO` caused by a gate, rather than `0`. |
 | **Top target** (sensor) | The best target's name, or its catalogue id | The full ranked list is in its attributes. Unavailable when nothing is rankable. See [docs/target-ranking.md](docs/target-ranking.md). |
 | **Target 1** to **Target 10** (sensors) | The name, or catalogue id, of the target at that rank | One sensor per rank, so any dashboard card can list the whole ranking. Its attributes hold the rank and that target's fields. Unavailable when no target holds that rank tonight. |
 | **Cloud cover** (sensor) | The current hour's cloud cover, in % | Its `forecast` attribute holds every timeline hour, for a chart card. Unknown when the current hour has no value; the forecast stays readable. See [docs/night-timeline.md](docs/night-timeline.md). |
 | **Cloud low**, **Cloud mid**, **Cloud high** (%), **Wind gust** (km/h), **Seeing**, **Transparency** (0 to 1), **Sun altitude**, **Moon altitude** (°), **Temperature**, **Dew point** (°C), **Humidity** (%), **Wind speed** (km/h), **Wind direction** (°), **Precipitation probability**, **Cloud cover min**, **Cloud cover max** (%) (sensors) | The current hour's value | Like Cloud cover: one sensor per timeline value, each with its own `forecast` attribute. Unknown when the current hour has no value. An altitude is for the start of the hour, not the live sky. Cloud cover min and max are the lowest and highest cloud any provider gave, and are unknown unless two or more did. See [docs/night-timeline.md](docs/night-timeline.md). |
+| **Night 2** to **Night 4** (sensors) | That night's dusk, as a time | One sensor for each night after tonight, in date order. Its attributes hold that night's `dark_window`. Unknown on a night with no astronomical darkness. Unavailable when the forecast does not reach that night. |
 | **Refresh** (button) | — | "Show me now": recomputes and republishes straight away. |
 | **Narrative** (sensor) | `ready` or unavailable | Only when the explainer is on. The text is in its attributes. |
 | **Open-Meteo health**, **7Timer! health**, **Computed health**, and **Open-Meteo HRRR health** and so on for each listed model (diagnostic sensors) | When that weather source last succeeded, or unknown | One per provider in the `conditions` list. See [Watching provider health](#watching-provider-health). |
@@ -521,14 +522,15 @@ connection, the broker sends PierPressure's last-will message instead.
 
 | Purpose | Topic | Retained |
 |---|---|---|
-| Discovery configs | `homeassistant/<sensor\|button>/pierpressure_<pier>/<verdict\|score\|top_target\|target_<n>\|cloud_cover\|cloud_low\|cloud_mid\|cloud_high\|wind_gust\|seeing\|transparency\|sun_altitude\|moon_altitude\|temperature\|dew_point\|humidity\|wind_speed\|wind_direction\|precipitation_probability\|cloud_cover_min\|cloud_cover_max\|narrative\|refresh>/config` | yes |
+| Discovery configs | `homeassistant/<sensor\|button>/pierpressure_<pier>/<verdict\|score\|top_target\|target_<n>\|cloud_cover\|cloud_low\|cloud_mid\|cloud_high\|wind_gust\|seeing\|transparency\|sun_altitude\|moon_altitude\|temperature\|dew_point\|humidity\|wind_speed\|wind_direction\|precipitation_probability\|cloud_cover_min\|cloud_cover_max\|night_<n>\|narrative\|refresh>/config` | yes |
 | Health discovery configs | `homeassistant/sensor/pierpressure_<pier>/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|open_meteo_ecmwf\|open_meteo_air_quality\|nws\|met_norway\|seven_timer\|computed\|metar\|firms>_health/config` | yes |
 | Verdict state | `pierpressure/<pier>/verdict/state` | yes |
-| Verdict attributes (the document without `timeline`) | `pierpressure/<pier>/verdict/attributes` | yes |
+| Verdict attributes (the document without `timeline` and `later_nights`) | `pierpressure/<pier>/verdict/attributes` | yes |
 | Top target state and list | `pierpressure/<pier>/top_target/state`, `.../top_target/attributes` | yes |
 | Target rank `<n>` (1 to 10) state and details | `pierpressure/<pier>/target_<n>/state`, `.../target_<n>/attributes` | yes |
 | Cloud cover state and forecast | `pierpressure/<pier>/cloud_cover/state`, `.../cloud_cover/attributes` | yes |
 | Timeline sensor state and forecast, where `<var>` is `cloud_low`, `cloud_mid`, `cloud_high`, `wind_gust`, `seeing`, `transparency`, `sun_altitude`, `moon_altitude`, `temperature`, `dew_point`, `humidity`, `wind_speed`, `wind_direction`, `precipitation_probability`, `cloud_cover_min` or `cloud_cover_max` | `pierpressure/<pier>/<var>/state`, `.../<var>/attributes` | yes |
+| Night `<n>` (2 to 4) state and attributes | `pierpressure/<pier>/night_<n>/state`, `.../night_<n>/attributes` | yes |
 | Narrative state and text | `pierpressure/<pier>/narrative/state`, `.../narrative/attributes` | yes |
 | Provider health state and details | `pierpressure/<pier>/health/<open_meteo\|open_meteo_hrrr\|open_meteo_hrdps\|open_meteo_rdps\|open_meteo_icon\|open_meteo_gfs\|open_meteo_ecmwf\|open_meteo_air_quality\|nws\|met_norway\|seven_timer\|computed\|metar\|firms>/state`, `.../attributes` | yes |
 | Refresh command | `pierpressure/<pier>/refresh/command` | no |
@@ -539,8 +541,8 @@ connection, the broker sends PierPressure's last-will message instead.
 ### The verdict document
 
 PierPressure computes one JSON document per pier. The Verdict sensor's attributes
-hold every key except `timeline`, which would push them past Home Assistant's
-16 KiB limit for attributes. Every key is always present; a value with no data is
+hold every key except `timeline` and `later_nights`, which would push them past
+Home Assistant's 16 KiB limit for attributes. Every key is always present; a value with no data is
 `null`, never left out. Times are UTC ISO-8601, to the whole second, ending in
 `Z`.
 
@@ -558,6 +560,7 @@ hold every key except `timeline`, which would push them past Home Assistant's
 | `moon` | object | The moon's illumination, phase, and behaviour during the dark window. |
 | `timeline` | list | One entry per hour of weather the sources returned, with the sun and moon altitude. It also always holds the hours of the night the verdict judges, even when every provider fails, with null weather where no source returned the hour. Evidence beside the verdict, not part of it. Delivered on the timeline sensors, one per variable; see [docs/night-timeline.md](docs/night-timeline.md). |
 | `observation` | object or `null` | The latest report from the pier's `metar_station`: `{ station, observed_at, cover, clouds }`. `observed_at` is when the station measured. `cover` is the report's overall code, such as `BKN` or `CLR`. `clouds` lists each layer as reported, `{ cover, base_ft }`, with `base_ft` in feet above ground or `null` when the report gives none. `null` when the pier names no station, the fetch failed, or the report was measured more than 90 minutes before `generated_at`. Evidence beside the verdict, not part of it. |
+| `later_nights` | list | Up to three nights after tonight, one per local solar day, in date order. Each entry is `{ dark_window }`, in the same shape as the top-level `dark_window`, with `null` bounds on a night with no astronomical darkness. A night counts only while the forecast reaches its solar day, so the list is empty when every provider fails. Carries no verdict, score or confidence. Delivered on the Night 2 to Night 4 sensors. |
 
 **`dark_window`** is when the sun's centre is more than 18° below the horizon.
 "Tonight" is the night whose dawn is the first one at or after `generated_at`, so
@@ -766,7 +769,8 @@ for e in sensor/pierpressure_backyard/verdict sensor/pierpressure_backyard/score
          sensor/pierpressure_backyard/seven_timer_health \
          sensor/pierpressure_backyard/open_meteo_air_quality_health \
          sensor/pierpressure_backyard/computed_health \
-         sensor/pierpressure_backyard/target_{1..10}; do
+         sensor/pierpressure_backyard/target_{1..10} \
+         sensor/pierpressure_backyard/night_{2..4}; do
   mosquitto_pub -r -n -t "homeassistant/$e/config"
 done
 ```

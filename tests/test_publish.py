@@ -19,7 +19,13 @@ from pierpressure.delivery.mqtt import (
     verdict_state_topic,
 )
 
-from .conftest import FakeMqttClient, make_document, make_mqtt_config, make_timeline
+from .conftest import (
+    FakeMqttClient,
+    make_document,
+    make_later_nights,
+    make_mqtt_config,
+    make_timeline,
+)
 
 PASSWORD = "secret"
 
@@ -52,18 +58,17 @@ def test_verdict_state_and_attributes_are_published_from_the_document() -> None:
     assert payload["reasons"] == ["test reason"]
 
 
-def test_the_attributes_payload_leaves_the_timeline_out() -> None:
+def test_the_attributes_payload_leaves_the_timeline_and_the_later_nights_out() -> None:
     delivery, client = _connected_delivery()
-    doc = make_document(timeline=make_timeline(120))
+    doc = make_document(timeline=make_timeline(120), later_nights=make_later_nights(3))
     delivery.publish_verdict(doc)
 
     [attrs] = client.publishes_to(attributes_topic("pierpressure", "backyard"))
     payload = json.loads(attrs.payload)
     document = json.loads(doc.to_json())
-    del document["timeline"]
-    assert "timeline" not in payload
+    del document["timeline"], document["later_nights"]
+    assert "timeline" not in payload and "later_nights" not in payload
     assert list(payload.items()) == list(document.items())
-    assert attrs.payload == doc.model_dump_json(exclude={"timeline"})
 
 
 def test_an_empty_timeline_leaves_the_attributes_payload_as_it_was() -> None:
@@ -73,10 +78,11 @@ def test_an_empty_timeline_leaves_the_attributes_payload_as_it_was() -> None:
 
     [attrs] = client.publishes_to(attributes_topic("pierpressure", "backyard"))
     # The payload before the timeline existed: the whole document, the timeline
-    # left out and every other key in place.
+    # and the later nights left out and every other key in place.
     full = doc.to_json()
-    assert full.endswith(',"timeline":[],"agreement":{},"observation":null}')
-    assert attrs.payload == full.replace(',"timeline":[]', "", 1)
+    assert full.endswith(',"timeline":[],"agreement":{},"observation":null,"later_nights":[]}')
+    expected = full.replace(',"timeline":[]', "", 1).replace(',"later_nights":[]', "", 1)
+    assert attrs.payload == expected
 
 
 def test_discovery_state_and_availability_are_all_retained() -> None:

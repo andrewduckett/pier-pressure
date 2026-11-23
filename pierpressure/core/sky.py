@@ -16,6 +16,8 @@ The exposed engine is:
   given dark window;
 - :func:`night_solar_day` — the selected night's local solar day, noon to noon;
 - :func:`night_hours` — the clock hours the timeline always carries for that night;
+- :func:`later_night_windows` — the dark window of each later night the forecast
+  reaches, one per local solar day after the selected night's;
 - :func:`altitudes_at` — the sun's and the moon's altitude at each timeline hour.
 """
 
@@ -44,6 +46,17 @@ _ASTRONOMICAL_DEPTH_DEG = -18.0
 # far enough ahead to contain the next full night.
 _SEARCH_BACK = timedelta(hours=24)
 _SEARCH_FORWARD = timedelta(hours=48)
+
+# The most later nights a verdict carries; the delivery sizes its Night sensors
+# from it (ADR-0043).
+MAX_LATER_NIGHTS = 3
+
+# How far past a later night's solar noon its dark-window search starts, so a
+# millisecond of noon jitter cannot select the night before.
+_PAST_NOON = timedelta(minutes=1)
+
+# A continuous-night window this close to both day bounds is the day itself.
+_SAME_BOUND = timedelta(seconds=1)
 
 
 def ephemeris_path() -> str:
@@ -252,6 +265,50 @@ def night_hours(
         hours.append(hour)
         hour += timedelta(hours=1)
     return hours
+
+
+def later_night_windows(
+    pier: PierConfig,
+    instant: datetime,
+    window: tuple[datetime, datetime] | tuple[None, None],
+    reach_end: datetime | None,
+) -> list[tuple[datetime, datetime] | tuple[None, None]]:
+    """The dark window of each later night, in date order, up to :data:`MAX_LATER_NIGHTS`.
+
+    A later night is a local solar day after the selected night's, counted while
+    it starts before ``reach_end``, the end of the forecast's last hour. Each day
+    starts exactly where the one before ends, so consecutive days never gap or
+    overlap. Its window is the one :func:`dark_window` selects just after the
+    day's noon, kept only when its midpoint lies inside the day: a day with no
+    darkness of its own does not borrow the next day's night.
+    """
+    if reach_end is None:
+        return []
+    _, day_start = night_solar_day(pier, instant, window)
+    windows: list[tuple[datetime, datetime] | tuple[None, None]] = []
+    while len(windows) < MAX_LATER_NIGHTS and day_start < reach_end:
+        # Searching from the day's midpoint, not its noon, as night_solar_day does.
+        _, next_noon = _local_solar_day(pier, day_start + timedelta(hours=12))
+        day_end = next_noon.replace(microsecond=0)
+        windows.append(_later_night_window(pier, day_start, day_end))
+        day_start = day_end
+    return windows
+
+
+def _later_night_window(
+    pier: PierConfig, day_start: datetime, day_end: datetime
+) -> tuple[datetime, datetime] | tuple[None, None]:
+    """The astronomical night whose midpoint lies in ``[day_start, day_end)``, if any."""
+    start, end = dark_window(pier, day_start + _PAST_NOON)
+    if start is None or end is None:
+        return (None, None)
+    if not day_start <= start + (end - start) / 2 < day_end:
+        return (None, None)
+    # dark_window anchors continuous night to its own noon lookup, which can
+    # differ from the chained bounds by a fraction of a second.
+    if abs(start - day_start) <= _SAME_BOUND and abs(end - day_end) <= _SAME_BOUND:
+        return (day_start, day_end)
+    return (start, end)
 
 
 # Phase octants centred on the cardinal points (design D4). Each entry is the

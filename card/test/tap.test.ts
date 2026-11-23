@@ -12,6 +12,8 @@ import {
   catalogTarget,
   forecastEntity,
   mountCard,
+  night,
+  nightEntity,
   pointer,
   tap,
   target,
@@ -87,6 +89,15 @@ async function tapOn(card: PierPressureCard, key: string, pointerType?: string):
 
 const COVER_04 = "cell:cloud_cover:2026-11-01T04:00:00.000Z";
 
+// The Right arrow key pans the strip an hour later.
+async function panHours(card: PierPressureCard, hours: number): Promise<void> {
+  const strip = card.shadowRoot?.querySelector(".strip");
+  for (let index = 0; index < hours; index += 1) {
+    strip?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    await card.updateComplete;
+  }
+}
+
 // The strip as the card draws it, on the clock mountCard pins.
 function shown(states: Record<string, HassEntity>) {
   const strip = buildStrip(states, "backyard", Date.parse("2026-10-31T12:00:00Z"), "UTC");
@@ -109,7 +120,8 @@ describe("the key on each tappable item", () => {
     ],
     ["a Moon up bar", "moon-up:2026-10-31T16:00:00.000Z", '[data-lane="moon_up"] .bar'],
     ["a target bar", "target:1", '[data-lane="target_1"] .bar'],
-    ["the dusk line", "line:dusk", '.line[data-line="dusk"]'],
+    ["the dusk line", "line:dusk:1", '.line[data-line="dusk"]'],
+    ["the now line", "line:now", '.line[data-line="now"]'],
     ["the moon drawing", "moon", "section.moon svg"],
   ])("names %s", async (_, key, selector) => {
     const card = await mountCard(EVERY_ITEM);
@@ -160,7 +172,7 @@ describe("the text a key names", () => {
   });
 
   it("is none when the strip is not drawn", () => {
-    expect(tipText(undefined, undefined, "line:dusk")).toBeUndefined();
+    expect(tipText(undefined, undefined, "line:dusk:1")).toBeUndefined();
   });
 });
 
@@ -178,7 +190,7 @@ describe("a tap on a strip item", () => {
       "The hour from 21:00: Temperature 4.2 °C, Dew point 1.5 °C",
     ],
     ["a target bar", "target:1", "Andromeda Galaxy (M31) from 21:00 to 02:00"],
-    ["the dusk line", "line:dusk", "Dusk, 20:30"],
+    ["the dusk line", "line:dusk:1", "Dusk, 20:30"],
   ])("on %s shows the item's hover text in one box", async (_, key, text) => {
     const card = await mountCard(EVERY_ITEM);
 
@@ -618,6 +630,35 @@ describe("a pan with a box showing", () => {
   });
 });
 
+// Night 2's window on the opening axis, beside tonight's, as two polar nights can be.
+const BOTH_NIGHTS: Record<string, HassEntity> = {
+  ...EVERY_ITEM,
+  [night(2)]: nightEntity({ start: "2026-11-01T05:00:00Z", end: "2026-11-01T06:00:00Z" }),
+};
+
+describe("a tap on one of two dusk lines", () => {
+  it.each([
+    ["tonight's", "line:dusk:1", "Dusk, 20:30"],
+    ["Night 2's", "line:dusk:2", "Dusk, 05:00"],
+  ])("on %s shows that night's dusk", async (_, key, text) => {
+    const card = await mountCard(BOTH_NIGHTS);
+
+    await tapOn(card, key, "touch");
+
+    expect(tips(card)).toEqual([text]);
+  });
+
+  it("names each line by its kind and night", async () => {
+    const card = await mountCard(BOTH_NIGHTS);
+
+    expect(
+      [...(card.shadowRoot?.querySelectorAll(".line") ?? [])].map((line) =>
+        line.getAttribute("data-tip"),
+      ),
+    ).toEqual(["line:dusk:1", "line:dawn:1", "line:dusk:2", "line:dawn:2"]);
+  });
+});
+
 describe("an open box when the card redraws", () => {
   async function update(card: PierPressureCard, states: Record<string, HassEntity>) {
     card.hass = { states, config: { time_zone: "UTC" } };
@@ -634,6 +675,27 @@ describe("an open box when the card redraws", () => {
     await card.updateComplete;
 
     expect(tips(card)).toEqual(["Now, 21:01"]);
+  });
+
+  it("shows a later night's new dusk after Home Assistant moves it", async () => {
+    const states = {
+      ...EVERY_ITEM,
+      [night(2)]: nightEntity({ start: "2026-11-01T20:32:00Z", end: "2026-11-02T03:23:00Z" }),
+      [CLOUD_COVER]: forecastEntity([["2026-11-02T12:00:00Z", 52]]),
+    };
+    const card = await mountCard(states);
+    await panHours(card, 24);
+    await tapOn(card, "line:dusk:2", "touch");
+
+    await update(card, {
+      ...states,
+      [night(2)]: nightEntity({ start: "2026-11-01T20:33:00Z", end: "2026-11-02T03:23:00Z" }),
+    });
+
+    expect([tips(card), (tappable(card, "line:dusk:2") as HTMLElement)?.dataset["at"]]).toEqual([
+      ["Dusk, 20:33"],
+      "2026-11-01T20:33:00.000Z",
+    ]);
   });
 
   it("shows a cell's new value after Home Assistant updates its hour", async () => {

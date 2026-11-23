@@ -243,7 +243,7 @@ def _produce_at(
         )
 
 
-def test_a_usable_observation_fills_the_document_as_its_last_key() -> None:
+def test_a_usable_observation_fills_the_document_before_the_later_nights() -> None:
     payload = json.loads(_produce_at(_EVENING, _observation()).to_json())
     assert payload["observation"] == {
         "station": "KBOS",
@@ -251,7 +251,7 @@ def test_a_usable_observation_fills_the_document_as_its_last_key() -> None:
         "cover": "BKN",
         "clouds": [{"cover": "FEW", "base_ft": 3000}, {"cover": "BKN", "base_ft": 4200}],
     }
-    assert list(payload)[-1] == "observation"
+    assert list(payload)[-2:] == ["observation", "later_nights"]
 
 
 def test_no_observation_gives_a_null_observation() -> None:

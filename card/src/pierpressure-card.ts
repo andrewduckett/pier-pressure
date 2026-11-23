@@ -885,7 +885,7 @@ function renderLine(line: Line, axis: Axis) {
     style=${style}
     data-line=${line.kind}
     data-at=${iso(line.at)}
-    data-tip=${tipKey.line(line.kind)}
+    data-tip=${tipKey.line(line)}
     title=${line.text}
     aria-label=${line.text}
   ></div>`;

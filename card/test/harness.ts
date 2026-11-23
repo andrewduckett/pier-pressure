@@ -100,6 +100,27 @@ export function line(card: PierPressureCard, kind: string): HTMLElement | null {
   return card.shadowRoot?.querySelector<HTMLElement>(`.strip [data-line="${kind}"]`) ?? null;
 }
 
+// Every line of a kind: in polar night, two nights' dusk lines can share the axis.
+export function lines(card: PierPressureCard, kind: string): HTMLElement[] {
+  return [
+    ...(card.shadowRoot?.querySelectorAll<HTMLElement>(`.strip [data-line="${kind}"]`) ?? []),
+  ];
+}
+
+export function night(n: number): string {
+  return `sensor.pierpressure_backyard_night_${n}`;
+}
+
+// A Night sensor as PierPressure publishes it: the night's dusk as its state,
+// and its later_nights entry as attributes.
+export function nightEntity(window: Record<string, unknown>, state?: string): HassEntity {
+  const dusk = window["start"];
+  return {
+    state: state ?? (typeof dusk === "string" ? dusk : "unknown"),
+    attributes: { available: true, dark_window: window },
+  };
+}
+
 export function mark(card: PierPressureCard, kind: string): HTMLElement | null {
   return card.shadowRoot?.querySelector<HTMLElement>(`.strip [data-mark="${kind}"]`) ?? null;
 }

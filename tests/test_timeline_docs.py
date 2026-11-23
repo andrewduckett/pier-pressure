@@ -85,6 +85,13 @@ def test_page_explains_why_the_verdict_attributes_leave_the_timeline_out(
     assert "verdict" in lowered and "16 kib" in lowered
 
 
+def test_page_says_the_verdict_attributes_also_leave_later_nights_out(
+    page_text: str,
+) -> None:
+    assert "except `timeline` and `later_nights`" in page_text
+    assert "Night 2 to Night 4" in page_text
+
+
 def test_page_has_an_apexcharts_example_reading_forecast(page_text: str) -> None:
     assert "custom:apexcharts-card" in page_text
     assert "attributes.forecast" in page_text
@@ -115,7 +122,7 @@ def test_readme_lists_the_cloud_cover_topics(readme_text: str) -> None:
 
 def test_readme_labels_the_verdict_attributes_topic_without_timeline(readme_text: str) -> None:
     assert (
-        "| Verdict attributes (the document without `timeline`) "
+        "| Verdict attributes (the document without `timeline` and `later_nights`) "
         "| `pierpressure/<pier>/verdict/attributes`" in readme_text
     )
 

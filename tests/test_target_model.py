@@ -232,4 +232,5 @@ def test_document_targets_preserve_key_order() -> None:
         "timeline",
         "agreement",
         "observation",
+        "later_nights",
     ]
