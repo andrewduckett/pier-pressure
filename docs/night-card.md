@@ -213,13 +213,20 @@ a run of a day or more just "Moon up".
 
 #### The target lanes
 
-Under the Moon up lane, each ranked target tonight has a lane, in rank order.
-The lane **Target 1** reads `sensor.pierpressure_<pier>_target_1`, and so on to
-**Target 10**, which reads `sensor.pierpressure_<pier>_target_10`.
+Under the Moon up lane, each rank with a target on any night has a lane, in
+rank order. Tonight, the lane **Target 1** reads
+`sensor.pierpressure_<pier>_target_1`, and so on to **Target 10**, which reads
+`sensor.pierpressure_<pier>_target_10`. A later night's bars read the
+`targets` attribute of its Night sensor, from Night 2 to Night 4.
 
-Each lane has a violet bar over the target's observable window: the time when
-the target is above your horizon mask and the sky is astronomically dark. The
-bar holds the target's name and its catalog id, such as
+A lane can hold a bar for each night: tonight's, and one for each later night
+the forecast reaches. Each bar is named for its own night's target at that
+rank. Each night is ranked on its own moon, so a bright moon later in the week
+can put different targets in the same lane.
+
+Each bar is violet, over its target's observable window: the time when the
+target is above your horizon mask and the sky is astronomically dark. The bar
+holds the target's name and its catalog id, such as
 "Andromeda Galaxy (M31)": the id is what you type into your mount or planetarium
 app. A target the catalog gives no name shows its id alone, such as "IC2184".
 A bar too short for both shortens the name, ending it in "…", and keeps the
@@ -230,8 +237,8 @@ Hover over a bar to see the target's name, catalog id and window, such as
 even where the strip cuts the bar off. A window of 24 hours or more, as on a
 polar night, shows only the name and id.
 
-A rank with no target tonight leaves no lane, so the lanes that are there
-follow each other with no gap. On a night with no targets at all, the
+A rank with no target on any night leaves no lane, so the lanes that are there
+follow each other with no gap. When no night has a target at all, the
 Temperature chart follows the Moon up lane.
 
 #### The Temperature chart
@@ -322,13 +329,15 @@ depends on your weather sources. Each forecasts its own distance ahead:
 Open-Meteo, for example, about three days.
 
 Up to three later nights have a dusk line and a dawn line too, as far as the
-forecast reaches. The card reads them from the Night 2 to Night 4 sensors,
-`sensor.pierpressure_<pier>_night_2` to `sensor.pierpressure_<pier>_night_4`.
-A later night with no astronomical darkness has neither line, and its
-**Sun altitude** row still shows how dark it gets.
+forecast reaches. Each later night also has its own target bars. The card reads
+them from the Night 2 to Night 4 sensors, `sensor.pierpressure_<pier>_night_2` to
+`sensor.pierpressure_<pier>_night_4`. A later night with no astronomical
+darkness has neither line and no target bars, and its **Sun altitude** row
+still shows how dark it gets.
 
-PierPressure judges one night, so only that night has target bars. A later
-night has no target bars.
+PierPressure judges one night, so only that night has a verdict and a score. A
+later night's target bars show what is worth pointing at that night, not
+whether the night is worth setting up for.
 
 Once you have panned, the strip stays on the same hours when PierPressure
 publishes a new verdict. The exception is a pan to later hours: once the

@@ -314,7 +314,8 @@ def test_docs_targets_name_the_sensors_and_lanes(text: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "term", ["observable window", "catalog id", "no target tonight", "leaves no lane"]
+    "term",
+    ["observable window", "catalog id", "own moon", "no target on any night", "leaves no lane"],
 )
 def test_docs_targets_explain_what_they_show(term: str) -> None:
     assert term in _page().lower()
@@ -323,6 +324,16 @@ def test_docs_targets_explain_what_they_show(term: str) -> None:
 @pytest.mark.parametrize("text", ["shortens the name", "keeps the catalog id"])
 def test_docs_targets_say_a_short_bar_keeps_the_id(text: str) -> None:
     assert text in " ".join(_section("#### The target lanes").split())
+
+
+def test_docs_targets_say_a_lane_holds_a_bar_for_each_night() -> None:
+    lanes = " ".join(_section("#### The target lanes").split("\n#### ", 1)[0].split())
+    assert "a bar for each night" in lanes
+
+
+def test_docs_targets_say_a_later_nights_bars_read_its_night_sensor() -> None:
+    lanes = " ".join(_section("#### The target lanes").split("\n#### ", 1)[0].split())
+    assert "`targets`" in lanes and "Night 2" in lanes
 
 
 def test_docs_targets_give_the_hover_text() -> None:
@@ -605,9 +616,13 @@ def test_docs_pan_names_the_night_2_sensor() -> None:
     assert "`sensor.pierpressure_<pier>_night_2`" in _section("#### Panning the strip")
 
 
-def test_docs_pan_says_a_later_night_has_no_target_bars() -> None:
+def test_docs_pan_says_a_later_night_has_its_own_target_bars() -> None:
     section = " ".join(_section("#### Panning the strip").split())
-    assert "A later night has no target bars" in section
+    assert "its own target bars" in section
+
+
+def test_docs_pan_no_longer_says_a_later_night_has_no_target_bars() -> None:
+    assert "has no target bars" not in " ".join(_page().split())
 
 
 def test_docs_pan_no_longer_says_another_night_has_no_dusk_or_dawn() -> None:
