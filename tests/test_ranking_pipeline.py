@@ -462,3 +462,18 @@ def test_a_recompute_in_the_same_night_reuses_the_later_nights_lists(
         again = rank_nights(pier, an_hour_on, nights)
     assert calls["ranks"] == 1
     assert _dumped(again[1:]) == _dumped(first[1:])
+
+
+@pytest.mark.usefixtures("sample_catalog")
+def test_a_later_night_that_has_started_is_ranked_on_its_remaining_window() -> None:
+    pier = _london()
+    with no_network():
+        nights = _nights(pier, _INSTANT)
+        rank_nights(pier, _INSTANT, nights[:2])
+        window, moon = nights[1]
+        assert window[0] is not None
+        inside = window[0] + timedelta(hours=3)
+        listed = rank_nights(pier, inside, nights[:2])[1]
+        alone = rank_targets(pier, inside, window, moon)
+    assert alone
+    assert _dumped([listed]) == _dumped([alone])

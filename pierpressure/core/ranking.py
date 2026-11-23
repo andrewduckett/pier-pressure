@@ -896,8 +896,9 @@ def _rank_night(
 ) -> list[Target]:
     """One night's list, from ``kept`` or ``previous`` entries, adding its entry to ``kept``.
 
-    A ``later`` night reuses its kept list when it was ranked on the same moon
-    illumination and equipment, and keeps the list it ranks.
+    A ``later`` night that has not started reuses its kept list when it was
+    ranked on the same moon illumination and equipment, and keeps the list it
+    ranks. Once a night has started, its list depends on the instant.
     """
     start, end = window
     scored_start, scored_end = scored_window(instant, window)
@@ -907,11 +908,12 @@ def _rank_night(
     # the minimum, so a shorter one ranks nothing, and is not worth a scan.
     if scored_end - scored_start < MIN_USABLE_WINDOW:
         return []
+    whole_night = later and scored_start == start
     key = _cache_key(pier, (start, end))
     cached = kept.get(key) or previous.get(key) or _CachedNight(_scan_night(pier, (start, end)))
     ranked = cached.ranked
     if (
-        later
+        whole_night
         and ranked is not None
         and ranked.illumination == moon.illumination
         and ranked.equipment == pier.equipment
@@ -919,7 +921,7 @@ def _rank_night(
         kept[key] = cached
         return list(ranked.targets)
     targets = _rank(pier, cached.scan, (start, end), (scored_start, scored_end), moon)
-    ranked = _RankedList(moon.illumination, pier.equipment, tuple(targets)) if later else None
+    ranked = _RankedList(moon.illumination, pier.equipment, tuple(targets)) if whole_night else None
     kept[key] = _CachedNight(cached.scan, ranked)
     return targets
 
