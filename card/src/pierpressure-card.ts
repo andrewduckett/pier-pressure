@@ -12,7 +12,7 @@ import {
   HOUR,
   type Line,
   type Strip,
-  type TargetLane,
+  type TargetBar,
   type TimeLabel,
   asRecord,
   buildStrip,
@@ -854,11 +854,9 @@ function renderStrip(strip: Strip | undefined, input: StripInput) {
         html`<div class="row" data-lane=${`target_${lane.rank}`}>
           <span class="label">${lane.label}</span>
           <div class="track">
-            ${
-              lane.bar === undefined
-                ? nothing
-                : renderBar(lane.bar, tipKey.target(lane.rank), strip.axis, lane)
-            }
+            ${lane.bars.map((bar) =>
+              renderBar(bar, tipKey.target(lane.rank), strip.axis, bar),
+            )}
           </div>
         </div>`,
     )}
@@ -946,13 +944,14 @@ function renderArrow(degrees: number) {
   </svg>`;
 }
 
-// A target's bar carries its name and id; a Moon up bar has neither.
-function renderBar(bar: Bar, key: string, axis: Axis, target?: TargetLane) {
+// A target's bar carries its night, name and id; a Moon up bar has none.
+function renderBar(bar: Bar, key: string, axis: Axis, target?: TargetBar) {
   const style = `left: ${offset(bar.from, axis)}%; width: ${share(bar.to - bar.from, axis)}%`;
   return html`<div
     class="bar"
     style=${style}
     ?data-target=${target !== undefined}
+    data-night=${target?.night ?? nothing}
     data-start=${iso(bar.start)}
     data-end=${iso(bar.end)}
     data-from=${iso(bar.from)}
@@ -965,7 +964,7 @@ function renderBar(bar: Bar, key: string, axis: Axis, target?: TargetLane) {
   </div>`;
 }
 
-function renderTargetName(target: TargetLane) {
+function renderTargetName(target: TargetBar) {
   const id = target.id === undefined ? nothing : html`<span class="id"> (${target.id})</span>`;
   return html`<span class="name">${target.name}</span>${id}`;
 }

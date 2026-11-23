@@ -113,12 +113,25 @@ export function night(n: number): string {
 
 // A Night sensor as PierPressure publishes it: the night's dusk as its state,
 // and its later_nights entry as attributes.
-export function nightEntity(window: Record<string, unknown>, state?: string): HassEntity {
+export function nightEntity(
+  window: Record<string, unknown>,
+  state?: string,
+  targets?: unknown[],
+): HassEntity {
   const dusk = window["start"];
   return {
     state: state ?? (typeof dusk === "string" ? dusk : "unknown"),
-    attributes: { available: true, dark_window: window },
+    attributes: { available: true, dark_window: window, ...(targets && { targets }) },
   };
+}
+
+// One entry of a Night sensor's `targets`, as PierPressure publishes it.
+export function nightTarget(
+  id: string | undefined,
+  name: string | null | undefined,
+  window: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+  return { ...(id !== undefined && { id }), name, window };
 }
 
 export function mark(card: PierPressureCard, kind: string): HTMLElement | null {
@@ -158,6 +171,15 @@ export function targetLanes(card: PierPressureCard): HTMLElement[] {
 export function targetBar(card: PierPressureCard, rank: number): HTMLElement | null {
   return (
     card.shadowRoot?.querySelector<HTMLElement>(`.strip [data-lane="target_${rank}"] .bar`) ?? null
+  );
+}
+
+// The bar of one night in a rank's lane: 1 is tonight, 2 to 4 a later night.
+export function nightBar(card: PierPressureCard, rank: number, n: number): HTMLElement | null {
+  return (
+    card.shadowRoot?.querySelector<HTMLElement>(
+      `.strip [data-lane="target_${rank}"] .bar[data-night="${n}"]`,
+    ) ?? null
   );
 }
 

@@ -8,6 +8,10 @@ import {
   forecastEntity,
   moonLane,
   mountCard,
+  night,
+  nightBar,
+  nightEntity,
+  nightTarget,
   target,
   targetBar,
   targetEntity,
@@ -491,5 +495,207 @@ describe("the card's size with target lanes", () => {
     const card = await mountCard();
 
     expect(card.getCardSize()).toBe(10);
+  });
+});
+
+const NEXT_DARK = {
+  start: "2026-11-01T20:32:00Z",
+  end: "2026-11-02T03:23:00Z",
+};
+const NEXT_EVENING = {
+  start: "2026-11-01T22:00:00Z",
+  end: "2026-11-02T03:00:00Z",
+};
+
+// The axis runs from 2026-10-31T16:30:00Z to 2026-11-02T08:25:00Z, over two nights.
+const TWO_NIGHTS = verdictEntity("GO", {
+  dark_window: { start: "2026-10-31T20:30:00Z", end: "2026-11-02T03:25:00Z" },
+});
+
+describe("a rank with a target on a later night", () => {
+  it("has a lane when only Night 2 has a target at that rank", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [night(2)]: nightEntity(NEXT_DARK, undefined, [
+        nightTarget("M42", "Orion Nebula", NEXT_EVENING),
+      ]),
+    });
+
+    expect(labels(card)).toEqual(["Target 1"]);
+  });
+
+  it("adds a lane for a rank filled only on a later night", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [target(1)]: targetEntity("Andromeda Galaxy", EVENING),
+      [target(2)]: targetEntity("Orion Nebula", MORNING),
+      [night(2)]: nightEntity(NEXT_DARK, undefined, [
+        nightTarget("M42", null, NEXT_EVENING),
+        nightTarget("M45", null, NEXT_EVENING),
+        nightTarget("M1", null, NEXT_EVENING),
+      ]),
+    });
+
+    expect(labels(card)).toEqual(["Target 1", "Target 2", "Target 3"]);
+  });
+
+  it.each([
+    [
+      "Night 2 is unavailable",
+      night(2),
+      nightEntity(NEXT_DARK, "unavailable", [nightTarget("M42", "Orion Nebula", NEXT_EVENING)]),
+    ],
+    [
+      "the entry has an empty name and no id",
+      night(3),
+      nightEntity(NEXT_DARK, undefined, [nightTarget(undefined, "", NEXT_EVENING)]),
+    ],
+    [
+      "the entry's window has no end",
+      night(3),
+      nightEntity(NEXT_DARK, undefined, [
+        nightTarget("M42", "Orion Nebula", { start: NEXT_EVENING.start }),
+      ]),
+    ],
+    [
+      "the entry's window ends before it starts",
+      night(3),
+      nightEntity(NEXT_DARK, undefined, [
+        nightTarget("M42", "Orion Nebula", {
+          start: NEXT_EVENING.end,
+          end: NEXT_EVENING.start,
+        }),
+      ]),
+    ],
+    [
+      "the targets attribute is not a list",
+      night(2),
+      {
+        state: NEXT_DARK.start,
+        attributes: { available: true, dark_window: NEXT_DARK, targets: "M42" },
+      },
+    ],
+  ])("leaves no lane when %s", async (_, entityId, entity) => {
+    const card = await mountCard({ [VERDICT]: NIGHT, [entityId]: entity });
+
+    expect(targetLanes(card)).toEqual([]);
+  });
+
+  it("leaves no lane when every rank and every Night sensor is unavailable", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      ...Object.fromEntries(
+        Array.from({ length: 10 }, (_, index) => [
+          target(index + 1),
+          { state: "unavailable", attributes: {} },
+        ]),
+      ),
+      ...Object.fromEntries(
+        [2, 3, 4].map((n) => [night(n), { state: "unavailable", attributes: {} }]),
+      ),
+    });
+
+    expect(targetLanes(card)).toEqual([]);
+  });
+
+  it("keeps a lane with no bar when the later night's window is off the axis", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [target(1)]: targetEntity("Andromeda Galaxy", EVENING),
+      [night(2)]: nightEntity(NEXT_DARK, undefined, [
+        nightTarget("M42", "Orion Nebula", NEXT_EVENING),
+        nightTarget("M45", "Pleiades", NEXT_EVENING),
+      ]),
+    });
+
+    expect([labels(card), targetBar(card, 2)]).toEqual([["Target 1", "Target 2"], null]);
+  });
+});
+
+describe("a later night's target bar", () => {
+  it("shares its rank's lane with tonight's bar, each named for its night", async () => {
+    const card = await mountCard({
+      [VERDICT]: TWO_NIGHTS,
+      [target(1)]: catalogTarget("M31", "Andromeda Galaxy", EVENING),
+      [night(2)]: nightEntity(NEXT_DARK, undefined, [
+        nightTarget("M42", "Orion Nebula", NEXT_EVENING),
+      ]),
+    });
+
+    expect([
+      nightBar(card, 1, 1)?.textContent?.trim(),
+      nightBar(card, 1, 2)?.textContent?.trim(),
+    ]).toEqual(["Andromeda Galaxy (M31)", "Orion Nebula (M42)"]);
+  });
+
+  it("spans its window and is violet like tonight's", async () => {
+    const card = await mountCard({
+      [VERDICT]: TWO_NIGHTS,
+      [night(2)]: nightEntity(NEXT_DARK, undefined, [
+        nightTarget("M42", "Orion Nebula", NEXT_EVENING),
+      ]),
+    });
+
+    const bar = nightBar(card, 1, 2);
+    expect([bar?.dataset["start"], bar?.dataset["end"], bar?.hasAttribute("data-target")]).toEqual([
+      "2026-11-01T22:00:00.000Z",
+      "2026-11-02T03:00:00.000Z",
+      true,
+    ]);
+  });
+
+  it("shows its name, catalog id and window on hover", async () => {
+    const card = await mountCard({
+      [VERDICT]: TWO_NIGHTS,
+      [night(2)]: nightEntity(NEXT_DARK, undefined, [
+        nightTarget("M42", "Orion Nebula", NEXT_EVENING),
+      ]),
+    });
+
+    expect(nightBar(card, 1, 2)?.getAttribute("title")).toBe(
+      "Orion Nebula (M42) from 22:00 to 03:00",
+    );
+  });
+
+  it.each([
+    ["the catalog gives no name", nightTarget("NGC7394", null, NEXT_EVENING), "NGC7394", null],
+    ["it has an empty name", nightTarget("NGC7394", "", NEXT_EVENING), "NGC7394", null],
+    ["it has no id", nightTarget(undefined, "Orion Nebula", NEXT_EVENING), "Orion Nebula", null],
+    ["it has an empty id", nightTarget("", "Orion Nebula", NEXT_EVENING), "Orion Nebula", null],
+  ])("holds the one name it has when %s", async (_, entry, name, id) => {
+    const card = await mountCard({
+      [VERDICT]: TWO_NIGHTS,
+      [night(2)]: nightEntity(NEXT_DARK, undefined, [entry]),
+    });
+
+    const bar = nightBar(card, 1, 2);
+    expect([bar?.querySelector(".name")?.textContent, bar?.querySelector(".id")]).toEqual([
+      name,
+      id,
+    ]);
+  });
+
+  it("draws the name and the catalog id as two parts", async () => {
+    const card = await mountCard({
+      [VERDICT]: TWO_NIGHTS,
+      [night(2)]: nightEntity(NEXT_DARK, undefined, [
+        nightTarget("M42", "Orion Nebula", NEXT_EVENING),
+      ]),
+    });
+
+    const bar = nightBar(card, 1, 2);
+    expect([
+      bar?.querySelector(".name")?.textContent,
+      bar?.querySelector(".id")?.textContent?.trim(),
+    ]).toEqual(["Orion Nebula", "(M42)"]);
+  });
+
+  it("marks tonight's bar as night 1", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [target(1)]: targetEntity("Andromeda Galaxy", EVENING),
+    });
+
+    expect(targetBar(card, 1)?.dataset["night"]).toBe("1");
   });
 });

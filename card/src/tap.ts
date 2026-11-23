@@ -42,7 +42,9 @@ function tipTexts(strip: Strip | undefined, moon: MoonDrawing | undefined): Map<
     texts.set(tipKey.missing("moon_up"), strip.moonUpMissing.text);
   }
   for (const lane of strip.targets) {
-    if (lane.bar !== undefined) texts.set(tipKey.target(lane.rank), lane.bar.text);
+    for (const bar of lane.bars) {
+      if (bar.night === 1) texts.set(tipKey.target(lane.rank), bar.text);
+    }
   }
   for (const line of strip.lines) texts.set(tipKey.line(line), line.text);
   for (const hour of strip.chart.hours) texts.set(tipKey.hour(hour.hour), hour.text);
