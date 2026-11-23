@@ -12,6 +12,7 @@ import {
   mountCard,
   night,
   nightEntity,
+  nightTarget,
   pointer,
   target,
   targetEntity,
@@ -142,6 +143,8 @@ const THREE_DAYS = {
   [CLOUD_COVER]: forecastEntity(hourly("2026-10-31T12:00:00Z", 72)),
 };
 
+const NEXT_DARK = { start: "2026-11-01T20:32:00Z", end: "2026-11-02T03:23:00Z" };
+
 // Before dusk, so the opening axis is the judged night's.
 const NOW = Date.parse("2026-10-31T12:00:00Z");
 
@@ -203,14 +206,14 @@ describe("a strip with a held start", () => {
     expect(kinds).toEqual([]);
   });
 
-  it("has the next night's dusk and dawn lines, and no target bar", () => {
+  it("has the next night's dusk and dawn lines, and no target bar when it has no target", () => {
     const states = {
       ...THREE_DAYS,
       [target(1)]: targetEntity("Andromeda Galaxy", {
         start: "2026-10-31T21:00:00Z",
         end: "2026-11-01T02:00:00Z",
       }),
-      [night(2)]: nightEntity({ start: "2026-11-01T20:32:00Z", end: "2026-11-02T03:23:00Z" }),
+      [night(2)]: nightEntity(NEXT_DARK, undefined, []),
     };
 
     const strip = held(states, "2026-11-01T16:30:00Z");
@@ -220,7 +223,37 @@ describe("a strip with a held start", () => {
       ["dusk", "2026-11-01T20:32:00.000Z"],
       ["dawn", "2026-11-02T03:23:00.000Z"],
     ]);
-    expect(strip.targets.map((lane) => [lane.label, lane.bar])).toEqual([["Target 1", undefined]]);
+    expect(strip.targets.map((lane) => [lane.label, lane.bars])).toEqual([["Target 1", []]]);
+  });
+
+  it("has the next night's target bar, with the lane labels as before", () => {
+    const states = {
+      ...THREE_DAYS,
+      [target(1)]: targetEntity("Andromeda Galaxy", {
+        start: "2026-10-31T21:00:00Z",
+        end: "2026-11-01T02:00:00Z",
+      }),
+      [night(2)]: nightEntity(NEXT_DARK, undefined, [
+        nightTarget("M42", "Orion Nebula", {
+          start: "2026-11-01T22:00:00Z",
+          end: "2026-11-02T03:00:00Z",
+        }),
+      ]),
+    };
+
+    const before = held(states).targets.map((lane) => lane.label);
+    const lanes = held(states, "2026-11-01T16:30:00Z").targets;
+
+    expect(lanes.map((lane) => lane.label)).toEqual(before);
+    expect(lanes[0]?.bars.map((bar) => [bar.night, iso(bar), bar.name, bar.id, bar.text])).toEqual([
+      [
+        2,
+        ["2026-11-01T22:00:00.000Z", "2026-11-02T03:00:00.000Z"],
+        "Orion Nebula",
+        "M42",
+        "Orion Nebula (M42) from 22:00 to 03:00",
+      ],
+    ]);
   });
 
   // The row is judged on the whole forecast, so panning never takes it away.
@@ -256,7 +289,7 @@ describe("a strip with a held start", () => {
 
     const lanes = held(states, "2026-11-01T16:30:00Z").targets;
 
-    expect(lanes.map((lane) => [lane.label, lane.bar])).toEqual([["Target 1", undefined]]);
+    expect(lanes.map((lane) => [lane.label, lane.bars])).toEqual([["Target 1", []]]);
   });
 });
 

@@ -10,7 +10,8 @@ export const tipKey = {
   column: (hour: number) => `column:${iso(hour)}`,
   hour: (hour: number) => `hour:${iso(hour)}`,
   moonUp: (start: number) => `moon-up:${iso(start)}`,
-  target: (rank: number) => `target:${rank}`,
+  // A lane holds a bar for each night, so a target bar names its night.
+  target: (rank: number, night: number) => `target:${rank}:${night}`,
   // Two nights' dusk lines can share the axis, so a dusk or dawn line names its night.
   line: ({ kind, night }: Line) => (night === undefined ? `line:${kind}` : `line:${kind}:${night}`),
   // A row's key, `moon_up`, or `chart:` and a chart line's key.
@@ -42,7 +43,7 @@ function tipTexts(strip: Strip | undefined, moon: MoonDrawing | undefined): Map<
     texts.set(tipKey.missing("moon_up"), strip.moonUpMissing.text);
   }
   for (const lane of strip.targets) {
-    if (lane.bar !== undefined) texts.set(tipKey.target(lane.rank), lane.bar.text);
+    for (const bar of lane.bars) texts.set(tipKey.target(lane.rank, bar.night), bar.text);
   }
   for (const line of strip.lines) texts.set(tipKey.line(line), line.text);
   for (const hour of strip.chart.hours) texts.set(tipKey.hour(hour.hour), hour.text);

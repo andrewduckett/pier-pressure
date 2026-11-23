@@ -135,3 +135,24 @@ def test_a_continuous_night_a_second_off_the_day_bounds_takes_the_day_bounds(
     start, end = windows[0]
     assert start == day_start
     assert end is not None and end.microsecond == 0
+
+
+def test_each_later_night_holds_its_chained_solar_day() -> None:
+    with no_network():
+        nights = sky.later_nights(
+            LONDON, LONDON_INSTANT, dark_window(LONDON, LONDON_INSTANT), _at("2026-09-10T19:00:00Z")
+        )
+    assert [night.solar_day for night in nights] == [
+        (_at("2026-09-09T11:57:48Z"), _at("2026-09-10T11:57:27Z")),
+        (_at("2026-09-10T11:57:27Z"), nights[1].solar_day[1]),
+    ]
+    assert nights[0].dark_window == (_at("2026-09-09T20:27:57Z"), _at("2026-09-10T03:28:02Z"))
+
+
+def test_a_later_night_sky_is_frozen() -> None:
+    with no_network():
+        night = sky.later_nights(
+            LONDON, LONDON_INSTANT, dark_window(LONDON, LONDON_INSTANT), _at("2026-09-10T19:00:00Z")
+        )[0]
+    with pytest.raises(AttributeError):
+        night.dark_window = (None, None)  # type: ignore[misc]

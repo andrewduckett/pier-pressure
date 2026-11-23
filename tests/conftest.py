@@ -8,16 +8,18 @@ from __future__ import annotations
 
 import queue
 import threading
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import paho.mqtt.client as mqtt
+import pytest
 from paho.mqtt.packettypes import PacketTypes
 from paho.mqtt.reasoncodes import ReasonCode
 
 from pierpressure.conditions import FetchResult
+from pierpressure.core import ranking
 from pierpressure.core.conditions import SEEING_COLUMN, SEEING_LEVELS, Conditions, Series, Variable
 from pierpressure.core.config import MqttConfig, PierConfig
 from pierpressure.core.model import (
@@ -539,7 +541,8 @@ def make_later_nights(count: int) -> list[LaterNight]:
         LaterNight(
             dark_window=DarkWindow(
                 start=first + timedelta(days=i), end=first + timedelta(days=i, hours=7)
-            )
+            ),
+            moon=Moon(illumination=0.0, phase=MoonPhase.NEW),
         )
         for i in range(count)
     ]
@@ -581,3 +584,17 @@ def make_timeline(
 def fixed_conditions(conditions: Conditions) -> Callable[[PierConfig], FetchResult]:
     """A conditions provider that returns ``conditions`` with no fetch outcomes."""
     return lambda _pier: FetchResult(conditions)
+
+
+@pytest.fixture
+def empty_catalog(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Scan no catalog object, for a test that asserts on no night's targets.
+
+    The scan cache is cleared on both sides, so no empty scan reaches a test that
+    ranks the real catalog.
+    """
+    real = ranking._scan_night
+    monkeypatch.setattr(ranking, "_scan_night", lambda pier, window: real(pier, window, objects=()))
+    ranking._scan_cache.clear()
+    yield
+    ranking._scan_cache.clear()

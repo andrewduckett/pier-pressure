@@ -39,8 +39,7 @@ same pier, night and scoring instant always yield the same list.
 from __future__ import annotations
 
 import math
-from collections import OrderedDict
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from functools import lru_cache
@@ -653,17 +652,38 @@ class _NightScan:
     whole_night: dict[int, Geometry] = field(default_factory=dict)
 
 
-# The night scans, keyed by pier identity, location, horizon and dark window.
+# The night scans of each pier's latest ranking, by pier id, then by a key of the
+# pier's location, horizon and dark window (later-night-targets design DD4).
 # Equipment is left out, because the scan does not depend on it: field-of-view
 # fit is applied per ranking, so two rigs on one pier share a scan (design D2).
 # The ranking's curve and weight parameters are fixed constants, so they do not
-# enter the key either. The cache is a bounded LRU, so a persistent container
-# recomputing night after night keeps only the most recent few scans. Eight still
-# covers eight piers through a night rollover, and caps the worst case near
-# 150 MB on a polar night (design D6). It is a performance optimization only, so
-# eviction never affects correctness.
-_CACHE_MAXSIZE = 8
-_scan_cache: OrderedDict[tuple[Any, ...], _NightScan] = OrderedDict()
+# enter the key either. Each ranking keeps exactly the scans of the nights it
+# ranked, so a pier holds at most its four nights, a night that rolls into the
+# past is dropped on the pier's next recompute, and piers never evict one
+# another. It is a performance optimization only: a missing scan is rescanned.
+_scan_cache: dict[str, dict[tuple[Any, ...], _CachedNight]] = {}
+
+
+@dataclass(frozen=True)
+class _RankedList:
+    """A later night's last ranked list, with the inputs it was ranked on."""
+
+    illumination: float
+    equipment: Equipment | None
+    targets: tuple[Target, ...]
+
+
+@dataclass(frozen=True)
+class _CachedNight:
+    """A night's scan and, for a later night, its last ranked list (design DD4).
+
+    A later night is always ranked over its whole dark window on a moon taken at
+    a fixed instant, so the same scan, illumination and equipment give the same
+    list. Tonight's list is never kept: its scored window shrinks after dusk.
+    """
+
+    scan: _NightScan
+    ranked: _RankedList | None = None
 
 
 def _cache_key(pier: PierConfig, window: tuple[datetime, datetime]) -> tuple[Any, ...]:
@@ -834,29 +854,76 @@ def rank_targets(
 ) -> list[Target]:
     """The ordered top-:data:`TOP_N` targets for the selected night (empty if none).
 
-    Returns an empty list when the night has no dark window, or no dark time is
-    left. Otherwise targets are ranked on their remaining window within the
-    scored window, so once the night has started the hours that have passed no
-    longer count. The night scan is cached per pier and dark window: a recompute
-    within the same night ranks from the cached scan rather than rescanning the
-    catalog (rank-remaining-night design D2).
+    The one-night form of :func:`rank_nights`, so it drops the pier's other
+    cached nights.
+    """
+    return rank_nights(pier, instant, [(window, moon)])[0]
+
+
+def rank_nights(
+    pier: PierConfig,
+    instant: datetime,
+    nights: Sequence[tuple[tuple[datetime, datetime] | tuple[None, None], Moon]],
+) -> list[list[Target]]:
+    """The ordered top-:data:`TOP_N` targets of each ``(window, moon)`` night, in order.
+
+    A night's list is empty when it has no dark window, or less dark time left
+    than the minimum. Otherwise targets are ranked on their remaining window
+    within the scored window, so once the night has started the hours that have
+    passed no longer count. Each night's scan is cached for the pier: a
+    recompute that ranks the same nights ranks from the cached scans rather
+    than rescanning the catalog (rank-remaining-night design D2).
+    """
+    previous = _scan_cache.get(pier.id, {})
+    kept: dict[tuple[Any, ...], _CachedNight] = {}
+    lists = [
+        _rank_night(pier, instant, window, moon, previous, kept, later=index > 0)
+        for index, (window, moon) in enumerate(nights)
+    ]
+    _scan_cache[pier.id] = kept
+    return lists
+
+
+def _rank_night(
+    pier: PierConfig,
+    instant: datetime,
+    window: tuple[datetime, datetime] | tuple[None, None],
+    moon: Moon,
+    previous: dict[tuple[Any, ...], _CachedNight],
+    kept: dict[tuple[Any, ...], _CachedNight],
+    *,
+    later: bool,
+) -> list[Target]:
+    """One night's list, from ``kept`` or ``previous`` entries, adding its entry to ``kept``.
+
+    A ``later`` night that has not started reuses its kept list when it was
+    ranked on the same moon illumination and equipment, and keeps the list it
+    ranks. Once a night has started, its list depends on the instant.
     """
     start, end = window
     scored_start, scored_end = scored_window(instant, window)
     if start is None or end is None or scored_start is None or scored_end is None:
         return []
-    if scored_start == scored_end:
+    # Every target's remaining window lies inside the scored window and must span
+    # the minimum, so a shorter one ranks nothing, and is not worth a scan.
+    if scored_end - scored_start < MIN_USABLE_WINDOW:
         return []
+    whole_night = later and scored_start == start
     key = _cache_key(pier, (start, end))
-    scan = _scan_cache.get(key)
-    if scan is None:
-        scan = _scan_night(pier, (start, end))
-        _scan_cache[key] = scan
-        if len(_scan_cache) > _CACHE_MAXSIZE:
-            _scan_cache.popitem(last=False)  # evict the least-recently-used night
-    else:
-        _scan_cache.move_to_end(key)  # most-recently-used
-    return _rank(pier, scan, (start, end), (scored_start, scored_end), moon)
+    cached = kept.get(key) or previous.get(key) or _CachedNight(_scan_night(pier, (start, end)))
+    ranked = cached.ranked
+    if (
+        whole_night
+        and ranked is not None
+        and ranked.illumination == moon.illumination
+        and ranked.equipment == pier.equipment
+    ):
+        kept[key] = cached
+        return list(ranked.targets)
+    targets = _rank(pier, cached.scan, (start, end), (scored_start, scored_end), moon)
+    ranked = _RankedList(moon.illumination, pier.equipment, tuple(targets)) if whole_night else None
+    kept[key] = _CachedNight(cached.scan, ranked)
+    return targets
 
 
 def _rank(

@@ -7,7 +7,9 @@ determinism guarantee, and the per-night cache are all checked end to end.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pytest
 
@@ -21,12 +23,13 @@ from pierpressure.core.ranking import (
     combined_score,
     geometry_for,
     moon_subscore,
+    rank_nights,
     rank_targets,
     transit_subscore,
     window_subscore,
 )
 from pierpressure.core.scoring import MIN_USABLE_WINDOW
-from pierpressure.core.sky import dark_window, moon_info
+from pierpressure.core.sky import dark_window, later_nights, moon_info
 
 from .offline_guard import no_network
 
@@ -265,12 +268,94 @@ def test_two_rigs_on_one_pier_share_a_scan_but_score_differently(
     assert [(t.id, t.score) for t in widefield] != [(t.id, t.score) for t in long]
 
 
-def test_cache_is_bounded_so_a_long_running_container_does_not_leak(
+def test_a_night_shorter_than_the_minimum_is_not_scanned(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pier = PierConfig(id="may", latitude=52.0, longitude=0.0, elevation_m=0.0)
+    instant = datetime(2026, 5, 19, 15, 0, tzinfo=UTC)
+    calls = _count_scans(monkeypatch)
+    with no_network():
+        window = dark_window(pier, instant)
+        targets = rank_targets(pier, instant, window, moon_info(pier, window, instant))
+    start, end = window
+    assert start is not None and end is not None
+    assert end - start < MIN_USABLE_WINDOW
+    assert (targets, calls["scans"]) == ([], 0)
+
+
+def test_a_night_of_exactly_the_minimum_is_scanned(monkeypatch: pytest.MonkeyPatch) -> None:
+    ranking._scan_cache.clear()
+    calls = _count_scans(monkeypatch)
+    start = datetime(2026, 1, 1, 20, 0, tzinfo=UTC)
+    moon = Moon(illumination=0.1, phase=MoonPhase.NEW)
+    with no_network():
+        rank_targets(_london(), start, (start, start + MIN_USABLE_WINDOW), moon)
+    assert calls["scans"] == 1
+
+
+def _nights(pier: PierConfig, instant: datetime) -> list[tuple[Any, Moon]]:
+    """Tonight and three later nights, each with the moon the producer gives it."""
+    window = dark_window(pier, instant)
+    nights = [(window, moon_info(pier, window, instant))]
+    for night in later_nights(pier, instant, window, instant + timedelta(days=7)):
+        day_start, day_end = night.solar_day
+        midnight = (day_start + (day_end - day_start) / 2).replace(microsecond=0)
+        nights.append((night.dark_window, moon_info(pier, night.dark_window, midnight)))
+    return nights
+
+
+def _dumped(lists: list[list[Any]]) -> list[list[str]]:
+    return [[target.model_dump_json() for target in targets] for targets in lists]
+
+
+_THREE_PIERS = (
+    PierConfig(id="london", latitude=51.5, longitude=-0.12, elevation_m=30.0),
+    PierConfig(id="lisbon", latitude=38.7, longitude=-9.14, elevation_m=50.0),
+    PierConfig(id="oslo", latitude=59.9, longitude=10.75, elevation_m=20.0),
+)
+
+
+def test_rank_targets_ranks_one_night_as_rank_nights_does() -> None:
+    pier = _london()
+    with no_network():
+        window = dark_window(pier, _INSTANT)
+        moon = moon_info(pier, window, _INSTANT)
+        alone = rank_targets(pier, _INSTANT, window, moon)
+        ranking._scan_cache.clear()
+        listed = rank_nights(pier, _INSTANT, [(window, moon)])
+    assert _dumped([alone]) == _dumped(listed)
+
+
+@pytest.mark.usefixtures("sample_catalog")
+def test_rank_nights_gives_one_list_per_night_in_order() -> None:
+    pier = _london()
+    with no_network():
+        nights = _nights(pier, _INSTANT)
+        lists = rank_nights(pier, _INSTANT, nights)
+        each = [rank_targets(pier, _INSTANT, window, moon) for window, moon in nights]
+    assert len(lists) == 4
+    assert _dumped(lists) == _dumped(each)
+
+
+@pytest.mark.usefixtures("sample_catalog")
+def test_a_recompute_reuses_every_scan_of_three_piers(monkeypatch: pytest.MonkeyPatch) -> None:
+    with no_network():
+        nights = {pier.id: _nights(pier, _INSTANT) for pier in _THREE_PIERS}
+        fresh = rank_nights(_THREE_PIERS[0], _INSTANT, nights["london"])
+        ranking._scan_cache.clear()
+        for pier in _THREE_PIERS:
+            rank_nights(pier, _INSTANT, nights[pier.id])
+        calls = _count_scans(monkeypatch)
+        again = rank_nights(_THREE_PIERS[0], _INSTANT, nights["london"])
+    assert calls["scans"] == 0
+    assert _dumped(again) == _dumped(fresh)
+
+
+def test_the_cache_keeps_only_the_nights_the_last_call_ranked(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # A persistent container recomputes night after night; the cache must not grow
-    # one entry per night forever. With the scan stubbed out, feed many distinct
-    # nights and assert the cache stays within its bound.
+    # one entry per night forever.
     ranking._scan_cache.clear()
     real_scan = ranking._scan_night
     monkeypatch.setattr(
@@ -279,9 +364,116 @@ def test_cache_is_bounded_so_a_long_running_container_does_not_leak(
     pier = _london()
     moon = Moon(illumination=0.1, phase=MoonPhase.NEW)
     base = datetime(2026, 1, 1, 20, 0, tzinfo=UTC)
-    for day in range(ranking._CACHE_MAXSIZE + 5):
+    for day in range(10):
         start = base + timedelta(days=day)
-        window = (start, start + timedelta(hours=6))
-        rank_targets(pier, start, window, moon)
-    assert ranking._CACHE_MAXSIZE == 8
-    assert len(ranking._scan_cache) <= ranking._CACHE_MAXSIZE
+        nights: list[tuple[Any, Moon]] = [
+            ((start + timedelta(days=n), start + timedelta(days=n, hours=6)), moon)
+            for n in range(4)
+        ]
+        rank_nights(pier, start, nights)
+        kept = {(key[-2], key[-1]) for key in ranking._scan_cache[pier.id]}
+        assert kept == {window for window, _ in nights}
+    assert not hasattr(ranking, "_CACHE_MAXSIZE")
+
+
+def test_one_piers_ranking_leaves_another_piers_scans(monkeypatch: pytest.MonkeyPatch) -> None:
+    ranking._scan_cache.clear()
+    real_scan = ranking._scan_night
+    monkeypatch.setattr(
+        ranking, "_scan_night", lambda pier, window: real_scan(pier, window, objects=())
+    )
+    moon = Moon(illumination=0.1, phase=MoonPhase.NEW)
+    start = datetime(2026, 1, 1, 20, 0, tzinfo=UTC)
+    rank_nights(_THREE_PIERS[0], start, [((start, start + timedelta(hours=6)), moon)])
+    rank_nights(_THREE_PIERS[1], start, [((start, start + timedelta(hours=7)), moon)])
+    assert len(ranking._scan_cache["london"]) == 1
+
+
+def _count_ranks(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
+    calls = {"ranks": 0}
+    real_rank = ranking._rank
+
+    def counting_rank(*args: object, **kwargs: object) -> object:
+        calls["ranks"] += 1
+        return real_rank(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(ranking, "_rank", counting_rank)
+    return calls
+
+
+@pytest.fixture
+def sample_catalog(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    # A slice of the catalog keeps the rankings quick; the reuse does not depend on it.
+    # The cache is cleared on both sides, so no sliced scan reaches another test.
+    sample = load_catalog()[::40]
+    monkeypatch.setattr(ranking, "load_catalog", lambda: sample)
+    ranking._scan_cache.clear()
+    yield
+    ranking._scan_cache.clear()
+
+
+@pytest.mark.usefixtures("sample_catalog")
+def test_a_recompute_ranks_tonight_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    pier = _london()
+    with no_network():
+        nights = _nights(pier, _INSTANT)
+        first = rank_nights(pier, _INSTANT, nights)
+        calls = _count_ranks(monkeypatch)
+        again = rank_nights(pier, _INSTANT, nights)
+    assert calls["ranks"] == 1
+    assert _dumped(again) == _dumped(first)
+
+
+@pytest.mark.usefixtures("sample_catalog")
+def test_a_later_night_on_another_moon_is_ranked_again(monkeypatch: pytest.MonkeyPatch) -> None:
+    pier = _london()
+    with no_network():
+        nights = _nights(pier, _INSTANT)
+        rank_nights(pier, _INSTANT, nights)
+        window, moon = nights[1]
+        brighter = moon.model_copy(update={"illumination": 0.9})
+        calls = _count_ranks(monkeypatch)
+        rank_nights(pier, _INSTANT, [nights[0], (window, brighter), *nights[2:]])
+    assert calls["ranks"] == 2
+
+
+@pytest.mark.usefixtures("sample_catalog")
+def test_a_later_night_with_other_equipment_is_ranked_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with no_network():
+        nights = _nights(_london(), _INSTANT)
+        rank_nights(_london(), _INSTANT, nights)
+        calls = _count_ranks(monkeypatch)
+        rank_nights(_london(equipment=_LONG_EQUIPMENT), _INSTANT, nights)
+    assert calls["ranks"] == 4
+
+
+@pytest.mark.usefixtures("sample_catalog")
+def test_a_recompute_in_the_same_night_reuses_the_later_nights_lists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pier = _london()
+    an_hour_on = _INSTANT + timedelta(hours=1)
+    with no_network():
+        first = rank_nights(pier, _INSTANT, _nights(pier, _INSTANT))
+        nights = _nights(pier, an_hour_on)
+        calls = _count_ranks(monkeypatch)
+        again = rank_nights(pier, an_hour_on, nights)
+    assert calls["ranks"] == 1
+    assert _dumped(again[1:]) == _dumped(first[1:])
+
+
+@pytest.mark.usefixtures("sample_catalog")
+def test_a_later_night_that_has_started_is_ranked_on_its_remaining_window() -> None:
+    pier = _london()
+    with no_network():
+        nights = _nights(pier, _INSTANT)
+        rank_nights(pier, _INSTANT, nights[:2])
+        window, moon = nights[1]
+        assert window[0] is not None
+        inside = window[0] + timedelta(hours=3)
+        listed = rank_nights(pier, inside, nights[:2])[1]
+        alone = rank_targets(pier, inside, window, moon)
+    assert alone
+    assert _dumped([listed]) == _dumped([alone])

@@ -10,12 +10,14 @@ comparison fails — so the additive-only claim (ADR-0009) is guarded byte for b
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from pierpressure.conditions.provider import assemble_snapshot
 from pierpressure.core.clock import FixedClock
 from pierpressure.core.config import PierConfig
+from pierpressure.core.model import Target
 from pierpressure.core.producer import produce_verdict
 from pierpressure.core.providers import OPEN_METEO, SEVEN_TIMER
 
@@ -156,10 +158,13 @@ def test_a_bright_top_pick_on_a_pier_without_equipment_gets_the_bright_target_se
 
     from .test_ranking_suitability import _pleiades_target
 
-    real_rank = producer.rank_targets
-    monkeypatch.setattr(
-        producer, "rank_targets", lambda *args: [_pleiades_target(), *real_rank(*args)]
-    )
+    real_rank = producer.rank_nights
+
+    def pleiades_first(*args: Any) -> list[list[Target]]:
+        tonight, *later = real_rank(*args)
+        return [[_pleiades_target(), *tonight], *later]
+
+    monkeypatch.setattr(producer, "rank_nights", pleiades_first)
     pier = PierConfig(id="backyard", latitude=51.5, longitude=-0.12, elevation_m=30.0)
     conditions = assemble_snapshot([(OPEN_METEO, _base_full()), (SEVEN_TIMER, _secondary_full())])
     with no_network():

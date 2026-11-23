@@ -196,14 +196,21 @@ export interface Bar {
 export interface TargetLane {
   rank: number;
   label: string;
+  // One for each night with a target at this rank whose window touches the
+  // axis. The lane stays without any, so the number of lanes never moves with
+  // the clock.
+  bars: TargetBar[];
+}
+
+// Each night names its own target at a rank.
+export interface TargetBar extends Bar {
+  // 1 for tonight, 2 to 4 for a later night.
+  night: number;
   // The target's name, which a narrow bar shortens; its id when the catalog
   // gives it no name.
   name: string;
   // The target's catalog id, which a narrow bar keeps whole after the name.
   id?: string;
-  // Absent when the window is wholly off the axis; the lane stays, so the
-  // number of lanes never moves with the clock.
-  bar?: Bar;
 }
 
 export interface Line {
@@ -634,20 +641,76 @@ function targetLanes(
   axis: Axis,
   time: (at: number) => string,
 ): TargetLane[] {
+  const later = LATER_NIGHTS.map((number) => ({
+    number,
+    targets: laterTargets(states, pier, number),
+  }));
   return Array.from({ length: TARGET_RANKS }, (_, index) => index + 1).flatMap((rank) => {
-    const entity = states[pierEntityId(pier, `target_${rank}`)];
-    if (entity === undefined || NO_NAME.has(entity.state)) return [];
-    const window = asRecord(entity.attributes["window"]);
-    const start = readTime(window?.["start"]);
-    const end = readTime(window?.["end"]);
-    if (start === undefined || end === undefined || end <= start) return [];
-    const lane: TargetLane = { rank, label: `Target ${rank}`, ...targetName(entity) };
-    const name = lane.id === undefined ? lane.name : `${lane.name} (${lane.id})`;
-    if (end <= axis.start || start >= axis.end) return [lane];
-    const from = Math.max(start, axis.start);
-    const to = Math.min(end, axis.end);
-    return [{ ...lane, bar: { start, end, from, to, text: targetText(name, start, end, time) } }];
+    const candidates = [
+      tonightTarget(states[pierEntityId(pier, `target_${rank}`)]),
+      ...later.map(({ number, targets }) => laterTarget(targets[rank - 1], number)),
+    ].filter((candidate) => candidate !== undefined);
+    if (candidates.length === 0) return [];
+    const bars = candidates.flatMap(({ start, end, ...named }): TargetBar[] => {
+      if (end <= axis.start || start >= axis.end) return [];
+      const name = named.id === undefined ? named.name : `${named.name} (${named.id})`;
+      const from = Math.max(start, axis.start);
+      const to = Math.min(end, axis.end);
+      return [{ ...named, start, end, from, to, text: targetText(name, start, end, time) }];
+    });
+    return [{ rank, label: `Target ${rank}`, bars }];
   });
+}
+
+// One night's target at one rank, before it is placed on the axis.
+interface RankedTarget {
+  night: number;
+  name: string;
+  id?: string;
+  start: number;
+  end: number;
+}
+
+function tonightTarget(
+  entity: { state: string; attributes: Record<string, unknown> } | undefined,
+): RankedTarget | undefined {
+  if (entity === undefined || NO_NAME.has(entity.state)) return undefined;
+  const window = readWindow(entity.attributes["window"]);
+  return window && { night: 1, ...targetName(entity), ...window };
+}
+
+// A Night sensor is unavailable when the forecast does not reach its night, and
+// its attributes may still hold the targets it had before.
+function laterTargets(states: States, pier: string, number: number): unknown[] {
+  const entity = states[pierEntityId(pier, `night_${number}`)];
+  if (entity === undefined || entity.state === "unavailable") return [];
+  const targets = entity.attributes["targets"];
+  return Array.isArray(targets) ? targets : [];
+}
+
+function laterTarget(entry: unknown, night: number): RankedTarget | undefined {
+  const record = asRecord(entry);
+  const window = readWindow(record?.["window"]);
+  const named = laterName(record?.["name"], record?.["id"]);
+  return window && named && { night, ...named, ...window };
+}
+
+// A later night's entry has no state to fall back on, so it needs a name or an id.
+function laterName(name: unknown, id: unknown): { name: string; id?: string } | undefined {
+  const hasName = typeof name === "string" && name !== "";
+  const hasId = typeof id === "string" && id !== "";
+  if (hasName && hasId) return { name, id };
+  if (hasName) return { name };
+  if (hasId) return { name: id };
+  return undefined;
+}
+
+function readWindow(value: unknown): { start: number; end: number } | undefined {
+  const window = asRecord(value);
+  const start = readTime(window?.["start"]);
+  const end = readTime(window?.["end"]);
+  if (start === undefined || end === undefined || end <= start) return undefined;
+  return { start, end };
 }
 
 // PierPressure before the catalog id was published sends no `id`; its bar keeps

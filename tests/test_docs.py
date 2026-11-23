@@ -580,6 +580,30 @@ def test_the_document_table_has_a_later_nights_row() -> None:
     assert "`dark_window`" in row and "Night 2" in row
 
 
+def test_the_night_rows_attributes_hold_the_dark_window_moon_and_targets() -> None:
+    row = _row(_entities(), "| **Night 2** to **Night 4**")
+    assert "Its attributes hold that night's `dark_window`, `moon` and `targets`" in row
+
+
+def test_the_later_nights_row_gives_each_entrys_shape() -> None:
+    section = _section(_README.read_text(encoding="utf-8"), "### The verdict document")
+    row = " ".join(_row(section, "| `later_nights` |").split())
+    assert "`{ dark_window, moon, targets }`" in row
+    assert "same shapes as the top-level fields" in row
+
+
+def test_the_later_nights_row_says_when_the_moon_is_taken() -> None:
+    section = _section(_README.read_text(encoding="utf-8"), "### The verdict document")
+    row = " ".join(_row(section, "| `later_nights` |").split())
+    assert "local solar midnight" in row
+
+
+def test_the_later_nights_row_says_how_the_targets_are_ranked() -> None:
+    section = _section(_README.read_text(encoding="utf-8"), "### The verdict document")
+    row = " ".join(_row(section, "| `later_nights` |").split())
+    assert "ranked over its whole dark window" in row
+
+
 def test_the_clean_up_loop_lists_the_night_sensors() -> None:
     removing = _section(_README.read_text(encoding="utf-8"), "### Removing the entities")
     assert "sensor/pierpressure_backyard/night_{2..4}" in removing

@@ -290,22 +290,46 @@ def _later_night() -> LaterNight:
         dark_window=DarkWindow(
             start=datetime(2026, 9, 9, 20, 27, 57, tzinfo=UTC),
             end=datetime(2026, 9, 10, 3, 28, 2, tzinfo=UTC),
-        )
+        ),
+        moon=_STUB_MOON,
     )
 
 
-def test_a_later_night_serializes_only_its_dark_window() -> None:
+_STUB_MOON_JSON = {
+    "illumination": 0.0,
+    "phase": "new",
+    "up_during_dark": None,
+    "rise": None,
+    "set": None,
+}
+
+
+def test_a_later_night_serializes_its_dark_window_moon_and_targets() -> None:
     doc = _gated_no_go().model_copy(update={"later_nights": [_later_night()]})
     assert json.dumps(json.loads(doc.to_json())["later_nights"]) == json.dumps(
-        [{"dark_window": {"start": "2026-09-09T20:27:57Z", "end": "2026-09-10T03:28:02Z"}}]
+        [
+            {
+                "dark_window": {"start": "2026-09-09T20:27:57Z", "end": "2026-09-10T03:28:02Z"},
+                "moon": _STUB_MOON_JSON,
+                "targets": [],
+            }
+        ]
     )
+
+
+def test_a_later_night_needs_a_moon() -> None:
+    with pytest.raises(ValidationError):
+        LaterNight.model_validate({"dark_window": {"start": None, "end": None}})
 
 
 def test_a_later_night_without_darkness_serializes_null_bounds() -> None:
-    doc = _gated_no_go().model_copy(update={"later_nights": [LaterNight(dark_window=DarkWindow())]})
-    assert json.loads(doc.to_json())["later_nights"] == [
-        {"dark_window": {"start": None, "end": None}}
-    ]
+    doc = _gated_no_go().model_copy(
+        update={"later_nights": [LaterNight(dark_window=DarkWindow(), moon=_STUB_MOON)]}
+    )
+    assert json.loads(doc.to_json())["later_nights"][0]["dark_window"] == {
+        "start": None,
+        "end": None,
+    }
 
 
 def test_later_nights_round_trip_through_json() -> None:
@@ -315,7 +339,13 @@ def test_later_nights_round_trip_through_json() -> None:
 
 def test_a_later_night_rejects_unknown_keys() -> None:
     with pytest.raises(ValidationError):
-        LaterNight.model_validate({"dark_window": {"start": None, "end": None}, "score": 50})
+        LaterNight.model_validate(
+            {
+                "dark_window": {"start": None, "end": None},
+                "moon": _STUB_MOON_JSON,
+                "score": 50,
+            }
+        )
 
 
 def test_agreement_defaults_to_the_empty_object() -> None:

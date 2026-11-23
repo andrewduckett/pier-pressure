@@ -1,0 +1,60 @@
+<!-- Plain language: Each task must make sense to an agent and reviewer without the planning conversation. Name an observable outcome, its location when needed, and how to verify it. Preserve checkbox syntax and tags. -->
+
+## 1. Core: each later night's moon and targets
+
+- [x] 1.1 [medium] A new `sky.later_nights(pier, instant, window, reach_end)` returns, for each later night in date order, a frozen `LaterNightSky` holding its chained local solar day and its dark window; for London (51.5, −0.12, 30 m) at 2026-09-08T18:00Z the first solar day is 2026-09-09T11:57:48Z to 2026-09-10T11:57:27Z; `later_night_windows` returns the same windows as before, taken from it (design DD1) (verify: `uv run pytest tests/test_sky_later_nights.py`) (✓ `uv run pytest tests/test_sky_later_nights.py` passed, 12 tests)
+- [x] 1.2 [medium] Each `later_nights` entry has exactly the keys `dark_window`, `moon` and `targets`, in that order: `LaterNight` gains a required `moon: Moon` and `targets: list[Target]`, and the producer fills `moon` from `moon_info` at the middle of the night's solar day floored to the second, with `targets` still empty. The spec's moon scenarios pass: London's first later night is `{"illumination": 0.02, "phase": "new", ...}` beside a top-level 0.07, London 2026-11-21 gives 0.96 waxing gibbous up all night, and 52° N on 2026-05-19 gives 0.24 waxing crescent with null rise, set and up-during-dark. Tests that build a `LaterNight` or compare the document's tail are updated (design DD2, DD6; spec night-verdict "A later night entry holds its dark window, moon and targets", "A later night's moon illumination and phase are taken at its local solar midnight") (verify: `uv run pytest tests/test_model.py tests/test_producer_later_nights.py tests/test_night_sensors.py tests/test_publish.py`) (✓ `uv run pytest tests/test_model.py tests/test_producer_later_nights.py tests/test_night_sensors.py tests/test_publish.py` passed, 108 tests; goldens unchanged)
+- [x] 1.3 [easy] A ranking whose scored window is shorter than `MIN_USABLE_WINDOW` returns an empty list without scanning the catalog, so the 28-minute dark window at 52° N on 2026-05-19 makes no `_scan_night` call; longer windows rank as before (design DD5) (verify: `uv run pytest tests/test_ranking_pipeline.py`) (✓ `uv run pytest tests/test_ranking_pipeline.py` passed, 20 tests)
+- [x] 1.4 [complex] A new `ranking.rank_nights(pier, instant, nights)` ranks each `(window, moon)` pair in order through the existing per-night path, and `rank_targets` delegates to it with one pair. The scan cache becomes a map per pier id that, after each call, holds exactly the scans of the nights that call ranked, with `_CACHE_MAXSIZE` removed: three piers of four nights each, recomputed in turn, then the first pier again, make no new `_scan_night` call, and give byte-identical lists to a fresh ranking. The old LRU-bound test is replaced (design DD3, DD4; spec target-ranking "A recompute reuses the catalog scan of every night it ranked") (verify: `uv run pytest tests/test_ranking_pipeline.py tests/test_ranking_remaining.py`) (✓ `uv run pytest tests/test_ranking_pipeline.py tests/test_ranking_remaining.py` passed, 35 tests)
+- [x] 1.5 [medium] In `rank_nights`, each later night (every pair after the first) keeps its ranked list beside its scan, with the moon illumination and equipment it was ranked with; calling `rank_nights` again with the same nights calls `_rank` for tonight only and returns byte-identical lists, and a later night with a different moon illumination, or a pier with different equipment, is ranked again; the spec scenario "A recompute in the same night" passes, counting `_rank` calls by monkeypatching as the `_scan_night` counts do (design DD4; spec target-ranking "A recompute reuses a later night's ranked list") (verify: `uv run pytest tests/test_ranking_pipeline.py tests/test_producer_later_nights.py`) (✓ `uv run pytest tests/test_ranking_pipeline.py tests/test_producer_later_nights.py` passed; the same-night scenario is tested at the ranking seam here and at the producer seam in 1.6)
+- [x] 1.6 [medium] `produce_verdict` ranks tonight and every later night with one `rank_nights` call and fills each entry's `targets`; the spec scenarios pass: London's first later night's first target is `NGC7394`, score 99, with `window` and `remaining_window` both 20:27:57Z to 03:28:02Z; on 2026-11-21 tonight's first is `NGC1491` and the later nights' are `IC0463` and `NGC3690A`; a night with no darkness has `targets: []`; tonight's `verdict`, `score`, `reasons`, `targets`, `dark_window`, `scored_window` and `moon` match a forecast that reaches no later night; recomputing London at 2026-09-09T18:00Z after 2026-09-08T18:00Z scans only the night whose solar day starts on 2026-09-12. Tests that do not assert on later nights' targets scan an empty catalog by monkeypatching `ranking._scan_night` with `objects=()`, and the goldens do not change (design DD3, risks; spec target-ranking "A later night is ranked over its whole dark window on its own moon", night-verdict "A later night's targets are present, and empty when nothing is rankable") (verify: `uv run pytest tests/test_producer_later_nights.py tests/test_producer_timeline.py tests/test_producer_targets.py tests/test_golden_verdict.py tests/test_determinism.py`) (✓ `uv run pytest tests/test_producer_later_nights.py tests/test_producer_timeline.py tests/test_producer_targets.py tests/test_golden_verdict.py tests/test_determinism.py` passed, 81 tests; goldens unchanged)
+
+## 2. Delivery and README [depends-on: 1]
+
+- [x] 2.1 [parallel] [easy] Each Night sensor's attributes are `available`, `night`, `dark_window`, `moon` and `targets`, in that order, with the entry's values; a night with no darkness carries its moon and `"targets": []`; no discovery configuration is added and the states are still each night's dusk (design DD7; spec ha-delivery "A Night sensor's attributes hold its night's entry") (verify: `uv run pytest tests/test_night_sensors.py`) (✓ `uv run pytest tests/test_night_sensors.py` passed, 35 tests)
+- [x] 2.2 [parallel] [easy] The README's **Night 2** to **Night 4** row says the attributes hold that night's `dark_window`, `moon` and `targets`, and its `later_nights` row says each entry is `{ dark_window, moon, targets }` in the top-level shapes, with the moon taken at the night's local solar midnight and the targets ranked over its whole dark window; tests in `tests/test_docs.py` check both rows (verify: `uv run pytest tests/test_docs.py`) (✓ `uv run pytest tests/test_docs.py` passed, 128 tests)
+
+## 3. Card: later nights' bars in the target lanes
+
+- [x] 3.1 [complex] The strip has a lane for each rank with a target on any night, tonight from its Target sensor and a later night from the entry at that rank in an available Night sensor's `targets` with a non-empty `name` or `id` and a readable window; each lane holds one bar per night whose window touches the axis, named `<name> (<id>)`, `<id>` or `<name>` from that night's entry, with tonight's hover text rule; `TargetLane` holds `bars`, each a `TargetBar` with its `night`, `name` and `id`, and each rendered bar has `data-night`; `card/src/tap.ts`'s text map and the card's bar rendering read `bars`, so the card type-checks and tonight's tap boxes still work. Every night-card lane and bar scenario of this change passes, and the old single-bar tests are updated (design DD8; spec night-card "The card draws a lane per ranked target", "A rank has a target on a later night when its Night sensor's entry shows one", "A later night's targets draw bars in their ranks' lanes", "Everything on the strip pans together") (verify: `cd card && npm run typecheck && npx vitest run test/targets.test.ts test/pan.test.ts test/strip.test.ts test/tap.test.ts`) (✓ `cd card && npm run typecheck && npx vitest run test/targets.test.ts test/pan.test.ts test/strip.test.ts test/tap.test.ts` passed, 356 tests)
+- [x] 3.2 [easy] A tap box on a target bar follows the bar of the same night in the same lane after a redraw, keyed `target:<rank>:<night>`; updating Night 2's first target to the Pleiades (M45) changes the box to `Pleiades (M45) from 21:00 to 04:00`, and tonight's bar in that lane keeps its text (spec night-card "An item is the same after a redraw when it has the same place in the strip") (verify: `cd card && npm run typecheck && npx vitest run test/tap.test.ts`) (✓ `cd card && npm run typecheck && npx vitest run test/tap.test.ts` passed, 89 tests)
+- [x] 3.3 [parallel] [easy] `docs/night-card.md`'s panning section says up to three later nights have dusk and dawn lines and their own target bars, read from `sensor.pierpressure_<pier>_night_2` to `_night_4`, and no longer says a later night has no target bars; its target lanes section says a lane can hold a bar for each night, named for that night's target and ranked on that night's own moon, and that a rank with no target on any night leaves no lane (spec night-card "The docs describe panning the strip", "The docs describe the target lanes") (verify: `uv run pytest tests/test_night_card_doc.py`) (✓ `uv run pytest tests/test_night_card_doc.py` passed, 194 tests)
+
+## 4. Integration [depends-on: 2, 3]
+
+- [x] 4.1 [easy] The whole CI gate passes: specs, lint, types, Python tests and the card's type-check, tests and build; the Deviations Ledger records the Python suite's run time beside `origin/main`'s (verify: `mise run check`) (✓ `mise run check` passed: 12 specs valid, ruff, mypy, 2882 Python tests, card type-check, 706 card tests and build)
+
+## Deviations Ledger
+
+<!-- Dated notes on small departures from the plan, written during apply. Stop and ask the user about a large one. -->
+
+- 2026-11-23, Python suite run time (task 4.1). Measured on the same machine,
+  one run after another, with `uv run pytest -q`:
+  - `origin/main` (613f6f6): 2774 tests in 332 s.
+  - The base branch `later-night-dark-windows` (4e3b6c5): 2846 tests in 435 s.
+  - This branch: 2882 tests in 514 s, inside `mise run check`.
+
+  This change adds about 79 s (18%) over its base. Most of the 182 s over
+  `origin/main` is #318's. The remaining cost is tests that produce a verdict
+  whose forecast reaches later nights and that assert on tonight's targets or
+  equipment notes, so they keep the real catalog: for example in
+  `tests/test_producer.py`, `tests/test_service.py`,
+  `tests/test_service_reconnect.py` and `tests/test_horizon_contract.py`, about
+  10 s to 15 s each. They were not changed.
+- 2026-11-23, the `empty_catalog` fixture lives in `tests/conftest.py`, not in
+  one test file. `tests/test_producer_later_nights.py` uses it for the tests
+  that assert on no later night's targets, and `tests/test_producer_timeline.py`
+  uses it for every test, since none asserts on a target. It clears the scan
+  cache before and after, so no empty scan reaches another test.
+- 2026-11-23, the target-ranking scenario "A recompute in the same night" is
+  tested at two seams: `rank_nights` in task 1.5, and `produce_verdict` in task
+  1.6, once the producer ranks later nights. Both count `_rank` calls on a
+  slice of the catalog (every 40th object), so the lists are short but not
+  empty. The three-pier cache test in task 1.4 uses the same slice.
+- 2026-11-23, some tests passed on their first run because they guard
+  behaviour that already held: task 2.1's Night sensor tests (delivery needs no
+  code change, design DD7), the exact-minimum scan in task 1.3, and the
+  re-ranking for other equipment in task 1.5.
+- 2026-11-23, between the task 3.1 and 3.2 commits, a later night's target bar
+  shared tonight's tap key `target:<rank>`, so a tap on it showed tonight's
+  text. Task 3.2's `target:<rank>:<night>` key fixed it.
