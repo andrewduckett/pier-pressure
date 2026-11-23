@@ -370,13 +370,17 @@ class ObservationEntry(BaseModel):
 class LaterNight(BaseModel):
     """One night after the selected night, one local solar day on (ADR-0043).
 
-    It carries only its own dark window, null-bounded when its solar day holds
-    no astronomical night, and no verdict, score or confidence of its own.
+    It carries its own dark window, null-bounded when its solar day holds no
+    astronomical night, its own moon, taken at its local solar midnight, and the
+    targets ranked over its whole dark window on that moon. It has no verdict,
+    score or confidence of its own.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     dark_window: DarkWindow
+    moon: Moon
+    targets: list[Target] = Field(default_factory=list)
 
 
 class VerdictDocument(BaseModel):

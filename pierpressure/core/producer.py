@@ -35,7 +35,7 @@ from .model import (
 from .observation import Observation, observation_reason, usable
 from .ranking import equipment_reasons, rank_targets
 from .scoring import MIN_USABLE_WINDOW, AgreementTerm, ObservedTerm, evaluate
-from .sky import altitudes_at, dark_window, later_night_windows, moon_info, night_hours
+from .sky import altitudes_at, dark_window, later_nights, moon_info, night_hours
 
 
 def produce_verdict(
@@ -134,10 +134,19 @@ def _later_nights(
     """One entry per later night the shown variables' filled series reach."""
     hours = conditions.hours(TIMELINE_VARIABLES)
     reach_end = hours[-1] + timedelta(hours=1) if hours else None
-    return [
-        LaterNight(dark_window=DarkWindow(start=start, end=end))
-        for start, end in later_night_windows(pier, instant, window, reach_end)
-    ]
+    entries: list[LaterNight] = []
+    for night in later_nights(pier, instant, window, reach_end):
+        day_start, day_end = night.solar_day
+        # Local solar midnight, a fixed instant, so a recompute gives the same moon.
+        midnight = (day_start + (day_end - day_start) / 2).replace(microsecond=0)
+        start, end = night.dark_window
+        entries.append(
+            LaterNight(
+                dark_window=DarkWindow(start=start, end=end),
+                moon=moon_info(pier, night.dark_window, midnight),
+            )
+        )
+    return entries
 
 
 def _observed_reason(term: ObservedTerm) -> str:

@@ -539,7 +539,8 @@ def make_later_nights(count: int) -> list[LaterNight]:
         LaterNight(
             dark_window=DarkWindow(
                 start=first + timedelta(days=i), end=first + timedelta(days=i, hours=7)
-            )
+            ),
+            moon=Moon(illumination=0.0, phase=MoonPhase.NEW),
         )
         for i in range(count)
     ]

@@ -9,9 +9,13 @@ import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import pytest
+
+from pierpressure.core import producer
 from pierpressure.core.clock import FixedClock
 from pierpressure.core.conditions import Conditions, Series
 from pierpressure.core.config import PierConfig
+from pierpressure.core.model import Moon
 from pierpressure.core.producer import produce_verdict
 from pierpressure.core.providers import OPEN_METEO_GFS
 
@@ -54,9 +58,9 @@ def _starts(payload: dict[str, Any]) -> list[str | None]:
 
 def test_two_later_nights_carry_their_dark_windows() -> None:
     payload = _london(_cloud("2026-09-08T18:00:00Z", "2026-09-10T18:00:00Z"))
-    assert payload["later_nights"] == [
-        {"dark_window": {"start": "2026-09-09T20:27:57Z", "end": "2026-09-10T03:28:02Z"}},
-        {"dark_window": {"start": "2026-09-10T20:25:07Z", "end": "2026-09-11T03:30:11Z"}},
+    assert [entry["dark_window"] for entry in payload["later_nights"]] == [
+        {"start": "2026-09-09T20:27:57Z", "end": "2026-09-10T03:28:02Z"},
+        {"start": "2026-09-10T20:25:07Z", "end": "2026-09-11T03:30:11Z"},
     ]
 
 
@@ -105,9 +109,9 @@ def test_a_selected_night_with_no_dark_window_still_has_later_nights() -> None:
         _cloud("2026-06-21T08:00:00Z", "2026-06-23T18:00:00Z"),
     )
     assert payload["dark_window"] == {"start": None, "end": None}
-    assert payload["later_nights"] == [
-        {"dark_window": {"start": None, "end": None}},
-        {"dark_window": {"start": None, "end": None}},
+    assert [entry["dark_window"] for entry in payload["later_nights"]] == [
+        {"start": None, "end": None},
+        {"start": None, "end": None},
     ]
 
 
@@ -155,9 +159,9 @@ def test_a_solar_day_after_darkness_ends_has_a_null_window() -> None:
         "start": "2026-05-19T23:42:13Z",
         "end": "2026-05-20T00:10:20Z",
     }
-    assert payload["later_nights"] == [
-        {"dark_window": {"start": None, "end": None}},
-        {"dark_window": {"start": None, "end": None}},
+    assert [entry["dark_window"] for entry in payload["later_nights"]] == [
+        {"start": None, "end": None},
+        {"start": None, "end": None},
     ]
 
 
@@ -176,6 +180,66 @@ def test_continuous_polar_night_windows_follow_one_another() -> None:
         assert abs(span - timedelta(days=1)) < timedelta(minutes=1)
 
 
-def test_every_entry_holds_only_its_dark_window() -> None:
+def test_every_entry_holds_its_dark_window_moon_and_targets() -> None:
     payload = _london(_cloud("2026-09-08T18:00:00Z", "2026-09-14T18:00:00Z"))
-    assert [list(entry) for entry in payload["later_nights"]] == [["dark_window"]] * 3
+    assert [list(entry) for entry in payload["later_nights"]] == [
+        ["dark_window", "moon", "targets"]
+    ] * 3
+
+
+def test_the_next_nights_moon_is_taken_at_its_local_solar_midnight() -> None:
+    payload = _london(_cloud("2026-09-08T18:00:00Z", "2026-09-10T18:00:00Z"))
+    assert payload["later_nights"][0]["moon"] == {
+        "illumination": 0.02,
+        "phase": "new",
+        "up_during_dark": False,
+        "rise": None,
+        "set": None,
+    }
+    assert payload["moon"]["illumination"] == 0.07
+
+
+def test_the_moon_instant_is_the_floored_middle_of_the_solar_day(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[datetime] = []
+    real = producer.moon_info
+
+    def spy(pier: PierConfig, window: Any, instant: datetime) -> Moon:
+        seen.append(instant)
+        return real(pier, window, instant)
+
+    monkeypatch.setattr(producer, "moon_info", spy)
+    _london(_cloud("2026-09-08T18:00:00Z", "2026-09-10T18:00:00Z"))
+    assert seen[1] == _at("2026-09-09T23:57:37Z")
+
+
+def test_a_moon_up_all_through_a_later_night() -> None:
+    payload = _payload(
+        LONDON,
+        datetime(2026, 11, 21, 12, 0, tzinfo=UTC),
+        _cloud("2026-11-21T12:00:00Z", "2026-11-23T18:00:00Z"),
+    )
+    assert payload["later_nights"][0]["moon"] == {
+        "illumination": 0.96,
+        "phase": "waxing gibbous",
+        "up_during_dark": True,
+        "rise": None,
+        "set": None,
+    }
+
+
+def test_a_later_night_with_no_darkness_keeps_its_illumination_and_phase() -> None:
+    pier = PierConfig(id="may", latitude=52.0, longitude=0.0, elevation_m=0.0)
+    payload = _payload(
+        pier,
+        datetime(2026, 5, 19, 15, 0, tzinfo=UTC),
+        _cloud("2026-05-19T15:00:00Z", "2026-05-21T18:00:00Z"),
+    )
+    assert payload["later_nights"][0]["moon"] == {
+        "illumination": 0.24,
+        "phase": "waxing crescent",
+        "up_during_dark": None,
+        "rise": None,
+        "set": None,
+    }

@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 import jsonschema
 import pytest
 
-from pierpressure.core.model import DarkWindow, LaterNight, VerdictDocument
+from pierpressure.core.model import DarkWindow, LaterNight, Moon, MoonPhase, VerdictDocument
 from pierpressure.core.sky import MAX_LATER_NIGHTS
 from pierpressure.delivery.ha_schema import SENSOR_SCHEMA
 from pierpressure.delivery.mqtt import (
@@ -147,8 +147,16 @@ def test_republishing_introduces_no_new_night_identity(night: int) -> None:
 
 _NEXT_DUSK = datetime(2026, 9, 9, 20, 27, 57, tzinfo=UTC)
 _NEXT_DAWN = datetime(2026, 9, 10, 3, 28, 2, tzinfo=UTC)
-_NEXT_NIGHT = LaterNight(dark_window=DarkWindow(start=_NEXT_DUSK, end=_NEXT_DAWN))
-_NO_DARKNESS = LaterNight(dark_window=DarkWindow(start=None, end=None))
+_MOON = Moon(illumination=0.0, phase=MoonPhase.NEW)
+_MOON_JSON = {
+    "illumination": 0.0,
+    "phase": "new",
+    "up_during_dark": None,
+    "rise": None,
+    "set": None,
+}
+_NEXT_NIGHT = LaterNight(dark_window=DarkWindow(start=_NEXT_DUSK, end=_NEXT_DAWN), moon=_MOON)
+_NO_DARKNESS = LaterNight(dark_window=DarkWindow(start=None, end=None), moon=_MOON)
 
 
 def _published(*documents: VerdictDocument) -> FakeMqttClient:
@@ -183,6 +191,8 @@ def test_a_night_with_no_darkness_stays_available() -> None:
         "available": True,
         "night": 3,
         "dark_window": {"start": None, "end": None},
+        "moon": _MOON_JSON,
+        "targets": [],
     }
 
 
@@ -192,7 +202,9 @@ def test_a_filled_night_carries_its_entry() -> None:
     assert attributes.retain is True
     assert attributes.payload == (
         '{"available": true, "night": 2, "dark_window": '
-        '{"start": "2026-09-09T20:27:57Z", "end": "2026-09-10T03:28:02Z"}}'
+        '{"start": "2026-09-09T20:27:57Z", "end": "2026-09-10T03:28:02Z"}, '
+        '"moon": {"illumination": 0.0, "phase": "new", "up_during_dark": null, '
+        '"rise": null, "set": null}, "targets": []}'
     )
 
 
