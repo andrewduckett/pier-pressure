@@ -7,6 +7,7 @@ determinism guarantee, and the per-night cache are all checked end to end.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -325,6 +326,7 @@ def test_rank_targets_ranks_one_night_as_rank_nights_does() -> None:
     assert _dumped([alone]) == _dumped(listed)
 
 
+@pytest.mark.usefixtures("sample_catalog")
 def test_rank_nights_gives_one_list_per_night_in_order() -> None:
     pier = _london()
     with no_network():
@@ -335,11 +337,8 @@ def test_rank_nights_gives_one_list_per_night_in_order() -> None:
     assert _dumped(lists) == _dumped(each)
 
 
+@pytest.mark.usefixtures("sample_catalog")
 def test_a_recompute_reuses_every_scan_of_three_piers(monkeypatch: pytest.MonkeyPatch) -> None:
-    # A slice of the catalog keeps twelve scans quick; the cache does not depend on it.
-    sample = load_catalog()[::40]
-    monkeypatch.setattr(ranking, "load_catalog", lambda: sample)
-    ranking._scan_cache.clear()
     with no_network():
         nights = {pier.id: _nights(pier, _INSTANT) for pier in _THREE_PIERS}
         fresh = rank_nights(_THREE_PIERS[0], _INSTANT, nights["london"])
@@ -403,10 +402,13 @@ def _count_ranks(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
 
 
 @pytest.fixture
-def sample_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
+def sample_catalog(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     # A slice of the catalog keeps the rankings quick; the reuse does not depend on it.
+    # The cache is cleared on both sides, so no sliced scan reaches another test.
     sample = load_catalog()[::40]
     monkeypatch.setattr(ranking, "load_catalog", lambda: sample)
+    ranking._scan_cache.clear()
+    yield
     ranking._scan_cache.clear()
 
 
