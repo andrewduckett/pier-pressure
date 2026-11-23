@@ -22,8 +22,8 @@ Scope: the verdict document and its delivery. Code and specs use `timeline`.
 ## Later night
 
 A night after the selected night, one per local solar day, that the forecast
-reaches, up to three. Each carries its own dark window and no verdict, score or
-confidence.
+reaches, up to three. Each carries its own dark window, moon and ranked targets,
+and no verdict, score or confidence.
 
 Scope: the verdict document, its delivery and dashboards. Code and specs use
 `later_nights`.
