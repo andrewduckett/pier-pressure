@@ -28,14 +28,15 @@ from .model import (
     Confidence,
     DarkWindow,
     LaterNight,
+    Moon,
     ObservationEntry,
     TimelineEntry,
     VerdictDocument,
 )
 from .observation import Observation, observation_reason, usable
-from .ranking import equipment_reasons, rank_targets
+from .ranking import equipment_reasons, rank_nights
 from .scoring import MIN_USABLE_WINDOW, AgreementTerm, ObservedTerm, evaluate
-from .sky import altitudes_at, dark_window, later_nights, moon_info, night_hours
+from .sky import LaterNightSky, altitudes_at, dark_window, later_nights, moon_info, night_hours
 
 
 def produce_verdict(
@@ -75,7 +76,14 @@ def produce_verdict(
     window = dark_window(pier, instant)
     moon = moon_info(pier, window, instant)
     decision = evaluate(pier, instant, window, conditions, moon, observation)
-    targets = rank_targets(pier, instant, window, moon)
+    later = _later_skies(pier, instant, window, conditions)
+    # One call ranks every night, so the scan cache knows which nights the pier
+    # still needs (later-night-targets design DD3, DD4).
+    targets, *later_targets = rank_nights(
+        pier,
+        instant,
+        [(window, moon), *((night.dark_window, sky_moon) for night, sky_moon in later)],
+    )
 
     # The verdict's own itemised terms, then additive equipment-aware notes about
     # the top pick where the equipment and its facts are known (design D8). Appending
@@ -121,32 +129,33 @@ def produce_verdict(
         timeline=_timeline(pier, instant, window, conditions),
         agreement=_agreement(decision.agreement),
         observation=_observation_entry(observation),
-        later_nights=_later_nights(pier, instant, window, conditions),
+        later_nights=[
+            LaterNight(
+                dark_window=DarkWindow(start=night.dark_window[0], end=night.dark_window[1]),
+                moon=night_moon,
+                targets=night_targets,
+            )
+            for (night, night_moon), night_targets in zip(later, later_targets, strict=True)
+        ],
     )
 
 
-def _later_nights(
+def _later_skies(
     pier: PierConfig,
     instant: datetime,
     window: tuple[datetime, datetime] | tuple[None, None],
     conditions: Conditions,
-) -> list[LaterNight]:
-    """One entry per later night the shown variables' filled series reach."""
+) -> list[tuple[LaterNightSky, Moon]]:
+    """Each later night the shown variables' filled series reach, with its moon."""
     hours = conditions.hours(TIMELINE_VARIABLES)
     reach_end = hours[-1] + timedelta(hours=1) if hours else None
-    entries: list[LaterNight] = []
+    skies: list[tuple[LaterNightSky, Moon]] = []
     for night in later_nights(pier, instant, window, reach_end):
         day_start, day_end = night.solar_day
         # Local solar midnight, a fixed instant, so a recompute gives the same moon.
         midnight = (day_start + (day_end - day_start) / 2).replace(microsecond=0)
-        start, end = night.dark_window
-        entries.append(
-            LaterNight(
-                dark_window=DarkWindow(start=start, end=end),
-                moon=moon_info(pier, night.dark_window, midnight),
-            )
-        )
-    return entries
+        skies.append((night, moon_info(pier, night.dark_window, midnight)))
+    return skies
 
 
 def _observed_reason(term: ObservedTerm) -> str:

@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import pytest
+
 from pierpressure.core.clock import FixedClock
 from pierpressure.core.conditions import SEEING_COLUMN, Conditions, Series, Variable
 from pierpressure.core.config import PierConfig
@@ -25,6 +27,9 @@ from .offline_guard import no_network
 
 _ISSUED = datetime(2026, 9, 7, 0, 0, tzinfo=UTC)
 _MID_SESSION = datetime(2026, 9, 8, 23, 30, tzinfo=UTC)
+
+# No test here asserts on a target, so none scans the catalog.
+pytestmark = pytest.mark.usefixtures("empty_catalog")
 
 
 def _hours(start: datetime, count: int) -> list[datetime]:
