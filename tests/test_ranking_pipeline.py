@@ -265,6 +265,31 @@ def test_two_rigs_on_one_pier_share_a_scan_but_score_differently(
     assert [(t.id, t.score) for t in widefield] != [(t.id, t.score) for t in long]
 
 
+def test_a_night_shorter_than_the_minimum_is_not_scanned(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pier = PierConfig(id="may", latitude=52.0, longitude=0.0, elevation_m=0.0)
+    instant = datetime(2026, 5, 19, 15, 0, tzinfo=UTC)
+    calls = _count_scans(monkeypatch)
+    with no_network():
+        window = dark_window(pier, instant)
+        targets = rank_targets(pier, instant, window, moon_info(pier, window, instant))
+    start, end = window
+    assert start is not None and end is not None
+    assert end - start < MIN_USABLE_WINDOW
+    assert (targets, calls["scans"]) == ([], 0)
+
+
+def test_a_night_of_exactly_the_minimum_is_scanned(monkeypatch: pytest.MonkeyPatch) -> None:
+    ranking._scan_cache.clear()
+    calls = _count_scans(monkeypatch)
+    start = datetime(2026, 1, 1, 20, 0, tzinfo=UTC)
+    moon = Moon(illumination=0.1, phase=MoonPhase.NEW)
+    with no_network():
+        rank_targets(_london(), start, (start, start + MIN_USABLE_WINDOW), moon)
+    assert calls["scans"] == 1
+
+
 def test_cache_is_bounded_so_a_long_running_container_does_not_leak(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

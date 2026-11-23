@@ -845,7 +845,9 @@ def rank_targets(
     scored_start, scored_end = scored_window(instant, window)
     if start is None or end is None or scored_start is None or scored_end is None:
         return []
-    if scored_start == scored_end:
+    # Every target's remaining window lies inside the scored window and must span
+    # the minimum, so a shorter one ranks nothing, and is not worth a scan.
+    if scored_end - scored_start < MIN_USABLE_WINDOW:
         return []
     key = _cache_key(pier, (start, end))
     scan = _scan_cache.get(key)
