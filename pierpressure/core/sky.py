@@ -16,13 +16,15 @@ The exposed engine is:
   given dark window;
 - :func:`night_solar_day` — the selected night's local solar day, noon to noon;
 - :func:`night_hours` — the clock hours the timeline always carries for that night;
-- :func:`later_night_windows` — the dark window of each later night the forecast
-  reaches, one per local solar day after the selected night's;
+- :func:`later_nights` — each later night the forecast reaches, one per local
+  solar day after the selected night's, with its solar day and dark window;
+- :func:`later_night_windows` — the dark window of each of those later nights;
 - :func:`altitudes_at` — the sun's and the moon's altitude at each timeline hour.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from importlib.resources import files
@@ -267,13 +269,21 @@ def night_hours(
     return hours
 
 
-def later_night_windows(
+@dataclass(frozen=True)
+class LaterNightSky:
+    """A later night's local solar day, noon to noon, and its dark window."""
+
+    solar_day: tuple[datetime, datetime]
+    dark_window: tuple[datetime, datetime] | tuple[None, None]
+
+
+def later_nights(
     pier: PierConfig,
     instant: datetime,
     window: tuple[datetime, datetime] | tuple[None, None],
     reach_end: datetime | None,
-) -> list[tuple[datetime, datetime] | tuple[None, None]]:
-    """The dark window of each later night, in date order, up to :data:`MAX_LATER_NIGHTS`.
+) -> list[LaterNightSky]:
+    """Each later night, in date order, up to :data:`MAX_LATER_NIGHTS`.
 
     A later night is a local solar day after the selected night's, counted while
     it starts before ``reach_end``, the end of the forecast's last hour. Each day
@@ -285,14 +295,29 @@ def later_night_windows(
     if reach_end is None:
         return []
     _, day_start = night_solar_day(pier, instant, window)
-    windows: list[tuple[datetime, datetime] | tuple[None, None]] = []
-    while len(windows) < MAX_LATER_NIGHTS and day_start < reach_end:
+    nights: list[LaterNightSky] = []
+    while len(nights) < MAX_LATER_NIGHTS and day_start < reach_end:
         # Searching from the day's midpoint, not its noon, as night_solar_day does.
         _, next_noon = _local_solar_day(pier, day_start + timedelta(hours=12))
         day_end = next_noon.replace(microsecond=0)
-        windows.append(_later_night_window(pier, day_start, day_end))
+        nights.append(
+            LaterNightSky(
+                solar_day=(day_start, day_end),
+                dark_window=_later_night_window(pier, day_start, day_end),
+            )
+        )
         day_start = day_end
-    return windows
+    return nights
+
+
+def later_night_windows(
+    pier: PierConfig,
+    instant: datetime,
+    window: tuple[datetime, datetime] | tuple[None, None],
+    reach_end: datetime | None,
+) -> list[tuple[datetime, datetime] | tuple[None, None]]:
+    """The dark window of each of :func:`later_nights`."""
+    return [night.dark_window for night in later_nights(pier, instant, window, reach_end)]
 
 
 def _later_night_window(
