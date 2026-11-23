@@ -98,7 +98,7 @@ condition, from top to bottom:
 
 Under the rows is the **Moon up** lane, which also reads
 `sensor.pierpressure_<pier>_moon_altitude`. Under that is one lane for each
-[ranked target](target-ranking.md) tonight. Under the lanes, the Temperature
+rank with a [ranked target](target-ranking.md) on any night. Under the lanes, the Temperature
 chart draws the temperature and the dew point as two lines. See
 [The Temperature chart](#the-temperature-chart).
 
