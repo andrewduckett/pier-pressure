@@ -22,8 +22,39 @@
 
 ## 4. Integration [depends-on: 2, 3]
 
-- [ ] 4.1 [easy] The whole CI gate passes: specs, lint, types, Python tests and the card's type-check, tests and build; the Deviations Ledger records the Python suite's run time beside `origin/main`'s (verify: `mise run check`)
+- [x] 4.1 [easy] The whole CI gate passes: specs, lint, types, Python tests and the card's type-check, tests and build; the Deviations Ledger records the Python suite's run time beside `origin/main`'s (verify: `mise run check`) (✓ `mise run check` passed: 12 specs valid, ruff, mypy, 2882 Python tests, card type-check, 706 card tests and build)
 
 ## Deviations Ledger
 
 <!-- Dated notes on small departures from the plan, written during apply. Stop and ask the user about a large one. -->
+
+- 2026-11-23, Python suite run time (task 4.1). Measured on the same machine,
+  one run after another, with `uv run pytest -q`:
+  - `origin/main` (613f6f6): 2774 tests in 332 s.
+  - The base branch `later-night-dark-windows` (4e3b6c5): 2846 tests in 435 s.
+  - This branch: 2882 tests in 514 s, inside `mise run check`.
+
+  This change adds about 79 s (18%) over its base. Most of the 182 s over
+  `origin/main` is #318's. The remaining cost is tests that produce a verdict
+  whose forecast reaches later nights and that assert on tonight's targets or
+  equipment notes, so they keep the real catalog: for example in
+  `tests/test_producer.py`, `tests/test_service.py`,
+  `tests/test_service_reconnect.py` and `tests/test_horizon_contract.py`, about
+  10 s to 15 s each. They were not changed.
+- 2026-11-23, the `empty_catalog` fixture lives in `tests/conftest.py`, not in
+  one test file. `tests/test_producer_later_nights.py` uses it for the tests
+  that assert on no later night's targets, and `tests/test_producer_timeline.py`
+  uses it for every test, since none asserts on a target. It clears the scan
+  cache before and after, so no empty scan reaches another test.
+- 2026-11-23, the target-ranking scenario "A recompute in the same night" is
+  tested at two seams: `rank_nights` in task 1.5, and `produce_verdict` in task
+  1.6, once the producer ranks later nights. Both count `_rank` calls on a
+  slice of the catalog (every 40th object), so the lists are short but not
+  empty. The three-pier cache test in task 1.4 uses the same slice.
+- 2026-11-23, some tests passed on their first run because they guard
+  behaviour that already held: task 2.1's Night sensor tests (delivery needs no
+  code change, design DD7), the exact-minimum scan in task 1.3, and the
+  re-ranking for other equipment in task 1.5.
+- 2026-11-23, between the task 3.1 and 3.2 commits, a later night's target bar
+  shared tonight's tap key `target:<rank>`, so a tap on it showed tonight's
+  text. Task 3.2's `target:<rank>:<night>` key fixed it.
