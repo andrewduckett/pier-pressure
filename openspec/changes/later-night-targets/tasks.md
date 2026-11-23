@@ -12,7 +12,7 @@
 ## 2. Delivery and README [depends-on: 1]
 
 - [x] 2.1 [parallel] [easy] Each Night sensor's attributes are `available`, `night`, `dark_window`, `moon` and `targets`, in that order, with the entry's values; a night with no darkness carries its moon and `"targets": []`; no discovery configuration is added and the states are still each night's dusk (design DD7; spec ha-delivery "A Night sensor's attributes hold its night's entry") (verify: `uv run pytest tests/test_night_sensors.py`) (✓ `uv run pytest tests/test_night_sensors.py` passed, 35 tests)
-- [ ] 2.2 [parallel] [easy] The README's **Night 2** to **Night 4** row says the attributes hold that night's `dark_window`, `moon` and `targets`, and its `later_nights` row says each entry is `{ dark_window, moon, targets }` in the top-level shapes, with the moon taken at the night's local solar midnight and the targets ranked over its whole dark window; tests in `tests/test_docs.py` check both rows (verify: `uv run pytest tests/test_docs.py`)
+- [x] 2.2 [parallel] [easy] The README's **Night 2** to **Night 4** row says the attributes hold that night's `dark_window`, `moon` and `targets`, and its `later_nights` row says each entry is `{ dark_window, moon, targets }` in the top-level shapes, with the moon taken at the night's local solar midnight and the targets ranked over its whole dark window; tests in `tests/test_docs.py` check both rows (verify: `uv run pytest tests/test_docs.py`) (✓ `uv run pytest tests/test_docs.py` passed, 128 tests)
 
 ## 3. Card: later nights' bars in the target lanes
 
