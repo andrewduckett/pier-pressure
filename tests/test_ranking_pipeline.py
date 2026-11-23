@@ -388,3 +388,75 @@ def test_one_piers_ranking_leaves_another_piers_scans(monkeypatch: pytest.Monkey
     rank_nights(_THREE_PIERS[0], start, [((start, start + timedelta(hours=6)), moon)])
     rank_nights(_THREE_PIERS[1], start, [((start, start + timedelta(hours=7)), moon)])
     assert len(ranking._scan_cache["london"]) == 1
+
+
+def _count_ranks(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
+    calls = {"ranks": 0}
+    real_rank = ranking._rank
+
+    def counting_rank(*args: object, **kwargs: object) -> object:
+        calls["ranks"] += 1
+        return real_rank(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(ranking, "_rank", counting_rank)
+    return calls
+
+
+@pytest.fixture
+def sample_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A slice of the catalog keeps the rankings quick; the reuse does not depend on it.
+    sample = load_catalog()[::40]
+    monkeypatch.setattr(ranking, "load_catalog", lambda: sample)
+    ranking._scan_cache.clear()
+
+
+@pytest.mark.usefixtures("sample_catalog")
+def test_a_recompute_ranks_tonight_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    pier = _london()
+    with no_network():
+        nights = _nights(pier, _INSTANT)
+        first = rank_nights(pier, _INSTANT, nights)
+        calls = _count_ranks(monkeypatch)
+        again = rank_nights(pier, _INSTANT, nights)
+    assert calls["ranks"] == 1
+    assert _dumped(again) == _dumped(first)
+
+
+@pytest.mark.usefixtures("sample_catalog")
+def test_a_later_night_on_another_moon_is_ranked_again(monkeypatch: pytest.MonkeyPatch) -> None:
+    pier = _london()
+    with no_network():
+        nights = _nights(pier, _INSTANT)
+        rank_nights(pier, _INSTANT, nights)
+        window, moon = nights[1]
+        brighter = moon.model_copy(update={"illumination": 0.9})
+        calls = _count_ranks(monkeypatch)
+        rank_nights(pier, _INSTANT, [nights[0], (window, brighter), *nights[2:]])
+    assert calls["ranks"] == 2
+
+
+@pytest.mark.usefixtures("sample_catalog")
+def test_a_later_night_with_other_equipment_is_ranked_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with no_network():
+        nights = _nights(_london(), _INSTANT)
+        rank_nights(_london(), _INSTANT, nights)
+        calls = _count_ranks(monkeypatch)
+        rank_nights(_london(equipment=_LONG_EQUIPMENT), _INSTANT, nights)
+    assert calls["ranks"] == 4
+
+
+@pytest.mark.usefixtures("sample_catalog")
+def test_a_recompute_in_the_same_night_reuses_the_later_nights_lists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pier = _london()
+    an_hour_on = _INSTANT + timedelta(hours=1)
+    with no_network():
+        first = rank_nights(pier, _INSTANT, _nights(pier, _INSTANT))
+        nights = _nights(pier, an_hour_on)
+        calls = _count_ranks(monkeypatch)
+        again = rank_nights(pier, an_hour_on, nights)
+    assert calls["ranks"] == 1
+    assert _dumped(again[1:]) == _dumped(first[1:])
