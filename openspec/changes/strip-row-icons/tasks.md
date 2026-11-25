@@ -18,7 +18,7 @@ These tasks all touch `card/src/pierpressure-card.ts`, so they run in order.
 ## 3. Integration [depends-on: 1, 2]
 
 - [x] 3.1 [medium] Both layouts are checked by hand in a browser with `mise run dashboard-check`, on a card about 340 px wide and one about 600 px wide. The check covers: which layout shows; that the label column narrows to about 32 px on the narrow card; that the °C labels read over the lines and a tap there opens the hour's box; that Cloud low, Cloud mid and Cloud high stay distinct at 16 px, polishing the draft icons where they do not. The pull request description records the result under a `Checked by hand` heading (design Test Seams; brainstorm D7) (verify: `gh pr view 333 --json body --jq .body | grep -q "Checked by hand"`) (✓ checked at 340, 449, 450 and 600 px in a masonry and a sections view; `gh pr view 333 --json body --jq .body | grep -q "Checked by hand"` passed)
-- [ ] 3.2 [easy] The whole CI gate passes: specs, lint, types, Python tests and the card's type-check, tests and build (verify: `mise run check`)
+- [x] 3.2 [easy] The whole CI gate passes: specs, lint, types, Python tests and the card's type-check, tests and build (verify: `mise run check`) (✓ `mise run check` passed, exit 0; card 776 tests)
 
 ## Deviations Ledger
 
