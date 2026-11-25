@@ -1344,3 +1344,66 @@ describe("a day label's text", () => {
     );
   });
 });
+
+describe("the axis's days", () => {
+  // The night is 4 hours after the axis start to 5 hours before its end.
+  function days(start: string, end: string, timeZone: string) {
+    const dusk = new Date(Date.parse(start) + 4 * HOUR).toISOString();
+    const dawn = new Date(Date.parse(end) - 5 * HOUR).toISOString();
+    const states = { [VERDICT]: verdictEntity("GO", { dark_window: { start: dusk, end: dawn } }) };
+    return buildStrip(states, "backyard", Date.parse(start), timeZone).days.map((day) => ({
+      ...day,
+      from: new Date(day.from).toISOString(),
+      to: new Date(day.to).toISOString(),
+      ...(day.start !== undefined && { start: new Date(day.start).toISOString() }),
+    }));
+  }
+
+  it("splits one night in UTC at midnight", () => {
+    expect(days("2026-10-31T16:30:00Z", "2026-11-01T08:25:00Z", "UTC")).toEqual([
+      { from: "2026-10-31T16:30:00.000Z", to: "2026-11-01T00:00:00.000Z", text: "Sat 31 Oct" },
+      {
+        from: "2026-11-01T00:00:00.000Z",
+        to: "2026-11-01T08:25:00.000Z",
+        text: "Sun 1 Nov",
+        start: "2026-11-01T00:00:00.000Z",
+      },
+    ]);
+  });
+
+  it("holds one day when no day starts on the axis", () => {
+    expect(days("2026-10-31T16:30:00Z", "2026-11-01T08:25:00Z", "Asia/Tokyo")).toEqual([
+      { from: "2026-10-31T16:30:00.000Z", to: "2026-11-01T08:25:00.000Z", text: "Sun 1 Nov" },
+    ]);
+  });
+
+  it("gives no start to a day that starts as the axis starts", () => {
+    expect(days("2026-11-01T00:00:00Z", "2026-11-01T15:55:00Z", "UTC")).toEqual([
+      { from: "2026-11-01T00:00:00.000Z", to: "2026-11-01T15:55:00.000Z", text: "Sun 1 Nov" },
+    ]);
+  });
+
+  it("splits a polar-night axis at midnight", () => {
+    expect(
+      days("2026-12-20T07:00:00Z", "2026-12-21T16:00:00Z", "UTC").map(({ text, start }) => [
+        text,
+        start,
+      ]),
+    ).toEqual([
+      ["Sun 20 Dec", undefined],
+      ["Mon 21 Dec", "2026-12-21T00:00:00.000Z"],
+    ]);
+  });
+
+  // Chile's clocks go from 23:59 on 5 September 2026 to 01:00 on 6 September.
+  it("starts a day whose clock skips midnight at the first time it shows", () => {
+    expect(
+      days("2026-09-05T22:00:00Z", "2026-09-06T14:00:00Z", "America/Santiago").map(
+        ({ text, start }) => [text, start],
+      ),
+    ).toEqual([
+      ["Sat 5 Sep", undefined],
+      ["Sun 6 Sep", "2026-09-06T04:00:00.000Z"],
+    ]);
+  });
+});
