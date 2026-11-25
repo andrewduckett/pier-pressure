@@ -1,5 +1,6 @@
 // The strip's label icons: 24 by 24 drawings, stroked in the text colour.
-import { css, html, svg, type SVGTemplateResult } from "lit";
+import { css, html, nothing, svg, type SVGTemplateResult } from "lit";
+import type { Strip } from "./strip";
 
 export const iconStyles = css`
   .icon {
@@ -15,6 +16,22 @@ export const iconStyles = css`
     stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;
+  }
+  /* Shown only on a narrow card, which names its icons nowhere else. */
+  .legend {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 4px 12px;
+    margin: 12px 0 0;
+    padding: 0;
+    list-style: none;
+    color: var(--secondary-text-color);
+    font-size: 0.75em;
+  }
+  .legend li {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    line-height: 16px;
   }
 `;
 
@@ -82,4 +99,36 @@ export function renderIcon(key: string, name: string) {
   return html`<span class="icon" role="img" title=${name} aria-label=${name}
     ><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[key]}</svg></span
   >`;
+}
+
+// The label's icon names it for a screen reader, so this copy is hidden, and a
+// tap on it closes the box.
+function renderListedIcon(key: string) {
+  return html`<span class="icon" aria-hidden="true"
+    ><svg viewBox="0 0 24 24">${ICONS[key]}</svg></span
+  >`;
+}
+
+// Each icon the strip draws, top to bottom, then what a bare rank number means.
+export function renderLegend(strip: Strip | undefined) {
+  if (strip === undefined) return nothing;
+  const entries = [
+    ...strip.rows.map((row) => ({ key: row.key, name: row.label })),
+    { key: "moon_up", name: "Moon up" },
+    ...strip.chart.lines.map((line) => ({ key: line.key, name: line.label })),
+  ];
+  const first = strip.targets[0];
+  return html`<ul class="legend">
+    ${entries.map(
+      ({ key, name }) => html`<li>${renderListedIcon(key)}<span class="name">${name}</span></li>`,
+    )}
+    ${
+      first === undefined
+        ? nothing
+        : html`<li>
+            <span class="rank" aria-hidden="true">${first.rank}</span
+            ><span class="name">Target rank</span>
+          </li>`
+    }
+  </ul>`;
 }

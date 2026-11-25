@@ -2,7 +2,7 @@ import { LitElement, css, html, nothing, svg } from "lit";
 import { chartStyles, renderChart, renderMissing } from "./chart";
 import { EDITOR_TYPE } from "./editor";
 import { listPiers, pierSlug, verdictEntityId } from "./entity";
-import { iconStyles, renderIcon } from "./icons";
+import { iconStyles, renderIcon, renderLegend } from "./icons";
 import { type MoonDrawing, type MoonView, litPath, readMoon } from "./moon";
 import { hourPlace, iso, offset, share } from "./place";
 import {
@@ -501,7 +501,7 @@ export class PierPressureCard extends LitElement {
         ${renderMoon(moon)}
       </div>
       ${renderReasons(this.shownReasons(), time)} ${renderNote(strip)}
-      ${renderBack(strip, this.onBack)} ${renderStrip(strip, this.input)}
+      ${renderBack(strip, this.onBack)} ${renderStrip(strip, this.input)}${renderLegend(strip)}
     </div>`;
   }
 

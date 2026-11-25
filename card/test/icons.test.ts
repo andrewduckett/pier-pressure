@@ -1,5 +1,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
+  CLOUD_COVER_MAX,
+  CLOUD_COVER_MIN,
   CLOUD_RANGE_PAIR,
   TEMPERATURE,
   VERDICT,
@@ -284,5 +286,110 @@ describe("a card narrower than 450 px", () => {
 
   it("shows the legend", () => {
     expect(declarations(".legend", narrowStyles())).toContain("display: grid");
+  });
+});
+
+function legend(card: PierPressureCard): HTMLElement | null {
+  return card.shadowRoot?.querySelector<HTMLElement>("ul.legend") ?? null;
+}
+
+function legendNames(card: PierPressureCard): Array<string | undefined> {
+  return [...(legend(card)?.querySelectorAll("li") ?? [])].map(
+    (entry) => entry.querySelector(".name")?.textContent ?? undefined,
+  );
+}
+
+describe("the strip's legend", () => {
+  it("follows the strip, outside it, so a drag on it pans nothing", async () => {
+    const card = await withTarget();
+
+    const next = card.shadowRoot?.querySelector(".strip")?.nextElementSibling;
+    expect([next?.tagName, next?.className]).toEqual(["UL", "legend"]);
+  });
+
+  it("names each icon the strip draws, in the strip's order", async () => {
+    const card = await withTarget();
+
+    expect(legendNames(card)).toEqual([
+      ...ROW_NAMES,
+      "Moon up",
+      "Temperature",
+      "Dew point",
+      "Target rank",
+    ]);
+  });
+
+  // Both Cloud range sensors are there, with no hour they both forecast.
+  it("leaves out a row the strip leaves out", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [CLOUD_COVER_MIN]: forecastEntity([]),
+      [CLOUD_COVER_MAX]: forecastEntity([]),
+    });
+
+    expect(legendNames(card)).toEqual([
+      ...ROW_NAMES.filter((name) => name !== "Cloud range"),
+      "Moon up",
+      "Temperature",
+      "Dew point",
+    ]);
+  });
+
+  it("ends with Dew point when the strip has no target lane", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect(legendNames(card).at(-1)).toBe("Dew point");
+  });
+
+  it("shows the same icon as each row, lane or key entry", async () => {
+    const card = await withTarget();
+
+    const drawn = [
+      ...(card.shadowRoot?.querySelectorAll(".strip .label .icon svg") ?? []),
+    ].map((icon) => icon.innerHTML);
+    const listed = [...(legend(card)?.querySelectorAll("li .icon svg") ?? [])].map(
+      (icon) => icon.innerHTML,
+    );
+    expect([listed.length, listed]).toEqual([ROW_NAMES.length + 3, drawn]);
+  });
+
+  it("hides its icons from a screen reader, which reads the labels' icons", async () => {
+    const card = await withTarget();
+
+    const icons = [...(legend(card)?.querySelectorAll(".icon") ?? [])];
+    expect(icons.map((icon) => icon.getAttribute("aria-hidden"))).toEqual(
+      Array(ROW_NAMES.length + 3).fill("true"),
+    );
+  });
+
+  it.each(["title", "data-tip", "role", "aria-label"])(
+    "gives its icons no %s",
+    async (attribute) => {
+      const card = await withTarget();
+
+      expect(legend(card)?.querySelectorAll(`.icon[${attribute}]`).length).toBe(0);
+    },
+  );
+
+  it("pairs the first target lane's rank number with Target rank, with no icon", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [target(2)]: targetEntity("Orion Nebula", EVENING),
+    });
+
+    const entry = legend(card)?.querySelector("li:last-child");
+    expect([
+      [...(entry?.children ?? [])].map((part) => part.className),
+      entry?.querySelector(".rank")?.textContent,
+      entry?.querySelector(".rank")?.getAttribute("aria-hidden"),
+      entry?.querySelector(".name")?.textContent,
+    ]).toEqual([["rank", "name"], "2", "true", "Target rank"]);
+  });
+
+  it.each([
+    "grid-template-columns: repeat(auto-fill, minmax(130px, 1fr))",
+    "color: var(--secondary-text-color)",
+  ])("is laid out with %s", (declaration) => {
+    expect(declarations(".legend")).toContain(declaration);
   });
 });
