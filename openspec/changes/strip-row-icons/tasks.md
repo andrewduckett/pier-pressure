@@ -17,7 +17,7 @@ These tasks all touch `card/src/pierpressure-card.ts`, so they run in order.
 
 ## 3. Integration [depends-on: 1, 2]
 
-- [ ] 3.1 [medium] Both layouts are checked by hand in a browser with `mise run dashboard-check`, on a card about 340 px wide and one about 600 px wide. The check covers: which layout shows; that the label column narrows to about 32 px on the narrow card; that the °C labels read over the lines and a tap there opens the hour's box; that Cloud low, Cloud mid and Cloud high stay distinct at 16 px, polishing the draft icons where they do not. The pull request description records the result under a `Checked by hand` heading (design Test Seams; brainstorm D7) (verify: `gh pr view 333 --json body --jq .body | grep -q "Checked by hand"`)
+- [x] 3.1 [medium] Both layouts are checked by hand in a browser with `mise run dashboard-check`, on a card about 340 px wide and one about 600 px wide. The check covers: which layout shows; that the label column narrows to about 32 px on the narrow card; that the °C labels read over the lines and a tap there opens the hour's box; that Cloud low, Cloud mid and Cloud high stay distinct at 16 px, polishing the draft icons where they do not. The pull request description records the result under a `Checked by hand` heading (design Test Seams; brainstorm D7) (verify: `gh pr view 333 --json body --jq .body | grep -q "Checked by hand"`) (✓ checked at 340, 449, 450 and 600 px in a masonry and a sections view; `gh pr view 333 --json body --jq .body | grep -q "Checked by hand"` passed)
 - [ ] 3.2 [easy] The whole CI gate passes: specs, lint, types, Python tests and the card's type-check, tests and build (verify: `mise run check`)
 
 ## Deviations Ledger
@@ -25,3 +25,4 @@ These tasks all touch `card/src/pierpressure-card.ts`, so they run in order.
 <!-- Dated notes on small departures from the plan, written during apply. Stop and ask the user about a large one. -->
 
 - 2026-11-25, design Decision 1: the container query measures the card's host element, `pierpressure-card` with `display: block`, not `ha-card`. The browser check showed `ha-card` has a 1 px theme border on each side, and a container query measures inside it, so a 450 px card measured 448 px and took the narrow layout; the cut-off sat at 452 px. On the host, 449 px is narrow and 450 px is wide, as the spec says. No guarantee changes.
+- 2026-11-25, task 3.1: Cloud low, Cloud mid and Cloud high no longer use the draft's corner of axes. At 16 px the cloud's height alone left low and mid looking alike, so each now draws its cloud below, between or above two faint lines. The other draft icons are unchanged.

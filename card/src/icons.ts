@@ -38,9 +38,11 @@ export const iconStyles = css`
 // A small cloud centred on 0 0, moved into place by each icon that draws one.
 const CLOUD = "M-6 3h11a3 3 0 0 0 0-6a4 4 0 0 0-7.6 1A2.6 2.6 0 0 0-6 3z";
 
-// Cloud low, mid and high share a corner of axes, with the cloud at its height.
-function cloudAt(y: number): SVGTemplateResult {
-  return svg`<path d="M3 3v18h18" opacity=".55"></path><path
+// Cloud low, mid and high draw the cloud below, between or above two faint
+// lines. At 16 px a cloud's height alone, as in the draft, left low and mid
+// looking alike.
+function cloudAt(y: number, lines: string): SVGTemplateResult {
+  return svg`<path d=${lines} opacity=".55"></path><path
       d=${CLOUD}
       transform=${`translate(14 ${y})`}
     ></path>`;
@@ -56,9 +58,9 @@ export const ICONS: Readonly<Record<string, SVGTemplateResult>> = {
   cloud_range: svg`<path d=${CLOUD} transform="translate(12 7)"></path><path
       d="M12 13v8M9.5 13h5M9.5 21h5"
     ></path>`,
-  cloud_low: cloudAt(17),
-  cloud_mid: cloudAt(11.5),
-  cloud_high: cloudAt(6),
+  cloud_low: cloudAt(18.5, "M3 6h18M3 12h18"),
+  cloud_mid: cloudAt(12.8, "M3 4h18M3 20h18"),
+  cloud_high: cloudAt(6.5, "M3 12h18M3 18h18"),
   wind_gust: svg`<path d="M2 8h9a2.5 2.5 0 1 0-2.5-2.5"></path><path d="M2 13h6"></path><path
       d="M14 11l2.5 2.5L14 16M18.5 11l2.5 2.5-2.5 2.5"
     ></path><path d="M2 18h9"></path>`,
