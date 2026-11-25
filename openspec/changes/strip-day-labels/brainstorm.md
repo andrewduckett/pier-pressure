@@ -16,6 +16,7 @@ A day here is a calendar day in Home Assistant's time zone, as the issue's packe
 | D4 | How far does the divider at a day's start reach? | A thin solid rule across the time-label and day-label rows only, not through the strip's other rows. | Assumption |
 | D5 | Where does a day start when its clock skips midnight, as at a clock change in `America/Santiago`? | At the first instant whose date in Home Assistant's time zone differs from the instant before: usually 00:00, and 01:00 on such a day. The divider and the label go there. | Assumption |
 | D6 | Do hover and tap texts, the core, the verdict document or the MQTT entities change? | No: hover and tap texts stay `HH:MM`, and the card works the days out from the axis and Home Assistant's time zone. | Evidence: #335 packet, Scope (out) |
+| D7 | Where does a day's label go when its day starts too close to the axis's right end for the whole label to fit, such as `Sun 1 Nov` in the last hour shown? | Hidden until it fits whole. Its divider still shows, and so does the label pinned at the left edge, as in D2 when two labels would overlap. | Assumption |
 
 ## Changes from the story
 
