@@ -4,11 +4,13 @@ import {
   TEMPERATURE,
   VERDICT,
   WIND_DIRECTION,
+  cardStyles,
   cells,
   contrast,
   forecastEntity,
   moonLane,
   mountCard,
+  tap,
   target,
   targetEntity,
   verdictEntity,
@@ -435,6 +437,97 @@ describe("the Temperature chart's scale", () => {
       chart(card)?.querySelectorAll("svg line.grid").length,
       scaleLabels(card),
     ]).toEqual(["32px", 0, []]);
+  });
+});
+
+// A rule's declarations, comments left out, for a rule the test DOM does not lay out.
+function declarations(selector: string): string[] {
+  const css = cardStyles().replace(/\/\*[\s\S]*?\*\//g, "");
+  const rules = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)];
+  return rules
+    .filter(([, selectors]) => selectors?.split(",").some((part) => part.trim() === selector))
+    .flatMap(([, , body]) => (body ?? "").split(";").map((part) => part.trim()));
+}
+
+function trackLabels(card: PierPressureCard): HTMLElement[] {
+  return [...(chart(card)?.querySelectorAll<HTMLElement>(".track .scale [data-celsius]") ?? [])];
+}
+
+describe("the Temperature chart's °C labels", () => {
+  const BOTH = {
+    [VERDICT]: NIGHT,
+    [TEMPERATURE]: values(3.2, 14.8),
+    [DEW_POINT]: values(-1.5, 9),
+  };
+
+  it("are in the chart's track", async () => {
+    const card = await mountCard(BOTH);
+
+    expect(trackLabels(card).map((label) => label.textContent?.trim())).toEqual([
+      "15 °C",
+      "10 °C",
+      "5 °C",
+      "0 °C",
+      "-5 °C",
+    ]);
+  });
+
+  it("leave only the key in the chart's label column", async () => {
+    const card = await mountCard(BOTH);
+
+    const parts = [...(chart(card)?.querySelector(".chart-label")?.children ?? [])];
+    expect(parts.map((part) => part.className)).toEqual(["key"]);
+  });
+
+  it("stay in the track, at the same heights, while the strip pans", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [TEMPERATURE]: forecastEntity([
+        ...hourly("2026-10-31T12:00:00Z", 72),
+        ["2026-11-03T12:00:00Z", 14.8],
+      ]),
+      [DEW_POINT]: values(-1.5),
+    });
+    const before = trackLabels(card).map((label) => label.getAttribute("style"));
+
+    card.heldStart = Date.parse("2026-11-01T16:30:00Z");
+    await card.updateComplete;
+
+    const after = trackLabels(card).map((label) => label.getAttribute("style"));
+    expect([before.length, after]).toEqual([5, before]);
+  });
+
+  it.each(["pointer-events: none", "color: var(--secondary-text-color)"])(
+    "lie over the chart with %s",
+    (declaration) => {
+      expect(declarations(".scale")).toContain(declaration);
+    },
+  );
+
+  it.each(["left: 2px", "background-color: var(--card-background-color)"])(
+    "place each label with %s",
+    (declaration) => {
+      expect(declarations(".scale .step")).toContain(declaration);
+    },
+  );
+
+  it("no longer place a label from the right", () => {
+    expect(declarations(".scale .step").filter((part) => part.startsWith("right"))).toEqual([]);
+  });
+
+  it("leave a tap on the hour under them to show its text", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [TEMPERATURE]: forecastEntity([["2026-10-31T16:00:00Z", 4.2]]),
+      [DEW_POINT]: values(10),
+    });
+
+    tap(hoverAt(card, "2026-10-31T16:00:00.000Z"));
+    await card.updateComplete;
+
+    expect(card.shadowRoot?.querySelector(".tip")?.textContent?.trim()).toBe(
+      "The hour from 16:00: Temperature 4.2 °C",
+    );
   });
 });
 

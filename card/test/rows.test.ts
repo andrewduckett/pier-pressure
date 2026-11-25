@@ -58,7 +58,7 @@ describe("every timeline row", () => {
   it("is drawn in the strip's row order, then the rest", async () => {
     const card = await mountCard({ [VERDICT]: verdictEntity("GO"), ...CLOUD_RANGE_PAIR });
 
-    const labels = rows(card).map((element) => element.querySelector(".label")?.textContent);
+    const labels = rows(card).map((element) => element.querySelector(".label .name")?.textContent);
     expect(labels.map((label) => label?.trim())).toEqual([
       "Sun altitude",
       "Moon altitude",
@@ -335,7 +335,7 @@ describe("a null Wind direction hour", () => {
     });
 
     const row = card.shadowRoot?.querySelector('.strip [data-row="wind_direction"]');
-    expect([cells(card, "wind_direction"), row?.querySelector("svg")]).toEqual([[], null]);
+    expect([cells(card, "wind_direction"), row?.querySelector(".track svg")]).toEqual([[], null]);
   });
 });
 
@@ -349,7 +349,7 @@ describe("a missing sensor leaves its row empty", () => {
     });
 
     expect([
-      row(card, "humidity")?.querySelector(".label")?.textContent?.trim(),
+      row(card, "humidity")?.querySelector(".label .name")?.textContent?.trim(),
       cells(card, "humidity"),
       rowMessage(card, "humidity")?.textContent,
     ]).toEqual(["Humidity", [], "Unavailable"]);

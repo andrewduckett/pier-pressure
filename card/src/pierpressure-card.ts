@@ -2,6 +2,7 @@ import { LitElement, css, html, nothing, svg } from "lit";
 import { chartStyles, renderChart, renderMissing } from "./chart";
 import { EDITOR_TYPE } from "./editor";
 import { listPiers, pierSlug, verdictEntityId } from "./entity";
+import { iconStyles, renderIcon, renderLegend } from "./icons";
 import { type MoonDrawing, type MoonView, litPath, readMoon } from "./moon";
 import { hourPlace, iso, offset, share } from "./place";
 import {
@@ -68,6 +69,13 @@ export class PierPressureCard extends LitElement {
 
   static override styles = [
     css`
+    /* The layout follows the card's own width, not the window's: a card can be
+       narrow on a wide screen. The host, not ha-card, is measured: a container
+       query leaves out ha-card's theme border. */
+    :host {
+      display: block;
+      container: pierpressure / inline-size;
+    }
     /* Holds the tap box, which is placed in px from the card's corner. */
     ha-card {
       position: relative;
@@ -163,9 +171,22 @@ export class PierPressureCard extends LitElement {
       display: contents;
     }
     .label {
+      display: flex;
+      align-items: center;
+      gap: 4px;
       color: var(--secondary-text-color);
       font-size: 0.85em;
       line-height: 16px;
+      white-space: nowrap;
+    }
+    /* As wide as an icon, so a one-digit and a two-digit rank line up. A wide
+       card names the lane in full instead. */
+    .rank {
+      display: none;
+      flex-shrink: 0;
+      min-width: 16px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
     }
     .track {
       position: relative;
@@ -303,8 +324,25 @@ export class PierPressureCard extends LitElement {
       white-space: pre;
       text-indent: 0;
     }
+    .legend {
+      display: none;
+    }
+    /* Icons only, so the hours get the label column's width; the legend names
+       them. A key entry keeps its sample and its message. */
+    @container pierpressure (width < 450px) {
+      .label .name {
+        display: none;
+      }
+      .rank {
+        display: block;
+      }
+      .legend {
+        display: grid;
+      }
+    }
   `,
     chartStyles,
+    iconStyles,
   ];
 
   // Home Assistant sets hass after setConfig and after the card is attached.
@@ -467,7 +505,7 @@ export class PierPressureCard extends LitElement {
         ${renderMoon(moon)}
       </div>
       ${renderReasons(this.shownReasons(), time)} ${renderNote(strip)}
-      ${renderBack(strip, this.onBack)} ${renderStrip(strip, this.input)}
+      ${renderBack(strip, this.onBack)} ${renderStrip(strip, this.input)}${renderLegend(strip)}
     </div>`;
   }
 
@@ -830,7 +868,7 @@ function renderStrip(strip: Strip | undefined, input: StripInput) {
     ${strip.rows.map(
       (row) =>
         html`<div class="row" data-row=${row.key}>
-          <span class="label">${row.label}</span>
+          ${renderLabel(row.key, row.label)}
           <div class="track">
             ${row.cells.map((cell) => renderCell(cell, row.key, strip.axis))}
             ${(row.bands ?? []).map((band) => renderBand(band, strip.axis))}
@@ -839,7 +877,7 @@ function renderStrip(strip: Strip | undefined, input: StripInput) {
         </div>`,
     )}
     <div class="row" data-lane="moon_up">
-      <span class="label">Moon up</span>
+      ${renderLabel("moon_up", "Moon up")}
       <div class="track">
         ${strip.moonUp.map((bar) => renderBar(bar, tipKey.moonUp(bar.start), strip.axis))}
         ${
@@ -852,7 +890,7 @@ function renderStrip(strip: Strip | undefined, input: StripInput) {
     ${strip.targets.map(
       (lane) =>
         html`<div class="row" data-lane=${`target_${lane.rank}`}>
-          <span class="label">${lane.label}</span>
+          ${renderRankLabel(lane.rank, lane.label)}
           <div class="track">
             ${lane.bars.map((bar) =>
               renderBar(bar, tipKey.target(lane.rank, bar.night), strip.axis, bar),
@@ -869,6 +907,30 @@ function renderStrip(strip: Strip | undefined, input: StripInput) {
       ${strip.lines.map((line) => renderLine(line, strip.axis))}
     </div>
   </div>`;
+}
+
+// The icon names the row or lane for a screen reader, so the text beside it is hidden.
+function renderLabel(place: string, name: string) {
+  return html`<span class="label"
+    >${renderIcon(place, name, tipKey.label(place))}<span class="name" aria-hidden="true"
+      >${name}</span
+    ></span
+  >`;
+}
+
+// A lane has no icon. Only one of the rank and the name shows, so a screen
+// reader reads the lane's name once in either layout.
+function renderRankLabel(rank: number, name: string) {
+  return html`<span class="label"
+    ><span
+      class="rank"
+      role="img"
+      title=${name}
+      aria-label=${name}
+      data-tip=${tipKey.label(`target_${rank}`)}
+      >${rank}</span
+    ><span class="name">${name}</span></span
+  >`;
 }
 
 function renderMark(line: Line, axis: Axis) {

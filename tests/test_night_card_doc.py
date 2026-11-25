@@ -372,7 +372,7 @@ def test_docs_temperature_chart_names_the_chart_and_its_sensors(text: str) -> No
 
 @pytest.mark.parametrize(
     "term",
-    ["middle of the hour", "break", "°C", "orange", "green", "key", "dew", "hover"],
+    ["middle of the hour", "break", "°C", "left edge", "orange", "green", "key", "dew", "hover"],
 )
 def test_docs_temperature_chart_explains_what_it_shows(term: str) -> None:
     assert term.lower() in _temperature_chart().lower()
@@ -382,6 +382,7 @@ def test_docs_temperature_chart_explains_what_it_shows(term: str) -> None:
     "text",
     [
         "stays put while you pan",
+        "inside the chart's left edge",
         "normally the lower one",
         "Dew is more likely the closer the two lines come",
     ],
@@ -690,3 +691,49 @@ def test_docs_tap_section_says_what_closes_the_box(closer: str) -> None:
 
 def test_docs_moon_drawing_says_it_can_be_tapped() -> None:
     assert "Hover over or tap the drawing" in _moon_drawing_paragraphs()
+
+
+def test_docs_tap_section_names_icon_and_rank_number_beside_hover() -> None:
+    paragraphs = _section(_TAP).split("\n#### ", 1)[0].split("\n\n")
+    words = ("tap", "phone", "box", "hover", "icon", "rank number")
+
+    assert any(all(word in p.lower() for word in words) for p in paragraphs)
+
+
+_LABELS = "#### The labels and the legend"
+
+
+def _labels_section() -> str:
+    return " ".join(_section(_LABELS).split("\n#### ", 1)[0].split())
+
+
+def test_docs_labels_section_sits_before_how_to_read_the_rows() -> None:
+    page = _page()
+
+    assert page.index("### The night strip") < page.index(_LABELS)
+    assert page.index(_LABELS) < page.index("#### How to read the rows")
+
+
+@pytest.mark.parametrize("term", ["icon", "legend", "450 px", "rank number", "`Target rank`"])
+def test_docs_labels_section_names(term: str) -> None:
+    assert term in _labels_section()
+
+
+def test_docs_labels_section_says_the_layout_follows_the_card_not_the_screen() -> None:
+    assert "follows the card's width, not the screen's" in _labels_section()
+
+
+def test_docs_labels_section_says_a_target_lane_has_no_icon() -> None:
+    assert "A target lane has no icon" in _labels_section()
+
+
+def test_docs_labels_section_says_a_wide_card_shows_each_icon_beside_its_label() -> None:
+    assert "shows each icon beside its label" in _labels_section()
+
+
+def test_docs_labels_section_says_a_narrow_card_shows_only_icons_and_rank_numbers() -> None:
+    assert "shows only the icons and the rank numbers" in _labels_section()
+
+
+def test_docs_labels_section_says_hovering_or_tapping_shows_the_name() -> None:
+    assert "Hover over or tap an icon or a rank number to see its name" in _labels_section()

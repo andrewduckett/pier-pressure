@@ -16,6 +16,9 @@ export const tipKey = {
   line: ({ kind, night }: Line) => (night === undefined ? `line:${kind}` : `line:${kind}:${night}`),
   // A row's key, `moon_up`, or `chart:` and a chart line's key.
   missing: (place: string) => `missing:${place}`,
+  // An icon or a rank number in the label column: a row's key, `moon_up`,
+  // `chart:` and a chart line's key, or `target_` and the lane's rank.
+  label: (place: string) => `label:${place}`,
   moon: "moon",
 };
 
@@ -34,20 +37,24 @@ function tipTexts(strip: Strip | undefined, moon: MoonDrawing | undefined): Map<
   if (moon !== undefined) texts.set(tipKey.moon, moon.text);
   if (strip === undefined) return texts;
   for (const row of strip.rows) {
+    texts.set(tipKey.label(row.key), row.label);
     for (const cell of row.cells) texts.set(tipKey.cell(row.key, cell.hour), cell.text);
     for (const band of row.bands ?? []) texts.set(tipKey.column(band.hour), band.text);
     if (row.missing !== undefined) texts.set(tipKey.missing(row.key), row.missing.text);
   }
+  texts.set(tipKey.label("moon_up"), "Moon up");
   for (const bar of strip.moonUp) texts.set(tipKey.moonUp(bar.start), bar.text);
   if (strip.moonUpMissing !== undefined) {
     texts.set(tipKey.missing("moon_up"), strip.moonUpMissing.text);
   }
   for (const lane of strip.targets) {
+    texts.set(tipKey.label(`target_${lane.rank}`), lane.label);
     for (const bar of lane.bars) texts.set(tipKey.target(lane.rank, bar.night), bar.text);
   }
   for (const line of strip.lines) texts.set(tipKey.line(line), line.text);
   for (const hour of strip.chart.hours) texts.set(tipKey.hour(hour.hour), hour.text);
   for (const line of strip.chart.lines) {
+    texts.set(tipKey.label(`chart:${line.key}`), line.label);
     if (line.missing !== undefined)
       texts.set(tipKey.missing(`chart:${line.key}`), line.missing.text);
   }

@@ -112,6 +112,26 @@ summer night far from the equator. Then the card shows
 from 6 hours before now to 18 hours after. You can pan the strip to the other
 hours of the forecast. See [Panning the strip](#panning-the-strip).
 
+#### The labels and the legend
+
+Each row's label, the Moon up lane's label and each entry in the Temperature
+chart's key has a small icon. A target lane has no icon: its label is
+**Target 1**, **Target 2** and so on.
+
+The layout follows the card's width, not the screen's, so a narrow card on a
+wide screen still gets the narrow layout. The cut-off is 450 px:
+
+- A card 450 px or wider shows each icon beside its label, such as the Seeing
+  icon and then **Seeing**. It has no legend.
+- A card narrower than 450 px shows only the icons and the rank numbers, so
+  the hours get more of the card's width. A target lane's label is its rank
+  number, `1` to `10`. A key entry keeps its colour sample, and its message
+  when it has one. A legend under the strip names each icon the strip draws,
+  in the strip's order. When the strip has a target lane, the legend ends with
+  a rank number and `Target rank`.
+
+Hover over or tap an icon or a rank number to see its name.
+
 #### How to read the rows
 
 Each cell is one hour, shaded in one of seven blues. On every shaded row,
@@ -252,7 +272,8 @@ temperature falls to the dew point, dew forms on your optics.
 | **Temperature** | Orange | `sensor.pierpressure_<pier>_temperature` |
 | **Dew point** | Green | `sensor.pierpressure_<pier>_dew_point` |
 
-The key in the label column names each line beside a sample of its colour. The
+The key in the label column names each line, with its icon, beside a sample
+of its colour. The
 dew point line is normally the lower one. It can cross above the temperature
 line when the two values come from different weather sources.
 
@@ -260,7 +281,10 @@ Each point sits at the middle of the hour it is for, so it lines up with that
 hour's cells in the rows above. A line has a break where an hour has no value.
 A value with no value on either side of it shows as a dot.
 
-The scale is in °C, with a gridline and a label every 5 °C. It fits both
+The scale is in °C, with a gridline and a label every 5 °C. The labels sit
+inside the chart's left edge, over the lines, on a backing in the card's
+colour. A hover or a tap where a label sits still reaches the hour under it.
+The scale fits both
 lines' values over the whole forecast, not only the hours on the strip, so it
 stays put while you pan. The chart is 16 px tall for every 5 °C, and covers at
 least 10 °C.
@@ -291,8 +315,8 @@ Hover over a line to see its time, such as "Dusk, 20:30".
 
 A phone has no pointer to hover with, so tap instead. Tap a cell, a Cloud
 range column, a Moon up or target bar, a line, a Temperature chart hour, a
-message or the moon drawing, and a small box shows the same text that hovering
-shows. The box sits just above the item, or just below it near the top of the
+message, an icon, a rank number or the moon drawing, and a small box shows the
+same text that hovering shows. The box sits just above the item, or just below it near the top of the
 card, and moves nothing else on the card.
 
 A tap works with any pointer: a finger, a pen or a mouse click. On a computer,
@@ -300,8 +324,8 @@ the box shows beside the browser's own hover text. A press that moves more
 than a few pixels is not a tap, so a drag or a swipe opens no box.
 
 One box shows at a time. A tap on another item shows that item's text
-instead. A tap elsewhere on the card closes the box, such as on a row's label
-or the verdict. A second tap on the same item closes the box too. Any pan of
+instead. A tap elsewhere on the card closes the box, such as on the text of a
+row's label, the legend or the verdict. A second tap on the same item closes the box too. Any pan of
 the strip closes the box: a drag, a swipe, the arrow keys or
 **Back to tonight**. While the box shows, it keeps up with new forecasts, and
 it closes when its item leaves the strip.
