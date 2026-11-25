@@ -61,12 +61,35 @@ function iconLabels(card: PierPressureCard): HTMLElement[] {
 }
 
 // A rule's declarations, comments left out, for a rule the test DOM does not lay out.
-function declarations(selector: string): string[] {
-  const css = cardStyles().replace(/\/\*[\s\S]*?\*\//g, "");
+function declarations(selector: string, styles = cardStyles()): string[] {
+  const css = styles.replace(/\/\*[\s\S]*?\*\//g, "");
   const rules = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)];
   return rules
     .filter(([, selectors]) => selectors?.split(",").some((part) => part.trim() === selector))
     .flatMap(([, , body]) => (body ?? "").split(";").map((part) => part.trim()));
+}
+
+const NARROW = "@container pierpressure (width < 450px)";
+
+// The rules inside the narrow card's container query, as their own stylesheet.
+function narrowStyles(): string {
+  const css = cardStyles();
+  const start = css.indexOf(NARROW);
+  if (start < 0) return "";
+  const open = css.indexOf("{", start);
+  let depth = 0;
+  for (let at = open; at < css.length; at += 1) {
+    if (css[at] === "{") depth += 1;
+    if (css[at] === "}") depth -= 1;
+    if (depth === 0) return css.slice(open + 1, at);
+  }
+  return "";
+}
+
+// The stylesheet with the narrow card's rules left out.
+function wideStyles(): string {
+  const inner = narrowStyles();
+  return inner === "" ? cardStyles() : cardStyles().replace(inner, "");
 }
 
 async function withTarget(): Promise<PierPressureCard> {
@@ -214,5 +237,52 @@ describe("a Temperature chart key entry's icon", () => {
 
     const name = keyEntry(card, "dew_point")?.querySelector(".name");
     expect(name?.getAttribute("aria-hidden")).toBe("true");
+  });
+});
+
+describe("the layout", () => {
+  it("follows the card's own width", () => {
+    expect(declarations("ha-card")).toContain("container: pierpressure / inline-size");
+  });
+
+  it("switches for a card narrower than 450 px", () => {
+    expect(cardStyles()).toContain(NARROW);
+  });
+
+  it("follows no width of the browser window", () => {
+    expect(cardStyles()).not.toContain("@media");
+  });
+
+  it("is chosen by no card option", async () => {
+    const plain = await mountCard({ [VERDICT]: NIGHT });
+    const optioned = await mountCard({ [VERDICT]: NIGHT });
+    optioned.setConfig({ type: "custom:pierpressure-card", pier: "backyard", layout: "narrow" });
+    await optioned.updateComplete;
+
+    expect(optioned.shadowRoot?.innerHTML).toBe(plain.shadowRoot?.innerHTML);
+  });
+});
+
+describe("a card 450 px or wider", () => {
+  it.each([".rank", ".legend"])("hides each %s", (selector) => {
+    expect(declarations(selector, wideStyles())).toContain("display: none");
+  });
+
+  it("shows each label's name", () => {
+    expect(declarations(".label .name", wideStyles())).not.toContain("display: none");
+  });
+});
+
+describe("a card narrower than 450 px", () => {
+  it("hides each label's and key entry's name", () => {
+    expect(declarations(".label .name", narrowStyles())).toContain("display: none");
+  });
+
+  it("shows each rank number", () => {
+    expect(declarations(".rank", narrowStyles())).toContain("display: block");
+  });
+
+  it("shows the legend", () => {
+    expect(declarations(".legend", narrowStyles())).toContain("display: grid");
   });
 });

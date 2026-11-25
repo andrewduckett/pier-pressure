@@ -69,9 +69,12 @@ export class PierPressureCard extends LitElement {
 
   static override styles = [
     css`
-    /* Holds the tap box, which is placed in px from the card's corner. */
+    /* Holds the tap box, which is placed in px from the card's corner. The
+       layout follows the card's own width, not the window's: a card can be
+       narrow on a wide screen. ha-card has no padding, so this is its full width. */
     ha-card {
       position: relative;
+      container: pierpressure / inline-size;
     }
     /* Out of the flow, so showing it moves nothing, and above the lines. A tap
        goes through it to the item under it. The colours swap the card's, so it
@@ -172,8 +175,10 @@ export class PierPressureCard extends LitElement {
       line-height: 16px;
       white-space: nowrap;
     }
-    /* As wide as an icon, so a one-digit and a two-digit rank line up. */
+    /* As wide as an icon, so a one-digit and a two-digit rank line up. A wide
+       card names the lane in full instead. */
     .rank {
+      display: none;
       flex-shrink: 0;
       min-width: 16px;
       text-align: center;
@@ -314,6 +319,22 @@ export class PierPressureCard extends LitElement {
       flex-shrink: 0;
       white-space: pre;
       text-indent: 0;
+    }
+    .legend {
+      display: none;
+    }
+    /* Icons only, so the hours get the label column's width; the legend names
+       them. A key entry keeps its sample and its message. */
+    @container pierpressure (width < 450px) {
+      .label .name {
+        display: none;
+      }
+      .rank {
+        display: block;
+      }
+      .legend {
+        display: grid;
+      }
     }
   `,
     chartStyles,
