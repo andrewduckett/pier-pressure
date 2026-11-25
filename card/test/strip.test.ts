@@ -1244,7 +1244,7 @@ describe("the lines' overlay", () => {
     const card = await mountCard(ONE_FORECAST);
 
     expect([
-      strip(card)?.getAttribute("style")?.includes("grid-template-rows: repeat(18, auto)"),
+      strip(card)?.getAttribute("style")?.includes("grid-template-rows: repeat(19, auto)"),
       overlay(card)?.getAttribute("style")?.includes("grid-row: 2 / 18"),
     ]).toEqual([true, true]);
   });
@@ -1252,7 +1252,7 @@ describe("the lines' overlay", () => {
   it("gives the strip one explicit grid row for each of its rows", async () => {
     const card = await mountCard({ [VERDICT]: NIGHT });
 
-    expect(strip(card)?.getAttribute("style")).toContain("grid-template-rows: repeat(18, auto)");
+    expect(strip(card)?.getAttribute("style")).toContain("grid-template-rows: repeat(19, auto)");
   });
 });
 

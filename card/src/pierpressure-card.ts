@@ -10,6 +10,7 @@ import {
   type Band,
   type Bar,
   type Cell,
+  type Day,
   HOUR,
   type Line,
   type Strip,
@@ -208,7 +209,8 @@ export class PierPressureCard extends LitElement {
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .times {
+    .times,
+    .days {
       color: var(--secondary-text-color);
       font-size: 0.75em;
     }
@@ -843,9 +845,9 @@ function renderBack(strip: Strip | undefined, onBack: () => void) {
 function renderStrip(strip: Strip | undefined, input: StripInput) {
   if (strip === undefined) return nothing;
   // Grid row 1 holds the line labels, then come the rows, the Moon up lane, the
-  // target lanes, the Temperature chart and the time labels. The lines' overlay
-  // spans from the first row to the bottom of the Temperature chart.
-  const gridRows = strip.rows.length + strip.targets.length + 4;
+  // target lanes, the Temperature chart, the time labels and the day labels. The
+  // lines' overlay spans from the first row to the bottom of the Temperature chart.
+  const gridRows = strip.rows.length + strip.targets.length + 5;
   const laneEnd = strip.rows.length + strip.targets.length + 4;
   return html`<div
     class="strip"
@@ -903,6 +905,8 @@ function renderStrip(strip: Strip | undefined, input: StripInput) {
     <div class="track times">
       ${strip.labels.map((label) => renderTimeLabel(label, strip.axis))}
     </div>
+    <span></span>
+    <div class="track days">${strip.days.map((day) => renderDay(day, strip.axis))}</div>
     <div class="lines" style=${`grid-column: 2; grid-row: 2 / ${laneEnd}; inset: 0; z-index: 1`}>
       ${strip.lines.map((line) => renderLine(line, strip.axis))}
     </div>
@@ -954,6 +958,13 @@ function renderLine(line: Line, axis: Axis) {
 function renderTimeLabel(label: TimeLabel, axis: Axis) {
   const style = `left: ${offset(label.at, axis)}%`;
   return html`<span class="time" style=${style} data-at=${iso(label.at)}>${label.text}</span>`;
+}
+
+function renderDay(day: Day, axis: Axis) {
+  const style = `left: ${offset(day.from, axis)}%; width: ${share(day.to - day.from, axis)}%`;
+  return html`<div class="day" style=${style} data-from=${iso(day.from)} data-to=${iso(day.to)}>
+    <span class="text">${day.text}</span>
+  </div>`;
 }
 
 function renderCell(cell: Cell, row: string, axis: Axis) {

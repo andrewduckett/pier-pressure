@@ -438,7 +438,7 @@ describe("the strip with target lanes", () => {
     const card = await threeTargets();
 
     expect(card.shadowRoot?.querySelector(".strip")?.getAttribute("style")).toContain(
-      "grid-template-rows: repeat(21, auto)",
+      "grid-template-rows: repeat(22, auto)",
     );
   });
 
