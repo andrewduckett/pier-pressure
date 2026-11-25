@@ -120,3 +120,54 @@ describe("the dividers", () => {
     );
   });
 });
+
+// happy-dom lays out no text, so these read the rules that hide a label too
+// wide for its day: it wraps onto a second line, below the clipped box.
+describe("a day label with no room", () => {
+  function rule(selector: string): string {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const comment = "(?:/\\*[\\s\\S]*?\\*/\\s*)?";
+    const pattern = new RegExp(`(?:^|\\})\\s*${comment}${escaped}\\s*\\{([^}]*)\\}`);
+    return pattern.exec(cardStyles())?.[1] ?? "";
+  }
+
+  it("is clipped by a one-line box", () => {
+    const day = rule(".day");
+    expect(
+      ["height: 16px", "overflow: hidden", "display: flex", "flex-wrap: wrap"].map((part) =>
+        day.includes(part),
+      ),
+    ).toEqual([true, true, true, true]);
+  });
+
+  it("wraps whole below a spacer as tall as the box", () => {
+    const spacer = rule(".day .spacer");
+    expect(["width: 0", "height: 16px"].map((part) => spacer.includes(part))).toEqual([true, true]);
+  });
+
+  it("never breaks onto two lines", () => {
+    expect(rule(".day .text")).toContain("white-space: nowrap");
+  });
+
+  it("follows a spacer in each day", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect(
+      days(card).map((day) => [...day.children].map((child) => child.className)),
+    ).toEqual([
+      ["spacer", "text"],
+      ["spacer", "text"],
+    ]);
+  });
+
+  it("keeps its divider", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    const next = days(card)[1];
+    expect(dividers(card)[0]?.dataset["at"]).toBe(next?.dataset["from"]);
+  });
+
+  it("follows the same rule in the wide layout", () => {
+    expect(cardStyles().match(/\.day\s*\{/g)).toHaveLength(1);
+  });
+});

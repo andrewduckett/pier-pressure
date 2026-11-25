@@ -295,6 +295,25 @@ export class PierPressureCard extends LitElement {
     .line[data-line="now"]::after {
       border-left: 2px solid #e66767;
     }
+    /* A label too wide for its day wraps onto a second line, below the spacer,
+       where the box clips it whole: hidden, never cut off or moved. */
+    .day {
+      position: absolute;
+      top: 0;
+      display: flex;
+      flex-wrap: wrap;
+      height: 16px;
+      overflow: hidden;
+      line-height: 16px;
+    }
+    .day .spacer {
+      width: 0;
+      height: 16px;
+    }
+    .day .text {
+      padding-left: 4px;
+      white-space: nowrap;
+    }
     .dividers {
       position: absolute;
       pointer-events: none;
@@ -980,7 +999,7 @@ function renderTimeLabel(label: TimeLabel, axis: Axis) {
 function renderDay(day: Day, axis: Axis) {
   const style = `left: ${offset(day.from, axis)}%; width: ${share(day.to - day.from, axis)}%`;
   return html`<div class="day" style=${style} data-from=${iso(day.from)} data-to=${iso(day.to)}>
-    <span class="text">${day.text}</span>
+    <span class="spacer"></span><span class="text">${day.text}</span>
   </div>`;
 }
 
