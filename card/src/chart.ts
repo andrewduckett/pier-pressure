@@ -5,11 +5,9 @@ import type { Axis, ChartHour, ChartLine, ChartPoint, Missing, TemperatureChart 
 import { tipKey } from "./tap";
 
 export const chartStyles = css`
-  /* The key and the scale side by side, as tall as the chart. */
+  /* Only the key: the scale is drawn inside the plot. */
   .chart-label {
-    display: grid;
-    grid-template-columns: max-content minmax(40px, max-content);
-    column-gap: 8px;
+    display: block;
   }
   .key .entry {
     display: flex;
@@ -22,12 +20,23 @@ export const chartStyles = css`
     width: 12px;
     height: 3px;
   }
+  /* Over the lines at the plot's left edge. A hover or a tap goes through it to
+     the hour under it, and it keeps the label column's text colour. */
   .scale {
-    position: relative;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    pointer-events: none;
+    color: var(--secondary-text-color);
   }
+  /* The backing keeps a line from running through the text. */
   .scale .step {
     position: absolute;
-    right: 0;
+    left: 2px;
+    padding: 0 2px;
+    border-radius: 2px;
+    background-color: var(--card-background-color);
     font-size: 0.75em;
     line-height: 1;
     white-space: nowrap;
@@ -44,7 +53,7 @@ export const chartStyles = css`
 
 type Scale = NonNullable<TemperatureChart["scale"]>;
 
-// The chart's grid row: its key in the label column, its lines in the track.
+// The chart's grid row: its key in the label column, its lines and scale in the track.
 export function renderChart(chart: TemperatureChart, axis: Axis) {
   const scale = chart.scale;
   const celsius = scale === undefined ? [] : steps(scale);
@@ -53,9 +62,6 @@ export function renderChart(chart: TemperatureChart, axis: Axis) {
   return html`<div class="row" data-chart="temperature">
     <div class="label chart-label">
       <div class="key">${chart.lines.map(renderKeyEntry)}</div>
-      <div class="scale">
-        ${scale === undefined ? [] : celsius.map((value) => renderStep(value, scale))}
-      </div>
     </div>
     <div class="track" style=${`height: ${tall}px`}>
       <svg class="plot" aria-hidden="true">
@@ -63,6 +69,9 @@ export function renderChart(chart: TemperatureChart, axis: Axis) {
         ${scale === undefined ? [] : chart.lines.map((line) => renderLine(line, scale, axis))}
       </svg>
       ${chart.hours.map((hour) => renderHour(hour, axis))}
+      <div class="scale">
+        ${scale === undefined ? [] : celsius.map((value) => renderStep(value, scale))}
+      </div>
     </div>
   </div>`;
 }
