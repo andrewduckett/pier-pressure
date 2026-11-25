@@ -13,7 +13,7 @@ The day labels sit in a new grid row under the time labels (brainstorm D1). Each
 
 ## 2. Docs
 
-- [ ] 2.1 [easy] The Times section of `docs/night-card.md` describes the day labels: a row under the time labels names each day, such as `Thu 26 Nov`; a divider marks where each day starts in Home Assistant's time zone; the label of the day at the strip's left edge stays there as the strip pans; and a label with no room is hidden while its divider still shows. Its Panning section's list of what moves together names the day labels. Tests in `tests/test_night_card_doc.py` check the spec's docs scenario (spec night-card "The docs describe the day labels") (verify: `uv run pytest tests/test_night_card_doc.py`)
+- [x] 2.1 [easy] The Times section of `docs/night-card.md` describes the day labels: a row under the time labels names each day, such as `Thu 26 Nov`; a divider marks where each day starts in Home Assistant's time zone; the label of the day at the strip's left edge stays there as the strip pans; and a label with no room is hidden while its divider still shows. Its Panning section's list of what moves together names the day labels. Tests in `tests/test_night_card_doc.py` check the spec's docs scenario (spec night-card "The docs describe the day labels") (verify: `uv run pytest tests/test_night_card_doc.py`) (✓ `uv run pytest tests/test_night_card_doc.py` passed)
 
 ## 3. Integration [depends-on: 1, 2]
 

@@ -344,9 +344,9 @@ the strip sideways:
 
 Drag to the left to see later hours, as if you were moving the strip itself.
 Every row and lane moves together, and so do the Temperature chart's lines,
-the lines across the strip and the time labels. The row labels, and the
-Temperature chart's key and scale, stay where they are. The strip keeps its length: it shows as
-many hours as when it opened.
+the lines across the strip, the time labels and the day labels. The row
+labels, and the Temperature chart's key and scale, stay where they are. The
+strip keeps its length: it shows as many hours as when it opened.
 
 The strip stops at the first and last forecast hour. How far ahead that is
 depends on your weather sources. Each forecasts its own distance ahead:
@@ -375,6 +375,16 @@ page also opens the strip on the judged night.
 All times are in your Home Assistant time zone, on a 24-hour clock, whatever
 time zone your browser or user profile uses. The axis has a time label every 3
 hours, or every 6 hours on a night longer than 15 hours.
+
+Under the time labels, a row of day labels names each day on the strip, such
+as `Thu 26 Nov`. A day starts at midnight in your Home Assistant time zone, and
+a thin divider marks that start across the time labels and the day labels. On
+the rare day whose clock skips midnight, the day starts at the first time the
+clock shows, such as 01:00. Each day's label sits just right of its divider.
+The label of the day in progress at the strip's left edge stays at that edge as
+you pan the strip, so you can always tell which day you are looking at. A label
+with no room before the next day starts or the strip ends is hidden, not cut
+off, and its divider still shows.
 
 ## Before you start
 
