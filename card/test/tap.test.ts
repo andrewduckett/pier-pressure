@@ -124,6 +124,10 @@ describe("the key on each tappable item", () => {
     ["the dusk line", "line:dusk:1", '.line[data-line="dusk"]'],
     ["the now line", "line:now", '.line[data-line="now"]'],
     ["the moon drawing", "moon", "section.moon svg"],
+    ["the Seeing row's icon", "label:seeing", '[data-row="seeing"] .label .icon'],
+    ["the Moon up lane's icon", "label:moon_up", '[data-lane="moon_up"] .label .icon'],
+    ["the Dew point key entry's icon", "label:chart:dew_point", '[data-series="dew_point"] .icon'],
+    ["Target 1's rank number", "label:target_1", '[data-lane="target_1"] .label .rank'],
   ])("names %s", async (_, key, selector) => {
     const card = await mountCard(EVERY_ITEM);
 
@@ -274,6 +278,45 @@ describe("a tap on a message", () => {
   });
 });
 
+// Target 3 has a target tonight.
+const THIRD_TARGET: Record<string, HassEntity> = {
+  ...EVERY_ITEM,
+  [target(3)]: catalogTarget("M45", "Pleiades", {
+    start: "2026-10-31T22:00:00Z",
+    end: "2026-11-01T03:00:00Z",
+  }),
+};
+
+describe("a tap on an icon or a rank number", () => {
+  it.each([
+    ["the Seeing row's icon", "label:seeing", "Seeing"],
+    ["the Moon up lane's icon", "label:moon_up", "Moon up"],
+    ["the Dew point key entry's icon", "label:chart:dew_point", "Dew point"],
+    ["rank number 3", "label:target_3", "Target 3"],
+  ])("on %s shows its name", async (_, key, name) => {
+    const card = await mountCard(THIRD_TARGET);
+
+    await tapOn(card, key, "touch");
+
+    expect(tips(card)).toEqual([name]);
+  });
+
+  it("shows the icon's name from a stroke inside it", async () => {
+    const card = await mountCard(EVERY_ITEM);
+
+    tap(tappable(card, "label:seeing")?.querySelector("path"), "touch");
+    await card.updateComplete;
+
+    expect(tips(card)).toEqual(["Seeing"]);
+  });
+
+  it("is none for a rank with no target lane", () => {
+    const { strip, moon } = shown(EVERY_ITEM);
+
+    expect(tipText(strip, moon, "label:target_3")).toBeUndefined();
+  });
+});
+
 describe("a tap on the moon drawing", () => {
   it("shows the drawing's text", async () => {
     const card = await mountCard(EVERY_ITEM);
@@ -309,6 +352,15 @@ describe("a tap with a box showing", () => {
     expect(tip(card)).toBeNull();
   });
 
+  it("on a row's icon shows the row's name in the one box", async () => {
+    const card = await mountCard(EVERY_ITEM);
+    await tapOn(card, COVER_04, "touch");
+
+    await tapOn(card, "label:seeing", "touch");
+
+    expect(tips(card)).toEqual(["Seeing"]);
+  });
+
   it("on another item shows that item's text in the one box", async () => {
     const card = await mountCard(EVERY_ITEM);
     await tapOn(card, COVER_04, "touch");
@@ -320,6 +372,9 @@ describe("a tap with a box showing", () => {
 
   it.each([
     ["a row's label", '[data-row="seeing"] .label'],
+    ["the text of a row's label", '[data-row="seeing"] .label .name'],
+    ["the legend", ".legend li"],
+    ["an icon in the legend", ".legend .icon path"],
     ["an empty part of a track", '[data-row="cloud_cover"] .track'],
     ["the verdict", '[data-field="verdict"]'],
     ["the reasons", ".reasons li"],
@@ -743,6 +798,28 @@ describe("an open box when the card redraws", () => {
       ["Dusk, 20:33"],
       "2026-11-01T20:33:00.000Z",
     ]);
+  });
+
+  it("keeps an icon's name after Home Assistant updates its row", async () => {
+    const card = await mountCard(EVERY_ITEM);
+    await tapOn(card, "label:seeing", "touch");
+
+    await update(card, {
+      ...EVERY_ITEM,
+      [SEEING]: forecastEntity([["2026-10-31T21:00:00Z", 0.4]]),
+    });
+
+    expect([tips(card), card.tipKey]).toEqual([["Seeing"], "label:seeing"]);
+  });
+
+  it("closes when the rank number's lane goes", async () => {
+    const card = await mountCard(THIRD_TARGET);
+    await tapOn(card, "label:target_3", "touch");
+    const before = tips(card);
+
+    await update(card, EVERY_ITEM);
+
+    expect([before, tip(card)]).toEqual([["Target 3"], null]);
   });
 
   it("shows a cell's new value after Home Assistant updates its hour", async () => {

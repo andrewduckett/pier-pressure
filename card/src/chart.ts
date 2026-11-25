@@ -162,7 +162,10 @@ function renderKeyEntry(line: ChartLine) {
       : renderMissing(line.missing, tipKey.missing(`chart:${line.key}`));
   return html`<span class="entry" data-series=${line.key}>
     <span class="swatch" style=${`background-color: ${line.colour}`}></span
-    >${renderIcon(line.key, line.label)}<span class="name" aria-hidden="true">${line.label}</span
+    >${renderIcon(line.key, line.label, tipKey.label(`chart:${line.key}`))}<span
+      class="name"
+      aria-hidden="true"
+      >${line.label}</span
     >${missing}
   </span>`;
 }

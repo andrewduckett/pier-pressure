@@ -864,7 +864,7 @@ function renderStrip(strip: Strip | undefined, input: StripInput) {
     ${strip.rows.map(
       (row) =>
         html`<div class="row" data-row=${row.key}>
-          <span class="label">${renderIcon(row.key, row.label)}${renderName(row.label)}</span>
+          ${renderLabel(row.key, row.label)}
           <div class="track">
             ${row.cells.map((cell) => renderCell(cell, row.key, strip.axis))}
             ${(row.bands ?? []).map((band) => renderBand(band, strip.axis))}
@@ -873,7 +873,7 @@ function renderStrip(strip: Strip | undefined, input: StripInput) {
         </div>`,
     )}
     <div class="row" data-lane="moon_up">
-      <span class="label">${renderIcon("moon_up", "Moon up")}${renderName("Moon up")}</span>
+      ${renderLabel("moon_up", "Moon up")}
       <div class="track">
         ${strip.moonUp.map((bar) => renderBar(bar, tipKey.moonUp(bar.start), strip.axis))}
         ${
@@ -886,9 +886,7 @@ function renderStrip(strip: Strip | undefined, input: StripInput) {
     ${strip.targets.map(
       (lane) =>
         html`<div class="row" data-lane=${`target_${lane.rank}`}>
-          <span class="label">${renderRank(lane.rank, lane.label)}<span class="name"
-              >${lane.label}</span
-            ></span>
+          ${renderRankLabel(lane.rank, lane.label)}
           <div class="track">
             ${lane.bars.map((bar) =>
               renderBar(bar, tipKey.target(lane.rank, bar.night), strip.axis, bar),
@@ -907,13 +905,23 @@ function renderStrip(strip: Strip | undefined, input: StripInput) {
   </div>`;
 }
 
-// The icon beside it names the row for a screen reader.
-function renderName(name: string) {
-  return html`<span class="name" aria-hidden="true">${name}</span>`;
+// The icon names the row or lane for a screen reader, so the text beside it is hidden.
+function renderLabel(place: string, name: string) {
+  return html`<span class="label"
+    >${renderIcon(place, name, tipKey.label(place))}<span class="name" aria-hidden="true"
+      >${name}</span
+    ></span
+  >`;
 }
 
-function renderRank(rank: number, name: string) {
-  return html`<span class="rank" title=${name} aria-label=${name}>${rank}</span>`;
+// A lane has no icon. Only one of the rank and the name shows, so a screen
+// reader reads the lane's name once in either layout.
+function renderRankLabel(rank: number, name: string) {
+  return html`<span class="label"
+    ><span class="rank" title=${name} aria-label=${name} data-tip=${tipKey.label(`target_${rank}`)}
+      >${rank}</span
+    ><span class="name">${name}</span></span
+  >`;
 }
 
 function renderMark(line: Line, axis: Axis) {

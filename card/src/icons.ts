@@ -95,8 +95,8 @@ export const ICONS: Readonly<Record<string, SVGTemplateResult>> = {
 
 // The wrapper, not an SVG <title>, names the icon: a <title> would add the name
 // to the label's text a second time.
-export function renderIcon(key: string, name: string) {
-  return html`<span class="icon" role="img" title=${name} aria-label=${name}
+export function renderIcon(key: string, name: string, tip: string) {
+  return html`<span class="icon" role="img" title=${name} aria-label=${name} data-tip=${tip}
     ><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[key]}</svg></span
   >`;
 }
