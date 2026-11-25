@@ -1,8 +1,10 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   CLOUD_RANGE_PAIR,
+  TEMPERATURE,
   VERDICT,
   cardStyles,
+  forecastEntity,
   moonLane,
   mountCard,
   target,
@@ -165,4 +167,52 @@ describe("the icons' styles", () => {
       expect(declarations(".icon svg")).toContain(declaration);
     },
   );
+});
+
+function keyEntry(card: PierPressureCard, series: string): HTMLElement | null {
+  return (
+    card.shadowRoot?.querySelector<HTMLElement>(
+      `.strip [data-chart="temperature"] .key [data-series="${series}"]`,
+    ) ?? null
+  );
+}
+
+describe("a Temperature chart key entry's icon", () => {
+  it.each([
+    ["temperature", "Temperature"],
+    ["dew_point", "Dew point"],
+  ])("names the %s line for hovering and for a screen reader", async (series, name) => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    const icon = keyEntry(card, series)?.querySelector(".icon");
+    expect([
+      icon?.getAttribute("role"),
+      icon?.getAttribute("title"),
+      icon?.getAttribute("aria-label"),
+    ]).toEqual(["img", name, name]);
+  });
+
+  it("sits between the line's colour sample and its name", async () => {
+    const card = await mountCard({
+      [VERDICT]: NIGHT,
+      [TEMPERATURE]: forecastEntity([["2026-10-31T21:00:00Z", 4]]),
+    });
+
+    const parts = [...(keyEntry(card, "temperature")?.children ?? [])].map((part) => part.className);
+    expect(parts).toEqual(["swatch", "icon", "name"]);
+  });
+
+  it("comes before the line's message", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    const parts = [...(keyEntry(card, "dew_point")?.children ?? [])].map((part) => part.className);
+    expect(parts).toEqual(["swatch", "icon", "name", "missing"]);
+  });
+
+  it("leaves the screen reader one name to read, the icon's", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    const name = keyEntry(card, "dew_point")?.querySelector(".name");
+    expect(name?.getAttribute("aria-hidden")).toBe("true");
+  });
 });

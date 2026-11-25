@@ -1,4 +1,5 @@
 import { css, html, nothing, svg } from "lit";
+import { renderIcon } from "./icons";
 import { hourPlace, iso, offset } from "./place";
 import type { Axis, ChartHour, ChartLine, ChartPoint, Missing, TemperatureChart } from "./strip";
 import { tipKey } from "./tap";
@@ -152,7 +153,8 @@ function renderKeyEntry(line: ChartLine) {
       : renderMissing(line.missing, tipKey.missing(`chart:${line.key}`));
   return html`<span class="entry" data-series=${line.key}>
     <span class="swatch" style=${`background-color: ${line.colour}`}></span
-    ><span class="name">${line.label}</span>${missing}
+    >${renderIcon(line.key, line.label)}<span class="name" aria-hidden="true">${line.label}</span
+    >${missing}
   </span>`;
 }
 
