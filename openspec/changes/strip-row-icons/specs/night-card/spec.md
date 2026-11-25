@@ -113,7 +113,7 @@ A tap on an icon in the strip's label column SHALL show the name of its row, lan
 Each °C label SHALL stay readable where a Temperature chart line crosses it. A label SHALL not stop hovering over or tapping the chart hour under it: hovering or tapping where a label sits SHALL show that hour's text.
 
 #### Scenario: A tap where a label sits
-- **WHEN** Home Assistant's time zone is `UTC`, the axis starts at 2026-10-31T16:30:00Z, the Temperature forecast holds 4.2 at 2026-10-31T16:00:00Z, and the user taps the `15 °C` label
+- **WHEN** Home Assistant's time zone is `UTC`, the axis starts at 2026-10-31T16:30:00Z, the Temperature forecast holds 4.2 at 2026-10-31T16:00:00Z, and the user taps the part of the `15 °C` label that lies over the hour from 16:00
 - **THEN** the card shows a box that reads `The hour from 16:00: Temperature 4.2 °C`
 
 #### Scenario: A line under a label
