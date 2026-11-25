@@ -27,7 +27,7 @@ import {
   verdictEntity,
 } from "./harness";
 import type { HassEntity, PierPressureCard } from "../src/pierpressure-card";
-import { HOUR, buildStrip } from "../src/strip";
+import { HOUR, buildStrip, dayLabel } from "../src/strip";
 
 beforeAll(async () => {
   vi.spyOn(console, "info").mockImplementation(() => {});
@@ -1311,5 +1311,36 @@ describe("the axis's time labels", () => {
 
     const label = card.shadowRoot?.querySelector<HTMLElement>(".strip .time");
     expect(label?.style.left).toBe("9.4241%");
+  });
+});
+
+describe("a day label's text", () => {
+  it("writes a one-digit day with no leading zero", () => {
+    expect(dayLabel("UTC")(Date.parse("2026-09-03T00:00:00Z"))).toBe("Thu 3 Sep");
+  });
+
+  it("writes the date in Home Assistant's time zone", () => {
+    expect(dayLabel("Asia/Tokyo")(Date.parse("2026-10-31T15:00:00Z"))).toBe("Sun 1 Nov");
+  });
+
+  it("reads the same in a browser set to Arabic", () => {
+    const Native = Intl.DateTimeFormat;
+    class ArabicByDefault extends Native {
+      constructor(locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions) {
+        super(locales ?? "ar-EG", options);
+      }
+    }
+    Intl.DateTimeFormat = ArabicByDefault as typeof Intl.DateTimeFormat;
+    try {
+      expect(dayLabel("UTC")(Date.parse("2026-10-31T16:30:00Z"))).toBe("Sat 31 Oct");
+    } finally {
+      Intl.DateTimeFormat = Native;
+    }
+  });
+
+  it("falls back to the browser's time zone for one Intl does not know", () => {
+    expect(dayLabel("Mars/Olympus_Mons")(Date.parse("2026-10-31T12:00:00Z"))).toMatch(
+      /^(Sat 31 Oct|Sun 1 Nov)$/,
+    );
   });
 });

@@ -839,13 +839,58 @@ export function clock(timeZone: string | undefined): (time: number) => string {
   };
 }
 
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+
+// Only numbers come from Intl, so every browser reads the same `Sat 31 Oct`:
+// `en-GB` writes September as `Sept` in current ICU.
+export function dayLabel(timeZone: string | undefined): (time: number) => string {
+  const format = dateFormat(timeZone);
+  return (time) => {
+    const parts = format.formatToParts(time);
+    const part = (type: Intl.DateTimeFormatPartTypes) =>
+      Number(parts.find((p) => p.type === type)?.value);
+    const [year, month, day] = [part("year"), part("month"), part("day")];
+    const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+    return `${WEEKDAYS[weekday] ?? ""} ${day} ${MONTHS[month - 1] ?? ""}`;
+  };
+}
+
+function dateFormat(timeZone: string | undefined): Intl.DateTimeFormat {
+  return localFormat(timeZone, {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    numberingSystem: "latn",
+  });
+}
+
 function timeFormat(timeZone: string | undefined): Intl.DateTimeFormat {
-  const options: Intl.DateTimeFormatOptions = {
+  return localFormat(timeZone, {
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
     numberingSystem: "latn",
-  };
+  });
+}
+
+function localFormat(
+  timeZone: string | undefined,
+  options: Intl.DateTimeFormatOptions,
+): Intl.DateTimeFormat {
   try {
     return new Intl.DateTimeFormat("en-GB", { ...options, timeZone });
   } catch (error) {
