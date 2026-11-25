@@ -69,12 +69,16 @@ export class PierPressureCard extends LitElement {
 
   static override styles = [
     css`
-    /* Holds the tap box, which is placed in px from the card's corner. The
-       layout follows the card's own width, not the window's: a card can be
-       narrow on a wide screen. ha-card has no padding, so this is its full width. */
+    /* The layout follows the card's own width, not the window's: a card can be
+       narrow on a wide screen. The host, not ha-card, is measured: a container
+       query leaves out ha-card's theme border. */
+    :host {
+      display: block;
+      container: pierpressure / inline-size;
+    }
+    /* Holds the tap box, which is placed in px from the card's corner. */
     ha-card {
       position: relative;
-      container: pierpressure / inline-size;
     }
     /* Out of the flow, so showing it moves nothing, and above the lines. A tap
        goes through it to the item under it. The colours swap the card's, so it

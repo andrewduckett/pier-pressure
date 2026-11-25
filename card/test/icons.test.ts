@@ -243,8 +243,18 @@ describe("a Temperature chart key entry's icon", () => {
 });
 
 describe("the layout", () => {
-  it("follows the card's own width", () => {
-    expect(declarations("ha-card")).toContain("container: pierpressure / inline-size");
+  // ha-card has a theme border, which a container query on it would leave out,
+  // so a 450 px card would measure 448 px.
+  it("follows the card's own width, its border included", () => {
+    expect(declarations(":host")).toContain("container: pierpressure / inline-size");
+  });
+
+  it("is measured on a block, as wide as the card", () => {
+    expect(declarations(":host")).toContain("display: block");
+  });
+
+  it("is not measured inside ha-card's border", () => {
+    expect(declarations("ha-card").filter((part) => part.startsWith("container"))).toEqual([]);
   });
 
   it("switches for a card narrower than 450 px", () => {

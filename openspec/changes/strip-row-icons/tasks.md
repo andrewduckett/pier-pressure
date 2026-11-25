@@ -23,3 +23,5 @@ These tasks all touch `card/src/pierpressure-card.ts`, so they run in order.
 ## Deviations Ledger
 
 <!-- Dated notes on small departures from the plan, written during apply. Stop and ask the user about a large one. -->
+
+- 2026-11-25, design Decision 1: the container query measures the card's host element, `pierpressure-card` with `display: block`, not `ha-card`. The browser check showed `ha-card` has a 1 px theme border on each side, and a container query measures inside it, so a 450 px card measured 448 px and took the narrow layout; the cut-off sat at 452 px. On the host, 449 px is narrow and 450 px is wide, as the spec says. No guarantee changes.
