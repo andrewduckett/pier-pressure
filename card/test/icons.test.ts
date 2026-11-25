@@ -177,6 +177,15 @@ describe("a target lane's label", () => {
     ]).toEqual(["1", "Target 1", "Target 1"]);
   });
 
+  // ARIA prohibits aria-label on a plain span, so without a role a screen
+  // reader on a narrow card reads only the bare rank number.
+  it("gives its rank number a role that lets the aria-label name it", async () => {
+    const card = await withTarget();
+
+    const rank = targetLanes(card)[0]?.querySelector(".label .rank");
+    expect(rank?.getAttribute("role")).toBe("img");
+  });
+
   it("reads Target and the rank as its name, for a screen reader too", async () => {
     const card = await withTarget();
 

@@ -922,7 +922,12 @@ function renderLabel(place: string, name: string) {
 // reader reads the lane's name once in either layout.
 function renderRankLabel(rank: number, name: string) {
   return html`<span class="label"
-    ><span class="rank" title=${name} aria-label=${name} data-tip=${tipKey.label(`target_${rank}`)}
+    ><span
+      class="rank"
+      role="img"
+      title=${name}
+      aria-label=${name}
+      data-tip=${tipKey.label(`target_${rank}`)}
       >${rank}</span
     ><span class="name">${name}</span></span
   >`;

@@ -65,7 +65,7 @@ A row's label is:
 </span>
 ```
 
-The icon names the row in both layouts, so the visible name is `aria-hidden`. A target lane's label is `<span class="rank" title="Target 1" aria-label="Target 1" data-tip="label:target_1">1</span><span class="name">Target 1</span>`. Here the name is not `aria-hidden`: on a wide card the rank is `display: none`, so the name is all a screen reader has; on a narrow card the name is `display: none` and the rank's `aria-label` speaks. `display: none` removes an element from the accessibility tree, so each layout reads the name once.
+The icon names the row in both layouts, so the visible name is `aria-hidden`. A target lane's label is `<span class="rank" role="img" title="Target 1" aria-label="Target 1" data-tip="label:target_1">1</span><span class="name">Target 1</span>`. Here the name is not `aria-hidden`: on a wide card the rank is `display: none`, so the name is all a screen reader has; on a narrow card the name is `display: none` and the rank's `aria-label` speaks. The rank needs `role="img"`: ARIA prohibits `aria-label` on a span with no role, and screen readers then read only the bare number. `display: none` removes an element from the accessibility tree, so each layout reads the name once.
 
 The `title` and `aria-label` are attributes on the wrapper, not an SVG `<title>`: a `<title>` element adds to `textContent`, and the existing tests read a label's text.
 
