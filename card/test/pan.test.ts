@@ -390,6 +390,25 @@ describe("a panned strip", () => {
     expect(axisOf(card)).toEqual(["2026-11-01T16:30:00.000Z", "2026-11-02T08:25:00.000Z"]);
   });
 
+  it("draws the day labels for the new axis", async () => {
+    const card = await mountCard(THREE_DAYS);
+    await pressTimes(card, "ArrowRight", 24);
+
+    const days = [...(stripOf(card)?.querySelectorAll<HTMLElement>(".days .day") ?? [])];
+    expect(days.map((day) => [day.textContent?.trim(), day.dataset["from"]])).toEqual([
+      ["Sun 1 Nov", "2026-11-01T16:30:00.000Z"],
+      ["Mon 2 Nov", "2026-11-02T00:00:00.000Z"],
+    ]);
+  });
+
+  it("draws the dividers for the new axis", async () => {
+    const card = await mountCard(THREE_DAYS);
+    await pressTimes(card, "ArrowRight", 24);
+
+    const dividers = [...(stripOf(card)?.querySelectorAll<HTMLElement>(".dividers .divider") ?? [])];
+    expect(dividers.map((divider) => divider.dataset["at"])).toEqual(["2026-11-02T00:00:00.000Z"]);
+  });
+
   it("keeps its axis when a minute passes", async () => {
     pinClockAndTimers("2026-11-01T12:00:00Z");
     const card = await mountCard({

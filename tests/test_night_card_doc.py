@@ -737,3 +737,37 @@ def test_docs_labels_section_says_a_narrow_card_shows_only_icons_and_rank_number
 
 def test_docs_labels_section_says_hovering_or_tapping_shows_the_name() -> None:
     assert "Hover over or tap an icon or a rank number to see its name" in _labels_section()
+
+
+def _times_section() -> str:
+    return " ".join(_section("#### Times").split())
+
+
+@pytest.mark.parametrize("term", ["day labels", "divider", "`Thu 26 Nov`"])
+def test_docs_times_names_the_day_labels(term: str) -> None:
+    assert term in _times_section()
+
+
+def test_docs_times_says_a_day_starts_in_home_assistant_s_time_zone() -> None:
+    sentences = _times_section().split(". ")
+
+    assert any("day starts" in s and "Home Assistant time zone" in s for s in sentences)
+
+
+def test_docs_times_says_the_left_edge_label_stays_as_the_strip_pans() -> None:
+    sentences = _times_section().split(". ")
+
+    assert any("left edge" in s and "pan" in s for s in sentences)
+
+
+def test_docs_times_says_a_label_with_no_room_hides_but_keeps_its_divider() -> None:
+    sentences = _times_section().split(". ")
+
+    assert any("no room" in s and "hidden" in s and "divider still shows" in s for s in sentences)
+
+
+def test_docs_pan_says_the_day_labels_move_together() -> None:
+    panning = " ".join(_section("#### Panning the strip").split("\n#### ", 1)[0].split())
+    moves = next(s for s in panning.split(". ") if "moves together" in s)
+
+    assert "day labels" in moves

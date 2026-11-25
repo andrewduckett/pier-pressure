@@ -279,7 +279,17 @@ export interface Strip {
   targets: TargetLane[];
   lines: Line[];
   labels: TimeLabel[];
+  days: Day[];
   chart: TemperatureChart;
+}
+
+// A calendar day in Home Assistant's time zone, as much of it as the axis shows.
+export interface Day {
+  from: number;
+  to: number;
+  text: string;
+  // Only when the day starts strictly inside the axis.
+  start?: number;
 }
 
 type States = Record<string, { state: string; attributes: Record<string, unknown> } | undefined>;
@@ -327,6 +337,7 @@ export function buildStrip(
     reach,
     noDarkness: window?.["start"] === null && window["end"] === null,
     labels: timeLabels(axis, time),
+    days: axisDays(axis, timeZone),
     rows,
     moonUp: moonUpBars(forecastOf(states[pierEntityId(pier, "moon_altitude")]), axis, time),
     ...(moonMissing && { moonUpMissing: moonMissing }),
@@ -827,6 +838,36 @@ function timeLabels(axis: Axis, time: (at: number) => string): TimeLabel[] {
   return labels;
 }
 
+// A day starts at the first quarter hour whose date differs from the one before,
+// so a day whose clock skips midnight starts at the first time it shows. Only a
+// later date starts a day, in case a clock goes back across midnight.
+function axisDays(axis: Axis, timeZone: string | undefined): Day[] {
+  const date = localDate(timeZone);
+  const label = dayLabel(timeZone);
+  const days: Day[] = [{ from: axis.start, to: axis.end, text: label(axis.start) }];
+  let current = dateKey(date(axis.start));
+  const first = Math.floor(axis.start / QUARTER) * QUARTER + QUARTER;
+  for (let at = first; at < axis.end; at += QUARTER) {
+    const key = dateKey(date(at));
+    if (key <= current) continue;
+    current = key;
+    const previous = days.at(-1);
+    if (previous !== undefined) previous.to = at;
+    days.push({ from: at, to: axis.end, text: label(at), start: at });
+  }
+  return days;
+}
+
+interface LocalDate {
+  year: number;
+  month: number;
+  day: number;
+}
+
+function dateKey({ year, month, day }: LocalDate): number {
+  return year * 10000 + month * 100 + day;
+}
+
 // Every viewer reads the same `HH:MM`: a pinned locale and Latin digits, so a
 // browser in Arabic or Bengali still matches the time labels' filter.
 export function clock(timeZone: string | undefined): (time: number) => string {
@@ -839,13 +880,61 @@ export function clock(timeZone: string | undefined): (time: number) => string {
   };
 }
 
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+
+// Only numbers come from Intl, so every browser reads the same `Sat 31 Oct`:
+// `en-GB` writes September as `Sept` in current ICU.
+export function dayLabel(timeZone: string | undefined): (time: number) => string {
+  const date = localDate(timeZone);
+  return (time) => {
+    const { year, month, day } = date(time);
+    const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+    return `${WEEKDAYS[weekday] ?? ""} ${day} ${MONTHS[month - 1] ?? ""}`;
+  };
+}
+
+function localDate(timeZone: string | undefined): (time: number) => LocalDate {
+  const format = localFormat(timeZone, {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    numberingSystem: "latn",
+  });
+  return (time) => {
+    const parts = format.formatToParts(time);
+    const part = (type: Intl.DateTimeFormatPartTypes) =>
+      Number(parts.find((p) => p.type === type)?.value);
+    return { year: part("year"), month: part("month"), day: part("day") };
+  };
+}
+
 function timeFormat(timeZone: string | undefined): Intl.DateTimeFormat {
-  const options: Intl.DateTimeFormatOptions = {
+  return localFormat(timeZone, {
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
     numberingSystem: "latn",
-  };
+  });
+}
+
+function localFormat(
+  timeZone: string | undefined,
+  options: Intl.DateTimeFormatOptions,
+): Intl.DateTimeFormat {
   try {
     return new Intl.DateTimeFormat("en-GB", { ...options, timeZone });
   } catch (error) {

@@ -10,6 +10,7 @@ import {
   type Band,
   type Bar,
   type Cell,
+  type Day,
   HOUR,
   type Line,
   type Strip,
@@ -208,7 +209,8 @@ export class PierPressureCard extends LitElement {
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .times {
+    .times,
+    .days {
       color: var(--secondary-text-color);
       font-size: 0.75em;
     }
@@ -292,6 +294,38 @@ export class PierPressureCard extends LitElement {
     }
     .line[data-line="now"]::after {
       border-left: 2px solid #e66767;
+    }
+    /* A label too wide for its day wraps onto a second line, below the spacer,
+       where the box clips it whole: hidden, never cut off or moved. */
+    .day {
+      position: absolute;
+      top: 0;
+      display: flex;
+      flex-wrap: wrap;
+      height: 16px;
+      overflow: hidden;
+      line-height: 16px;
+    }
+    .day .spacer {
+      width: 0;
+      height: 16px;
+    }
+    .day .text {
+      padding-left: 4px;
+      white-space: nowrap;
+    }
+    .dividers {
+      position: absolute;
+      pointer-events: none;
+    }
+    /* No hover text, so a tap on one closes any open box. */
+    .divider {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      transform: translateX(-50%);
+      background-color: var(--divider-color, #898781);
     }
     .bar {
       position: absolute;
@@ -843,10 +877,11 @@ function renderBack(strip: Strip | undefined, onBack: () => void) {
 function renderStrip(strip: Strip | undefined, input: StripInput) {
   if (strip === undefined) return nothing;
   // Grid row 1 holds the line labels, then come the rows, the Moon up lane, the
-  // target lanes, the Temperature chart and the time labels. The lines' overlay
-  // spans from the first row to the bottom of the Temperature chart.
-  const gridRows = strip.rows.length + strip.targets.length + 4;
+  // target lanes, the Temperature chart, the time labels and the day labels. The
+  // lines' overlay spans from the first row to the bottom of the Temperature chart.
+  const gridRows = strip.rows.length + strip.targets.length + 5;
   const laneEnd = strip.rows.length + strip.targets.length + 4;
+  const timesRow = laneEnd;
   return html`<div
     class="strip"
     style=${`grid-template-rows: repeat(${gridRows}, auto)`}
@@ -903,6 +938,11 @@ function renderStrip(strip: Strip | undefined, input: StripInput) {
     <div class="track times">
       ${strip.labels.map((label) => renderTimeLabel(label, strip.axis))}
     </div>
+    <span></span>
+    <div class="track days">${strip.days.map((day) => renderDay(day, strip.axis))}</div>
+    <div class="dividers" style=${`grid-column: 2; grid-row: ${timesRow} / span 2; inset: 0`}>
+      ${strip.days.map((day) => renderDivider(day, strip.axis))}
+    </div>
     <div class="lines" style=${`grid-column: 2; grid-row: 2 / ${laneEnd}; inset: 0; z-index: 1`}>
       ${strip.lines.map((line) => renderLine(line, strip.axis))}
     </div>
@@ -954,6 +994,19 @@ function renderLine(line: Line, axis: Axis) {
 function renderTimeLabel(label: TimeLabel, axis: Axis) {
   const style = `left: ${offset(label.at, axis)}%`;
   return html`<span class="time" style=${style} data-at=${iso(label.at)}>${label.text}</span>`;
+}
+
+function renderDay(day: Day, axis: Axis) {
+  const style = `left: ${offset(day.from, axis)}%; width: ${share(day.to - day.from, axis)}%`;
+  return html`<div class="day" style=${style} data-from=${iso(day.from)} data-to=${iso(day.to)}>
+    <span class="spacer"></span><span class="text">${day.text}</span>
+  </div>`;
+}
+
+function renderDivider(day: Day, axis: Axis) {
+  if (day.start === undefined) return nothing;
+  const style = `left: ${offset(day.start, axis)}%`;
+  return html`<div class="divider" style=${style} data-at=${iso(day.start)}></div>`;
 }
 
 function renderCell(cell: Cell, row: string, axis: Axis) {

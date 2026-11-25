@@ -27,7 +27,7 @@ import {
   verdictEntity,
 } from "./harness";
 import type { HassEntity, PierPressureCard } from "../src/pierpressure-card";
-import { HOUR, buildStrip } from "../src/strip";
+import { HOUR, buildStrip, dayLabel } from "../src/strip";
 
 beforeAll(async () => {
   vi.spyOn(console, "info").mockImplementation(() => {});
@@ -1244,7 +1244,7 @@ describe("the lines' overlay", () => {
     const card = await mountCard(ONE_FORECAST);
 
     expect([
-      strip(card)?.getAttribute("style")?.includes("grid-template-rows: repeat(18, auto)"),
+      strip(card)?.getAttribute("style")?.includes("grid-template-rows: repeat(19, auto)"),
       overlay(card)?.getAttribute("style")?.includes("grid-row: 2 / 18"),
     ]).toEqual([true, true]);
   });
@@ -1252,7 +1252,7 @@ describe("the lines' overlay", () => {
   it("gives the strip one explicit grid row for each of its rows", async () => {
     const card = await mountCard({ [VERDICT]: NIGHT });
 
-    expect(strip(card)?.getAttribute("style")).toContain("grid-template-rows: repeat(18, auto)");
+    expect(strip(card)?.getAttribute("style")).toContain("grid-template-rows: repeat(19, auto)");
   });
 });
 
@@ -1311,5 +1311,99 @@ describe("the axis's time labels", () => {
 
     const label = card.shadowRoot?.querySelector<HTMLElement>(".strip .time");
     expect(label?.style.left).toBe("9.4241%");
+  });
+});
+
+describe("a day label's text", () => {
+  it("writes a one-digit day with no leading zero", () => {
+    expect(dayLabel("UTC")(Date.parse("2026-09-03T00:00:00Z"))).toBe("Thu 3 Sep");
+  });
+
+  it("writes the date in Home Assistant's time zone", () => {
+    expect(dayLabel("Asia/Tokyo")(Date.parse("2026-10-31T15:00:00Z"))).toBe("Sun 1 Nov");
+  });
+
+  it("reads the same in a browser set to Arabic", () => {
+    const Native = Intl.DateTimeFormat;
+    class ArabicByDefault extends Native {
+      constructor(locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions) {
+        super(locales ?? "ar-EG", options);
+      }
+    }
+    Intl.DateTimeFormat = ArabicByDefault as typeof Intl.DateTimeFormat;
+    try {
+      expect(dayLabel("UTC")(Date.parse("2026-10-31T16:30:00Z"))).toBe("Sat 31 Oct");
+    } finally {
+      Intl.DateTimeFormat = Native;
+    }
+  });
+
+  it("falls back to the browser's time zone for one Intl does not know", () => {
+    expect(dayLabel("Mars/Olympus_Mons")(Date.parse("2026-10-31T12:00:00Z"))).toMatch(
+      /^(Sat 31 Oct|Sun 1 Nov)$/,
+    );
+  });
+});
+
+describe("the axis's days", () => {
+  // The night is 4 hours after the axis start to 5 hours before its end.
+  function days(start: string, end: string, timeZone: string) {
+    const dusk = new Date(Date.parse(start) + 4 * HOUR).toISOString();
+    const dawn = new Date(Date.parse(end) - 5 * HOUR).toISOString();
+    const states = { [VERDICT]: verdictEntity("GO", { dark_window: { start: dusk, end: dawn } }) };
+    return buildStrip(states, "backyard", Date.parse(start), timeZone).days.map((day) => ({
+      ...day,
+      from: new Date(day.from).toISOString(),
+      to: new Date(day.to).toISOString(),
+      ...(day.start !== undefined && { start: new Date(day.start).toISOString() }),
+    }));
+  }
+
+  it("splits one night in UTC at midnight", () => {
+    expect(days("2026-10-31T16:30:00Z", "2026-11-01T08:25:00Z", "UTC")).toEqual([
+      { from: "2026-10-31T16:30:00.000Z", to: "2026-11-01T00:00:00.000Z", text: "Sat 31 Oct" },
+      {
+        from: "2026-11-01T00:00:00.000Z",
+        to: "2026-11-01T08:25:00.000Z",
+        text: "Sun 1 Nov",
+        start: "2026-11-01T00:00:00.000Z",
+      },
+    ]);
+  });
+
+  it("holds one day when no day starts on the axis", () => {
+    expect(days("2026-10-31T16:30:00Z", "2026-11-01T08:25:00Z", "Asia/Tokyo")).toEqual([
+      { from: "2026-10-31T16:30:00.000Z", to: "2026-11-01T08:25:00.000Z", text: "Sun 1 Nov" },
+    ]);
+  });
+
+  it("gives no start to a day that starts as the axis starts", () => {
+    expect(days("2026-11-01T00:00:00Z", "2026-11-01T15:55:00Z", "UTC")).toEqual([
+      { from: "2026-11-01T00:00:00.000Z", to: "2026-11-01T15:55:00.000Z", text: "Sun 1 Nov" },
+    ]);
+  });
+
+  it("splits a polar-night axis at midnight", () => {
+    expect(
+      days("2026-12-20T07:00:00Z", "2026-12-21T16:00:00Z", "UTC").map(({ text, start }) => [
+        text,
+        start,
+      ]),
+    ).toEqual([
+      ["Sun 20 Dec", undefined],
+      ["Mon 21 Dec", "2026-12-21T00:00:00.000Z"],
+    ]);
+  });
+
+  // Chile's clocks go from 23:59 on 5 September 2026 to 01:00 on 6 September.
+  it("starts a day whose clock skips midnight at the first time it shows", () => {
+    expect(
+      days("2026-09-05T22:00:00Z", "2026-09-06T14:00:00Z", "America/Santiago").map(
+        ({ text, start }) => [text, start],
+      ),
+    ).toEqual([
+      ["Sat 5 Sep", undefined],
+      ["Sun 6 Sep", "2026-09-06T04:00:00.000Z"],
+    ]);
   });
 });
