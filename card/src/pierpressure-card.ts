@@ -295,6 +295,19 @@ export class PierPressureCard extends LitElement {
     .line[data-line="now"]::after {
       border-left: 2px solid #e66767;
     }
+    .dividers {
+      position: absolute;
+      pointer-events: none;
+    }
+    /* No hover text, so a tap on one closes any open box. */
+    .divider {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      transform: translateX(-50%);
+      background-color: var(--divider-color, #898781);
+    }
     .bar {
       position: absolute;
       top: 0;
@@ -849,6 +862,7 @@ function renderStrip(strip: Strip | undefined, input: StripInput) {
   // lines' overlay spans from the first row to the bottom of the Temperature chart.
   const gridRows = strip.rows.length + strip.targets.length + 5;
   const laneEnd = strip.rows.length + strip.targets.length + 4;
+  const timesRow = laneEnd;
   return html`<div
     class="strip"
     style=${`grid-template-rows: repeat(${gridRows}, auto)`}
@@ -907,6 +921,9 @@ function renderStrip(strip: Strip | undefined, input: StripInput) {
     </div>
     <span></span>
     <div class="track days">${strip.days.map((day) => renderDay(day, strip.axis))}</div>
+    <div class="dividers" style=${`grid-column: 2; grid-row: ${timesRow} / span 2; inset: 0`}>
+      ${strip.days.map((day) => renderDivider(day, strip.axis))}
+    </div>
     <div class="lines" style=${`grid-column: 2; grid-row: 2 / ${laneEnd}; inset: 0; z-index: 1`}>
       ${strip.lines.map((line) => renderLine(line, strip.axis))}
     </div>
@@ -965,6 +982,12 @@ function renderDay(day: Day, axis: Axis) {
   return html`<div class="day" style=${style} data-from=${iso(day.from)} data-to=${iso(day.to)}>
     <span class="text">${day.text}</span>
   </div>`;
+}
+
+function renderDivider(day: Day, axis: Axis) {
+  if (day.start === undefined) return nothing;
+  const style = `left: ${offset(day.start, axis)}%`;
+  return html`<div class="divider" style=${style} data-at=${iso(day.start)}></div>`;
 }
 
 function renderCell(cell: Cell, row: string, axis: Axis) {

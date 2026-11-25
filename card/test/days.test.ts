@@ -65,3 +65,58 @@ describe("the day labels", () => {
     );
   });
 });
+
+function dividers(card: PierPressureCard): HTMLElement[] {
+  return [...(card.shadowRoot?.querySelectorAll<HTMLElement>(".strip .dividers .divider") ?? [])];
+}
+
+describe("the dividers", () => {
+  it("mark the start of each day that starts on the axis", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect(dividers(card).map((divider) => divider.dataset["at"])).toEqual([
+      "2026-11-01T00:00:00.000Z",
+    ]);
+  });
+
+  it("leave out a day that starts off the axis", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT }, "backyard", "Asia/Tokyo");
+
+    expect(dividers(card)).toEqual([]);
+  });
+
+  it("place a divider in percent of the axis", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    expect(dividers(card)[0]?.style.left).toBe("47.1204%");
+  });
+
+  // Rows 2 to 15 hold the fourteen rows, 16 the Moon up lane, 17 the
+  // Temperature chart, 18 the time labels and 19 the day labels.
+  it("cross only the time-label and day-label rows", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    const style = card.shadowRoot?.querySelector(".strip .dividers")?.getAttribute("style") ?? "";
+    expect([style.includes("grid-column: 2"), style.includes("grid-row: 18 / span 2")]).toEqual([
+      true,
+      true,
+    ]);
+  });
+
+  it("have no hover text", async () => {
+    const card = await mountCard({ [VERDICT]: NIGHT });
+
+    const divider = dividers(card)[0];
+    expect(["title", "aria-label", "data-tip"].map((name) => divider?.hasAttribute(name))).toEqual([
+      false,
+      false,
+      false,
+    ]);
+  });
+
+  it("draw a 1 px solid rule in Home Assistant's divider colour", () => {
+    expect(cardStyles()).toMatch(
+      /\.divider\s*\{[^}]*width: 1px;[^}]*background-color: var\(--divider-color, #898781\);/,
+    );
+  });
+});
