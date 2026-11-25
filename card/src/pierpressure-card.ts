@@ -2,6 +2,7 @@ import { LitElement, css, html, nothing, svg } from "lit";
 import { chartStyles, renderChart, renderMissing } from "./chart";
 import { EDITOR_TYPE } from "./editor";
 import { listPiers, pierSlug, verdictEntityId } from "./entity";
+import { iconStyles, renderIcon } from "./icons";
 import { type MoonDrawing, type MoonView, litPath, readMoon } from "./moon";
 import { hourPlace, iso, offset, share } from "./place";
 import {
@@ -163,9 +164,20 @@ export class PierPressureCard extends LitElement {
       display: contents;
     }
     .label {
+      display: flex;
+      align-items: center;
+      gap: 4px;
       color: var(--secondary-text-color);
       font-size: 0.85em;
       line-height: 16px;
+      white-space: nowrap;
+    }
+    /* As wide as an icon, so a one-digit and a two-digit rank line up. */
+    .rank {
+      flex-shrink: 0;
+      min-width: 16px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
     }
     .track {
       position: relative;
@@ -305,6 +317,7 @@ export class PierPressureCard extends LitElement {
     }
   `,
     chartStyles,
+    iconStyles,
   ];
 
   // Home Assistant sets hass after setConfig and after the card is attached.
@@ -830,7 +843,7 @@ function renderStrip(strip: Strip | undefined, input: StripInput) {
     ${strip.rows.map(
       (row) =>
         html`<div class="row" data-row=${row.key}>
-          <span class="label">${row.label}</span>
+          <span class="label">${renderIcon(row.key, row.label)}${renderName(row.label)}</span>
           <div class="track">
             ${row.cells.map((cell) => renderCell(cell, row.key, strip.axis))}
             ${(row.bands ?? []).map((band) => renderBand(band, strip.axis))}
@@ -839,7 +852,7 @@ function renderStrip(strip: Strip | undefined, input: StripInput) {
         </div>`,
     )}
     <div class="row" data-lane="moon_up">
-      <span class="label">Moon up</span>
+      <span class="label">${renderIcon("moon_up", "Moon up")}${renderName("Moon up")}</span>
       <div class="track">
         ${strip.moonUp.map((bar) => renderBar(bar, tipKey.moonUp(bar.start), strip.axis))}
         ${
@@ -852,7 +865,9 @@ function renderStrip(strip: Strip | undefined, input: StripInput) {
     ${strip.targets.map(
       (lane) =>
         html`<div class="row" data-lane=${`target_${lane.rank}`}>
-          <span class="label">${lane.label}</span>
+          <span class="label">${renderRank(lane.rank, lane.label)}<span class="name"
+              >${lane.label}</span
+            ></span>
           <div class="track">
             ${lane.bars.map((bar) =>
               renderBar(bar, tipKey.target(lane.rank, bar.night), strip.axis, bar),
@@ -869,6 +884,15 @@ function renderStrip(strip: Strip | undefined, input: StripInput) {
       ${strip.lines.map((line) => renderLine(line, strip.axis))}
     </div>
   </div>`;
+}
+
+// The icon beside it names the row for a screen reader.
+function renderName(name: string) {
+  return html`<span class="name" aria-hidden="true">${name}</span>`;
+}
+
+function renderRank(rank: number, name: string) {
+  return html`<span class="rank" title=${name} aria-label=${name}>${rank}</span>`;
 }
 
 function renderMark(line: Line, axis: Axis) {

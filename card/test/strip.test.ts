@@ -143,7 +143,7 @@ describe("the rows", () => {
   it("start with Sun altitude, Moon altitude, then the cloud rows with Cloud range", async () => {
     const card = await mountCard({ [VERDICT]: verdictEntity("GO"), ...CLOUD_RANGE_PAIR });
 
-    const labels = rows(card).map((row) => row.querySelector(".label")?.textContent?.trim());
+    const labels = rows(card).map((row) => row.querySelector(".label .name")?.textContent?.trim());
     expect(labels.slice(0, 7)).toEqual([
       "Sun altitude",
       "Moon altitude",
@@ -382,7 +382,7 @@ describe("a missing cloud sensor leaves an empty row", () => {
     const card = await mountCard(states);
 
     const row = rows(card).find((element) => element.dataset["row"] === "cloud_high");
-    expect(row?.querySelector(".label")?.textContent?.trim()).toBe("Cloud high");
+    expect(row?.querySelector(".label .name")?.textContent?.trim()).toBe("Cloud high");
     expect([cells(card, "cloud_high"), rowMessage(card, "cloud_high")?.textContent]).toEqual([
       [],
       message,
@@ -468,7 +468,7 @@ describe("the Sun altitude row", () => {
 
     const row = rows(card).find((element) => element.dataset["row"] === "sun_altitude");
     expect([
-      row?.querySelector(".label")?.textContent?.trim(),
+      row?.querySelector(".label .name")?.textContent?.trim(),
       cells(card, "sun_altitude").length,
       rowMessage(card, "sun_altitude")?.textContent,
     ]).toEqual(["Sun altitude", 0, "Unavailable"]);
@@ -576,7 +576,7 @@ describe("the Moon up lane", () => {
 
     const lane = moonLane(card);
     expect([
-      lane?.querySelector(".label")?.textContent?.trim(),
+      lane?.querySelector(".label .name")?.textContent?.trim(),
       (lane?.previousElementSibling as HTMLElement | null)?.dataset["row"],
     ]).toEqual(["Moon up", "precipitation_probability"]);
   });
@@ -706,7 +706,7 @@ describe("the Moon up lane", () => {
     });
 
     expect([
-      moonLane(card)?.querySelector(".label")?.textContent?.trim(),
+      moonLane(card)?.querySelector(".label .name")?.textContent?.trim(),
       bars(card),
       rowMessage(card, "moon_up")?.textContent,
     ]).toEqual(["Moon up", [], message]);
@@ -1222,7 +1222,7 @@ describe("the lines' overlay", () => {
   it("leaves the Cloud range row out of the rows' order", async () => {
     const card = await mountCard(ONE_FORECAST);
 
-    const labels = rows(card).map((row) => row.querySelector(".label")?.textContent?.trim());
+    const labels = rows(card).map((row) => row.querySelector(".label .name")?.textContent?.trim());
     expect(labels).toEqual([
       "Sun altitude",
       "Moon altitude",

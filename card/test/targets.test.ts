@@ -38,7 +38,7 @@ const EVENING = { start: "2026-10-31T21:00:00Z", end: "2026-11-01T02:00:00Z" };
 const MORNING = { start: "2026-11-01T01:00:00Z", end: "2026-11-01T03:00:00Z" };
 
 function labels(card: PierPressureCard): Array<string | undefined> {
-  return targetLanes(card).map((lane) => lane.querySelector(".label")?.textContent?.trim());
+  return targetLanes(card).map((lane) => lane.querySelector(".label .name")?.textContent?.trim());
 }
 
 describe("the target lanes", () => {
@@ -131,7 +131,7 @@ describe("a rank with no target tonight", () => {
   it("leaves no lane when Home Assistant has no Target sensors", async () => {
     const card = await mountCard({ [VERDICT]: NIGHT });
 
-    expect([targetLanes(card), moonLane(card)?.querySelector(".label")?.textContent]).toEqual([
+    expect([targetLanes(card), moonLane(card)?.querySelector(".label .name")?.textContent]).toEqual([
       [],
       "Moon up",
     ]);
